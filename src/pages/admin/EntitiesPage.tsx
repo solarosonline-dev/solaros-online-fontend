@@ -95,6 +95,7 @@ export default function EntitiesPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>GST</th>
                 <th>Type</th>
                 <th>State</th>
                 <th>Founder</th>
@@ -106,14 +107,22 @@ export default function EntitiesPage() {
               {entities.map((entity) => {
                 const action = nextAction(entity);
                 const rowError = rowErrors[entity.entity_id];
+                const founderVerified = entity.founder_state === "ACTIVE";
                 return (
                   <tr key={entity.entity_id}>
                     <td>{entity.name}</td>
+                    <td>{entity.gstno}</td>
                     <td>{entity.type}</td>
                     <td>
                       <span className={`entity-state-badge state-${entity.state}`}>{entity.state}</span>
                     </td>
-                    <td>{entity.founder_state}</td>
+                    <td>
+                      <div>{entity.founder_email}</div>
+                      <div className="entities-founder-phone">{entity.founder_phone}</div>
+                      <span className={`entity-founder-badge${founderVerified ? " verified" : " pending"}`}>
+                        {founderVerified ? "Verified" : "Pending verification"}
+                      </span>
+                    </td>
                     <td>{new Date(entity.created_at).toLocaleDateString()}</td>
                     <td>
                       {action && (

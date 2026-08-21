@@ -6,8 +6,11 @@ export type AdminEntity = {
   entity_id: number;
   name: string;
   type: string;
+  gstno: string;
   state: EntityState;
   founder_state: string;
+  founder_email: string;
+  founder_phone: string;
   created_at: string;
   approved_at: string | null;
 };
