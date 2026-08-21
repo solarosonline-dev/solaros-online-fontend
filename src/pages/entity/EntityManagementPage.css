@@ -1,0 +1,232 @@
+.entity-mgmt {
+  max-width: 900px;
+}
+
+.entity-mgmt h1 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+
+.entity-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--app-border);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.entity-tabs button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.entity-tabs button.active {
+  color: var(--app-accent);
+  border-bottom-color: var(--app-accent);
+}
+
+.entity-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 24px;
+}
+
+.entity-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  max-width: 480px;
+}
+
+.entity-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.entity-field .entity-field-help {
+  font-size: 12px;
+  color: var(--app-text-muted);
+  font-weight: 400;
+}
+
+.entity-field input,
+.entity-field select,
+.entity-field textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-sizing: border-box;
+}
+
+.entity-field input:disabled {
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}
+
+.entity-field textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.entity-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  max-width: 480px;
+}
+
+.entity-color-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.entity-color-field input[type="color"] {
+  width: 40px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.entity-color-swatch {
+  font-size: 13px;
+  font-family: var(--app-font);
+  color: var(--app-text-muted);
+}
+
+.entity-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.entity-logo-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  object-fit: contain;
+  background: var(--app-bg);
+}
+
+.entity-logo-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px dashed var(--app-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.entity-save-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.entity-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.entity-btn.primary {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.entity-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.entity-status {
+  font-size: 13px;
+}
+
+.entity-status.success {
+  color: #166534;
+}
+
+.entity-status.error {
+  color: var(--app-danger);
+}
+
+.entity-loading {
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+}
+
+.entity-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.entity-users-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.entity-users-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.entity-invite-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.entity-invite-form .entity-field {
+  margin-bottom: 0;
+  max-width: 180px;
+}
+
+.entity-role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}

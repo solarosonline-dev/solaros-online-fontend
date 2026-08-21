@@ -31,14 +31,16 @@ type RequestOptions = {
 
 export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, auth = true } = opts;
+  const isFormData = body instanceof FormData;
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {};
+  if (!isFormData) headers["Content-Type"] = "application/json";
   if (auth && authToken) headers.Authorization = `Bearer ${authToken}`;
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body != null ? JSON.stringify(body) : undefined,
+    body: isFormData ? body : body != null ? JSON.stringify(body) : undefined,
   });
 
   if (res.status === 204) return undefined as T;

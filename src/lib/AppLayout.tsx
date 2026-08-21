@@ -22,7 +22,7 @@ export default function AppLayout() {
         </div>
         <nav className="app-nav">
           {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
-          {!systemAdmin && <NavLink to="/app">Dashboard</NavLink>}
+          {!systemAdmin && user?.entity_id && <NavLink to="/app/entity">Entity Settings</NavLink>}
         </nav>
       </aside>
       <div className="app-main">
