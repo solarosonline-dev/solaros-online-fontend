@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../lib/AuthContext";
-import "./LoginPage.css";
+import "./auth.css";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -71,6 +71,10 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="auth-footnote">
+          New EPC? <Link to="/register">Register your business</Link>
+        </p>
       </div>
     </div>
   );

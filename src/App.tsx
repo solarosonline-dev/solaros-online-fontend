@@ -4,6 +4,8 @@ import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
 import AppLayout from "./lib/AppLayout";
 import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
+import ActivatePage from "./pages/auth/ActivatePage";
 import LandingPage from "./pages/public/LandingPage";
 import HomeRedirect from "./pages/HomeRedirect";
 import EntitiesPage from "./pages/admin/EntitiesPage";
@@ -15,6 +17,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/activate" element={<ActivatePage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />

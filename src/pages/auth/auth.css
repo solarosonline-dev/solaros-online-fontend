@@ -20,6 +20,10 @@
   box-sizing: border-box;
 }
 
+.auth-card--wide {
+  max-width: 520px;
+}
+
 .auth-logo {
   display: flex;
   align-items: center;
@@ -48,6 +52,19 @@
   color: var(--app-text-muted);
 }
 
+.auth-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+  margin: 24px 0 12px;
+}
+
+.auth-section-label:first-of-type {
+  margin-top: 0;
+}
+
 .auth-field {
   display: flex;
   flex-direction: column;
@@ -61,7 +78,8 @@
   color: var(--app-text);
 }
 
-.auth-field input {
+.auth-field input,
+.auth-field select {
   font-family: inherit;
   font-size: 14px;
   padding: 10px 12px;
@@ -73,10 +91,17 @@
   transition: border-color 0.15s ease;
 }
 
-.auth-field input:focus {
+.auth-field input:focus,
+.auth-field select:focus {
   outline: none;
   border-color: var(--app-accent);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.auth-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .auth-error {
@@ -110,4 +135,30 @@
 .auth-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.auth-footnote {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.auth-footnote a {
+  color: var(--app-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-footnote a:hover {
+  text-decoration: underline;
+}
+
+.auth-success {
+  text-align: center;
+}
+
+.auth-success-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
 }
