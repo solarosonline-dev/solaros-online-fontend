@@ -25,7 +25,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    if (password && password !== confirmPassword) {
+    if (password !== confirmPassword) {
       setError("Passwords don't match.");
       return;
     }
@@ -34,7 +34,7 @@ export default function RegisterPage() {
     try {
       const res = await registerEntity({
         entity: { name, type, gstno, address },
-        admin_user: { full_name: fullName, email, phone, password: password || undefined },
+        admin_user: { full_name: fullName, email, phone, password },
       });
       setSuccessMessage(res.message);
     } catch (err) {
@@ -133,13 +133,14 @@ export default function RegisterPage() {
 
           <div className="auth-field-row">
             <div className="auth-field">
-              <label htmlFor="password">Password <span className="auth-optional">(optional)</span></label>
+              <label htmlFor="password">Password</label>
               <input
                 id="password"
                 type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
             </div>
             <div className="auth-field">
@@ -150,13 +151,12 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={!password}
+                required
               />
             </div>
           </div>
           <p className="auth-hint">
-            Set it now, or leave blank and set it from the activation email instead. If set, it needs at least 8
-            characters, one uppercase letter, one number, and one special character.
+            At least 8 characters, one uppercase letter, one number, and one special character.
           </p>
 
           {error && (
