@@ -65,6 +65,17 @@
   margin-top: 0;
 }
 
+.auth-optional {
+  font-weight: 400;
+  color: var(--app-text-muted);
+}
+
+.auth-hint {
+  margin: -8px 0 16px;
+  font-size: 12px;
+  color: var(--app-text-muted);
+}
+
 .auth-field {
   display: flex;
   flex-direction: column;

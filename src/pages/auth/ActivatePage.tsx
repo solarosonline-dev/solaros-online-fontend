@@ -18,14 +18,14 @@ export default function ActivatePage() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
+    if (password && password !== confirmPassword) {
       setError("Passwords don't match.");
       return;
     }
 
     setLoading(true);
     try {
-      await activateAccount(token!, password);
+      await activateAccount(token!, password || undefined);
       setActivated(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -73,19 +73,20 @@ export default function ActivatePage() {
         <div className="auth-logo">
           Solar<em>OS</em>
         </div>
-        <h1 className="auth-title">Set your password</h1>
-        <p className="auth-subtitle">Choose a password to activate your account.</p>
+        <h1 className="auth-title">Activate your account</h1>
+        <p className="auth-subtitle">
+          If you didn't already set a password when registering, choose one now.
+        </p>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="auth-field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">Password <span className="auth-optional">(skip if already set)</span></label>
             <input
               id="password"
               type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
             />
           </div>
           <div className="auth-field">
@@ -96,7 +97,7 @@ export default function ActivatePage() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              required
+              disabled={!password}
             />
           </div>
 

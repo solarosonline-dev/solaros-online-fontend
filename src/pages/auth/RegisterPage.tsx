@@ -14,6 +14,8 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,11 +24,17 @@ export default function RegisterPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (password && password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await registerEntity({
         entity: { name, type, gstno, address },
-        admin_user: { full_name: fullName, email, phone },
+        admin_user: { full_name: fullName, email, phone, password: password || undefined },
       });
       setSuccessMessage(res.message);
     } catch (err) {
@@ -122,6 +130,34 @@ export default function RegisterPage() {
               <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
           </div>
+
+          <div className="auth-field-row">
+            <div className="auth-field">
+              <label htmlFor="password">Password <span className="auth-optional">(optional)</span></label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="auth-field">
+              <label htmlFor="confirmPassword">Confirm password</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={!password}
+              />
+            </div>
+          </div>
+          <p className="auth-hint">
+            Set it now, or leave blank and set it from the activation email instead. If set, it needs at least 8
+            characters, one uppercase letter, one number, and one special character.
+          </p>
 
           {error && (
             <p className="auth-error" role="alert">
