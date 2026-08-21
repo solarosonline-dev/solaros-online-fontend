@@ -13,6 +13,7 @@ import EntityManagementPage from "./pages/entity/EntityManagementPage";
 import UsersPage from "./pages/entity/UsersPage";
 import LeadsPage from "./pages/leads/LeadsPage";
 import LeadDetailPage from "./pages/leads/LeadDetailPage";
+import AmcPlansPage from "./pages/amc/AmcPlansPage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="/app/users" element={<UsersPage />} />
               <Route path="/app/leads" element={<LeadsPage />} />
               <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
+              <Route path="/app/amc-plans" element={<AmcPlansPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
               </Route>
