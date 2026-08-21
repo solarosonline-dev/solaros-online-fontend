@@ -17,6 +17,8 @@ import AmcPlansPage from "./pages/amc/AmcPlansPage";
 import QuoteBuilderPage from "./pages/quotes/QuoteBuilderPage";
 import PublicQuotePage from "./pages/quotes/PublicQuotePage";
 import QuotesPage from "./pages/quotes/QuotesPage";
+import AgreementBuilderPage from "./pages/agreements/AgreementBuilderPage";
+import PublicAgreementPage from "./pages/agreements/PublicAgreementPage";
 
 export default function App() {
   return (
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/activate" element={<ActivatePage />} />
           <Route path="/q/:token" element={<PublicQuotePage />} />
+          <Route path="/a/:token" element={<PublicAgreementPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />
@@ -36,6 +39,7 @@ export default function App() {
               <Route path="/app/leads" element={<LeadsPage />} />
               <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
               <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
               <Route path="/app/quotes" element={<QuotesPage />} />
               <Route path="/app/amc-plans" element={<AmcPlansPage />} />
               <Route element={<RequireSystemAdmin />}>

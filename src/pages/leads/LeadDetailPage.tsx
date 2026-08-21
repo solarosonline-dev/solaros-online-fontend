@@ -168,6 +168,13 @@ export default function LeadDetailPage() {
           <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">
             {lead.status === "NEW" ? "Generate quote" : "View quote"}
           </Link>
+          {(lead.status === "QUOTE_ACCEPTED" ||
+            lead.status === "AGREEMENT_GENERATED" ||
+            lead.status === "AGREEMENT_ACCEPTED") && (
+            <Link to={`/app/leads/${lead.lead_id}/agreement`} className="leads-btn primary">
+              {lead.status === "QUOTE_ACCEPTED" ? "Generate agreement" : "View agreement"}
+            </Link>
+          )}
           {actions.map((a) => (
             <button
               key={a.target}
