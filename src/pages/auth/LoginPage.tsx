@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       signIn(res);
-      navigate("/");
+      navigate("/app");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {
