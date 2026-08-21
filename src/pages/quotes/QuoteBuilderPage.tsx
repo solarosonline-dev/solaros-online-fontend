@@ -112,6 +112,8 @@ export default function QuoteBuilderPage() {
           setForm({
             ...DEFAULT_FORM,
             capacity: leadRes.sanctioned_load != null ? String(leadRes.sanctioned_load) : DEFAULT_FORM.capacity,
+            pricePerWatt: String(prefs.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
+            notes: prefs.document_customization.quote_notes.join("\n"),
             terms: prefs.document_customization.custom_terms_and_conditions,
           });
         }

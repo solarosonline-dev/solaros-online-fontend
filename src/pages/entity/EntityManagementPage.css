@@ -78,6 +78,51 @@
   color: var(--app-text-muted);
 }
 
+.entity-line-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entity-line-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+  font-size: 14px;
+  color: var(--app-text);
+}
+
+.entity-line-remove {
+  border: none;
+  background: none;
+  color: var(--app-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.entity-line-remove:hover {
+  color: var(--app-danger);
+}
+
+.entity-line-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.entity-line-add-row input {
+  flex: 1;
+}
+
 .entity-field textarea {
   resize: vertical;
   font-family: inherit;
