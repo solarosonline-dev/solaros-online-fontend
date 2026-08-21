@@ -6,6 +6,43 @@
   justify-content: space-between;
 }
 
+.leads-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.leads-filters input[type="search"] {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  min-width: 220px;
+}
+
+.leads-filters select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.leads-table tbody tr {
+  cursor: pointer;
+}
+
+.leads-table tbody tr:hover {
+  background: var(--app-bg);
+}
+
 .leads-table-wrap {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
@@ -166,4 +203,33 @@
 
 .leads-status.error {
   color: var(--app-danger);
+}
+
+/* Lead detail page */
+.lead-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.lead-detail-back {
+  font-size: 13px;
+  color: var(--app-accent);
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.lead-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lead-detail-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 24px;
+  max-width: 640px;
 }
