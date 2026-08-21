@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../lib/AuthContext";
+import "./LoginPage.css";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -28,20 +29,49 @@ export default function LoginPage() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h1>Sign in</h1>
-      <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={loading}>
-        {loading ? "Signing in…" : "Sign in"}
-      </button>
-    </form>
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-logo">
+          Solar<em>OS</em>
+        </div>
+        <h1 className="auth-title">Sign in</h1>
+        <p className="auth-subtitle">Sign in to your SolarOS account.</p>
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="auth-field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {error && (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
