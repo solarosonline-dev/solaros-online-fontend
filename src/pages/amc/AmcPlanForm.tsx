@@ -11,6 +11,7 @@ type Props = {
 
 export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props) {
   const [name, setName] = useState(plan?.name ?? "");
+  const [ratePerKw, setRatePerKw] = useState(plan?.rate_per_kw ?? "");
   const [inclusions, setInclusions] = useState<string[]>(plan?.inclusion ?? []);
   const [newItem, setNewItem] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -45,12 +46,14 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
     }
     setNameError(null);
 
+    const rate = ratePerKw.trim() ? Number(ratePerKw) : undefined;
+
     setSubmitting(true);
     try {
       if (plan) {
-        await updateAmcPlan(entityId, plan.amc_id, { name: name.trim(), inclusion: inclusions });
+        await updateAmcPlan(entityId, plan.amc_id, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
       } else {
-        await createAmcPlan(entityId, { name: name.trim(), inclusion: inclusions });
+        await createAmcPlan(entityId, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
       }
       onSaved();
     } catch (err) {
@@ -67,6 +70,18 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
           <label htmlFor="amcName">Plan name</label>
           <input id="amcName" type="text" value={name} onChange={(e) => setName(e.target.value)} />
           {nameError && <p className="amc-field-error">{nameError}</p>}
+        </div>
+
+        <div className="amc-field">
+          <label htmlFor="amcRatePerKw">Rate (₹ per kW / year)</label>
+          <input
+            id="amcRatePerKw"
+            type="number"
+            min={0}
+            step="0.01"
+            value={ratePerKw}
+            onChange={(e) => setRatePerKw(e.target.value)}
+          />
         </div>
 
         <div className="amc-field">

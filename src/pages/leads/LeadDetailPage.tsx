@@ -164,20 +164,21 @@ export default function LeadDetailPage() {
         <h1 style={{ margin: 0 }}>
           {lead.name} <span className="lead-status-badge">{lead.status}</span>
         </h1>
-        {actions.length > 0 && (
-          <div className="lead-detail-actions">
-            {actions.map((a) => (
-              <button
-                key={a.target}
-                className={`leads-btn${a.primary ? " primary" : ""}`}
-                disabled={transitioning}
-                onClick={() => handleTransition(a.target)}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="lead-detail-actions">
+          <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">
+            {lead.status === "NEW" ? "Generate quote" : "View quote"}
+          </Link>
+          {actions.map((a) => (
+            <button
+              key={a.target}
+              className={`leads-btn${a.primary ? " primary" : ""}`}
+              disabled={transitioning}
+              onClick={() => handleTransition(a.target)}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="lead-detail-panel">

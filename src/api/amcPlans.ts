@@ -4,6 +4,8 @@ export type AmcPlan = {
   amc_id: number;
   entity_id: number;
   name: string;
+  /** Decimal, serialized as a string by the backend. */
+  rate_per_kw: string | null;
   inclusion: string[];
   is_active: boolean;
 };
@@ -15,11 +17,15 @@ export function listAmcPlans(entityId: number, params: { is_active?: boolean } =
   return apiRequest<{ items: AmcPlan[] }>(`/entities/${entityId}/amc-plans${query ? `?${query}` : ""}`);
 }
 
-export function createAmcPlan(entityId: number, data: { name: string; inclusion: string[] }) {
+export function createAmcPlan(entityId: number, data: { name: string; rate_per_kw?: number; inclusion: string[] }) {
   return apiRequest<AmcPlan>(`/entities/${entityId}/amc-plans`, { method: "POST", body: data });
 }
 
-export function updateAmcPlan(entityId: number, amcId: number, data: { name?: string; inclusion?: string[] }) {
+export function updateAmcPlan(
+  entityId: number,
+  amcId: number,
+  data: { name?: string; rate_per_kw?: number; inclusion?: string[] },
+) {
   return apiRequest<AmcPlan>(`/entities/${entityId}/amc-plans/${amcId}`, { method: "PATCH", body: data });
 }
 

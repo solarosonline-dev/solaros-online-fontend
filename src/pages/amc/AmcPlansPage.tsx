@@ -108,6 +108,7 @@ export default function AmcPlansPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Rate (₹/kW/yr)</th>
                 <th>Inclusions</th>
                 <th>Status</th>
                 <th />
@@ -117,6 +118,7 @@ export default function AmcPlansPage() {
               {plans.map((plan) => (
                 <tr key={plan.amc_id}>
                   <td>{plan.name}</td>
+                  <td>{plan.rate_per_kw ?? "—"}</td>
                   <td>
                     {plan.inclusion.length > 0 ? (
                       <ul className="amc-inclusion-list">
