@@ -231,9 +231,9 @@ function extractSanctionedLoad(text: string): number | null {
 
 function extractPhase(text: string): string | null {
   if (/3\s*Phase|Three\s*Phase/i.test(text)) return "3 Phase";
-  if (/Single\s*Phase|1\s*Phase/i.test(text)) return "Single";
+  if (/Single\s*Phase|1\s*Phase/i.test(text)) return "Single Phase";
   const sanctionedLoad = extractSanctionedLoad(text);
-  if (sanctionedLoad !== null) return sanctionedLoad > 10 ? "3 Phase" : "Single";
+  if (sanctionedLoad !== null) return sanctionedLoad > 10 ? "3 Phase" : "Single Phase";
   return null;
 }
 

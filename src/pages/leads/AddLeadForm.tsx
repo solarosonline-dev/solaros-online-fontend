@@ -3,8 +3,7 @@ import { createLead, type CreateLeadInput } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import type { ExtractedBillData } from "../../lib/billExtractor";
 import BillUploadWidget from "./BillUploadWidget";
-
-const METER_TYPES = ["Single", "3 Phase"];
+import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
 
@@ -114,13 +113,14 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           </div>
           <div className="add-lead-field">
             <label htmlFor="leadType">Type</label>
-            <input
-              id="leadType"
-              type="text"
-              placeholder="e.g. Residential"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            />
+            <select id="leadType" value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">—</option>
+              {LEAD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -152,7 +152,14 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         <div className="add-lead-field-row">
           <div className="add-lead-field">
             <label htmlFor="leadDiscom">Discom</label>
-            <input id="leadDiscom" type="text" value={discom} onChange={(e) => setDiscom(e.target.value)} />
+            <select id="leadDiscom" value={discom} onChange={(e) => setDiscom(e.target.value)}>
+              <option value="">—</option>
+              {DISCOMS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="add-lead-field">
             <label htmlFor="leadRoofArea">Roof area (sq ft)</label>

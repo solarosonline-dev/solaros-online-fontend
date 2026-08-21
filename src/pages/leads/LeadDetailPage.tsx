@@ -12,9 +12,8 @@ import {
 import { ApiError } from "../../api/client";
 import type { ExtractedBillData } from "../../lib/billExtractor";
 import BillUploadWidget from "./BillUploadWidget";
+import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
 import "./LeadsPage.css";
-
-const METER_TYPES = ["Single", "3 Phase"];
 
 function manualTransitions(status: LeadStatus): { label: string; target: ManualLeadStatus; primary: boolean }[] {
   switch (status) {
@@ -227,12 +226,18 @@ export default function LeadDetailPage() {
             </div>
             <div className="add-lead-field">
               <label htmlFor="detailType">Type</label>
-              <input
+              <select
                 id="detailType"
-                type="text"
                 value={draft.type}
                 onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-              />
+              >
+                <option value="">—</option>
+                {LEAD_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -267,12 +272,18 @@ export default function LeadDetailPage() {
           <div className="add-lead-field-row">
             <div className="add-lead-field">
               <label htmlFor="detailDiscom">Discom</label>
-              <input
+              <select
                 id="detailDiscom"
-                type="text"
                 value={draft.discom}
                 onChange={(e) => setDraft({ ...draft, discom: e.target.value })}
-              />
+              >
+                <option value="">—</option>
+                {DISCOMS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="add-lead-field">
               <label htmlFor="detailRoofArea">Roof area (sq ft)</label>
