@@ -10,6 +10,7 @@ import LandingPage from "./pages/public/LandingPage";
 import HomeRedirect from "./pages/HomeRedirect";
 import EntitiesPage from "./pages/admin/EntitiesPage";
 import EntityManagementPage from "./pages/entity/EntityManagementPage";
+import UsersPage from "./pages/entity/UsersPage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />
               <Route path="/app/entity" element={<EntityManagementPage />} />
+              <Route path="/app/users" element={<UsersPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
               </Route>

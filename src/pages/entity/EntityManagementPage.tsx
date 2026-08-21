@@ -14,10 +14,9 @@ import BrandingTab from "./tabs/BrandingTab";
 import TypographyTab from "./tabs/TypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
-import UsersTab from "./tabs/UsersTab";
 import "./EntityManagementPage.css";
 
-type Tab = "business" | "branding" | "typography" | "documents" | "pricing" | "users";
+type Tab = "business" | "branding" | "typography" | "documents" | "pricing";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "business", label: "Business info" },
@@ -25,7 +24,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "typography", label: "Typography" },
   { key: "documents", label: "Documents" },
   { key: "pricing", label: "Pricing & language" },
-  { key: "users", label: "Team" },
 ];
 
 const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
@@ -150,22 +148,19 @@ export default function EntityManagementPage() {
             onChangeLanguage={(language) => setPrefs({ ...prefs, language })}
           />
         )}
-        {tab === "users" && <UsersTab entityId={entityId} />}
       </div>
 
-      {tab !== "users" && (
-        <div className="entity-save-bar">
-          <button className="entity-btn primary" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+      <div className="entity-save-bar">
+        <button className="entity-btn primary" onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+        {RESETTABLE_CATEGORY[tab] && (
+          <button className="entity-btn" onClick={handleReset} disabled={saving}>
+            Reset to defaults
           </button>
-          {RESETTABLE_CATEGORY[tab] && (
-            <button className="entity-btn" onClick={handleReset} disabled={saving}>
-              Reset to defaults
-            </button>
-          )}
-          {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
-        </div>
-      )}
+        )}
+        {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
+      </div>
     </div>
   );
 }
