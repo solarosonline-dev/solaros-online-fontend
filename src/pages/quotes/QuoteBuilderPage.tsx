@@ -577,10 +577,21 @@ export default function QuoteBuilderPage() {
             </tbody>
           </table>
 
-          <p style={{ fontSize: 13, color: "var(--app-text-muted)" }}>
+          <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: form.terms.length > 0 ? 20 : 0 }}>
             {computed.co2Tons.toFixed(1)} tons CO₂ avoided/year · {Math.round(computed.trees)} tree-equivalent ·{" "}
             {formatINR(computed.lifetimeNet)} lifetime net savings (25 yr)
           </p>
+
+          {form.terms.length > 0 && (
+            <>
+              <p className="quote-section-label">Terms &amp; conditions</p>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
+                {form.terms.map((term, i) => (
+                  <li key={i}>{term}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       </div>
     </div>
