@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { createAmcPlan, updateAmcPlan, type AmcPlan } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
 
@@ -9,19 +9,31 @@ type Props = {
   onCancel: () => void;
 };
 
-function toArray(text: string): string[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
 export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props) {
   const [name, setName] = useState(plan?.name ?? "");
-  const [inclusionText, setInclusionText] = useState(plan?.inclusion.join("\n") ?? "");
+  const [inclusions, setInclusions] = useState<string[]>(plan?.inclusion ?? []);
+  const [newItem, setNewItem] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function handleAddItem() {
+    const trimmed = newItem.trim();
+    if (!trimmed) return;
+    setInclusions([...inclusions, trimmed]);
+    setNewItem("");
+  }
+
+  function handleNewItemKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddItem();
+    }
+  }
+
+  function handleRemoveItem(index: number) {
+    setInclusions(inclusions.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,14 +45,12 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
     }
     setNameError(null);
 
-    const inclusion = toArray(inclusionText);
-
     setSubmitting(true);
     try {
       if (plan) {
-        await updateAmcPlan(entityId, plan.amc_id, { name: name.trim(), inclusion });
+        await updateAmcPlan(entityId, plan.amc_id, { name: name.trim(), inclusion: inclusions });
       } else {
-        await createAmcPlan(entityId, { name: name.trim(), inclusion });
+        await createAmcPlan(entityId, { name: name.trim(), inclusion: inclusions });
       }
       onSaved();
     } catch (err) {
@@ -60,13 +70,34 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
         </div>
 
         <div className="amc-field">
-          <label htmlFor="amcInclusion">Inclusions (one per line)</label>
-          <textarea
-            id="amcInclusion"
-            rows={5}
-            value={inclusionText}
-            onChange={(e) => setInclusionText(e.target.value)}
-          />
+          <label htmlFor="amcInclusionInput">Inclusions</label>
+
+          {inclusions.length > 0 && (
+            <ul className="amc-inclusion-editor-list">
+              {inclusions.map((item, i) => (
+                <li key={i}>
+                  <span>{item}</span>
+                  <button type="button" className="amc-inclusion-remove" onClick={() => handleRemoveItem(i)}>
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="amc-inclusion-add-row">
+            <input
+              id="amcInclusionInput"
+              type="text"
+              placeholder="e.g. Bi-annual panel cleaning"
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={handleNewItemKeyDown}
+            />
+            <button type="button" className="amc-btn" onClick={handleAddItem}>
+              + Add
+            </button>
+          </div>
         </div>
 
         {submitError && (

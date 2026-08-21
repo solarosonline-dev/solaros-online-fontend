@@ -70,6 +70,51 @@
   color: var(--app-danger);
 }
 
+.amc-inclusion-editor-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.amc-inclusion-editor-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+  font-size: 14px;
+  color: var(--app-text);
+}
+
+.amc-inclusion-remove {
+  border: none;
+  background: none;
+  color: var(--app-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.amc-inclusion-remove:hover {
+  color: var(--app-danger);
+}
+
+.amc-inclusion-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.amc-inclusion-add-row input {
+  flex: 1;
+}
+
 .amc-table-wrap {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
