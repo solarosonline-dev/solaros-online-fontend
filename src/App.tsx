@@ -16,6 +16,7 @@ import LeadDetailPage from "./pages/leads/LeadDetailPage";
 import AmcPlansPage from "./pages/amc/AmcPlansPage";
 import QuoteBuilderPage from "./pages/quotes/QuoteBuilderPage";
 import PublicQuotePage from "./pages/quotes/PublicQuotePage";
+import QuotesPage from "./pages/quotes/QuotesPage";
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/app/leads" element={<LeadsPage />} />
               <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
               <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+              <Route path="/app/quotes" element={<QuotesPage />} />
               <Route path="/app/amc-plans" element={<AmcPlansPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />

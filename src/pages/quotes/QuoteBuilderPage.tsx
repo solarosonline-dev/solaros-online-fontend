@@ -534,10 +534,21 @@ export default function QuoteBuilderPage() {
             </tbody>
           </table>
 
-          {computed.amcTotalCost != null && (
-            <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: 16 }}>
-              AMC: {formatINR(computed.amcTotalCost)} total over {form.amcDurationYears} year(s)
-            </p>
+          {selectedAmcPlan && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: 6 }}>
+                {selectedAmcPlan.name}
+                {computed.amcTotalCost != null &&
+                  ` — ${formatINR(computed.amcTotalCost)} total over ${form.amcDurationYears} year(s)`}
+              </p>
+              {selectedAmcPlan.inclusion.length > 0 && (
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
+                  {selectedAmcPlan.inclusion.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
 
           <p className="quote-section-label">Payment schedule</p>
