@@ -1,0 +1,98 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  font-family: var(--app-font);
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--app-surface);
+  border-right: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+}
+
+.app-sidebar-logo {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 0 20px 20px;
+}
+
+.app-sidebar-logo em {
+  color: var(--app-accent);
+  font-style: normal;
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 12px;
+}
+
+.app-nav a {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--app-text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.app-nav a:hover {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-nav a.active {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--app-accent);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.app-topbar-user {
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.app-topbar-signout {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.app-topbar-signout:hover {
+  background: var(--app-bg);
+}
+
+.app-content {
+  flex: 1;
+  padding: 24px;
+}
