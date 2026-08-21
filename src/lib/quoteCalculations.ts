@@ -44,7 +44,7 @@ export type QuoteComputeResult = {
 
 /** PM Surya Ghar suggested subsidy ladder — residential only, used as a
  * default when no explicit subsidy amount is set. */
-function subsidyForKw(kw: number, segment: string | null): number {
+export function subsidyForKw(kw: number, segment: string | null): number {
   if (segment !== "residential") return 0;
   if (kw <= 1) return 30000;
   if (kw <= 2) return 60000;

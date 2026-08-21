@@ -13,7 +13,7 @@ import {
   type QuoteDetail,
 } from "../../api/quotes";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR } from "../../lib/quoteCalculations";
+import { computeQuote, formatINR, subsidyForKw } from "../../lib/quoteCalculations";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -67,6 +67,7 @@ export default function QuoteBuilderPage() {
 
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [newTerm, setNewTerm] = useState("");
+  const [subsidyTouched, setSubsidyTouched] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
@@ -107,12 +108,15 @@ export default function QuoteBuilderPage() {
             notes: quote.notes ?? "",
             terms: quote.terms ?? [],
           });
+          setSubsidyTouched(true);
         } else {
           const prefs = await getEntityPreferences(entityId);
+          const capacity = leadRes.sanctioned_load != null ? leadRes.sanctioned_load : Number(DEFAULT_FORM.capacity);
           setForm({
             ...DEFAULT_FORM,
-            capacity: leadRes.sanctioned_load != null ? String(leadRes.sanctioned_load) : DEFAULT_FORM.capacity,
+            capacity: String(capacity),
             pricePerWatt: String(prefs.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
+            subsidyAmount: String(subsidyForKw(capacity, leadRes.type)),
             // Quote notes are folded into terms (not kept as separate free text) so they're
             // individually addable/removable the same way as the rest of the terms list.
             terms: [
@@ -120,6 +124,7 @@ export default function QuoteBuilderPage() {
               ...prefs.document_customization.quote_notes,
             ],
           });
+          setSubsidyTouched(false);
         }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
@@ -130,6 +135,15 @@ export default function QuoteBuilderPage() {
     () => amcPlans.find((p) => String(p.amc_id) === form.amcId) ?? null,
     [amcPlans, form.amcId],
   );
+
+  // Keep the suggested subsidy amount in sync with capacity/segment until the
+  // admin explicitly edits it — matches the preview, which falls back to the
+  // same ladder when the field is left blank.
+  useEffect(() => {
+    if (subsidyTouched || !lead) return;
+    const suggested = subsidyForKw(Number(form.capacity) || 0, lead.type);
+    setForm((f) => (f.subsidyAmount === String(suggested) ? f : { ...f, subsidyAmount: String(suggested) }));
+  }, [form.capacity, lead, subsidyTouched]);
 
   const computed = useMemo(() => {
     return computeQuote({
@@ -366,14 +380,17 @@ export default function QuoteBuilderPage() {
             {form.applySubsidy && (
               <div className="quote-field">
                 <label htmlFor="qSubsidyAmount">
-                  Subsidy amount (₹) <span style={{ fontWeight: 400, color: "var(--app-text-muted)" }}>(optional — falls back to the PM Surya Ghar ladder for residential)</span>
+                  Subsidy amount (₹) <span style={{ fontWeight: 400, color: "var(--app-text-muted)" }}>(prefilled from the PM Surya Ghar ladder for residential — edit to override)</span>
                 </label>
                 <input
                   id="qSubsidyAmount"
                   type="number"
                   disabled={locked}
                   value={form.subsidyAmount}
-                  onChange={(e) => setForm({ ...form, subsidyAmount: e.target.value })}
+                  onChange={(e) => {
+                    setSubsidyTouched(true);
+                    setForm({ ...form, subsidyAmount: e.target.value });
+                  }}
                 />
               </div>
             )}
@@ -386,7 +403,14 @@ export default function QuoteBuilderPage() {
                   id="qAmcId"
                   disabled={locked}
                   value={form.amcId}
-                  onChange={(e) => setForm({ ...form, amcId: e.target.value })}
+                  onChange={(e) => {
+                    const amcId = e.target.value;
+                    setForm({
+                      ...form,
+                      amcId,
+                      amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                    });
+                  }}
                 >
                   <option value="">None</option>
                   {amcPlans.map((p) => (
