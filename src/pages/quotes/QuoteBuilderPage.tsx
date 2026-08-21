@@ -113,8 +113,12 @@ export default function QuoteBuilderPage() {
             ...DEFAULT_FORM,
             capacity: leadRes.sanctioned_load != null ? String(leadRes.sanctioned_load) : DEFAULT_FORM.capacity,
             pricePerWatt: String(prefs.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
-            notes: prefs.document_customization.quote_notes.join("\n"),
-            terms: prefs.document_customization.custom_terms_and_conditions,
+            // Quote notes are folded into terms (not kept as separate free text) so they're
+            // individually addable/removable the same way as the rest of the terms list.
+            terms: [
+              ...prefs.document_customization.custom_terms_and_conditions,
+              ...prefs.document_customization.quote_notes,
+            ],
           });
         }
       })
