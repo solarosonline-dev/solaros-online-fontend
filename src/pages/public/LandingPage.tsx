@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import "../../legacy-styles.css";
 import { useRevealOnScroll } from "./useRevealOnScroll";
-import { submitDemoLead } from "./submitDemoLead";
+import { submitDemoRequest } from "../../api/demoRequests";
+import { ApiError } from "../../api/client";
 
 const SALES_PHONE = "+918383810048";
 const SALES_PHONE_DISPLAY = "+91 83838 10048";
@@ -572,19 +573,19 @@ function Contact() {
 
     setSubmitting(true);
     try {
-      await submitDemoLead({
+      await submitDemoRequest({
         name: data.name,
         email: data.email,
         company: data.company,
         type: data.type,
-        teamsize: data.teamsize,
-        projects: data.projects,
+        team_size: data.teamsize,
+        active_projects: data.projects,
         notes: data.notes,
       });
       setSubmitted(true);
     } catch (err) {
       setError(
-        `Could not submit right now — please try again or WhatsApp us at ${SALES_PHONE_DISPLAY}. ${err instanceof Error ? err.message : ""}`,
+        `Could not submit right now — please try again or WhatsApp us at ${SALES_PHONE_DISPLAY}. ${err instanceof ApiError ? err.message : ""}`,
       );
     } finally {
       setSubmitting(false);
