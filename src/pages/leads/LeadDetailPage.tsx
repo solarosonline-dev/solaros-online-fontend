@@ -10,6 +10,8 @@ import {
   type ManualLeadStatus,
 } from "../../api/leads";
 import { ApiError } from "../../api/client";
+import type { ExtractedBillData } from "../../lib/billExtractor";
+import BillUploadWidget from "./BillUploadWidget";
 import "./LeadsPage.css";
 
 const METER_TYPES = ["Single", "3 Phase"];
@@ -83,6 +85,20 @@ export default function LeadDetailPage() {
   }
 
   useEffect(load, [entityId, leadId]);
+
+  function handleExtracted(data: ExtractedBillData) {
+    if (!draft) return;
+    // Deliberately not autofilling name/mobile here — those identify an
+    // existing lead and shouldn't be overwritten by a re-uploaded bill.
+    setDraft({
+      ...draft,
+      address: data.supplyAddress ?? draft.address,
+      email: data.email ?? draft.email,
+      sanctioned_load: data.sanctionedLoad != null ? String(data.sanctionedLoad) : draft.sanctioned_load,
+      metertype: data.phase ?? draft.metertype,
+      discom: data.provider && data.provider !== "Unknown" ? data.provider : draft.discom,
+    });
+  }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -166,6 +182,8 @@ export default function LeadDetailPage() {
       </div>
 
       <div className="lead-detail-panel">
+        <BillUploadWidget onExtracted={handleExtracted} />
+
         <form onSubmit={handleSave} noValidate>
           <div className="add-lead-field">
             <label htmlFor="detailName">Name</label>

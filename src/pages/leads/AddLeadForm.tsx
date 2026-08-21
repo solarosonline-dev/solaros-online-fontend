@@ -1,13 +1,8 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { createLead, type CreateLeadInput } from "../../api/leads";
 import { ApiError } from "../../api/client";
-import {
-  extractBillFromFile,
-  calculateAverageConsumption,
-  calculateAverageUnits,
-  suggestSystemSize,
-  type ExtractedBillData,
-} from "../../lib/billExtractor";
+import type { ExtractedBillData } from "../../lib/billExtractor";
+import BillUploadWidget from "./BillUploadWidget";
 
 const METER_TYPES = ["Single", "3 Phase"];
 
@@ -20,11 +15,6 @@ type Props = {
 };
 
 export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
-  const [extractSummary, setExtractSummary] = useState<string | null>(null);
-
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [address, setAddress] = useState("");
@@ -39,37 +29,14 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setExtractError(null);
-    setExtractSummary(null);
-    setExtracting(true);
-    try {
-      const data: ExtractedBillData = await extractBillFromFile(file);
-
-      if (data.customerName) setName(data.customerName);
-      if (data.mobile) setMobile(data.mobile.replace(/\D/g, "").slice(-10));
-      if (data.supplyAddress) setAddress(data.supplyAddress);
-      if (data.email) setEmail(data.email);
-      if (data.sanctionedLoad != null) setSanctionedLoad(String(data.sanctionedLoad));
-      if (data.phase) setMetertype(data.phase);
-      if (data.provider && data.provider !== "Unknown") setDiscom(data.provider);
-
-      const avgBill = calculateAverageConsumption(data);
-      const avgUnits = calculateAverageUnits(data);
-      const suggestion = suggestSystemSize(data);
-      const parts: string[] = [];
-      if (suggestion) parts.push(`~${suggestion.recommendedKW} kW suggested system size`);
-      if (avgBill) parts.push(`₹${avgBill}/mo avg bill`);
-      if (avgUnits) parts.push(`${avgUnits} kWh/mo avg usage`);
-      setExtractSummary(parts.length ? parts.join(" · ") : "Extracted what we could — please check the fields below.");
-    } catch (err) {
-      setExtractError(err instanceof Error ? err.message : "Couldn't read this PDF — please fill the form manually.");
-    } finally {
-      setExtracting(false);
-    }
+  function handleExtracted(data: ExtractedBillData) {
+    if (data.customerName) setName(data.customerName);
+    if (data.mobile) setMobile(data.mobile.replace(/\D/g, "").slice(-10));
+    if (data.supplyAddress) setAddress(data.supplyAddress);
+    if (data.email) setEmail(data.email);
+    if (data.sanctionedLoad != null) setSanctionedLoad(String(data.sanctionedLoad));
+    if (data.phase) setMetertype(data.phase);
+    if (data.provider && data.provider !== "Unknown") setDiscom(data.provider);
   }
 
   function validate(): FieldErrors {
@@ -119,21 +86,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
   return (
     <div className="add-lead-panel">
-      <div className="add-lead-upload">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          style={{ display: "none" }}
-          onChange={handleFileSelect}
-        />
-        <button type="button" className="leads-btn" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
-          {extracting ? "Reading bill…" : "📄 Autofill from electricity bill (PDF)"}
-        </button>
-        <span className="add-lead-upload-status">optional — fills in the fields below</span>
-        {extractError && <p className="add-lead-upload-status error">{extractError}</p>}
-        {extractSummary && <div className="add-lead-summary">{extractSummary}</div>}
-      </div>
+      <BillUploadWidget onExtracted={handleExtracted} />
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="add-lead-field">
