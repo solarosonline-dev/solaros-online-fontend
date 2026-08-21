@@ -20,6 +20,7 @@ import QuotesPage from "./pages/quotes/QuotesPage";
 import AgreementBuilderPage from "./pages/agreements/AgreementBuilderPage";
 import PublicAgreementPage from "./pages/agreements/PublicAgreementPage";
 import AgreementsPage from "./pages/agreements/AgreementsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/app/amc-plans" element={<AmcPlansPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
+                <Route path="/app/admin/users" element={<AdminUsersPage />} />
               </Route>
             </Route>
           </Route>

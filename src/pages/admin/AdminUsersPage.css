@@ -1,0 +1,50 @@
+.admin-users-page h1 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+
+.admin-users-invite-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.admin-users-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 200px;
+}
+
+.admin-users-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.admin-users-field input,
+.admin-users-field select {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-sizing: border-box;
+}
+
+.admin-users-role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+  margin-right: 4px;
+}
