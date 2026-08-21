@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { registerEntity } from "../../api/entityRegistration";
 import { ApiError } from "../../api/client";
+import { validateRegisterForm, type RegisterFieldErrors } from "./registerValidation";
 import "./auth.css";
 
 const ENTITY_TYPES = ["EPC", "Financier (NBFC/Bank)", "RESCO Investor/Asset Owner", "O&M Vendor"];
@@ -17,6 +18,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -25,15 +27,23 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError("Passwords don't match.");
-      return;
-    }
+    const errors = validateRegisterForm({
+      name,
+      gstno,
+      address,
+      fullName,
+      email,
+      phone,
+      password,
+      confirmPassword,
+    });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     setLoading(true);
     try {
       const res = await registerEntity({
-        entity: { name, type, gstno, address },
+        entity: { name, type, gstno: gstno.trim().toUpperCase(), address },
         admin_user: { full_name: fullName, email, phone, password },
       });
       setSuccessMessage(res.message);
@@ -75,7 +85,8 @@ export default function RegisterPage() {
 
           <div className="auth-field">
             <label htmlFor="name">Business name</label>
-            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
+            {fieldErrors.name && <p className="auth-field-error">{fieldErrors.name}</p>}
           </div>
 
           <div className="auth-field-row">
@@ -91,26 +102,23 @@ export default function RegisterPage() {
             </div>
             <div className="auth-field">
               <label htmlFor="gstno">GST number</label>
-              <input id="gstno" type="text" value={gstno} onChange={(e) => setGstno(e.target.value)} required />
+              <input id="gstno" type="text" value={gstno} onChange={(e) => setGstno(e.target.value)} />
+              {fieldErrors.gstno && <p className="auth-field-error">{fieldErrors.gstno}</p>}
             </div>
           </div>
 
           <div className="auth-field">
             <label htmlFor="address">Address</label>
-            <input id="address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} required />
+            <input id="address" type="text" value={address} onChange={(e) => setAddress(e.target.value)} />
+            {fieldErrors.address && <p className="auth-field-error">{fieldErrors.address}</p>}
           </div>
 
           <p className="auth-section-label">Your details (founding admin)</p>
 
           <div className="auth-field">
             <label htmlFor="fullName">Full name</label>
-            <input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
+            <input id="fullName" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            {fieldErrors.fullName && <p className="auth-field-error">{fieldErrors.fullName}</p>}
           </div>
 
           <div className="auth-field-row">
@@ -122,12 +130,13 @@ export default function RegisterPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
               />
+              {fieldErrors.email && <p className="auth-field-error">{fieldErrors.email}</p>}
             </div>
             <div className="auth-field">
               <label htmlFor="phone">Phone</label>
-              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              {fieldErrors.phone && <p className="auth-field-error">{fieldErrors.phone}</p>}
             </div>
           </div>
 
@@ -140,8 +149,8 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
               />
+              {fieldErrors.password && <p className="auth-field-error">{fieldErrors.password}</p>}
             </div>
             <div className="auth-field">
               <label htmlFor="confirmPassword">Confirm password</label>
@@ -151,8 +160,8 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                required
               />
+              {fieldErrors.confirmPassword && <p className="auth-field-error">{fieldErrors.confirmPassword}</p>}
             </div>
           </div>
           <p className="auth-hint">

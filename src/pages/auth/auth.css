@@ -84,6 +84,12 @@
   color: var(--app-text);
 }
 
+.auth-field-error {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--app-danger);
+}
+
 .auth-field input,
 .auth-field select {
   font-family: inherit;
