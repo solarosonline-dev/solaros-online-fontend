@@ -1,0 +1,169 @@
+.leads-page h1 {
+  font-size: 20px;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.leads-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.leads-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.leads-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-bg);
+}
+
+.leads-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.leads-table tr:last-child td {
+  border-bottom: none;
+}
+
+.lead-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}
+
+.leads-empty,
+.leads-loading {
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+}
+
+/* Add-lead panel */
+.add-lead-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 24px;
+  max-width: 640px;
+}
+
+.add-lead-upload {
+  border: 1px dashed var(--app-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.add-lead-upload-status {
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.add-lead-upload-status.success {
+  color: #166534;
+}
+
+.add-lead-upload-status.error {
+  color: var(--app-danger);
+}
+
+.add-lead-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--app-bg);
+  font-size: 13px;
+  color: var(--app-text);
+  width: 100%;
+}
+
+.add-lead-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.add-lead-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.add-lead-field input,
+.add-lead-field select,
+.add-lead-field textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-sizing: border-box;
+}
+
+.add-lead-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.add-lead-field-error {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--app-danger);
+}
+
+.leads-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.leads-btn.primary {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.leads-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.leads-status {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.leads-status.error {
+  color: var(--app-danger);
+}

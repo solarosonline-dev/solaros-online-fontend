@@ -11,6 +11,7 @@ import HomeRedirect from "./pages/HomeRedirect";
 import EntitiesPage from "./pages/admin/EntitiesPage";
 import EntityManagementPage from "./pages/entity/EntityManagementPage";
 import UsersPage from "./pages/entity/UsersPage";
+import LeadsPage from "./pages/leads/LeadsPage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/app" element={<HomeRedirect />} />
               <Route path="/app/entity" element={<EntityManagementPage />} />
               <Route path="/app/users" element={<UsersPage />} />
+              <Route path="/app/leads" element={<LeadsPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
               </Route>
