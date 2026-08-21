@@ -222,18 +222,18 @@ export default function QuoteBuilderPage() {
     }
   }
 
-  async function handleShare() {
+  // POST .../share is idempotent — it returns the same stable URL on every
+  // call once the quote's first share link exists — so we can fetch it
+  // eagerly as soon as a quote exists, instead of waiting for a button click.
+  useEffect(() => {
     if (!leadId || !existingQuote) return;
     setSharing(true);
-    try {
-      const res = await shareQuote(entityId, Number(leadId), existingQuote.quote_id);
-      setShareUrl(res.share_url);
-    } catch (err) {
-      setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not generate share link" });
-    } finally {
-      setSharing(false);
-    }
-  }
+    setShareUrl(null);
+    shareQuote(entityId, Number(leadId), existingQuote.quote_id)
+      .then((res) => setShareUrl(res.share_url))
+      .catch((err) => setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not load share link" }))
+      .finally(() => setSharing(false));
+  }, [entityId, leadId, existingQuote?.quote_id]);
 
   if (loading) return <div className="quote-loading">Loading…</div>;
   if (loadError || !lead) {
@@ -500,18 +500,17 @@ export default function QuoteBuilderPage() {
           </form>
 
           {existingQuote && (
-            <>
-              <button className="quote-btn" onClick={handleShare} disabled={sharing} style={{ marginTop: 16 }}>
-                {sharing ? "Generating…" : "Get share link"}
-              </button>
-              {shareUrl && (
-                <div className="quote-share-box">
-                  <a href={shareUrl} target="_blank" rel="noreferrer">
-                    {shareUrl}
-                  </a>
-                </div>
+            <div className="quote-share-box" style={{ marginTop: 16 }}>
+              {sharing ? (
+                "Loading share link…"
+              ) : shareUrl ? (
+                <a href={shareUrl} target="_blank" rel="noreferrer">
+                  {shareUrl}
+                </a>
+              ) : (
+                "Could not load share link."
               )}
-            </>
+            </div>
           )}
         </div>
 
