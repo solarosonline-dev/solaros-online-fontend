@@ -10,6 +10,7 @@ import {
   type ManualLeadStatus,
 } from "../../api/leads";
 import { ApiError } from "../../api/client";
+import { getProjectForLead, type ProjectForLead } from "../../api/projects";
 import type { ExtractedBillData } from "../../lib/billExtractor";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
@@ -59,6 +60,7 @@ export default function LeadDetailPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [project, setProject] = useState<ProjectForLead | null>(null);
 
   function load() {
     if (!leadId) return;
@@ -84,6 +86,13 @@ export default function LeadDetailPage() {
   }
 
   useEffect(load, [entityId, leadId]);
+
+  useEffect(() => {
+    if (!leadId || lead?.status !== "AGREEMENT_ACCEPTED") return;
+    getProjectForLead(entityId, Number(leadId))
+      .then(setProject)
+      .catch(() => {});
+  }, [entityId, leadId, lead?.status]);
 
   function handleExtracted(data: ExtractedBillData) {
     if (!draft) return;
@@ -173,6 +182,11 @@ export default function LeadDetailPage() {
             lead.status === "AGREEMENT_ACCEPTED") && (
             <Link to={`/app/leads/${lead.lead_id}/agreement`} className="leads-btn primary">
               {lead.status === "QUOTE_ACCEPTED" ? "Generate agreement" : "View agreement"}
+            </Link>
+          )}
+          {project && (
+            <Link to={`/app/projects/${project.project_id}`} className="leads-btn primary">
+              View project
             </Link>
           )}
           {actions.map((a) => (

@@ -26,6 +26,7 @@ export default function AppLayout() {
           {!systemAdmin && user?.entity_id && <NavLink to="/app/leads">Leads</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/quotes">Quotes</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/agreements">Agreements</NavLink>}
+          {!systemAdmin && user?.entity_id && <NavLink to="/app/projects">Projects</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/amc-plans">AMC Plans</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/entity">Entity Settings</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/users">Users</NavLink>}

@@ -29,7 +29,7 @@ src/App.tsx            all routing — public routes, /login|/register|/activate
                        RequireSystemAdmin
 ```
 
-`src/pages/projects/` and `src/pages/teams/` exist as empty directories from the initial scaffold — Phases 8 and 10 haven't been built yet, don't assume anything lives there.
+`src/pages/teams/` exists as an empty directory from the initial scaffold — Phase 10 hasn't been built yet, don't assume anything lives there. `src/pages/projects/` now holds Phase 8 (`ProjectsPage`, `ProjectDetailPage`).
 
 ## Conventions to follow
 
@@ -80,7 +80,7 @@ Phases roughly follow the backend's `usecases.txt` ordering. As of this writing:
 | 5 | Leads (list/add/detail/edit/status, PDF bill autofill) | Done |
 | 6 | Quotes (builder, live calc, share, public accept) | Done |
 | 7 | Agreements (builder, share, public accept) | Done |
-| 8 | Project lifecycle | **Not started** — a `Project` row already auto-creates on agreement acceptance (confirmed working backend-side), just no frontend for it yet |
+| 8 | Project lifecycle | Done — list (`/app/projects`, default view excludes `COMPLETED`/`REJECTED` per backend default), detail with a status stepper and the linear `PATCH .../status` transitions (next-in-chain button + `REJECTED` escape hatch from any non-terminal state), cross-linked from Lead detail once `AGREEMENT_ACCEPTED` via `GET .../leads/{leadId}/project` |
 | 9 | Work orders | Not started |
 | 10 | Teams | Not started |
 
