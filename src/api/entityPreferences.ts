@@ -55,6 +55,34 @@ export function resetPreferenceCategory(entityId: number, category: PreferenceCa
   });
 }
 
+/** Response shape of the public, unauthenticated branding endpoint used by share-link pages.
+ * footer_tag/typography/gstno/address/business_phone/business_email are not on the live
+ * backend yet (as of this writing it only returns entity_name/primary_color/secondary_color/
+ * accent_color/logo_url/company_tagline) — typed optional so the document renders them the
+ * moment the backend adds them, without a second frontend change. */
+export type PublicBranding = {
+  entity_name: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  logo_url: string | null;
+  company_tagline: string;
+  footer_tag?: string;
+  h1_font_size?: string;
+  h2_font_size?: string;
+  h3_font_size?: string;
+  body_font_size?: string;
+  small_font_size?: string;
+  gstno?: string;
+  address?: string | null;
+  business_phone?: string | null;
+  business_email?: string | null;
+};
+
+export function getPublicEntityBranding(entityId: number) {
+  return apiRequest<PublicBranding>(`/public/entities/${entityId}/branding`, { auth: false });
+}
+
 export function uploadBrandingLogo(entityId: number, file: File) {
   const form = new FormData();
   form.append("file", file);

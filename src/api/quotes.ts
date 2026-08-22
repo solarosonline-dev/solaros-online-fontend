@@ -86,6 +86,10 @@ export type PublicQuoteResponse = {
   lead: LeadDetail;
   entity_id: number;
   entity_name: string;
+  /** Not on the live backend yet — quote.amc_id/amc_duration_years are present but nothing
+   * dereferences the plan's name/rate/inclusion for the public (unauthenticated) page. Typed
+   * ahead so the AMC section renders it the moment the backend embeds it. */
+  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
 };
 
 export function getPublicQuote(token: string) {

@@ -9,6 +9,10 @@ export type Entity = {
   address: string;
   slug: string;
   created_at: string;
+  /** Not yet on the live backend (Entity has no contact fields as of this writing) —
+   * typed ahead so the quote/agreement document renders them the moment the backend adds them. */
+  business_phone?: string | null;
+  business_email?: string | null;
 };
 
 export function getEntity(entityId: number) {

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getPublicQuote, acceptPublicQuote, type PublicQuoteResponse } from "../../api/quotes";
+import { getPublicEntityBranding, type PublicBranding } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR } from "../../lib/quoteCalculations";
+import { computeQuote } from "../../lib/quoteCalculations";
+import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import "./PublicQuotePage.css";
 
 export default function PublicQuotePage() {
   const { token } = useParams();
 
   const [data, setData] = useState<PublicQuoteResponse | null>(null);
+  const [branding, setBranding] = useState<PublicBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -19,7 +22,14 @@ export default function PublicQuotePage() {
   useEffect(() => {
     if (!token) return;
     getPublicQuote(token)
-      .then(setData)
+      .then(async (res) => {
+        setData(res);
+        try {
+          setBranding(await getPublicEntityBranding(res.entity_id));
+        } catch {
+          // Branding is cosmetic — a fetch failure here shouldn't block the quote itself.
+        }
+      })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Could not load this quote"))
       .finally(() => setLoading(false));
   }, [token]);
@@ -54,7 +64,7 @@ export default function PublicQuotePage() {
     );
   }
 
-  const { quote, lead, entity_name } = data;
+  const { quote, lead, entity_name, amc } = data;
   const accepted = justAccepted || quote.status === "ACCEPTED";
 
   const computed = computeQuote({
@@ -66,91 +76,59 @@ export default function PublicQuotePage() {
     applySubsidy: quote.apply_subsidy ?? false,
     subsidyAmount: quote.subsidy_amount != null ? Number(quote.subsidy_amount) : null,
     segment: lead.type,
-    amcRatePerKw: null,
+    amcRatePerKw: amc?.rate_per_kw != null ? Number(amc.rate_per_kw) : null,
     amcDurationYears: quote.amc_duration_years,
   });
 
+  const documentBranding: QuoteDocumentBranding = {
+    entityName: branding?.entity_name ?? entity_name,
+    primaryColor: branding?.primary_color,
+    logoUrl: branding?.logo_url,
+    tagline: branding?.company_tagline,
+    footerTag: branding?.footer_tag,
+    gstno: branding?.gstno,
+    address: branding?.address,
+    businessPhone: branding?.business_phone,
+    businessEmail: branding?.business_email,
+    typography: branding
+      ? {
+          h1: branding.h1_font_size,
+          h2: branding.h2_font_size,
+          h3: branding.h3_font_size,
+          body: branding.body_font_size,
+          small: branding.small_font_size,
+        }
+      : undefined,
+  };
+
   return (
     <div className="public-quote-shell">
-      <div className="public-quote-card">
-        <div className="public-quote-header">
-          <h1>{entity_name}</h1>
-          <p>Solar quote for {lead.name}</p>
-        </div>
+      <div className="public-quote-wrap">
+        <QuoteDocument
+          quoteId={quote.quote_id}
+          createdAt={quote.created_at}
+          validityDays={quote.validity_days}
+          capacityKw={quote.capacity ?? 0}
+          panelMake={quote.panel_make}
+          inverterMake={quote.inverter_make}
+          panelType={quote.panel_type}
+          notes={quote.notes}
+          terms={quote.terms ?? []}
+          customerName={lead.name}
+          customerAddress={lead.address}
+          customerDiscom={lead.discom}
+          customerMobile={lead.mobile}
+          customerEmail={lead.email}
+          segment={lead.type}
+          pricePerWatt={quote.price_per_watt ?? 0}
+          gstRate={quote.gst_rate ?? 0}
+          computed={computed}
+          amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}
+          amcDurationYears={quote.amc_duration_years}
+          branding={documentBranding}
+        />
 
-        <div className="public-quote-metrics">
-          <div className="public-quote-metric">
-            <div className="value">{quote.capacity} kW</div>
-            <div className="label">System size</div>
-          </div>
-          <div className="public-quote-metric">
-            <div className="value">{formatINR(computed.monthlySaving)}</div>
-            <div className="label">Monthly savings</div>
-          </div>
-          <div className="public-quote-metric">
-            <div className="value">{computed.paybackYrs.toFixed(1)} yrs</div>
-            <div className="label">Payback period</div>
-          </div>
-          <div className="public-quote-metric">
-            <div className="value">{Math.round(computed.trees)}</div>
-            <div className="label">Tree-equivalent CO₂ offset</div>
-          </div>
-        </div>
-
-        <table className="public-quote-table">
-          <tbody>
-            <tr>
-              <td>Total system cost</td>
-              <td>{formatINR(computed.totalCost)}</td>
-            </tr>
-            {computed.subsidy > 0 && (
-              <tr>
-                <td>Subsidy</td>
-                <td>-{formatINR(computed.subsidy)}</td>
-              </tr>
-            )}
-            <tr className="total">
-              <td>Net investment</td>
-              <td>{formatINR(computed.netInvestment)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {(quote.panel_make || quote.inverter_make) && (
-          <>
-            <p className="public-quote-section-title">Equipment</p>
-            <p style={{ fontSize: 14 }}>
-              {quote.panel_make && <>Panels: {quote.panel_make} ({quote.panel_type})<br /></>}
-              {quote.inverter_make && <>Inverter: {quote.inverter_make}</>}
-            </p>
-          </>
-        )}
-
-        {quote.notes && (
-          <>
-            <p className="public-quote-section-title">Notes</p>
-            <p style={{ fontSize: 14 }}>{quote.notes}</p>
-          </>
-        )}
-
-        {quote.terms && quote.terms.length > 0 && (
-          <>
-            <p className="public-quote-section-title">Terms &amp; conditions</p>
-            <ul className="public-quote-terms">
-              {quote.terms.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        {quote.validity_days != null && (
-          <p style={{ fontSize: 12, color: "var(--app-text-muted)", marginTop: 16 }}>
-            Valid for {quote.validity_days} days from the date issued.
-          </p>
-        )}
-
-        <div className="public-quote-actions">
+        <div className="public-quote-actions no-print">
           {accepted ? (
             <div className="public-quote-accepted">
               <div className="icon">✅</div>
@@ -163,9 +141,7 @@ export default function PublicQuotePage() {
               <button className="public-quote-btn" onClick={handleAccept} disabled={accepting}>
                 {accepting ? "Accepting…" : "Accept this quote"}
               </button>
-              {acceptError && (
-                <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>
-              )}
+              {acceptError && <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>}
             </>
           )}
         </div>

@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
 import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
-import { getEntityPreferences } from "../../api/entityPreferences";
+import { getEntityPreferences, type EntityPreferences } from "../../api/entityPreferences";
+import { getEntity, type Entity } from "../../api/entity";
 import {
   listQuotes,
   getQuote,
@@ -13,7 +14,8 @@ import {
   type QuoteDetail,
 } from "../../api/quotes";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR, subsidyForKw } from "../../lib/quoteCalculations";
+import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
+import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -62,6 +64,8 @@ export default function QuoteBuilderPage() {
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [amcPlans, setAmcPlans] = useState<AmcPlan[]>([]);
   const [existingQuote, setExistingQuote] = useState<QuoteDetail | null>(null);
+  const [entity, setEntity] = useState<Entity | null>(null);
+  const [preferences, setPreferences] = useState<EntityPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -83,10 +87,14 @@ export default function QuoteBuilderPage() {
       getLead(entityId, Number(leadId)),
       listAmcPlans(entityId, { is_active: true }),
       listQuotes(entityId, Number(leadId)),
+      getEntity(entityId),
+      getEntityPreferences(entityId),
     ])
-      .then(async ([leadRes, amcRes, quotesRes]) => {
+      .then(async ([leadRes, amcRes, quotesRes, entityRes, prefsRes]) => {
         setLead(leadRes);
         setAmcPlans(amcRes.items);
+        setEntity(entityRes);
+        setPreferences(prefsRes);
 
         if (quotesRes.items.length > 0) {
           const quote = await getQuote(entityId, Number(leadId), quotesRes.items[0].quote_id);
@@ -110,18 +118,17 @@ export default function QuoteBuilderPage() {
           });
           setSubsidyTouched(true);
         } else {
-          const prefs = await getEntityPreferences(entityId);
           const capacity = leadRes.sanctioned_load != null ? leadRes.sanctioned_load : Number(DEFAULT_FORM.capacity);
           setForm({
             ...DEFAULT_FORM,
             capacity: String(capacity),
-            pricePerWatt: String(prefs.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
+            pricePerWatt: String(prefsRes.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
             subsidyAmount: String(subsidyForKw(capacity, leadRes.type)),
             // Quote notes are folded into terms (not kept as separate free text) so they're
             // individually addable/removable the same way as the rest of the terms list.
             terms: [
-              ...prefs.document_customization.custom_terms_and_conditions,
-              ...prefs.document_customization.quote_notes,
+              ...prefsRes.document_customization.custom_terms_and_conditions,
+              ...prefsRes.document_customization.quote_notes,
             ],
           });
           setSubsidyTouched(false);
@@ -134,6 +141,30 @@ export default function QuoteBuilderPage() {
   const selectedAmcPlan = useMemo(
     () => amcPlans.find((p) => String(p.amc_id) === form.amcId) ?? null,
     [amcPlans, form.amcId],
+  );
+
+  const documentBranding: QuoteDocumentBranding = useMemo(
+    () => ({
+      entityName: entity?.name ?? "SolarOS",
+      primaryColor: preferences?.branding.primary_color,
+      logoUrl: preferences?.branding.logo_url,
+      tagline: preferences?.branding.company_tagline,
+      footerTag: preferences?.branding.footer_tag,
+      gstno: entity?.gstno,
+      address: entity?.address,
+      businessPhone: entity?.business_phone,
+      businessEmail: entity?.business_email,
+      typography: preferences
+        ? {
+            h1: preferences.typography.h1_font_size,
+            h2: preferences.typography.h2_font_size,
+            h3: preferences.typography.h3_font_size,
+            body: preferences.typography.body_font_size,
+            small: preferences.typography.small_font_size,
+          }
+        : undefined,
+    }),
+    [entity, preferences],
   );
 
   // Keep the suggested subsidy amount in sync with capacity/segment until the
@@ -516,109 +547,40 @@ export default function QuoteBuilderPage() {
 
         <div className="quote-preview-panel">
           <p className="quote-section-label" style={{ marginTop: 0 }}>
-            Live preview
+            Live preview — this is exactly what the customer will see
           </p>
 
-          <div className="quote-preview-metrics">
-            <div className="quote-preview-metric">
-              <div className="value">{formatINR(computed.netInvestment)}</div>
-              <div className="label">Net investment</div>
-            </div>
-            <div className="quote-preview-metric">
-              <div className="value">{formatINR(computed.monthlySaving)}</div>
-              <div className="label">Monthly savings</div>
-            </div>
-            <div className="quote-preview-metric">
-              <div className="value">{computed.paybackYrs.toFixed(1)} yrs</div>
-              <div className="label">Payback period</div>
-            </div>
-            <div className="quote-preview-metric">
-              <div className="value">{Math.round(computed.monthlyKwh)} kWh</div>
-              <div className="label">Monthly generation</div>
-            </div>
-          </div>
-
-          <table className="quote-breakdown-table">
-            <tbody>
-              <tr>
-                <td>Base cost</td>
-                <td>{formatINR(computed.baseCost)}</td>
-              </tr>
-              <tr>
-                <td>GST</td>
-                <td>{formatINR(computed.gstAmount)}</td>
-              </tr>
-              <tr>
-                <td>Total cost</td>
-                <td>{formatINR(computed.totalCost)}</td>
-              </tr>
-              <tr>
-                <td>Subsidy</td>
-                <td>-{formatINR(computed.subsidy)}</td>
-              </tr>
-              <tr className="total">
-                <td>Net investment</td>
-                <td>{formatINR(computed.netInvestment)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {selectedAmcPlan && (
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: 6 }}>
-                {selectedAmcPlan.name}
-                {computed.amcTotalCost != null &&
-                  ` — ${formatINR(computed.amcTotalCost)} total over ${form.amcDurationYears} year(s)`}
-              </p>
-              {selectedAmcPlan.inclusion.length > 0 && (
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
-                  {selectedAmcPlan.inclusion.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <p className="quote-section-label">Payment schedule</p>
-          <table className="quote-payment-table">
-            <thead>
-              <tr>
-                <th>Milestone</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Advance (30%)</td>
-                <td>{formatINR(computed.payAdvance)}</td>
-              </tr>
-              <tr>
-                <td>On dispatch (60%)</td>
-                <td>{formatINR(computed.payDispatch)}</td>
-              </tr>
-              <tr>
-                <td>On commissioning</td>
-                <td>{formatINR(computed.payCommission)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: form.terms.length > 0 ? 20 : 0 }}>
-            {computed.co2Tons.toFixed(1)} tons CO₂ avoided/year · {Math.round(computed.trees)} tree-equivalent ·{" "}
-            {formatINR(computed.lifetimeNet)} lifetime net savings (25 yr)
-          </p>
-
-          {form.terms.length > 0 && (
-            <>
-              <p className="quote-section-label">Terms &amp; conditions</p>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
-                {form.terms.map((term, i) => (
-                  <li key={i}>{term}</li>
-                ))}
-              </ul>
-            </>
-          )}
+          <QuoteDocument
+            quoteId={existingQuote?.quote_id ?? null}
+            createdAt={existingQuote?.created_at ?? null}
+            validityDays={form.validityDays ? Number(form.validityDays) : null}
+            capacityKw={Number(form.capacity) || 0}
+            panelMake={form.panelMake || null}
+            inverterMake={form.inverterMake || null}
+            panelType={form.panelType || null}
+            notes={form.notes || null}
+            terms={form.terms}
+            customerName={lead.name}
+            customerAddress={lead.address}
+            customerDiscom={lead.discom}
+            customerMobile={lead.mobile}
+            customerEmail={lead.email}
+            segment={lead.type}
+            pricePerWatt={Number(form.pricePerWatt) || 0}
+            gstRate={Number(form.gstRate) || 0}
+            computed={computed}
+            amc={
+              selectedAmcPlan
+                ? {
+                    name: selectedAmcPlan.name,
+                    ratePerKw: selectedAmcPlan.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
+                    inclusion: selectedAmcPlan.inclusion,
+                  }
+                : null
+            }
+            amcDurationYears={form.amcDurationYears ? Number(form.amcDurationYears) : null}
+            branding={documentBranding}
+          />
         </div>
       </div>
     </div>
