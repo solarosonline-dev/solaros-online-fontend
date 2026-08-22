@@ -55,6 +55,8 @@ src/App.tsx            all routing — public routes, /login|/register|/activate
 
 **Ported logic gets a comment explaining the port, not a rewrite from scratch.** `quoteCalculations.ts` and `billExtractor.ts` (electricity-bill PDF extraction, using `pdfjs-dist` as a real npm dependency instead of the old repo's CDN script) are line-for-line ports of working regex/math from the old repo, with the old repo's dead code (an unreachable Tesseract OCR fallback) deliberately dropped rather than carried forward. When porting another old-repo feature, check whether a referenced library/script tag is actually loaded anywhere before assuming it's live — `bill-extractor.js` referenced Tesseract but no page ever loaded it.
 
+**`WorkOrderStatusResponse.project_status` is always populated, not just when the project actually advanced.** It reflects the parent project's status *after* the call either way — the backend only moves the project when the work order's `type`/`COMPLETED` transition matches the mapping table and the project is still at the exact fromstatus, and silently no-ops otherwise (no error). Don't word a UI message as "project moved to X" off this field alone unless you've confirmed a real transition happened (in practice: only surface it on `COMPLETED`, and phrase it as current state — "Project is now X" — not as a claimed move); this bit during Phase 9 verification (`ProjectDetailPage`/`WorkOrderDetailPage`'s transition handler).
+
 ## Verification convention
 
 There's no automated test suite. Every feature in this repo has been verified by: `npx tsc -b` for typecheck, then driving the actual UI in a browser against the real local backend (`../solaros-online-backend`, must be running — see this repo's README), and cross-checking persistence with direct `curl` calls to the backend API. When the browser-automation pane gets visually stuck (a recurring flakiness in this environment, not an app bug), prefer DOM inspection via `javascript_tool`/`read_page` over trusting a screenshot — confirmed multiple times that a frozen-looking screenshot doesn't mean the app is actually broken.
@@ -81,7 +83,7 @@ Phases roughly follow the backend's `usecases.txt` ordering. As of this writing:
 | 6 | Quotes (builder, live calc, share, public accept) | Done |
 | 7 | Agreements (builder, share, public accept) | Done |
 | 8 | Project lifecycle | Done — list (`/app/projects`, default view excludes `COMPLETED`/`REJECTED` per backend default), detail with a status stepper and the linear `PATCH .../status` transitions (next-in-chain button + `REJECTED` escape hatch from any non-terminal state), cross-linked from Lead detail once `AGREEMENT_ACCEPTED` via `GET .../leads/{leadId}/project` |
-| 9 | Work orders | Not started |
+| 9 | Work orders | Done, scoped to project-created work orders only (not the lead-scoped pre-project creation path, deferred per your note) — a "Work orders" section on Project detail (type/notes create, disabled for a type already open per the backend's one-open-per-type-per-lead rule) and a dedicated `/app/work-orders/:id` detail page (status transition, assignment, delete-while-`NEW`). Assignment is user-only for now — `assignee_type: TEAM` is deferred until Phase 10 gives teams a management UI to pick from |
 | 10 | Teams | Not started |
 
 ## Safety notes for agents

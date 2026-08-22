@@ -10,6 +10,7 @@ import {
   type ProjectStatus,
 } from "../../api/projects";
 import { ApiError } from "../../api/client";
+import ProjectWorkOrders from "./ProjectWorkOrders";
 import "./ProjectsPage.css";
 
 const STEPS: { status: ProjectStatus; label: string }[] = [
@@ -159,6 +160,8 @@ export default function ProjectDetailPage() {
       </div>
 
       {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
+
+      <ProjectWorkOrders entityId={entityId} projectId={project.project_id} />
 
       <div style={{ marginTop: 16 }}>
         <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>

@@ -212,3 +212,44 @@
 .projects-status.error {
   color: var(--app-danger);
 }
+
+.projects-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+  margin: 24px 0 10px;
+}
+
+.work-orders-new-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.work-orders-new-panel select,
+.work-orders-new-panel input[type="text"] {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.work-orders-new-panel input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.work-order-type-hint {
+  font-size: 12px;
+  color: var(--app-text-muted);
+  width: 100%;
+}
