@@ -123,7 +123,7 @@ export default function PublicQuotePage() {
           pricePerWatt={quote.price_per_watt ?? 0}
           gstRate={quote.gst_rate ?? 0}
           computed={computed}
-          amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}
+          amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion ?? [] } : null}
           amcDurationYears={quote.amc_duration_years}
           branding={documentBranding}
         />

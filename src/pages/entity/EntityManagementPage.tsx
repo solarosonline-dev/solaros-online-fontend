@@ -9,7 +9,7 @@ import {
   type PreferenceCategory,
 } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
-import BusinessInfoTab from "./tabs/BusinessInfoTab";
+import BusinessInfoTab, { type BusinessInfoDraft } from "./tabs/BusinessInfoTab";
 import BrandingTab from "./tabs/BrandingTab";
 import TypographyTab from "./tabs/TypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
@@ -40,7 +40,12 @@ export default function EntityManagementPage() {
   const [tab, setTab] = useState<Tab>("business");
   const [entity, setEntity] = useState<Entity | null>(null);
   const [prefs, setPrefs] = useState<EntityPreferences | null>(null);
-  const [businessDraft, setBusinessDraft] = useState({ name: "", address: "" });
+  const [businessDraft, setBusinessDraft] = useState<BusinessInfoDraft>({
+    name: "",
+    address: "",
+    business_phone: "",
+    business_email: "",
+  });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -54,7 +59,12 @@ export default function EntityManagementPage() {
       .then(([entityRes, prefsRes]) => {
         setEntity(entityRes);
         setPrefs(prefsRes);
-        setBusinessDraft({ name: entityRes.name, address: entityRes.address });
+        setBusinessDraft({
+          name: entityRes.name,
+          address: entityRes.address,
+          business_phone: entityRes.business_phone ?? "",
+          business_email: entityRes.business_email ?? "",
+        });
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
