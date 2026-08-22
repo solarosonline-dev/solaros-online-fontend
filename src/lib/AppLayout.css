@@ -1,47 +1,50 @@
 .app-shell {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   font-family: var(--app-font);
   background: var(--app-bg);
   color: var(--app-text);
 }
 
-.app-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: var(--app-surface);
-  border-right: 1px solid var(--app-border);
+.app-topbar {
   display: flex;
-  flex-direction: column;
-  padding: 20px 0;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  flex-wrap: wrap;
 }
 
-.app-sidebar-logo {
-  font-size: 18px;
+.app-topbar-logo {
+  font-size: 17px;
   font-weight: 700;
-  padding: 0 20px 20px;
+  flex-shrink: 0;
 }
 
-.app-sidebar-logo em {
+.app-topbar-logo em {
   color: var(--app-accent);
   font-style: normal;
 }
 
 .app-nav {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 2px;
-  padding: 0 12px;
+  flex-wrap: wrap;
+  flex: 1;
 }
 
 .app-nav a {
   display: block;
-  padding: 9px 12px;
+  padding: 7px 12px;
   border-radius: 8px;
   color: var(--app-text-muted);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .app-nav a:hover {
@@ -54,21 +57,11 @@
   color: var(--app-accent);
 }
 
-.app-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-topbar {
+.app-topbar-right {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-surface);
+  flex-shrink: 0;
 }
 
 .app-topbar-user {
@@ -95,4 +88,17 @@
 .app-content {
   flex: 1;
   padding: 24px;
+}
+
+@media (max-width: 860px) {
+  .app-topbar {
+    flex-wrap: wrap;
+  }
+
+  .app-nav {
+    order: 3;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--app-border);
+  }
 }

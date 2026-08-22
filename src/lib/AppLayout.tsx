@@ -16,8 +16,8 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
-        <div className="app-sidebar-logo">
+      <header className="app-topbar">
+        <div className="app-topbar-logo">
           Solar<em>OS</em>
         </div>
         <nav className="app-nav">
@@ -31,18 +31,16 @@ export default function AppLayout() {
           {!systemAdmin && user?.entity_id && <NavLink to="/app/entity">Entity Settings</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/users">Users</NavLink>}
         </nav>
-      </aside>
-      <div className="app-main">
-        <header className="app-topbar">
+        <div className="app-topbar-right">
           <span className="app-topbar-user">{user?.full_name}</span>
           <button className="app-topbar-signout" onClick={handleSignOut}>
             Sign out
           </button>
-        </header>
-        <main className="app-content">
-          <Outlet />
-        </main>
-      </div>
+        </div>
+      </header>
+      <main className="app-content">
+        <Outlet />
+      </main>
     </div>
   );
 }
