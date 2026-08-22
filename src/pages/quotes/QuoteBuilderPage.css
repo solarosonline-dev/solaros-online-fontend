@@ -97,7 +97,10 @@
 
 .quote-field-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* The input column is narrow (1/4 of the builder grid) — two fields side by
+     side would cramp or force horizontal scroll, so stack one per row instead
+     and let the form extend vertically. */
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
