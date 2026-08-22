@@ -86,7 +86,7 @@ export type PublicQuoteResponse = {
   lead: LeadDetail;
   entity_id: number;
   entity_name: string;
-  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] | null } | null;
+  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
 };
 
 export function getPublicQuote(token: string) {
