@@ -15,9 +15,10 @@ import TypographyTab from "./tabs/TypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
 import ComponentsTab from "./tabs/ComponentsTab";
+import PaymentScheduleTab from "./tabs/PaymentScheduleTab";
 import "./EntityManagementPage.css";
 
-type Tab = "business" | "branding" | "typography" | "documents" | "pricing" | "components";
+type Tab = "business" | "branding" | "typography" | "documents" | "pricing" | "components" | "payment_schedule";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "business", label: "Business info" },
@@ -26,6 +27,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "documents", label: "Documents" },
   { key: "pricing", label: "Pricing & language" },
   { key: "components", label: "Default components" },
+  { key: "payment_schedule", label: "Payment schedule" },
 ];
 
 const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
@@ -34,6 +36,7 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   documents: "document_customization",
   pricing: "pricing",
   components: "components",
+  payment_schedule: "payment_schedule",
 };
 
 export default function EntityManagementPage() {
@@ -83,14 +86,23 @@ export default function EntityManagementPage() {
         const updated = await updateEntity(entityId, businessDraft);
         setEntity(updated);
       } else if (prefs) {
-        const { branding, typography, document_customization, pricing, components, language, skip_quote_otp } =
-          prefs;
+        const {
+          branding,
+          typography,
+          document_customization,
+          pricing,
+          components,
+          payment_schedule,
+          language,
+          skip_quote_otp,
+        } = prefs;
         const updated = await updateEntityPreferences(entityId, {
           branding,
           typography,
           document_customization,
           pricing,
           components,
+          payment_schedule,
           language,
           skip_quote_otp,
         });
@@ -170,6 +182,12 @@ export default function EntityManagementPage() {
           <ComponentsTab
             draft={prefs.components}
             onChange={(components) => setPrefs({ ...prefs, components })}
+          />
+        )}
+        {tab === "payment_schedule" && (
+          <PaymentScheduleTab
+            draft={prefs.payment_schedule}
+            onChange={(payment_schedule) => setPrefs({ ...prefs, payment_schedule })}
           />
         )}
       </div>

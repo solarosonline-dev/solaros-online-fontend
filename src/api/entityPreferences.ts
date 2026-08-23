@@ -36,12 +36,32 @@ export type Components = {
   items: ComponentDefault[];
 };
 
+export type PaymentScheduleRow = {
+  label: string;
+  percent: number;
+  description: string;
+};
+
+export type PaymentSchedule = {
+  rows: PaymentScheduleRow[];
+};
+
+/** Mirrors the backend's DEFAULT_PREFERENCES["payment_schedule"] — used as a
+ * fallback before preferences/branding have loaded, so the quote document
+ * never renders with an empty payment section. */
+export const DEFAULT_PAYMENT_SCHEDULE: PaymentScheduleRow[] = [
+  { label: "on signing", percent: 30, description: "Confirms PO and locks panel allocation" },
+  { label: "before material dispatch", percent: 60, description: "~Day 5 once design + paperwork are signed off" },
+  { label: "on commissioning", percent: 10, description: "Day 7–10 — net-meter live, generating units" },
+];
+
 export type EntityPreferences = {
   branding: Branding;
   typography: Typography;
   document_customization: DocumentCustomization;
   pricing: Pricing;
   components: Components;
+  payment_schedule: PaymentSchedule;
   language: string;
   /** EPC-admin escape hatch: when true, the public quote-acceptance modal
    * skips the emailed-OTP step and accepts on consent alone — e.g. while
@@ -56,6 +76,7 @@ export type PreferenceCategory =
   | "document_customization"
   | "pricing"
   | "components"
+  | "payment_schedule"
   | "language";
 
 export function getEntityPreferences(entityId: number) {
@@ -94,6 +115,7 @@ export type PublicBranding = {
   business_phone: string | null;
   business_email: string | null;
   skip_quote_otp: boolean;
+  payment_schedule: PaymentScheduleRow[];
 };
 
 export function getPublicEntityBranding(entityId: number) {

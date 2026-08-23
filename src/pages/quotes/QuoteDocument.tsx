@@ -5,9 +5,11 @@ import {
   formatINR,
   emiMonthly,
   loanPaybackYears,
+  roundToTen,
   tenYearSavingsProjection,
   type QuoteComputeResult,
 } from "../../lib/quoteCalculations";
+import type { PaymentScheduleRow } from "../../api/entityPreferences";
 import type { QuoteComponentRow } from "../../api/quotes";
 import {
   formatINRShort,
@@ -75,6 +77,12 @@ export type QuoteDocumentProps = {
   amcMode: "included" | "chargeable";
   amcPost5: QuoteDocumentAmcPost5;
   loan: QuoteDocumentLoan;
+  /** EPC-configurable payment milestones (entity preference
+   * `payment_schedule`) — percentages should sum to 100; each row's rupee
+   * amount is derived from `computed.totalCost` here rather than passed in,
+   * with the last row absorbing any rounding remainder so the rows always
+   * foot exactly to the total. */
+  paymentSchedule: PaymentScheduleRow[];
   branding: QuoteDocumentBranding;
   /** The customer-facing share link for this quote, if one has been generated
    * yet — rendered as a scannable QR code in the footer so a printed copy can
@@ -114,6 +122,7 @@ export default function QuoteDocument({
   amcMode,
   amcPost5,
   loan,
+  paymentSchedule,
   branding,
   shareUrl,
   signatureAction,
@@ -204,6 +213,18 @@ export default function QuoteDocument({
   const compGrandTotal = compRowsCalc.reduce((sum, r) => sum + r.total, 0);
   const compAvgTaxPercent =
     compTotalPrice > 0 ? ((compGrandTotal - compTotalPrice) / compTotalPrice) * 100 : 0;
+
+  // Each row's amount is rounded to the nearest ₹10 except the last, which
+  // absorbs whatever rounding remainder is left so the rows always foot
+  // exactly to c.totalCost — same approach the old hard-coded 30/60/10 split
+  // used, just generalized to however many rows the EPC has configured.
+  let paymentRunningTotal = 0;
+  const paymentRows = paymentSchedule.map((row, i) => {
+    const isLast = i === paymentSchedule.length - 1;
+    const amount = isLast ? c.totalCost - paymentRunningTotal : roundToTen(c.totalCost * (row.percent / 100));
+    paymentRunningTotal += amount;
+    return { ...row, amount };
+  });
 
   const firmContact = [branding.businessEmail, branding.businessPhone].filter(Boolean).join(" · ");
   const whatsappNumber = branding.businessPhone ? branding.businessPhone.replace(/[^0-9]/g, "") : null;
@@ -659,33 +680,17 @@ export default function QuoteDocument({
         <h2>Payment schedule</h2>
         <table className="qdoc-table qdoc-table-pay">
           <tbody>
-            <tr>
-              <td>
-                <strong>30%</strong> on signing
-              </td>
-              <td>Confirms PO and locks panel allocation</td>
-              <td className="qdoc-ta-r">
-                <strong>{formatINR(c.payAdvance)}</strong>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <strong>60%</strong> before material dispatch
-              </td>
-              <td>~Day 5 once design + paperwork are signed off</td>
-              <td className="qdoc-ta-r">
-                <strong>{formatINR(c.payDispatch)}</strong>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <strong>10%</strong> on commissioning
-              </td>
-              <td>Day 7–10 — net-meter live, generating units</td>
-              <td className="qdoc-ta-r">
-                <strong>{formatINR(c.payCommission)}</strong>
-              </td>
-            </tr>
+            {paymentRows.map((row, i) => (
+              <tr key={i}>
+                <td>
+                  <strong>{row.percent}%</strong> {row.label}
+                </td>
+                <td>{row.description}</td>
+                <td className="qdoc-ta-r">
+                  <strong>{formatINR(row.amount)}</strong>
+                </td>
+              </tr>
+            ))}
             <tr className="qdoc-row-total">
               <td>Total</td>
               <td>NEFT / RTGS / Cheque to {branding.entityName}</td>

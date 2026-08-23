@@ -60,6 +60,11 @@
   font-weight: 400;
 }
 
+.entity-field .entity-field-help.entity-field-warning {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
 .entity-field input,
 .entity-field select,
 .entity-field textarea {

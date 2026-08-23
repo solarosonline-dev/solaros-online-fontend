@@ -36,9 +36,6 @@ export type QuoteComputeResult = {
   lifetimeNet: number;
   co2Tons: number;
   trees: number;
-  payAdvance: number;
-  payDispatch: number;
-  payCommission: number;
   amcTotalCost: number | null;
 };
 
@@ -51,7 +48,9 @@ export function subsidyForKw(kw: number, segment: string | null): number {
   return 78000;
 }
 
-function roundToTen(n: number): number {
+/** Exported for QuoteDocument's payment-schedule section, which derives each
+ * milestone's rupee amount from the entity's configurable percentages. */
+export function roundToTen(n: number): number {
   return Math.round(n / 10) * 10;
 }
 
@@ -94,10 +93,6 @@ export function computeQuote(input: QuoteComputeInput): QuoteComputeResult {
   const co2Tons = (yearlyKwh * 0.82) / 1000;
   const trees = co2Tons * 50;
 
-  const payAdvance = roundToTen(totalCost * 0.3);
-  const payDispatch = roundToTen(totalCost * 0.6);
-  const payCommission = totalCost - payAdvance - payDispatch;
-
   const amcTotalCost =
     input.amcRatePerKw != null && input.amcDurationYears != null
       ? Math.round(input.amcRatePerKw * kw * input.amcDurationYears)
@@ -118,9 +113,6 @@ export function computeQuote(input: QuoteComputeInput): QuoteComputeResult {
     lifetimeNet,
     co2Tons,
     trees,
-    payAdvance,
-    payDispatch,
-    payCommission,
     amcTotalCost,
   };
 }

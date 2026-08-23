@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
 import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
-import { getEntityPreferences, type EntityPreferences } from "../../api/entityPreferences";
+import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type EntityPreferences } from "../../api/entityPreferences";
 import { getEntity, type Entity } from "../../api/entity";
 import {
   listQuotes,
@@ -899,6 +899,7 @@ export default function QuoteBuilderPage() {
               ratePercent: form.loanRatePercent ? Number(form.loanRatePercent) : null,
               tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,
             }}
+            paymentSchedule={preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
             branding={documentBranding}
             shareUrl={shareUrl}
           />

@@ -4,7 +4,7 @@ import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
 import { listQuotes, getQuote, type QuoteDetail } from "../../api/quotes";
 import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
-import { getEntityPreferences } from "../../api/entityPreferences";
+import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type PaymentScheduleRow } from "../../api/entityPreferences";
 import {
   listAgreements,
   getAgreement,
@@ -14,7 +14,7 @@ import {
   type AgreementDetail,
 } from "../../api/agreements";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR } from "../../lib/quoteCalculations";
+import { computeQuote, formatINR, roundToTen } from "../../lib/quoteCalculations";
 import "../quotes/QuoteBuilderPage.css";
 
 type FormState = {
@@ -36,6 +36,7 @@ export default function AgreementBuilderPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({ amcId: "", amcDurationYears: "", terms: [] });
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleRow[]>(DEFAULT_PAYMENT_SCHEDULE);
   const [newTerm, setNewTerm] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -65,6 +66,9 @@ export default function AgreementBuilderPage() {
         const quoteRes = await getQuote(entityId, Number(leadId), quotesRes.items[0].quote_id);
         setQuote(quoteRes);
 
+        const prefs = await getEntityPreferences(entityId);
+        setPaymentSchedule(prefs.payment_schedule.rows);
+
         if (agreementsRes.items.length > 0) {
           const agreement = await getAgreement(entityId, Number(leadId), agreementsRes.items[0].agreement_id);
           setExistingAgreement(agreement);
@@ -74,7 +78,6 @@ export default function AgreementBuilderPage() {
             terms: agreement.terms ?? [],
           });
         } else {
-          const prefs = await getEntityPreferences(entityId);
           setForm({
             amcId: quoteRes.amc_id != null ? String(quoteRes.amc_id) : "",
             amcDurationYears: quoteRes.amc_duration_years != null ? String(quoteRes.amc_duration_years) : "",
@@ -123,6 +126,21 @@ export default function AgreementBuilderPage() {
       amcDurationYears: form.amcDurationYears ? Number(form.amcDurationYears) : null,
     });
   }, [quote, lead, form.amcDurationYears, selectedAmcPlan]);
+
+  // Same derivation as QuoteDocument's payment-schedule section: each row's
+  // amount is its configured percent of the total cost, rounded to the
+  // nearest ₹10, except the last row which absorbs the rounding remainder
+  // so the rows foot exactly to the total.
+  const paymentRows = useMemo(() => {
+    if (!computed) return [];
+    let runningTotal = 0;
+    return paymentSchedule.map((row, i) => {
+      const isLast = i === paymentSchedule.length - 1;
+      const amount = isLast ? computed.totalCost - runningTotal : roundToTen(computed.totalCost * (row.percent / 100));
+      runningTotal += amount;
+      return { ...row, amount };
+    });
+  }, [computed, paymentSchedule]);
 
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
 
@@ -414,18 +432,14 @@ export default function AgreementBuilderPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>Advance (30%)</td>
-                    <td>{formatINR(computed.payAdvance)}</td>
-                  </tr>
-                  <tr>
-                    <td>On dispatch (60%)</td>
-                    <td>{formatINR(computed.payDispatch)}</td>
-                  </tr>
-                  <tr>
-                    <td>On commissioning</td>
-                    <td>{formatINR(computed.payCommission)}</td>
-                  </tr>
+                  {paymentRows.map((row, i) => (
+                    <tr key={i}>
+                      <td>
+                        {row.label} ({row.percent}%)
+                      </td>
+                      <td>{formatINR(row.amount)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
 

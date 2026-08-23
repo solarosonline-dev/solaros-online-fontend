@@ -7,7 +7,7 @@ import {
   verifyQuoteOtp,
   type PublicQuoteResponse,
 } from "../../api/quotes";
-import { getPublicEntityBranding, type PublicBranding } from "../../api/entityPreferences";
+import { getPublicEntityBranding, DEFAULT_PAYMENT_SCHEDULE, type PublicBranding } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
@@ -228,6 +228,7 @@ export default function PublicQuotePage() {
             ratePercent: quote.loan_rate_percent != null ? Number(quote.loan_rate_percent) : null,
             tenureYears: quote.loan_tenure_years,
           }}
+          paymentSchedule={branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
           branding={documentBranding}
           shareUrl={typeof window !== "undefined" ? window.location.href : null}
           signatureAction={signatureAction}
