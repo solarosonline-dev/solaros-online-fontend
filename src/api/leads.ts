@@ -18,6 +18,10 @@ export type LeadDetail = Lead & {
   metertype: string | null;
   discom: string | null;
   roof_area_sqft: number | null;
+  ca_number: string | null;
+  avg_monthly_bill: string | null;
+  avg_monthly_units: number | null;
+  requirement: string | null;
 };
 
 export type LeadList = {
@@ -37,9 +41,32 @@ export type CreateLeadInput = {
   metertype?: string;
   discom?: string;
   roof_area_sqft?: number;
+  ca_number?: string;
+  avg_monthly_bill?: number;
+  avg_monthly_units?: number;
+  requirement?: string;
 };
 
 export type UpdateLeadInput = Partial<CreateLeadInput>;
+
+/** Best-effort fields parsed from an uploaded electricity-bill PDF by the
+ * backend's `extract-bill` endpoint — every field is nullable since
+ * extraction may fail to find any given value. */
+export type ExtractedLeadData = {
+  name: string | null;
+  mobile: string | null;
+  address: string | null;
+  type: string | null;
+  email: string | null;
+  sanctioned_load: number | null;
+  metertype: string | null;
+  discom: string | null;
+  roof_area_sqft: number | null;
+  ca_number: string | null;
+  avg_monthly_bill: string | null;
+  avg_monthly_units: number | null;
+  requirement: string | null;
+};
 
 /** Manual status transitions only — QUOTE_GENERATED/AGREEMENT_GENERATED happen as a side effect of quote/agreement creation, never directly. */
 export type ManualLeadStatus = "REJECTED" | "QUOTE_ACCEPTED" | "AGREEMENT_ACCEPTED";
@@ -71,5 +98,14 @@ export function updateLeadStatus(entityId: number, leadId: number, status: Manua
   return apiRequest<{ lead_id: number; status: LeadStatus }>(`/entities/${entityId}/leads/${leadId}/status`, {
     method: "PATCH",
     body: { status },
+  });
+}
+
+export function extractLeadFromBill(entityId: number, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest<ExtractedLeadData>(`/entities/${entityId}/leads/extract-bill`, {
+    method: "POST",
+    body: form,
   });
 }

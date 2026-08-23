@@ -1,17 +1,13 @@
 import { useRef, useState } from "react";
-import {
-  extractBillFromFile,
-  calculateAverageConsumption,
-  calculateAverageUnits,
-  suggestSystemSize,
-  type ExtractedBillData,
-} from "../../lib/billExtractor";
+import { extractLeadFromBill, type ExtractedLeadData } from "../../api/leads";
+import { ApiError } from "../../api/client";
 
 type Props = {
-  onExtracted: (data: ExtractedBillData) => void;
+  entityId: number;
+  onExtracted: (data: ExtractedLeadData) => void;
 };
 
-export default function BillUploadWidget({ onExtracted }: Props) {
+export default function BillUploadWidget({ entityId, onExtracted }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -25,19 +21,17 @@ export default function BillUploadWidget({ onExtracted }: Props) {
     setExtractSummary(null);
     setExtracting(true);
     try {
-      const data: ExtractedBillData = await extractBillFromFile(file);
+      const data = await extractLeadFromBill(entityId, file);
       onExtracted(data);
 
-      const avgBill = calculateAverageConsumption(data);
-      const avgUnits = calculateAverageUnits(data);
-      const suggestion = suggestSystemSize(data);
       const parts: string[] = [];
-      if (suggestion) parts.push(`~${suggestion.recommendedKW} kW suggested system size`);
-      if (avgBill) parts.push(`₹${avgBill}/mo avg bill`);
-      if (avgUnits) parts.push(`${avgUnits} kWh/mo avg usage`);
+      if (data.avg_monthly_bill) parts.push(`₹${data.avg_monthly_bill}/mo avg bill`);
+      if (data.avg_monthly_units != null) parts.push(`${data.avg_monthly_units} kWh/mo avg usage`);
       setExtractSummary(parts.length ? parts.join(" · ") : "Extracted what we could — please check the fields below.");
     } catch (err) {
-      setExtractError(err instanceof Error ? err.message : "Couldn't read this PDF — please fill the form manually.");
+      setExtractError(
+        err instanceof ApiError ? err.message : "Couldn't read this PDF — please fill the form manually.",
+      );
     } finally {
       setExtracting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { createLead, type CreateLeadInput } from "../../api/leads";
+import { createLead, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
 import { ApiError } from "../../api/client";
-import type { ExtractedBillData } from "../../lib/billExtractor";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
 
@@ -23,19 +22,26 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [metertype, setMetertype] = useState("");
   const [discom, setDiscom] = useState("");
   const [roofArea, setRoofArea] = useState("");
+  const [caNumber, setCaNumber] = useState("");
+  const [avgBill, setAvgBill] = useState("");
+  const [avgUnits, setAvgUnits] = useState("");
+  const [requirement, setRequirement] = useState("");
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function handleExtracted(data: ExtractedBillData) {
-    if (data.customerName) setName(data.customerName);
+  function handleExtracted(data: ExtractedLeadData) {
+    if (data.name) setName(data.name);
     if (data.mobile) setMobile(data.mobile.replace(/\D/g, "").slice(-10));
-    if (data.supplyAddress) setAddress(data.supplyAddress);
+    if (data.address) setAddress(data.address);
     if (data.email) setEmail(data.email);
-    if (data.sanctionedLoad != null) setSanctionedLoad(String(data.sanctionedLoad));
-    if (data.phase) setMetertype(data.phase);
-    if (data.provider && data.provider !== "Unknown") setDiscom(data.provider);
+    if (data.sanctioned_load != null) setSanctionedLoad(String(data.sanctioned_load));
+    if (data.metertype) setMetertype(data.metertype);
+    if (data.discom) setDiscom(data.discom);
+    if (data.ca_number) setCaNumber(data.ca_number);
+    if (data.avg_monthly_bill) setAvgBill(data.avg_monthly_bill);
+    if (data.avg_monthly_units != null) setAvgUnits(String(data.avg_monthly_units));
   }
 
   function validate(): FieldErrors {
@@ -50,6 +56,12 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     }
     if (roofArea && (isNaN(Number(roofArea)) || Number(roofArea) <= 0)) {
       errors.roof_area_sqft = "Enter a valid number.";
+    }
+    if (avgBill && (isNaN(Number(avgBill)) || Number(avgBill) <= 0)) {
+      errors.avg_monthly_bill = "Enter a valid number.";
+    }
+    if (avgUnits && (isNaN(Number(avgUnits)) || Number(avgUnits) <= 0)) {
+      errors.avg_monthly_units = "Enter a valid number.";
     }
     return errors;
   }
@@ -74,6 +86,10 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         metertype: metertype || undefined,
         discom: discom.trim() || undefined,
         roof_area_sqft: roofArea ? Number(roofArea) : undefined,
+        ca_number: caNumber.trim() || undefined,
+        avg_monthly_bill: avgBill ? Number(avgBill) : undefined,
+        avg_monthly_units: avgUnits ? Number(avgUnits) : undefined,
+        requirement: requirement.trim() || undefined,
       });
       onCreated();
     } catch (err) {
@@ -85,7 +101,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
   return (
     <div className="add-lead-panel">
-      <BillUploadWidget onExtracted={handleExtracted} />
+      <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="add-lead-field">
@@ -171,6 +187,55 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
             />
             {fieldErrors.roof_area_sqft && <p className="add-lead-field-error">{fieldErrors.roof_area_sqft}</p>}
           </div>
+        </div>
+
+        <div className="add-lead-field-row">
+          <div className="add-lead-field">
+            <label htmlFor="leadCaNumber">CA Number</label>
+            <input
+              id="leadCaNumber"
+              type="text"
+              placeholder="Customer Account Number (auto-filled)"
+              value={caNumber}
+              onChange={(e) => setCaNumber(e.target.value)}
+            />
+          </div>
+          <div className="add-lead-field">
+            <label htmlFor="leadAvgBill">Avg. Monthly Bill (₹)</label>
+            <input
+              id="leadAvgBill"
+              type="number"
+              placeholder="e.g. 5000 (auto-filled)"
+              value={avgBill}
+              onChange={(e) => setAvgBill(e.target.value)}
+            />
+            {fieldErrors.avg_monthly_bill && <p className="add-lead-field-error">{fieldErrors.avg_monthly_bill}</p>}
+          </div>
+        </div>
+
+        <div className="add-lead-field-row">
+          <div className="add-lead-field">
+            <label htmlFor="leadAvgUnits">Avg. Monthly Units (kWh)</label>
+            <input
+              id="leadAvgUnits"
+              type="number"
+              placeholder="e.g. 850 (auto-filled)"
+              value={avgUnits}
+              onChange={(e) => setAvgUnits(e.target.value)}
+            />
+            {fieldErrors.avg_monthly_units && <p className="add-lead-field-error">{fieldErrors.avg_monthly_units}</p>}
+          </div>
+        </div>
+
+        <div className="add-lead-field">
+          <label htmlFor="leadRequirement">Requirement</label>
+          <textarea
+            id="leadRequirement"
+            rows={3}
+            placeholder="Comments, preferences, or specific requirements from the customer"
+            value={requirement}
+            onChange={(e) => setRequirement(e.target.value)}
+          />
         </div>
 
         {submitError && (

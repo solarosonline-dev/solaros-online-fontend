@@ -8,10 +8,10 @@ import {
   type LeadDetail,
   type LeadStatus,
   type ManualLeadStatus,
+  type ExtractedLeadData,
 } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import { getProjectForLead, type ProjectForLead } from "../../api/projects";
-import type { ExtractedBillData } from "../../lib/billExtractor";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
 import "./LeadsPage.css";
@@ -55,6 +55,10 @@ export default function LeadDetailPage() {
     metertype: string;
     discom: string;
     roof_area_sqft: string;
+    ca_number: string;
+    avg_monthly_bill: string;
+    avg_monthly_units: string;
+    requirement: string;
   } | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -79,6 +83,10 @@ export default function LeadDetailPage() {
           metertype: res.metertype ?? "",
           discom: res.discom ?? "",
           roof_area_sqft: res.roof_area_sqft != null ? String(res.roof_area_sqft) : "",
+          ca_number: res.ca_number ?? "",
+          avg_monthly_bill: res.avg_monthly_bill ?? "",
+          avg_monthly_units: res.avg_monthly_units != null ? String(res.avg_monthly_units) : "",
+          requirement: res.requirement ?? "",
         });
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load lead"))
@@ -94,17 +102,20 @@ export default function LeadDetailPage() {
       .catch(() => {});
   }, [entityId, leadId, lead?.status]);
 
-  function handleExtracted(data: ExtractedBillData) {
+  function handleExtracted(data: ExtractedLeadData) {
     if (!draft) return;
     // Deliberately not autofilling name/mobile here — those identify an
     // existing lead and shouldn't be overwritten by a re-uploaded bill.
     setDraft({
       ...draft,
-      address: data.supplyAddress ?? draft.address,
+      address: data.address ?? draft.address,
       email: data.email ?? draft.email,
-      sanctioned_load: data.sanctionedLoad != null ? String(data.sanctionedLoad) : draft.sanctioned_load,
-      metertype: data.phase ?? draft.metertype,
-      discom: data.provider && data.provider !== "Unknown" ? data.provider : draft.discom,
+      sanctioned_load: data.sanctioned_load != null ? String(data.sanctioned_load) : draft.sanctioned_load,
+      metertype: data.metertype ?? draft.metertype,
+      discom: data.discom ?? draft.discom,
+      ca_number: data.ca_number ?? draft.ca_number,
+      avg_monthly_bill: data.avg_monthly_bill ?? draft.avg_monthly_bill,
+      avg_monthly_units: data.avg_monthly_units != null ? String(data.avg_monthly_units) : draft.avg_monthly_units,
     });
   }
 
@@ -124,6 +135,10 @@ export default function LeadDetailPage() {
         metertype: draft.metertype || undefined,
         discom: draft.discom.trim() || undefined,
         roof_area_sqft: draft.roof_area_sqft ? Number(draft.roof_area_sqft) : undefined,
+        ca_number: draft.ca_number.trim() || undefined,
+        avg_monthly_bill: draft.avg_monthly_bill ? Number(draft.avg_monthly_bill) : undefined,
+        avg_monthly_units: draft.avg_monthly_units ? Number(draft.avg_monthly_units) : undefined,
+        requirement: draft.requirement.trim() || undefined,
       });
       setLead(updated);
       setStatus({ kind: "success", message: "Saved." });
@@ -203,7 +218,7 @@ export default function LeadDetailPage() {
       </div>
 
       <div className="lead-detail-panel">
-        <BillUploadWidget onExtracted={handleExtracted} />
+        <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
 
         <form onSubmit={handleSave} noValidate>
           <div className="add-lead-field">
@@ -316,6 +331,53 @@ export default function LeadDetailPage() {
                 onChange={(e) => setDraft({ ...draft, roof_area_sqft: e.target.value })}
               />
             </div>
+          </div>
+
+          <div className="add-lead-field-row">
+            <div className="add-lead-field">
+              <label htmlFor="detailCaNumber">CA Number</label>
+              <input
+                id="detailCaNumber"
+                type="text"
+                placeholder="Customer Account Number (auto-filled)"
+                value={draft.ca_number}
+                onChange={(e) => setDraft({ ...draft, ca_number: e.target.value })}
+              />
+            </div>
+            <div className="add-lead-field">
+              <label htmlFor="detailAvgBill">Avg. Monthly Bill (₹)</label>
+              <input
+                id="detailAvgBill"
+                type="number"
+                placeholder="e.g. 5000 (auto-filled)"
+                value={draft.avg_monthly_bill}
+                onChange={(e) => setDraft({ ...draft, avg_monthly_bill: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="add-lead-field-row">
+            <div className="add-lead-field">
+              <label htmlFor="detailAvgUnits">Avg. Monthly Units (kWh)</label>
+              <input
+                id="detailAvgUnits"
+                type="number"
+                placeholder="e.g. 850 (auto-filled)"
+                value={draft.avg_monthly_units}
+                onChange={(e) => setDraft({ ...draft, avg_monthly_units: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="add-lead-field">
+            <label htmlFor="detailRequirement">Requirement</label>
+            <textarea
+              id="detailRequirement"
+              rows={3}
+              placeholder="Comments, preferences, or specific requirements from the customer"
+              value={draft.requirement}
+              onChange={(e) => setDraft({ ...draft, requirement: e.target.value })}
+            />
           </div>
 
           {status && <p className={`leads-status ${status.kind}`}>{status.message}</p>}
