@@ -1,5 +1,14 @@
 .qdoc {
   --qdoc-primary: #ff6b1a;
+  /* Print-friendly overrides: this document must read clearly on a printer
+     that renders greys as washed-out or invisible, so within the quote we
+     override the app's grey text/border/background tokens to solid black
+     (text/borders) and white (backgrounds) rather than relying on the
+     app-wide (grey) design tokens used elsewhere in the product. */
+  --app-text: #000;
+  --app-text-muted: #000;
+  --app-border: #000;
+  --app-bg: #fff;
   font-size: var(--qdoc-body, 14px);
   color: var(--app-text);
   background: var(--app-surface);
@@ -80,7 +89,7 @@
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .qdoc-eyebrow {
@@ -103,6 +112,10 @@
   color: var(--app-text-muted);
 }
 
+.qdoc-customer-name {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+}
+
 .qdoc-address {
   margin: 2px 0;
   font-size: var(--qdoc-body, 14px);
@@ -114,16 +127,24 @@
 }
 
 .qdoc-pitch {
-  max-width: 320px;
+  flex: 1 1 320px;
+  min-width: 0;
   background: var(--app-bg);
   border-radius: var(--app-radius);
-  padding: 14px 16px;
+  padding: 10px 12px;
   font-size: var(--qdoc-small, 12px);
   line-height: 1.5;
 }
 
+/* Always render as a single line — long pitch variants truncate with an
+   ellipsis rather than wrapping and eating vertical space. min-width: 0 on
+   the flex item (above) is required for text-overflow to take effect here. */
 .qdoc-pitch p {
   margin: 0;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Metrics */
@@ -179,6 +200,22 @@
 .qdoc-h2-sub {
   font-weight: 400;
   font-size: 0.55em;
+  color: var(--app-text-muted);
+}
+
+/* Years 6-15 subheading inside the AMC section — sized like the tile
+   headings (not the tiny 0.55em .qdoc-h2-sub scale, which is meant for an
+   inline <small> inside an h2, not a standalone heading). */
+.qdoc-post5-heading {
+  display: block;
+  font-size: var(--qdoc-h3, 18px);
+  font-weight: 700;
+  margin: 0;
+}
+
+.qdoc-post5-heading small {
+  font-size: 0.7em;
+  font-weight: 400;
   color: var(--app-text-muted);
 }
 
@@ -291,7 +328,7 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
-@media (max-width: 720px) {
+@media screen and (max-width: 720px) {
   .qdoc-tile-grid,
   .qdoc-tile-grid--pair {
     grid-template-columns: 1fr;
@@ -590,9 +627,46 @@
   font-style: italic;
 }
 
+/* Sits between the EPC info block and the signature block in the footer row
+   — sized to the same height as its neighbours (via align-items: flex-end on
+   .qdoc-footer) rather than a fixed large size, so it doesn't expand the
+   footer's height. */
+.qdoc-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.qdoc-qr-code {
+  display: flex;
+  padding: 4px;
+  border: 2px solid var(--qdoc-primary);
+  border-radius: 6px;
+  background: #fff;
+  line-height: 0;
+}
+
+.qdoc-qr-label {
+  margin: 0;
+  font-size: var(--qdoc-small, 11px);
+  font-weight: 700;
+  text-align: center;
+  color: #000;
+  background: #fff3e6;
+  border: 1px solid var(--qdoc-primary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 .qdoc-sign {
   text-align: center;
   min-width: 160px;
+}
+
+.qdoc-sign-action {
+  margin-bottom: 16px;
 }
 
 .qdoc-sign-label {
@@ -604,7 +678,26 @@
   margin-bottom: 6px;
 }
 
-@media (max-width: 720px) {
+/* Closing brand mark — centered at the very end of the document, so it lands
+   at the bottom-center of the last printed page. */
+.qdoc-powered-by {
+  margin: 18px 0 0;
+  padding-top: 12px;
+  text-align: center;
+  font-size: var(--qdoc-small, 12px);
+  color: #000;
+}
+
+.qdoc-powered-by strong {
+  font-weight: 800;
+  background: #fff3e6;
+  border: 1.5px solid var(--qdoc-primary);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 3px;
+}
+
+@media screen and (max-width: 720px) {
   .qdoc-metrics {
     grid-template-columns: 1fr 1fr;
   }
@@ -624,5 +717,22 @@
     border: none;
     box-shadow: none;
     max-width: none;
+  }
+
+  /* AMC / loan-financing tile grids must never split across a page break —
+     push the whole grid (and, failing that, each individual tile) onto the
+     next page rather than cutting a tile in half. */
+  .qdoc-tile-grid,
+  .qdoc-tile {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Keep the "Years 6–15" heading glued to the tile grid that follows it —
+     otherwise the heading can be stranded as the last line on a page while
+     its tiles start fresh on the next one. */
+  .qdoc-post5-heading {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 }

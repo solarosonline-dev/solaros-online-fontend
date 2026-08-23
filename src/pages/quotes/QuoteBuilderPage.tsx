@@ -360,11 +360,11 @@ export default function QuoteBuilderPage() {
 
   return (
     <div className="quote-builder">
-      <Link to={`/app/leads/${leadId}`} className="quote-builder-back">
+      <Link to={`/app/leads/${leadId}`} className="quote-builder-back no-print">
         ← Back to lead
       </Link>
 
-      <div className="quote-builder-header">
+      <div className="quote-builder-header no-print">
         <h1>
           Quote for {lead.name}{" "}
           {existingQuote && <span className="quote-status-badge">{existingQuote.status}</span>}
@@ -372,7 +372,7 @@ export default function QuoteBuilderPage() {
       </div>
 
       <div className="quote-builder-grid">
-        <div className="quote-form-panel">
+        <div className="quote-form-panel no-print">
           <form onSubmit={handleSubmit} noValidate>
             <p className="quote-section-label">System</p>
             <div className="quote-field-row">
@@ -853,10 +853,6 @@ export default function QuoteBuilderPage() {
         </div>
 
         <div className="quote-preview-panel">
-          <p className="quote-section-label" style={{ marginTop: 0 }}>
-            Live preview — this is exactly what the customer will see
-          </p>
-
           <QuoteDocument
             quoteId={existingQuote?.quote_id ?? null}
             createdAt={existingQuote?.created_at ?? null}
@@ -904,6 +900,7 @@ export default function QuoteBuilderPage() {
               tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,
             }}
             branding={documentBranding}
+            shareUrl={shareUrl}
           />
         </div>
       </div>

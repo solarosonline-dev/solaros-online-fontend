@@ -102,6 +102,22 @@ export default function PublicQuotePage() {
       : undefined,
   };
 
+  const signatureAction = accepted ? (
+    <div className="public-quote-accepted">
+      <div className="icon">✅</div>
+      <p>You've accepted this quote. Our team will be in touch shortly.</p>
+    </div>
+  ) : quote.status === "REJECTED" ? (
+    <p>This quote is no longer active.</p>
+  ) : (
+    <>
+      <button className="public-quote-btn public-quote-btn--sign" onClick={handleAccept} disabled={accepting}>
+        {accepting ? "Accepting…" : "Accept this quote"}
+      </button>
+      {acceptError && <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>}
+    </>
+  );
+
   return (
     <div className="public-quote-shell">
       <div className="public-quote-wrap">
@@ -144,25 +160,9 @@ export default function PublicQuotePage() {
             tenureYears: quote.loan_tenure_years,
           }}
           branding={documentBranding}
+          shareUrl={typeof window !== "undefined" ? window.location.href : null}
+          signatureAction={signatureAction}
         />
-
-        <div className="public-quote-actions no-print">
-          {accepted ? (
-            <div className="public-quote-accepted">
-              <div className="icon">✅</div>
-              <p>You've accepted this quote. Our team will be in touch shortly.</p>
-            </div>
-          ) : quote.status === "REJECTED" ? (
-            <p>This quote is no longer active.</p>
-          ) : (
-            <>
-              <button className="public-quote-btn" onClick={handleAccept} disabled={accepting}>
-                {accepting ? "Accepting…" : "Accept this quote"}
-              </button>
-              {acceptError && <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>}
-            </>
-          )}
-        </div>
       </div>
     </div>
   );

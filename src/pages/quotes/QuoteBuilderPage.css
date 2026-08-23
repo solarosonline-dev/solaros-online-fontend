@@ -47,7 +47,7 @@
   overflow-y: auto;
 }
 
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
   .quote-builder-grid {
     grid-template-columns: 1fr;
   }
@@ -56,6 +56,25 @@
   .quote-preview-panel {
     position: static;
     max-height: none;
+  }
+}
+
+/* Printing the quote builder should only print the quote itself (the right
+   preview panel) — the left input form, the back link, and the page header
+   are editing chrome, not part of the document. The preview panel's sticky
+   positioning/scroll clipping (needed on screen) is also reset so the full
+   quote prints, preserving the same visual formatting seen on screen. */
+@media print {
+  .quote-builder-grid {
+    display: block;
+  }
+
+  .quote-preview-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    border: none;
+    padding: 0;
   }
 }
 

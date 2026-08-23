@@ -1,4 +1,6 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   formatINR,
   emiMonthly,
@@ -74,6 +76,15 @@ export type QuoteDocumentProps = {
   amcPost5: QuoteDocumentAmcPost5;
   loan: QuoteDocumentLoan;
   branding: QuoteDocumentBranding;
+  /** The customer-facing share link for this quote, if one has been generated
+   * yet — rendered as a scannable QR code in the footer so a printed copy can
+   * be scanned straight through to online acceptance. Omitted/null hides it. */
+  shareUrl?: string | null;
+  /** Optional on-screen action (e.g. an "Accept this quote" button) rendered
+   * above the signature line. Only used by the public-facing page — omitted
+   * entirely from print/PDF output (wrapped in `no-print`) and unused by the
+   * EPC-side live preview, which doesn't pass it. */
+  signatureAction?: ReactNode;
 };
 
 export default function QuoteDocument({
@@ -104,7 +115,31 @@ export default function QuoteDocument({
   amcPost5,
   loan,
   branding,
+  shareUrl,
+  signatureAction,
 }: QuoteDocumentProps) {
+  // The browser's own print header/footer (page title + URL + date) is a
+  // browser-chrome print-dialog setting we can't remove via CSS, but we can
+  // at least stop it from surfacing the app's marketing <title> — swap in a
+  // clean, customer-facing title for the duration of the print job.
+  useEffect(() => {
+    const previousTitle = document.title;
+    const printTitle = customerName ? `Quote for ${customerName}` : "Solar Quote";
+    const handleBeforePrint = () => {
+      document.title = printTitle;
+    };
+    const handleAfterPrint = () => {
+      document.title = previousTitle;
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+      document.title = previousTitle;
+    };
+  }, [customerName]);
+
   const isDCR = (panelType ?? "DCR") === "DCR";
   const isResidential = segment === "residential";
   const segLabel = SEGMENT_LABELS[segment ?? ""] ?? "Custom";
@@ -226,7 +261,7 @@ export default function QuoteDocument({
         <div>
           <p className="qdoc-eyebrow">Personalized proposal · {segLabel}</p>
           <h1>
-            {customerName || "Valued customer"}
+            <span className="qdoc-customer-name">{customerName || "Valued customer"}</span>
             {customerCompany && <small> · {customerCompany}</small>}
           </h1>
           {customerAddress && <p className="qdoc-address">{customerAddress}</p>}
@@ -474,13 +509,20 @@ export default function QuoteDocument({
             return (
               <>
                 <div className="qdoc-tile-grid qdoc-tile-grid--single">{amcTile}</div>
-                <h3 className="qdoc-h2-sub" style={{ marginTop: 16, display: "block" }}>
+                <h3 className="qdoc-post5-heading" style={{ marginTop: 28, marginBottom: 14 }}>
                   Years 6–15 <small>— continue the same care for the next 10 years</small>
                 </h3>
                 <div className="qdoc-tile-grid">{post5Tiles}</div>
               </>
             );
           })()}
+          {post5Include && (
+            <p className="qdoc-row-note" style={{ marginTop: 12 }}>
+              Years 6–15 AMC pricing shown above is indicative, based on today's rates. It is only a guide to what
+              maintenance may cost after year 5 — the actual price applicable at that time will follow the AMC rates
+              prevailing on that day.
+            </p>
+          )}
         </section>
       )}
 
@@ -725,12 +767,25 @@ export default function QuoteDocument({
           {branding.gstno && <p>GSTIN: {branding.gstno}</p>}
           {branding.footerTag && <p className="qdoc-footer-tag">{branding.footerTag}</p>}
         </div>
+        {shareUrl && (
+          <div className="qdoc-qr">
+            <div className="qdoc-qr-code">
+              <QRCodeSVG value={shareUrl} size={64} />
+            </div>
+            <p className="qdoc-powered-by">
+                Powered by <strong>SolarOS</strong>
+            </p>
+          </div>
+        )}
         <div className="qdoc-sign">
+          {signatureAction && <div className="qdoc-sign-action no-print">{signatureAction}</div>}
           <p className="qdoc-sign-label">Customer acceptance</p>
           <div className="qdoc-sign-line" />
           <p>Name &amp; Date</p>
         </div>
       </footer>
+
+
     </div>
   );
 }

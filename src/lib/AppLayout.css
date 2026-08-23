@@ -102,3 +102,17 @@
     border-top: 1px solid var(--app-border);
   }
 }
+
+/* When printing any app page (e.g. the quote builder), the top nav bar is
+   chrome, not document content — never print it. Individual pages are
+   responsible for hiding their own non-document panels (e.g. the quote
+   builder's left form panel). */
+@media print {
+  .app-topbar {
+    display: none !important;
+  }
+
+  .app-content {
+    padding: 0;
+  }
+}

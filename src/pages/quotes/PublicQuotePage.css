@@ -11,6 +11,10 @@
   margin: 0 auto;
 }
 
+/* Still used by PublicAgreementPage.tsx (which imports this stylesheet for
+   its own accept/reject action card) — no longer used by this page, since
+   the quote's accept action now lives inside QuoteDocument's signature
+   column instead. */
 .public-quote-actions {
   margin-top: 20px;
   text-align: center;
@@ -37,6 +41,14 @@
   cursor: not-allowed;
 }
 
+/* Sized down for the narrow (min-width: 160px) signature column in the quote
+   document's footer, where this button now lives, instead of the full-width
+   centered card it used to sit in. */
+.public-quote-btn--sign {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
 .public-quote-status {
   text-align: center;
   padding: 60px 20px;
@@ -51,4 +63,14 @@
 .public-quote-accepted .icon {
   font-size: 40px;
   margin-bottom: 8px;
+}
+
+/* Printing should only produce the quote document itself — the grey page
+   background/padding around it is on-screen chrome, not part of the quote. */
+@media print {
+  .public-quote-shell {
+    background: #fff;
+    padding: 0;
+    min-height: 0;
+  }
 }
