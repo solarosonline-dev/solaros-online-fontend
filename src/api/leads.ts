@@ -16,6 +16,7 @@ export type LeadDetail = Lead & {
   email: string | null;
   sanctioned_load: number | null;
   metertype: string | null;
+  state: string | null;
   discom: string | null;
   roof_area_sqft: number | null;
   ca_number: string | null;
@@ -39,6 +40,7 @@ export type CreateLeadInput = {
   email?: string;
   sanctioned_load?: number;
   metertype?: string;
+  state?: string;
   discom?: string;
   roof_area_sqft?: number;
   ca_number?: string;
@@ -60,6 +62,7 @@ export type ExtractedLeadData = {
   email: string | null;
   sanctioned_load: number | null;
   metertype: string | null;
+  state: string | null;
   discom: string | null;
   roof_area_sqft: number | null;
   ca_number: string | null;

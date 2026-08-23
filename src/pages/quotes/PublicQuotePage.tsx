@@ -5,6 +5,7 @@ import { getPublicEntityBranding, type PublicBranding } from "../../api/entityPr
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
+import { getDiscomName } from "../leads/discomOptions";
 import "./PublicQuotePage.css";
 
 export default function PublicQuotePage() {
@@ -116,7 +117,7 @@ export default function PublicQuotePage() {
           terms={quote.terms ?? []}
           customerName={lead.name}
           customerAddress={lead.address}
-          customerDiscom={lead.discom}
+          customerDiscom={getDiscomName(lead.discom)}
           customerMobile={lead.mobile}
           customerEmail={lead.email}
           segment={lead.type}

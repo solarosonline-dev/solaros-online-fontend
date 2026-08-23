@@ -13,7 +13,8 @@ import {
 import { ApiError } from "../../api/client";
 import { getProjectForLead, type ProjectForLead } from "../../api/projects";
 import BillUploadWidget from "./BillUploadWidget";
-import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
+import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
+import { STATES, getDiscomsForState } from "./discomOptions";
 import "./LeadsPage.css";
 
 function manualTransitions(status: LeadStatus): { label: string; target: ManualLeadStatus; primary: boolean }[] {
@@ -53,6 +54,7 @@ export default function LeadDetailPage() {
     email: string;
     sanctioned_load: string;
     metertype: string;
+    state: string;
     discom: string;
     roof_area_sqft: string;
     ca_number: string;
@@ -81,6 +83,7 @@ export default function LeadDetailPage() {
           email: res.email ?? "",
           sanctioned_load: res.sanctioned_load != null ? String(res.sanctioned_load) : "",
           metertype: res.metertype ?? "",
+          state: res.state ?? "",
           discom: res.discom ?? "",
           roof_area_sqft: res.roof_area_sqft != null ? String(res.roof_area_sqft) : "",
           ca_number: res.ca_number ?? "",
@@ -102,6 +105,13 @@ export default function LeadDetailPage() {
       .catch(() => {});
   }, [entityId, leadId, lead?.status]);
 
+  function handleStateChange(newState: string) {
+    if (!draft) return;
+    // A discom picked under the old state may not exist under the new one —
+    // clear it rather than leave a stale value silently attached to the lead.
+    setDraft({ ...draft, state: newState, discom: "" });
+  }
+
   function handleExtracted(data: ExtractedLeadData) {
     if (!draft) return;
     // Deliberately not autofilling name/mobile here — those identify an
@@ -112,6 +122,7 @@ export default function LeadDetailPage() {
       email: data.email ?? draft.email,
       sanctioned_load: data.sanctioned_load != null ? String(data.sanctioned_load) : draft.sanctioned_load,
       metertype: data.metertype ?? draft.metertype,
+      state: data.state ?? draft.state,
       discom: data.discom ?? draft.discom,
       ca_number: data.ca_number ?? draft.ca_number,
       avg_monthly_bill: data.avg_monthly_bill ?? draft.avg_monthly_bill,
@@ -133,6 +144,7 @@ export default function LeadDetailPage() {
         email: draft.email.trim() || undefined,
         sanctioned_load: draft.sanctioned_load ? Number(draft.sanctioned_load) : undefined,
         metertype: draft.metertype || undefined,
+        state: draft.state || undefined,
         discom: draft.discom.trim() || undefined,
         roof_area_sqft: draft.roof_area_sqft ? Number(draft.roof_area_sqft) : undefined,
         ca_number: draft.ca_number.trim() || undefined,
@@ -308,20 +320,42 @@ export default function LeadDetailPage() {
 
           <div className="add-lead-field-row">
             <div className="add-lead-field">
+              <label htmlFor="detailState">State</label>
+              <select
+                id="detailState"
+                value={draft.state}
+                onChange={(e) => handleStateChange(e.target.value)}
+                title={STATES.find((s) => s.code === draft.state)?.name}
+              >
+                <option value="">—</option>
+                {STATES.map((s) => (
+                  <option key={s.code} value={s.code} title={s.name}>
+                    {s.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="add-lead-field">
               <label htmlFor="detailDiscom">Discom</label>
               <select
                 id="detailDiscom"
                 value={draft.discom}
                 onChange={(e) => setDraft({ ...draft, discom: e.target.value })}
+                disabled={!draft.state}
+                title={getDiscomsForState(draft.state).find((d) => d.code === draft.discom)?.name}
               >
                 <option value="">—</option>
-                {DISCOMS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                {getDiscomsForState(draft.state).map((d) => (
+                  <option key={d.code} value={d.code} title={d.name}>
+                    {d.code}
                   </option>
                 ))}
+                <option value="Other">Other</option>
               </select>
             </div>
+          </div>
+
+          <div className="add-lead-field-row">
             <div className="add-lead-field">
               <label htmlFor="detailRoofArea">Roof area (sq ft)</label>
               <input

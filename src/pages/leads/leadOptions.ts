@@ -9,6 +9,7 @@ export const LEAD_TYPES: { value: string; label: string }[] = [
   { value: "farm", label: "Agri / Farm" },
 ];
 
-/** Matches the old repo's admin/quote.html "DISCOM" dropdown. Purely informational —
- * no downstream calculation branches on which discom is selected. */
-export const DISCOMS = ["TPDDL", "BSES Rajdhani", "BSES Yamuna", "DHBVN", "UHBVN", "JVVNL", "Other"];
+// The DISCOM dropdown used to be a flat, Delhi/NCR-only list here. It's now
+// derived from the selected state via ./discomOptions (STATES /
+// getDiscomsForState), covering every Indian state/UT from the MNRE-sourced
+// discom dataset.

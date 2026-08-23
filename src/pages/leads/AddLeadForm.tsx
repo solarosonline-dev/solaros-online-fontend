@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { createLead, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
-import { METER_TYPES, LEAD_TYPES, DISCOMS } from "./leadOptions";
+import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
+import { STATES, getDiscomsForState } from "./discomOptions";
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
 
@@ -20,6 +21,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [email, setEmail] = useState("");
   const [sanctionedLoad, setSanctionedLoad] = useState("");
   const [metertype, setMetertype] = useState("");
+  const [state, setState] = useState("");
   const [discom, setDiscom] = useState("");
   const [roofArea, setRoofArea] = useState("");
   const [caNumber, setCaNumber] = useState("");
@@ -31,6 +33,16 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const discomOptions = getDiscomsForState(state);
+
+  function handleStateChange(newState: string) {
+    setState(newState);
+    // A discom picked under the old state may not exist under the new one
+    // (or there may be no discoms at all until a state is chosen) — clear it
+    // rather than leave a stale value silently attached to the lead.
+    setDiscom("");
+  }
+
   function handleExtracted(data: ExtractedLeadData) {
     if (data.name) setName(data.name);
     if (data.mobile) setMobile(data.mobile.replace(/\D/g, "").slice(-10));
@@ -38,6 +50,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     if (data.email) setEmail(data.email);
     if (data.sanctioned_load != null) setSanctionedLoad(String(data.sanctioned_load));
     if (data.metertype) setMetertype(data.metertype);
+    if (data.state) setState(data.state);
     if (data.discom) setDiscom(data.discom);
     if (data.ca_number) setCaNumber(data.ca_number);
     if (data.avg_monthly_bill) setAvgBill(data.avg_monthly_bill);
@@ -84,6 +97,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         email: email.trim() || undefined,
         sanctioned_load: sanctionedLoad ? Number(sanctionedLoad) : undefined,
         metertype: metertype || undefined,
+        state: state || undefined,
         discom: discom.trim() || undefined,
         roof_area_sqft: roofArea ? Number(roofArea) : undefined,
         ca_number: caNumber.trim() || undefined,
@@ -167,16 +181,42 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
         <div className="add-lead-field-row">
           <div className="add-lead-field">
-            <label htmlFor="leadDiscom">Discom</label>
-            <select id="leadDiscom" value={discom} onChange={(e) => setDiscom(e.target.value)}>
+            <label htmlFor="leadState">State</label>
+            <select
+              id="leadState"
+              value={state}
+              onChange={(e) => handleStateChange(e.target.value)}
+              title={STATES.find((s) => s.code === state)?.name}
+            >
               <option value="">—</option>
-              {DISCOMS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
+              {STATES.map((s) => (
+                <option key={s.code} value={s.code} title={s.name}>
+                  {s.code}
                 </option>
               ))}
             </select>
           </div>
+          <div className="add-lead-field">
+            <label htmlFor="leadDiscom">Discom</label>
+            <select
+              id="leadDiscom"
+              value={discom}
+              onChange={(e) => setDiscom(e.target.value)}
+              disabled={!state}
+              title={discomOptions.find((d) => d.code === discom)?.name}
+            >
+              <option value="">—</option>
+              {discomOptions.map((d) => (
+                <option key={d.code} value={d.code} title={d.name}>
+                  {d.code}
+                </option>
+              ))}
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="add-lead-field-row">
           <div className="add-lead-field">
             <label htmlFor="leadRoofArea">Roof area (sq ft)</label>
             <input

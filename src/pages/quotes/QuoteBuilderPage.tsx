@@ -16,6 +16,7 @@ import {
 import { ApiError } from "../../api/client";
 import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
+import { getDiscomName } from "../leads/discomOptions";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -562,7 +563,7 @@ export default function QuoteBuilderPage() {
             terms={form.terms}
             customerName={lead.name}
             customerAddress={lead.address}
-            customerDiscom={lead.discom}
+            customerDiscom={getDiscomName(lead.discom)}
             customerMobile={lead.mobile}
             customerEmail={lead.email}
             segment={lead.type}
