@@ -125,6 +125,60 @@ export function computeQuote(input: QuoteComputeInput): QuoteComputeResult {
   };
 }
 
+/** Standard monthly-compounded loan EMI (PMT) — ported from SolarSite's
+ * quote-render.js `emiMonthly()`. Used only by the optional loan-financing
+ * section; independent of `computeQuote()`. */
+export function emiMonthly(principal: number, annualRatePercent: number, tenureYears: number): number {
+  const P = principal || 0;
+  const r = (annualRatePercent || 0) / 100 / 12;
+  const n = Math.round((tenureYears || 0) * 12);
+  if (P <= 0 || n <= 0) return 0;
+  if (r === 0) return P / n;
+  return (P * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1);
+}
+
+/** Loan-financed payback — distinct from `paybackYrs` above (which ignores
+ * financing entirely). Recovers the customer's self-funded capital outlay
+ * via the net monthly cash position (monthlySaving - EMI) while the loan is
+ * active, then via the full monthlySaving once the loan is paid off.
+ * Ported from SolarSite's quote-render.js `loanPaybackYears()`. */
+export function loanPaybackYears(
+  selfFunding: number,
+  monthlySaving: number,
+  emi: number,
+  tenureYears: number,
+): number {
+  if (selfFunding <= 0) return 0;
+  const tenureMonths = Math.round((tenureYears || 0) * 12);
+  const netPositionDuringLoan = monthlySaving - emi;
+
+  if (netPositionDuringLoan > 0) {
+    const monthsNeeded = selfFunding / netPositionDuringLoan;
+    if (monthsNeeded <= tenureMonths) return monthsNeeded / 12;
+    const remainingAfterTenure = selfFunding - netPositionDuringLoan * tenureMonths;
+    if (monthlySaving <= 0) return Infinity;
+    return (tenureMonths + remainingAfterTenure / monthlySaving) / 12;
+  }
+  const shortfallAtTenureEnd = selfFunding - netPositionDuringLoan * tenureMonths;
+  if (monthlySaving <= 0) return Infinity;
+  return (tenureMonths + shortfallAtTenureEnd / monthlySaving) / 12;
+}
+
+/** 10-year savings projection for the loan section: applies a 0.55%/yr
+ * generation degradation to yearly kWh (year 1 = full output), tariff held
+ * flat (no escalation) — a deliberately separate, simpler assumption from
+ * `lifetimeNet` (which escalates tariff 4%/yr over 25 years), so this tile
+ * doesn't reuse/alter that figure. Ported from quote-render.js lines 310-316. */
+export function tenYearSavingsProjection(yearlyKwh: number, tariff: number): number {
+  let savings = 0;
+  let genYear = yearlyKwh;
+  for (let y = 1; y <= 10; y++) {
+    savings += genYear * tariff;
+    genYear *= 1 - 0.0055;
+  }
+  return Math.round(savings);
+}
+
 export function formatINR(n: number): string {
   if (!isFinite(n) || n == null) return "₹0";
   const sign = n < 0 ? "-" : "";

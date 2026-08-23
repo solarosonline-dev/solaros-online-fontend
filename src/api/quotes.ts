@@ -37,6 +37,13 @@ export type QuoteDetail = {
   subsidy_amount: string | null;
   amc_id: number | null;
   amc_duration_years: number | null;
+  amc_mode: "included" | "chargeable" | null;
+  amc_post5_enabled: boolean | null;
+  amc_post5_plan_ids: number[] | null;
+  loan_enabled: boolean | null;
+  loan_amount: string | null;
+  loan_rate_percent: string | null;
+  loan_tenure_years: number | null;
   notes: string | null;
   terms: string[] | null;
   components: QuoteComponentRow[] | null;
@@ -58,6 +65,13 @@ export type QuoteInput = {
   subsidy_amount?: number;
   amc_id?: number;
   amc_duration_years?: number;
+  amc_mode?: "included" | "chargeable";
+  amc_post5_enabled?: boolean;
+  amc_post5_plan_ids?: number[];
+  loan_enabled?: boolean;
+  loan_amount?: number;
+  loan_rate_percent?: number;
+  loan_tenure_years?: number;
   notes?: string;
   terms?: string[];
   components?: QuoteComponentRow[];
@@ -98,6 +112,7 @@ export type PublicQuoteResponse = {
   entity_id: number;
   entity_name: string;
   amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
+  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
 };
 
 export function getPublicQuote(token: string) {

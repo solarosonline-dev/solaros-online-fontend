@@ -36,6 +36,14 @@ type FormState = {
   subsidyAmount: string;
   amcId: string;
   amcDurationYears: string;
+  amcMode: "included" | "chargeable";
+  amcPost5Enabled: boolean;
+  /** Up to 3 amc_id values, in selection order. */
+  amcPost5PlanIds: string[];
+  loanEnabled: boolean;
+  loanAmount: string;
+  loanRatePercent: string;
+  loanTenureYears: string;
   notes: string;
   terms: string[];
   components: QuoteComponentRow[];
@@ -56,6 +64,13 @@ const DEFAULT_FORM: FormState = {
   subsidyAmount: "",
   amcId: "",
   amcDurationYears: "",
+  amcMode: "chargeable",
+  amcPost5Enabled: false,
+  amcPost5PlanIds: [],
+  loanEnabled: false,
+  loanAmount: "",
+  loanRatePercent: "",
+  loanTenureYears: "",
   notes: "",
   terms: [],
   components: [],
@@ -119,6 +134,13 @@ export default function QuoteBuilderPage() {
             subsidyAmount: quote.subsidy_amount ?? "",
             amcId: quote.amc_id != null ? String(quote.amc_id) : "",
             amcDurationYears: quote.amc_duration_years != null ? String(quote.amc_duration_years) : "",
+            amcMode: quote.amc_mode ?? "chargeable",
+            amcPost5Enabled: quote.amc_post5_enabled ?? false,
+            amcPost5PlanIds: (quote.amc_post5_plan_ids ?? []).map(String),
+            loanEnabled: quote.loan_enabled ?? false,
+            loanAmount: quote.loan_amount ?? "",
+            loanRatePercent: quote.loan_rate_percent ?? "",
+            loanTenureYears: quote.loan_tenure_years != null ? String(quote.loan_tenure_years) : "",
             notes: quote.notes ?? "",
             terms: quote.terms ?? [],
             components: quote.components ?? [],
@@ -156,6 +178,14 @@ export default function QuoteBuilderPage() {
   const selectedAmcPlan = useMemo(
     () => amcPlans.find((p) => String(p.amc_id) === form.amcId) ?? null,
     [amcPlans, form.amcId],
+  );
+
+  const selectedPost5Plans = useMemo(
+    () =>
+      form.amcPost5PlanIds
+        .map((id) => amcPlans.find((p) => String(p.amc_id) === id) ?? null)
+        .filter((p): p is AmcPlan => p != null),
+    [amcPlans, form.amcPost5PlanIds],
   );
 
   const documentBranding: QuoteDocumentBranding = useMemo(
@@ -273,6 +303,13 @@ export default function QuoteBuilderPage() {
       subsidy_amount: form.subsidyAmount ? Number(form.subsidyAmount) : undefined,
       amc_id: form.amcId ? Number(form.amcId) : undefined,
       amc_duration_years: form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
+      amc_mode: form.amcId ? form.amcMode : undefined,
+      amc_post5_enabled: form.amcPost5Enabled,
+      amc_post5_plan_ids: form.amcPost5PlanIds.map(Number),
+      loan_enabled: form.loanEnabled,
+      loan_amount: form.loanAmount ? Number(form.loanAmount) : undefined,
+      loan_rate_percent: form.loanRatePercent ? Number(form.loanRatePercent) : undefined,
+      loan_tenure_years: form.loanTenureYears ? Number(form.loanTenureYears) : undefined,
       notes: form.notes.trim() || undefined,
       terms: form.terms,
       components: form.components,
@@ -505,6 +542,122 @@ export default function QuoteBuilderPage() {
                 />
               </div>
             </div>
+            {form.amcId && (
+              <div className="quote-field">
+                <label htmlFor="qAmcMode">Pricing</label>
+                <select
+                  id="qAmcMode"
+                  disabled={locked}
+                  value={form.amcMode}
+                  onChange={(e) => setForm({ ...form, amcMode: e.target.value as "included" | "chargeable" })}
+                >
+                  <option value="chargeable">Chargeable — customer pays</option>
+                  <option value="included">Included — bundled free of cost</option>
+                </select>
+              </div>
+            )}
+
+            <p className="quote-section-label">AMC — years 6-15 (next 10 years)</p>
+            <div className="quote-checkbox-row">
+              <input
+                id="qAmcPost5Enabled"
+                type="checkbox"
+                disabled={locked}
+                checked={form.amcPost5Enabled}
+                onChange={(e) => setForm({ ...form, amcPost5Enabled: e.target.checked })}
+              />
+              <label htmlFor="qAmcPost5Enabled">Offer AMC plans for years 6-15</label>
+            </div>
+            {form.amcPost5Enabled && (
+              <div className="quote-field">
+                <label>Select up to 3 plans from the AMC catalog</label>
+                <div className="quote-checkbox-list">
+                  {amcPlans.map((p) => {
+                    const idStr = String(p.amc_id);
+                    const checked = form.amcPost5PlanIds.includes(idStr);
+                    const atLimit = form.amcPost5PlanIds.length >= 3;
+                    return (
+                      <div className="quote-checkbox-row" key={p.amc_id}>
+                        <input
+                          id={`qAmcPost5Plan-${p.amc_id}`}
+                          type="checkbox"
+                          disabled={locked || (!checked && atLimit)}
+                          checked={checked}
+                          onChange={(e) => {
+                            setForm({
+                              ...form,
+                              amcPost5PlanIds: e.target.checked
+                                ? [...form.amcPost5PlanIds, idStr]
+                                : form.amcPost5PlanIds.filter((id) => id !== idStr),
+                            });
+                          }}
+                        />
+                        <label htmlFor={`qAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="quote-field-hint">
+                  {form.amcPost5PlanIds.length}/3 selected — these render as columns alongside the years 1-5 AMC on the quote.
+                </p>
+              </div>
+            )}
+
+            <p className="quote-section-label">Loan financing</p>
+            <div className="quote-checkbox-row">
+              <input
+                id="qLoanEnabled"
+                type="checkbox"
+                disabled={locked}
+                checked={form.loanEnabled}
+                onChange={(e) => setForm({ ...form, loanEnabled: e.target.checked })}
+              />
+              <label htmlFor="qLoanEnabled">Show loan financing on this quote</label>
+            </div>
+            {form.loanEnabled && (
+              <>
+                <div className="quote-field-row">
+                  <div className="quote-field">
+                    <label htmlFor="qLoanAmount">Loan amount (₹)</label>
+                    <input
+                      id="qLoanAmount"
+                      type="number"
+                      disabled={locked}
+                      value={form.loanAmount}
+                      onChange={(e) => setForm({ ...form, loanAmount: e.target.value })}
+                    />
+                  </div>
+                  <div className="quote-field">
+                    <label htmlFor="qLoanRate">Interest rate (% p.a.)</label>
+                    <input
+                      id="qLoanRate"
+                      type="number"
+                      step="0.1"
+                      disabled={locked}
+                      value={form.loanRatePercent}
+                      onChange={(e) => setForm({ ...form, loanRatePercent: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="quote-field">
+                  <label htmlFor="qLoanTenure">Tenure (years)</label>
+                  <input
+                    id="qLoanTenure"
+                    type="number"
+                    disabled={locked}
+                    value={form.loanTenureYears}
+                    onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
+                  />
+                </div>
+                <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+                  Self-funding: ₹
+                  {Math.max(0, (computed.netInvestment || 0) - (Number(form.loanAmount) || 0)).toLocaleString(
+                    "en-IN",
+                  )}{" "}
+                  (net investment minus loan amount)
+                </p>
+              </>
+            )}
 
             <p className="quote-section-label">Quote details</p>
             <div className="quote-field">
@@ -723,6 +876,7 @@ export default function QuoteBuilderPage() {
             segment={lead.type}
             pricePerWatt={Number(form.pricePerWatt) || 0}
             gstRate={Number(form.gstRate) || 0}
+            tariff={Number(form.tariff) || 9}
             computed={computed}
             amc={
               selectedAmcPlan
@@ -734,6 +888,21 @@ export default function QuoteBuilderPage() {
                 : null
             }
             amcDurationYears={form.amcDurationYears ? Number(form.amcDurationYears) : null}
+            amcMode={form.amcMode}
+            amcPost5={{
+              enabled: form.amcPost5Enabled,
+              plans: selectedPost5Plans.map((p) => ({
+                name: p.name,
+                ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+                inclusion: p.inclusion,
+              })),
+            }}
+            loan={{
+              enabled: form.loanEnabled,
+              amount: form.loanAmount ? Number(form.loanAmount) : null,
+              ratePercent: form.loanRatePercent ? Number(form.loanRatePercent) : null,
+              tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,
+            }}
             branding={documentBranding}
           />
         </div>

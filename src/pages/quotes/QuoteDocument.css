@@ -271,46 +271,214 @@
   color: var(--app-text-muted);
 }
 
-/* AMC spotlight */
-.qdoc-amc-card {
-  background: var(--app-bg);
-  border: 1px solid var(--qdoc-primary);
-  border-radius: var(--app-radius);
-  padding: 16px 20px;
+/* AMC / loan-financing feature tiles — mirrors SolarSite's `.qamc*` tile
+   system (quote-style.css), renamed under this file's `qdoc-` prefix and
+   remapped onto SolarOS's existing app-wide CSS variables instead of
+   SolarSite's hardcoded palette. Shared by both the "AMC" and
+   "Loan financing" sections. */
+.qdoc-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
 }
 
-.qdoc-amc-tag {
+.qdoc-tile-grid--single {
+  grid-template-columns: 1fr;
+  max-width: 520px;
+}
+
+.qdoc-tile-grid--pair {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 720px) {
+  .qdoc-tile-grid,
+  .qdoc-tile-grid--pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print-friendly tile palette: every variant is a plain white card with a
+   thick, distinctly-colored border — color is used only as an accent (border,
+   tag, checkmarks), never as a fill, and body text always stays black. This
+   keeps each AMC plan visually distinct without repeating a color across
+   tiles and keeps ink usage low when printed. */
+.qdoc-tile {
+  background: #fff;
+  color: #000;
+  border: 3px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px 18px;
+  position: relative;
+}
+
+.qdoc-tile--free {
+  background: #fff;
+  border-color: #1f6e35;
+}
+
+.qdoc-tile--feature {
+  background: #fff;
+  color: #000;
+  border-color: var(--qdoc-primary);
+}
+
+.qdoc-tile--orange {
+  background: #fff;
+  border-color: #b8580f;
+}
+
+.qdoc-tile--green-dark {
+  background: #fff;
+  color: #000;
+  border-color: #1f6e35;
+}
+
+.qdoc-tile--purple {
+  background: #fff;
+  border-color: #6d28a8;
+}
+
+.qdoc-tile--green-dark h3,
+.qdoc-tile--green-dark .qdoc-tile-price {
+  color: #000;
+}
+
+.qdoc-tile--green-dark .qdoc-tile-rate {
+  color: var(--app-text-muted);
+}
+
+.qdoc-tile--wide {
+  grid-column: 1 / -1;
+}
+
+.qdoc-tile-tag {
   display: inline-block;
   font-size: var(--qdoc-small, 12px);
   font-weight: 700;
-  color: var(--qdoc-primary);
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--app-border);
+  background: #fff;
+  color: #000;
+  margin-bottom: 10px;
 }
 
-.qdoc-amc-price {
+.qdoc-tile--free .qdoc-tile-tag {
+  border-color: #1f6e35;
+  color: #1f6e35;
+}
+
+.qdoc-tile--feature .qdoc-tile-tag {
+  border-color: var(--qdoc-primary);
+  color: var(--qdoc-primary);
+}
+
+.qdoc-tile--orange .qdoc-tile-tag {
+  border-color: #b8580f;
+  color: #b8580f;
+}
+
+.qdoc-tile--green-dark .qdoc-tile-tag {
+  border-color: #1f6e35;
+  color: #1f6e35;
+}
+
+.qdoc-tile--purple .qdoc-tile-tag {
+  border-color: #6d28a8;
+  color: #6d28a8;
+}
+
+.qdoc-tile h3 {
+  font-size: var(--qdoc-h3, 17px);
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  color: #000;
+}
+
+.qdoc-tile--feature h3 {
+  color: #000;
+}
+
+.qdoc-tile-price {
+  margin: 0 0 4px;
+  font-size: var(--qdoc-h3, 22px);
+  font-weight: 700;
+  color: #000;
+}
+
+.qdoc-tile--free .qdoc-tile-price {
+  color: #000;
+}
+
+.qdoc-tile-price small {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--app-text-muted);
+  margin-left: 3px;
+}
+
+.qdoc-tile--feature .qdoc-tile-price small {
+  color: var(--app-text-muted);
+}
+
+.qdoc-tile-rate {
+  margin: 0 0 12px;
+  font-size: var(--qdoc-small, 12px);
+  color: var(--app-text-muted);
+}
+
+.qdoc-tile--feature .qdoc-tile-rate {
+  color: var(--app-text-muted);
+}
+
+.qdoc-tile ul {
+  list-style: none;
   margin: 0;
-  font-size: var(--qdoc-h3, 18px);
+  padding: 0;
+}
+
+.qdoc-tile ul li {
+  font-size: var(--qdoc-small, 13px);
+  line-height: 1.55;
+  padding: 4px 0 4px 20px;
+  position: relative;
+  color: #000;
+}
+
+.qdoc-tile--feature ul li {
+  color: #000;
+}
+
+.qdoc-tile ul li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  color: var(--qdoc-primary);
   font-weight: 700;
 }
 
-.qdoc-amc-price small {
-  font-size: 0.5em;
-  font-weight: 400;
-  color: var(--app-text-muted);
+.qdoc-tile--free ul li::before {
+  color: #1f6e35;
 }
 
-.qdoc-amc-rate {
-  margin: 4px 0 10px;
-  font-size: var(--qdoc-small, 12px);
-  color: var(--app-text-muted);
+.qdoc-tile--orange ul li::before {
+  color: #b8580f;
 }
 
-.qdoc-amc-card ul {
-  margin: 0;
-  padding-left: 18px;
-  font-size: var(--qdoc-small, 12px);
+.qdoc-tile--green-dark ul li::before {
+  color: #1f6e35;
+}
+
+.qdoc-tile--purple ul li::before {
+  color: #6d28a8;
+}
+
+.qdoc-tile--feature ul li::before {
+  color: var(--qdoc-primary);
 }
 
 /* Timeline */

@@ -65,7 +65,7 @@ export default function PublicQuotePage() {
     );
   }
 
-  const { quote, lead, entity_name, amc } = data;
+  const { quote, lead, entity_name, amc, amc_post5_plans } = data;
   const accepted = justAccepted || quote.status === "ACCEPTED";
 
   const computed = computeQuote({
@@ -124,9 +124,25 @@ export default function PublicQuotePage() {
           segment={lead.type}
           pricePerWatt={quote.price_per_watt ?? 0}
           gstRate={quote.gst_rate ?? 0}
+          tariff={quote.tariff ?? 9}
           computed={computed}
           amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}
           amcDurationYears={quote.amc_duration_years}
+          amcMode={quote.amc_mode ?? "chargeable"}
+          amcPost5={{
+            enabled: quote.amc_post5_enabled ?? false,
+            plans: (amc_post5_plans ?? []).map((p) => ({
+              name: p.name,
+              ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+              inclusion: p.inclusion,
+            })),
+          }}
+          loan={{
+            enabled: quote.loan_enabled ?? false,
+            amount: quote.loan_amount != null ? Number(quote.loan_amount) : null,
+            ratePercent: quote.loan_rate_percent != null ? Number(quote.loan_rate_percent) : null,
+            tenureYears: quote.loan_tenure_years,
+          }}
           branding={documentBranding}
         />
 
