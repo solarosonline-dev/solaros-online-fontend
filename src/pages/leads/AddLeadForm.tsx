@@ -218,19 +218,6 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
         <div className="add-lead-field-row">
           <div className="add-lead-field">
-            <label htmlFor="leadRoofArea">Roof area (sq ft)</label>
-            <input
-              id="leadRoofArea"
-              type="number"
-              value={roofArea}
-              onChange={(e) => setRoofArea(e.target.value)}
-            />
-            {fieldErrors.roof_area_sqft && <p className="add-lead-field-error">{fieldErrors.roof_area_sqft}</p>}
-          </div>
-        </div>
-
-        <div className="add-lead-field-row">
-          <div className="add-lead-field">
             <label htmlFor="leadCaNumber">CA Number</label>
             <input
               id="leadCaNumber"
@@ -264,6 +251,16 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
               onChange={(e) => setAvgUnits(e.target.value)}
             />
             {fieldErrors.avg_monthly_units && <p className="add-lead-field-error">{fieldErrors.avg_monthly_units}</p>}
+          </div>
+          <div className="add-lead-field">
+            <label htmlFor="leadRoofArea">Roof area (sq ft)</label>
+            <input
+              id="leadRoofArea"
+              type="number"
+              value={roofArea}
+              onChange={(e) => setRoofArea(e.target.value)}
+            />
+            {fieldErrors.roof_area_sqft && <p className="add-lead-field-error">{fieldErrors.roof_area_sqft}</p>}
           </div>
         </div>
 

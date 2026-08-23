@@ -357,18 +357,6 @@ export default function LeadDetailPage() {
 
           <div className="add-lead-field-row">
             <div className="add-lead-field">
-              <label htmlFor="detailRoofArea">Roof area (sq ft)</label>
-              <input
-                id="detailRoofArea"
-                type="number"
-                value={draft.roof_area_sqft}
-                onChange={(e) => setDraft({ ...draft, roof_area_sqft: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="add-lead-field-row">
-            <div className="add-lead-field">
               <label htmlFor="detailCaNumber">CA Number</label>
               <input
                 id="detailCaNumber"
@@ -399,6 +387,15 @@ export default function LeadDetailPage() {
                 placeholder="e.g. 850 (auto-filled)"
                 value={draft.avg_monthly_units}
                 onChange={(e) => setDraft({ ...draft, avg_monthly_units: e.target.value })}
+              />
+            </div>
+            <div className="add-lead-field">
+              <label htmlFor="detailRoofArea">Roof area (sq ft)</label>
+              <input
+                id="detailRoofArea"
+                type="number"
+                value={draft.roof_area_sqft}
+                onChange={(e) => setDraft({ ...draft, roof_area_sqft: e.target.value })}
               />
             </div>
           </div>
