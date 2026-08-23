@@ -119,6 +119,33 @@ export function getPublicQuote(token: string) {
   return apiRequest<PublicQuoteResponse>(`/public/quotes/${token}`, { auth: false });
 }
 
-export function acceptPublicQuote(token: string) {
-  return apiRequest<{ message: string }>(`/public/quotes/${token}/accept`, { method: "POST", auth: false });
+/** Step 1 of accepting a quote — emails a 6-digit code to the lead's own
+ * address so a forwarded/leaked link alone can't accept on their behalf.
+ * `masked_email` is for display ("code sent to j***@e***.com"). */
+export function requestQuoteOtp(token: string) {
+  return apiRequest<{ message: string; masked_email: string }>(`/public/quotes/${token}/otp/request`, {
+    method: "POST",
+    auth: false,
+  });
+}
+
+/** Step 2 — verifying the emailed code is what actually flips the quote to
+ * ACCEPTED. */
+export function verifyQuoteOtp(token: string, otp: string) {
+  return apiRequest<{ message: string }>(`/public/quotes/${token}/otp/verify`, {
+    method: "POST",
+    auth: false,
+    body: { otp },
+  });
+}
+
+/** Consent-only acceptance — only reachable when the entity's branding
+ * response says `skip_quote_otp` is on (EPC admin's escape hatch for when
+ * the email provider is down). The backend re-checks the same flag, so this
+ * can't be used to bypass OTP when it's required. */
+export function acceptQuoteWithoutOtp(token: string) {
+  return apiRequest<{ message: string }>(`/public/quotes/${token}/accept`, {
+    method: "POST",
+    auth: false,
+  });
 }

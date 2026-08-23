@@ -83,7 +83,8 @@ export default function EntityManagementPage() {
         const updated = await updateEntity(entityId, businessDraft);
         setEntity(updated);
       } else if (prefs) {
-        const { branding, typography, document_customization, pricing, components, language } = prefs;
+        const { branding, typography, document_customization, pricing, components, language, skip_quote_otp } =
+          prefs;
         const updated = await updateEntityPreferences(entityId, {
           branding,
           typography,
@@ -91,6 +92,7 @@ export default function EntityManagementPage() {
           pricing,
           components,
           language,
+          skip_quote_otp,
         });
         setPrefs(updated);
       }
@@ -158,8 +160,10 @@ export default function EntityManagementPage() {
           <PricingLanguageTab
             pricing={prefs.pricing}
             language={prefs.language}
+            skipQuoteOtp={prefs.skip_quote_otp}
             onChangePricing={(pricing) => setPrefs({ ...prefs, pricing })}
             onChangeLanguage={(language) => setPrefs({ ...prefs, language })}
+            onChangeSkipQuoteOtp={(skip_quote_otp) => setPrefs({ ...prefs, skip_quote_otp })}
           />
         )}
         {tab === "components" && (

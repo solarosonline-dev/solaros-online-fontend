@@ -43,6 +43,10 @@ export type EntityPreferences = {
   pricing: Pricing;
   components: Components;
   language: string;
+  /** EPC-admin escape hatch: when true, the public quote-acceptance modal
+   * skips the emailed-OTP step and accepts on consent alone — e.g. while
+   * the transactional email provider is down. */
+  skip_quote_otp: boolean;
   updated_at: string | null;
 };
 
@@ -89,6 +93,7 @@ export type PublicBranding = {
   address: string | null;
   business_phone: string | null;
   business_email: string | null;
+  skip_quote_otp: boolean;
 };
 
 export function getPublicEntityBranding(entityId: number) {

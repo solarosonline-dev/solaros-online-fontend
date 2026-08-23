@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getPublicQuote, acceptPublicQuote, type PublicQuoteResponse } from "../../api/quotes";
+import {
+  acceptQuoteWithoutOtp,
+  getPublicQuote,
+  requestQuoteOtp,
+  verifyQuoteOtp,
+  type PublicQuoteResponse,
+} from "../../api/quotes";
 import { getPublicEntityBranding, type PublicBranding } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
+import Modal from "../../components/Modal";
 import "./PublicQuotePage.css";
+
+type AcceptStep = "confirm" | "otp";
+
+const RESEND_COOLDOWN_SECONDS = 45;
 
 export default function PublicQuotePage() {
   const { token } = useParams();
@@ -16,9 +27,20 @@ export default function PublicQuotePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [accepting, setAccepting] = useState(false);
-  const [acceptError, setAcceptError] = useState<string | null>(null);
   const [justAccepted, setJustAccepted] = useState(false);
+
+  // Accept-quote modal: step 1 confirms terms/AMC-pricing agreement and
+  // sends an OTP to the lead's email; step 2 verifies that code before the
+  // quote actually flips to ACCEPTED.
+  const [modalOpen, setModalOpen] = useState(false);
+  const [step, setStep] = useState<AcceptStep>("confirm");
+  const [agreed, setAgreed] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
+  const [requesting, setRequesting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -35,17 +57,67 @@ export default function PublicQuotePage() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  async function handleAccept() {
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  function openAcceptModal() {
+    setStep("confirm");
+    setAgreed(false);
+    setOtp("");
+    setOtpError(null);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    if (requesting || verifying) return;
+    setModalOpen(false);
+  }
+
+  // EPC-admin escape hatch (entity preference `skip_quote_otp`) — set when
+  // the transactional email provider is down, so customers aren't blocked
+  // from accepting just because no OTP can be delivered. When on, "Send
+  // code" instead accepts directly on consent alone; the backend re-checks
+  // this same flag, so it can't be bypassed by a stale/cached branding fetch.
+  const skipOtp = branding?.skip_quote_otp ?? false;
+
+  async function handleSendCode() {
     if (!token) return;
-    setAccepting(true);
-    setAcceptError(null);
+    setRequesting(true);
+    setOtpError(null);
     try {
-      await acceptPublicQuote(token);
-      setJustAccepted(true);
+      if (skipOtp) {
+        await acceptQuoteWithoutOtp(token);
+        setJustAccepted(true);
+        setModalOpen(false);
+        return;
+      }
+      const res = await requestQuoteOtp(token);
+      setMaskedEmail(res.masked_email);
+      setOtp("");
+      setStep("otp");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
-      setAcceptError(err instanceof ApiError ? err.message : "Could not accept this quote");
+      setOtpError(err instanceof ApiError ? err.message : "Could not send the code — try again");
     } finally {
-      setAccepting(false);
+      setRequesting(false);
+    }
+  }
+
+  async function handleVerify() {
+    if (!token) return;
+    setVerifying(true);
+    setOtpError(null);
+    try {
+      await verifyQuoteOtp(token, otp);
+      setJustAccepted(true);
+      setModalOpen(false);
+    } catch (err) {
+      setOtpError(err instanceof ApiError ? err.message : "Could not verify the code — try again");
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -110,12 +182,9 @@ export default function PublicQuotePage() {
   ) : quote.status === "REJECTED" ? (
     <p>This quote is no longer active.</p>
   ) : (
-    <>
-      <button className="public-quote-btn public-quote-btn--sign" onClick={handleAccept} disabled={accepting}>
-        {accepting ? "Accepting…" : "Accept this quote"}
-      </button>
-      {acceptError && <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>}
-    </>
+    <button className="public-quote-btn public-quote-btn--sign" onClick={openAcceptModal}>
+      Accept this quote
+    </button>
   );
 
   return (
@@ -164,6 +233,79 @@ export default function PublicQuotePage() {
           signatureAction={signatureAction}
         />
       </div>
+
+      <Modal open={modalOpen} onClose={closeModal} dismissible={!requesting && !verifying} aria-label="Accept this quote">
+        {step === "confirm" ? (
+          <div className="quote-accept-modal">
+            <h3>Accept this quote</h3>
+            <p className="quote-accept-modal-note">
+              {skipOtp
+                ? "Please confirm you agree to the Terms & Conditions and the AMC pricing shown in this quote."
+                : "Please confirm you agree to the Terms & Conditions and the AMC pricing shown in this quote. We'll then email a 6-digit code to your registered email to confirm it's really you."}
+            </p>
+            <label className="quote-accept-modal-checkbox">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+              <span>I agree to the Terms &amp; Conditions and the AMC pricing shown in this quote.</span>
+            </label>
+            {otpError && <p className="quote-accept-modal-error">{otpError}</p>}
+            <div className="quote-accept-modal-actions">
+              <button className="quote-accept-modal-btn quote-accept-modal-btn--ghost" onClick={closeModal}>
+                Cancel
+              </button>
+              <button
+                className="quote-accept-modal-btn quote-accept-modal-btn--primary"
+                onClick={handleSendCode}
+                disabled={!agreed || requesting}
+              >
+                {skipOtp
+                  ? requesting
+                    ? "Accepting…"
+                    : "Accept quote"
+                  : requesting
+                    ? "Sending…"
+                    : "Send code"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="quote-accept-modal">
+            <h3>Enter the code</h3>
+            <p className="quote-accept-modal-note">
+              We sent a 6-digit code to <strong>{maskedEmail}</strong>. Enter it below to accept this quote.
+            </p>
+            <input
+              className="quote-accept-modal-otp-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              autoFocus
+            />
+            {otpError && <p className="quote-accept-modal-error">{otpError}</p>}
+            <div className="quote-accept-modal-actions">
+              <button className="quote-accept-modal-btn quote-accept-modal-btn--ghost" onClick={closeModal}>
+                Cancel
+              </button>
+              <button
+                className="quote-accept-modal-btn quote-accept-modal-btn--primary"
+                onClick={handleVerify}
+                disabled={otp.length !== 6 || verifying}
+              >
+                {verifying ? "Verifying…" : "Verify & accept"}
+              </button>
+            </div>
+            <button
+              className="quote-accept-modal-resend"
+              onClick={handleSendCode}
+              disabled={resendCooldown > 0 || requesting}
+            >
+              {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : requesting ? "Sending…" : "Resend code"}
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

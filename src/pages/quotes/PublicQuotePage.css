@@ -74,3 +74,100 @@
     min-height: 0;
   }
 }
+
+/* Accept-quote modal (terms confirmation -> OTP entry), rendered via the
+   shared <Modal> component. */
+.quote-accept-modal h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.quote-accept-modal-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  line-height: 1.5;
+}
+
+.quote-accept-modal-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.quote-accept-modal-checkbox input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.quote-accept-modal-otp-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 22px;
+  letter-spacing: 6px;
+  text-align: center;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  margin-bottom: 16px;
+  font-family: inherit;
+}
+
+.quote-accept-modal-error {
+  color: var(--app-danger);
+  font-size: 13px;
+  margin: -6px 0 12px;
+}
+
+.quote-accept-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.quote-accept-modal-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.quote-accept-modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.quote-accept-modal-btn--primary {
+  border: none;
+  background: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.quote-accept-modal-btn--ghost {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.quote-accept-modal-resend {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: none;
+  color: var(--app-accent);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.quote-accept-modal-resend:disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+}
