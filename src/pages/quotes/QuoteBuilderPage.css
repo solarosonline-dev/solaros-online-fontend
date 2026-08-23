@@ -24,7 +24,10 @@
 
 .quote-builder-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 3fr;
+  /* Left (form) panel is widened to comfortably fit the component-pricing
+     table's particular/qty/price columns without cramping — the preview
+     panel on the right has ample spare width to give some up. */
+  grid-template-columns: minmax(420px, 1.2fr) 2fr;
   gap: 20px;
   align-items: start;
 }
@@ -285,4 +288,102 @@
   padding: 32px;
   text-align: center;
   color: var(--app-text-muted);
+}
+
+/* Component-wise pricing editor — mirrors SolarSite's admin builder.js
+   "compb-*" component table styling (see admin/admin.css). */
+.compb-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.compb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.compb-table th,
+.compb-table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.compb-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+}
+
+.compb-table td input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+/* Particular gets the lion's share of the row; qty/price get generous room
+   to type into (plain text boxes, not spinners); tax is narrower; the
+   remove-row action is just wide enough for the "×" button. */
+.compb-table td.compb-particular {
+  width: 46%;
+}
+
+.compb-table td.compb-particular input {
+  min-width: 160px;
+}
+
+.compb-table td.compb-qty,
+.compb-table td.compb-price {
+  width: 20%;
+}
+
+.compb-table td.compb-qty input,
+.compb-table td.compb-price input {
+  min-width: 70px;
+  text-align: right;
+}
+
+.compb-table td.compb-tax {
+  width: 12%;
+}
+
+.compb-table td.compb-tax input {
+  min-width: 56px;
+  text-align: right;
+}
+
+.compb-table td.compb-actions {
+  width: 28px;
+  padding: 6px 0;
+}
+
+.compb-table td input:disabled {
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}
+
+.compb-table .compb-remove-btn {
+  background: none;
+  border: none;
+  color: var(--app-danger);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.compb-table .compb-remove-btn:hover {
+  opacity: 0.75;
+}
+
+.compb-table tfoot td {
+  padding-top: 10px;
+  border-top: 2px solid var(--app-border);
+  border-bottom: 0;
 }

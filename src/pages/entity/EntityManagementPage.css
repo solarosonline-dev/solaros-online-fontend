@@ -226,6 +226,70 @@
   color: var(--app-danger);
 }
 
+/* Component-wise pricing defaults table — mirrors SolarSite's admin
+   builder.js "compb-*" component table styling. */
+.compb-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+.compb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.compb-table th,
+.compb-table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.compb-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+}
+
+.compb-table td input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.compb-table td.compb-particular input {
+  min-width: 160px;
+}
+
+.compb-table td.compb-num {
+  width: 90px;
+}
+
+.compb-table td.compb-num input {
+  max-width: 72px;
+  text-align: right;
+}
+
+.compb-table .compb-remove-btn {
+  background: none;
+  border: none;
+  color: var(--app-danger);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.compb-table .compb-remove-btn:hover {
+  opacity: 0.75;
+}
+
 .entity-loading {
   padding: 32px;
   text-align: center;

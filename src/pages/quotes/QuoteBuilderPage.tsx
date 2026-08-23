@@ -12,6 +12,7 @@ import {
   updateQuote,
   shareQuote,
   type QuoteDetail,
+  type QuoteComponentRow,
 } from "../../api/quotes";
 import { ApiError } from "../../api/client";
 import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
@@ -37,6 +38,8 @@ type FormState = {
   amcDurationYears: string;
   notes: string;
   terms: string[];
+  components: QuoteComponentRow[];
+  componentsEnabled: boolean;
 };
 
 const DEFAULT_FORM: FormState = {
@@ -55,6 +58,8 @@ const DEFAULT_FORM: FormState = {
   amcDurationYears: "",
   notes: "",
   terms: [],
+  components: [],
+  componentsEnabled: false,
 };
 
 export default function QuoteBuilderPage() {
@@ -116,6 +121,8 @@ export default function QuoteBuilderPage() {
             amcDurationYears: quote.amc_duration_years != null ? String(quote.amc_duration_years) : "",
             notes: quote.notes ?? "",
             terms: quote.terms ?? [],
+            components: quote.components ?? [],
+            componentsEnabled: quote.components_enabled ?? false,
           });
           setSubsidyTouched(true);
         } else {
@@ -131,6 +138,13 @@ export default function QuoteBuilderPage() {
               ...prefsRes.document_customization.custom_terms_and_conditions,
               ...prefsRes.document_customization.quote_notes,
             ],
+            components: prefsRes.components.items.map((item) => ({
+              particular: item.particular,
+              qty: null,
+              price: null,
+              tax_percent: item.tax_percent,
+            })),
+            componentsEnabled: false,
           });
           setSubsidyTouched(false);
         }
@@ -212,6 +226,32 @@ export default function QuoteBuilderPage() {
     setForm({ ...form, terms: form.terms.filter((_, i) => i !== index) });
   }
 
+  function handleAddComponentRow() {
+    setForm({
+      ...form,
+      components: [...form.components, { particular: "", qty: null, price: null, tax_percent: 18 }],
+    });
+  }
+
+  function handleRemoveComponentRow(index: number) {
+    setForm({ ...form, components: form.components.filter((_, i) => i !== index) });
+  }
+
+  function handleComponentFieldChange(
+    index: number,
+    field: keyof QuoteComponentRow,
+    value: string,
+  ) {
+    setForm({
+      ...form,
+      components: form.components.map((row, i) => {
+        if (i !== index) return row;
+        if (field === "particular") return { ...row, particular: value };
+        return { ...row, [field]: value === "" ? null : Number(value) };
+      }),
+    });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!leadId) return;
@@ -235,6 +275,8 @@ export default function QuoteBuilderPage() {
       amc_duration_years: form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
       notes: form.notes.trim() || undefined,
       terms: form.terms,
+      components: form.components,
+      components_enabled: form.componentsEnabled,
     };
 
     try {
@@ -520,6 +562,117 @@ export default function QuoteBuilderPage() {
               )}
             </div>
 
+            <p className="quote-section-label">Component-wise pricing</p>
+            <div className="quote-checkbox-row">
+              <input
+                id="qComponentsEnabled"
+                type="checkbox"
+                disabled={locked}
+                checked={form.componentsEnabled}
+                onChange={(e) => setForm({ ...form, componentsEnabled: e.target.checked })}
+              />
+              <label htmlFor="qComponentsEnabled">Show component-wise pricing on this quote</label>
+            </div>
+
+            {form.componentsEnabled && (
+              <div className="quote-field" style={{ maxWidth: "100%" }}>
+                <div className="compb-table-wrap">
+                  <table className="compb-table">
+                    <thead>
+                      <tr>
+                        <th>Particulars</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Tax %</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {form.components.map((row, i) => (
+                        <tr key={i}>
+                          <td className="compb-particular">
+                            <input
+                              type="text"
+                              disabled={locked}
+                              value={row.particular}
+                              onChange={(e) => handleComponentFieldChange(i, "particular", e.target.value)}
+                            />
+                          </td>
+                          <td className="compb-qty">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              disabled={locked}
+                              value={row.qty ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "qty", e.target.value)}
+                            />
+                          </td>
+                          <td className="compb-price">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              disabled={locked}
+                              value={row.price ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "price", e.target.value)}
+                            />
+                          </td>
+                          <td className="compb-tax">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              disabled={locked}
+                              value={row.tax_percent ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "tax_percent", e.target.value)}
+                            />
+                          </td>
+                          <td className="compb-actions">
+                            {!locked && (
+                              <button
+                                type="button"
+                                className="compb-remove-btn"
+                                onClick={() => handleRemoveComponentRow(i)}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {form.components.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: "right" }}>
+                            <strong>Grand total</strong>
+                          </td>
+                          <td colSpan={2} style={{ textAlign: "right" }}>
+                            <strong>
+                              ₹
+                              {form.components
+                                .reduce((sum, r) => {
+                                  const subtotal = (r.qty ?? 0) * (r.price ?? 0);
+                                  return sum + subtotal + subtotal * ((r.tax_percent ?? 0) / 100);
+                                }, 0)
+                                .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            </strong>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                {!locked && (
+                  <button type="button" className="quote-btn" onClick={handleAddComponentRow}>
+                    + Add row
+                  </button>
+                )}
+                <p className="quote-status-msg" style={{ marginTop: 8, color: "var(--app-text-muted)" }}>
+                  Enter qty, price and tax for each line item — these are entered independently, not derived
+                  from Price per Watt.
+                </p>
+              </div>
+            )}
+
             {!locked && (
               <div className="quote-status-bar">
                 <button type="submit" className="quote-btn primary" disabled={saving}>
@@ -561,6 +714,7 @@ export default function QuoteBuilderPage() {
             panelType={form.panelType || null}
             notes={form.notes || null}
             terms={form.terms}
+            components={form.componentsEnabled ? form.components : []}
             customerName={lead.name}
             customerAddress={lead.address}
             customerDiscom={getDiscomName(lead.discom)}

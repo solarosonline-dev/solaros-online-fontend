@@ -14,9 +14,10 @@ import BrandingTab from "./tabs/BrandingTab";
 import TypographyTab from "./tabs/TypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
+import ComponentsTab from "./tabs/ComponentsTab";
 import "./EntityManagementPage.css";
 
-type Tab = "business" | "branding" | "typography" | "documents" | "pricing";
+type Tab = "business" | "branding" | "typography" | "documents" | "pricing" | "components";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "business", label: "Business info" },
@@ -24,6 +25,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "typography", label: "Typography" },
   { key: "documents", label: "Documents" },
   { key: "pricing", label: "Pricing & language" },
+  { key: "components", label: "Default components" },
 ];
 
 const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
@@ -31,6 +33,7 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   typography: "typography",
   documents: "document_customization",
   pricing: "pricing",
+  components: "components",
 };
 
 export default function EntityManagementPage() {
@@ -80,12 +83,13 @@ export default function EntityManagementPage() {
         const updated = await updateEntity(entityId, businessDraft);
         setEntity(updated);
       } else if (prefs) {
-        const { branding, typography, document_customization, pricing, language } = prefs;
+        const { branding, typography, document_customization, pricing, components, language } = prefs;
         const updated = await updateEntityPreferences(entityId, {
           branding,
           typography,
           document_customization,
           pricing,
+          components,
           language,
         });
         setPrefs(updated);
@@ -156,6 +160,12 @@ export default function EntityManagementPage() {
             language={prefs.language}
             onChangePricing={(pricing) => setPrefs({ ...prefs, pricing })}
             onChangeLanguage={(language) => setPrefs({ ...prefs, language })}
+          />
+        )}
+        {tab === "components" && (
+          <ComponentsTab
+            draft={prefs.components}
+            onChange={(components) => setPrefs({ ...prefs, components })}
           />
         )}
       </div>

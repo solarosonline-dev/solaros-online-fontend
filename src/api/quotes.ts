@@ -3,6 +3,13 @@ import type { LeadDetail } from "./leads";
 
 export type QuoteStatus = "GENERATED" | "ACCEPTED" | "REJECTED";
 
+export type QuoteComponentRow = {
+  particular: string;
+  qty: number | null;
+  price: number | null;
+  tax_percent: number | null;
+};
+
 export type QuoteListItem = {
   quote_id: number;
   status: QuoteStatus;
@@ -32,6 +39,8 @@ export type QuoteDetail = {
   amc_duration_years: number | null;
   notes: string | null;
   terms: string[] | null;
+  components: QuoteComponentRow[] | null;
+  components_enabled: boolean | null;
 };
 
 export type QuoteInput = {
@@ -51,6 +60,8 @@ export type QuoteInput = {
   amc_duration_years?: number;
   notes?: string;
   terms?: string[];
+  components?: QuoteComponentRow[];
+  components_enabled?: boolean;
 };
 
 export function listQuotes(entityId: number, leadId: number) {

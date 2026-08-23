@@ -115,6 +115,7 @@ export default function PublicQuotePage() {
           panelType={quote.panel_type}
           notes={quote.notes}
           terms={quote.terms ?? []}
+          components={quote.components_enabled ? quote.components ?? [] : []}
           customerName={lead.name}
           customerAddress={lead.address}
           customerDiscom={getDiscomName(lead.discom)}

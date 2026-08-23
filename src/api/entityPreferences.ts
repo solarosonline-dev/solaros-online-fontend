@@ -27,16 +27,32 @@ export type Pricing = {
   default_price_per_watt: number;
 };
 
+export type ComponentDefault = {
+  particular: string;
+  tax_percent: number;
+};
+
+export type Components = {
+  items: ComponentDefault[];
+};
+
 export type EntityPreferences = {
   branding: Branding;
   typography: Typography;
   document_customization: DocumentCustomization;
   pricing: Pricing;
+  components: Components;
   language: string;
   updated_at: string | null;
 };
 
-export type PreferenceCategory = "branding" | "typography" | "document_customization" | "pricing" | "language";
+export type PreferenceCategory =
+  | "branding"
+  | "typography"
+  | "document_customization"
+  | "pricing"
+  | "components"
+  | "language";
 
 export function getEntityPreferences(entityId: number) {
   return apiRequest<EntityPreferences>(`/entities/${entityId}/preferences`);

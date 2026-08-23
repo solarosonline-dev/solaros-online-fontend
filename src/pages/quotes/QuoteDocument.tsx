@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { formatINR, type QuoteComputeResult } from "../../lib/quoteCalculations";
+import type { QuoteComponentRow } from "../../api/quotes";
 import {
   formatINRShort,
   formatDate,
@@ -36,6 +37,7 @@ export type QuoteDocumentProps = {
   panelType: string | null;
   notes: string | null;
   terms: string[];
+  components: QuoteComponentRow[];
   customerName: string;
   customerCompany?: string | null;
   customerAddress: string | null;
@@ -61,6 +63,7 @@ export default function QuoteDocument({
   panelType,
   notes,
   terms,
+  components,
   customerName,
   customerCompany,
   customerAddress,
@@ -86,6 +89,19 @@ export default function QuoteDocument({
   const subsidyNote = c.subsidy <= 0 ? subsidyExplanationNote(segment, panelType) : null;
   const amcTotal = amc?.ratePerKw != null && amcDurationYears != null ? amc.ratePerKw * capacityKw * amcDurationYears : null;
   const amcYearly = amc?.ratePerKw != null ? amc.ratePerKw * capacityKw : null;
+
+  const compRowsCalc = components.map((r) => {
+    const qty = r.qty ?? 0;
+    const price = r.price ?? 0;
+    const taxPercent = r.tax_percent ?? 0;
+    const subtotal = qty * price;
+    const total = subtotal + subtotal * (taxPercent / 100);
+    return { particular: r.particular, qty, price, taxPercent, subtotal, total };
+  });
+  const compTotalPrice = compRowsCalc.reduce((sum, r) => sum + r.subtotal, 0);
+  const compGrandTotal = compRowsCalc.reduce((sum, r) => sum + r.total, 0);
+  const compAvgTaxPercent =
+    compTotalPrice > 0 ? ((compGrandTotal - compTotalPrice) / compTotalPrice) * 100 : 0;
 
   const firmContact = [branding.businessEmail, branding.businessPhone].filter(Boolean).join(" · ");
   const whatsappNumber = branding.businessPhone ? branding.businessPhone.replace(/[^0-9]/g, "") : null;
@@ -270,6 +286,41 @@ export default function QuoteDocument({
           ))}
         </ul>
       </section>
+
+      {compRowsCalc.length > 0 && (
+        <section className="qdoc-section qdoc-components">
+          <h2>Component-wise pricing</h2>
+          <table className="qdoc-table">
+            <thead>
+              <tr>
+                <th>Particulars</th>
+                <th className="qdoc-ta-r">Qty</th>
+                <th className="qdoc-ta-r">Price</th>
+                <th className="qdoc-ta-r">Tax</th>
+                <th className="qdoc-ta-r">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compRowsCalc.map((row, i) => (
+                <tr key={i}>
+                  <td>{row.particular}</td>
+                  <td className="qdoc-ta-r">{row.qty}</td>
+                  <td className="qdoc-ta-r">{formatINR(row.price)}</td>
+                  <td className="qdoc-ta-r">{row.taxPercent}%</td>
+                  <td className="qdoc-ta-r">{formatINR(row.total)}</td>
+                </tr>
+              ))}
+              <tr className="qdoc-row-total">
+                <td>Total</td>
+                <td></td>
+                <td className="qdoc-ta-r">{formatINR(compTotalPrice)}</td>
+                <td className="qdoc-ta-r">{compAvgTaxPercent.toFixed(1)}%</td>
+                <td className="qdoc-ta-r">{formatINR(compGrandTotal)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {amc && (
         <section className="qdoc-section qdoc-amc">
