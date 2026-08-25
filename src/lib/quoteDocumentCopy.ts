@@ -52,14 +52,45 @@ export function subsidyExplanationNote(segment: string | null, panelType: string
   return null;
 }
 
-export const WHATS_INCLUDED = (panelMake: string | null, inverterMake: string | null, isDCR: boolean, isResidential: boolean) => [
+/** Warranty years pulled from the component-wise pricing rows (matched by
+ * keyword in the particular text), so "What's included" always reflects
+ * what the admin actually configured there — even when the component-wise
+ * pricing table itself is hidden from the customer. `null`/omitted falls
+ * back to the generic copy below. */
+export type WhatsIncludedWarranty = {
+  panelWarrantyYears?: number | null;
+  inverterWarrantyYears?: number | null;
+  structureWarrantyYears?: number | null;
+};
+
+export const WHATS_INCLUDED = (
+  panelMake: string | null,
+  inverterMake: string | null,
+  isDCR: boolean,
+  isResidential: boolean,
+  warranty?: WhatsIncludedWarranty,
+) => [
   {
     icon: "☀",
     title: `${panelMake || "Tier-1 mono-PERC"} panels${isDCR ? " (DCR/ALMM)" : " (Non-DCR)"}`,
-    desc: `30-yr linear performance · ≥80% output at year 25${!isDCR && !isResidential ? " · Not eligible for net-metering" : ""}`,
+    desc: `${
+      warranty?.panelWarrantyYears != null ? `${warranty.panelWarrantyYears}-yr` : "30-yr"
+    } linear performance · ≥80% output at year 25${!isDCR && !isResidential ? " · Not eligible for net-metering" : ""}`,
   },
-  { icon: "⚡", title: inverterMake || "Tier-1 string inverter", desc: "10-yr warranty · IP65 · WiFi monitoring built-in" },
-  { icon: "🛠", title: "Elevated GI mounting structure", desc: "10-yr anti-corrosion · zero roof-leak guarantee" },
+  {
+    icon: "⚡",
+    title: inverterMake || "Tier-1 string inverter",
+    desc: `${
+      warranty?.inverterWarrantyYears != null ? `${warranty.inverterWarrantyYears}-yr` : "10-yr"
+    } warranty · IP65 · WiFi monitoring built-in`,
+  },
+  {
+    icon: "🛠",
+    title: "Elevated GI mounting structure",
+    desc: `${
+      warranty?.structureWarrantyYears != null ? `${warranty.structureWarrantyYears}-yr` : "10-yr"
+    } anti-corrosion · zero roof-leak guarantee`,
+  },
   { icon: "🔌", title: "DC + AC cabling, ACDB & DCDB", desc: "IS-7098-2 cables · IP65 enclosures · SPD & isolators" },
   { icon: "⏚", title: "Earthing, lightning & surge protection", desc: "Copper-bonded electrodes · Type-2 SPD · IS-3043 compliant" },
   { icon: "📋", title: "Single-window paperwork", desc: "PM Surya Ghar registration · DISCOM net-metering · loan facilitation" },

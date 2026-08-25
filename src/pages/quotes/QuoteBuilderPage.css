@@ -59,6 +59,22 @@
   }
 }
 
+/* Phone-width: trim the panel's own padding so paired fields (capacity +
+   inverter make, panel make + panel type, price/watt + GST + tariff) keep
+   enough room to stay side by side instead of falling back to one per row. */
+@media screen and (max-width: 480px) {
+  .quote-form-panel,
+  .quote-preview-panel {
+    padding: 14px;
+  }
+
+  .quote-field-row,
+  .quote-field-row--3 {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px 10px;
+  }
+}
+
 /* Printing the quote builder should only print the quote itself (the right
    preview panel) — the left input form, the back link, and the page header
    are editing chrome, not part of the document. The preview panel's sticky
@@ -84,7 +100,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--app-text-muted);
-  margin: 20px 0 12px;
+  margin: 14px 0 8px;
 }
 
 .quote-section-label:first-child {
@@ -94,8 +110,8 @@
 .quote-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 4px;
+  margin-bottom: 10px;
 }
 
 .quote-field label {
@@ -109,7 +125,7 @@
 .quote-field textarea {
   font-family: inherit;
   font-size: 14px;
-  padding: 9px 12px;
+  padding: 7px 10px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
@@ -117,20 +133,27 @@
   box-sizing: border-box;
 }
 
+/* Related fields (e.g. capacity + inverter make, panel make + panel type,
+   price/watt + GST + tariff) sit side by side to cut down on how far an
+   admin has to scroll to generate a quote. `auto-fit`/`minmax` sizes columns
+   from the *available* row width, not the viewport, so this collapses to a
+   single column automatically on a narrow form panel or phone screen
+   without needing a separate breakpoint. */
 .quote-field-row {
   display: grid;
-  /* The input column is narrow (1/4 of the builder grid) — two fields side by
-     side would cramp or force horizontal scroll, so stack one per row instead
-     and let the form extend vertically. */
-  grid-template-columns: 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 14px;
+}
+
+.quote-field-row--3 {
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
 }
 
 .quote-checkbox-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .quote-checkbox-row label {
@@ -153,6 +176,20 @@
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--app-text-muted);
+}
+
+.quote-field-hint--warning {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
+.quote-checkbox-row--disabled {
+  opacity: 0.55;
+}
+
+.quote-checkbox-row--disabled label {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
 }
 
 .quote-terms-list {
@@ -390,6 +427,15 @@
 
 .compb-table td.compb-tax input {
   min-width: 56px;
+  text-align: right;
+}
+
+.compb-table td.compb-num {
+  width: 14%;
+}
+
+.compb-table td.compb-num input {
+  min-width: 64px;
   text-align: right;
 }
 

@@ -20,4 +20,5 @@
   box-sizing: border-box;
   font-family: var(--app-font);
   color: var(--app-text);
+  overflow-wrap: break-word;
 }

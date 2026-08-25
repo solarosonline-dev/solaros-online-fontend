@@ -8,6 +8,7 @@ export type QuoteComponentRow = {
   qty: number | null;
   price: number | null;
   tax_percent: number | null;
+  warranty_years: number | null;
 };
 
 export type QuoteListItem = {

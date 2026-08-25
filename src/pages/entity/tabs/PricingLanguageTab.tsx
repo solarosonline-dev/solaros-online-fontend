@@ -39,8 +39,22 @@ export default function PricingLanguageTab({
           min={0}
           step={0.5}
           value={pricing.default_price_per_watt}
-          onChange={(e) => onChangePricing({ default_price_per_watt: parseFloat(e.target.value) || 0 })}
+          onChange={(e) => onChangePricing({ ...pricing, default_price_per_watt: parseFloat(e.target.value) || 0 })}
         />
+      </div>
+
+      <div className="entity-field">
+        <label htmlFor="default_gst_rate">Default GST rate (%)</label>
+        <input
+          id="default_gst_rate"
+          type="number"
+          min={0}
+          max={100}
+          step={0.1}
+          value={pricing.default_gst_rate}
+          onChange={(e) => onChangePricing({ ...pricing, default_gst_rate: parseFloat(e.target.value) || 0 })}
+        />
+        <span className="entity-field-help">Pre-filled as the GST rate on every new quote — sales reps can still edit it per quote.</span>
       </div>
 
       <div className="entity-field">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
@@ -57,7 +57,7 @@ const DEFAULT_FORM: FormState = {
   panelType: "DCR",
   validityDays: "15",
   pricePerWatt: "50",
-  gstRate: "13.8",
+  gstRate: "8.9",
   dailyYield: "4.2",
   tariff: "9",
   applySubsidy: true,
@@ -127,7 +127,10 @@ export default function QuoteBuilderPage() {
             panelType: quote.panel_type ?? "DCR",
             validityDays: quote.validity_days != null ? String(quote.validity_days) : "15",
             pricePerWatt: quote.price_per_watt != null ? String(quote.price_per_watt) : "",
-            gstRate: quote.gst_rate != null ? String(quote.gst_rate) : "13.8",
+            gstRate:
+              quote.gst_rate != null
+                ? String(quote.gst_rate)
+                : String(prefsRes.pricing.default_gst_rate ?? DEFAULT_FORM.gstRate),
             dailyYield: quote.daily_yield != null ? String(quote.daily_yield) : "4.2",
             tariff: quote.tariff != null ? String(quote.tariff) : "9",
             applySubsidy: quote.apply_subsidy ?? true,
@@ -153,6 +156,7 @@ export default function QuoteBuilderPage() {
             ...DEFAULT_FORM,
             capacity: String(capacity),
             pricePerWatt: String(prefsRes.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
+            gstRate: String(prefsRes.pricing.default_gst_rate ?? DEFAULT_FORM.gstRate),
             subsidyAmount: String(subsidyForKw(capacity, leadRes.type)),
             // Quote notes are folded into terms (not kept as separate free text) so they're
             // individually addable/removable the same way as the rest of the terms list.
@@ -165,6 +169,7 @@ export default function QuoteBuilderPage() {
               qty: null,
               price: null,
               tax_percent: item.tax_percent,
+              warranty_years: item.warranty_years,
             })),
             componentsEnabled: false,
           });
@@ -221,6 +226,61 @@ export default function QuoteBuilderPage() {
     setForm((f) => (f.subsidyAmount === String(suggested) ? f : { ...f, subsidyAmount: String(suggested) }));
   }, [form.capacity, lead, subsidyTouched]);
 
+  // RHS "just changed" highlight — flashes the affected preview section for
+  // ~1.2s whenever its underlying LHS fields change, skipping the initial
+  // mount so the preview doesn't flash on first load.
+  const [highlightSections, setHighlightSections] = useState<{
+    pricing?: boolean;
+    metrics?: boolean;
+    amc?: boolean;
+    loan?: boolean;
+    components?: boolean;
+  }>({});
+
+  function useSectionFlash(section: "pricing" | "metrics" | "amc" | "loan" | "components", deps: unknown[]) {
+    const mountedRef = useRef(false);
+    useEffect(() => {
+      if (!mountedRef.current) {
+        mountedRef.current = true;
+        return;
+      }
+      setHighlightSections((h) => ({ ...h, [section]: true }));
+      const timer = setTimeout(() => {
+        setHighlightSections((h) => ({ ...h, [section]: false }));
+      }, 1200);
+      return () => clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps);
+  }
+
+  useSectionFlash("pricing", [
+    form.capacity,
+    form.pricePerWatt,
+    form.gstRate,
+    form.tariff,
+    form.dailyYield,
+    form.applySubsidy,
+    form.subsidyAmount,
+  ]);
+  useSectionFlash("metrics", [
+    form.capacity,
+    form.pricePerWatt,
+    form.gstRate,
+    form.tariff,
+    form.dailyYield,
+    form.applySubsidy,
+    form.subsidyAmount,
+  ]);
+  useSectionFlash("amc", [
+    form.amcId,
+    form.amcMode,
+    form.amcDurationYears,
+    form.amcPost5Enabled,
+    form.amcPost5PlanIds,
+  ]);
+  useSectionFlash("loan", [form.loanEnabled, form.loanAmount, form.loanRatePercent, form.loanTenureYears]);
+  useSectionFlash("components", [form.components, form.componentsEnabled]);
+
   const computed = useMemo(() => {
     return computeQuote({
       capacityKw: Number(form.capacity) || 0,
@@ -259,7 +319,10 @@ export default function QuoteBuilderPage() {
   function handleAddComponentRow() {
     setForm({
       ...form,
-      components: [...form.components, { particular: "", qty: null, price: null, tax_percent: 18 }],
+      components: [
+        ...form.components,
+        { particular: "", qty: null, price: null, tax_percent: 18, warranty_years: null },
+      ],
     });
   }
 
@@ -382,9 +445,33 @@ export default function QuoteBuilderPage() {
                   id="qCapacity"
                   type="number"
                   step="0.1"
+                  min={0}
                   disabled={locked}
                   value={form.capacity}
                   onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                />
+              </div>
+              <div className="quote-field">
+                <label htmlFor="qInverterMake">Inverter make</label>
+                <input
+                  id="qInverterMake"
+                  type="text"
+                  disabled={locked}
+                  value={form.inverterMake}
+                  onChange={(e) => setForm({ ...form, inverterMake: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="quote-field-row">
+              <div className="quote-field">
+                <label htmlFor="qPanelMake">Panel make</label>
+                <input
+                  id="qPanelMake"
+                  type="text"
+                  disabled={locked}
+                  value={form.panelMake}
+                  onChange={(e) => setForm({ ...form, panelMake: e.target.value })}
                 />
               </div>
               <div className="quote-field">
@@ -404,35 +491,13 @@ export default function QuoteBuilderPage() {
               </div>
             </div>
 
-            <div className="quote-field-row">
-              <div className="quote-field">
-                <label htmlFor="qPanelMake">Panel make</label>
-                <input
-                  id="qPanelMake"
-                  type="text"
-                  disabled={locked}
-                  value={form.panelMake}
-                  onChange={(e) => setForm({ ...form, panelMake: e.target.value })}
-                />
-              </div>
-              <div className="quote-field">
-                <label htmlFor="qInverterMake">Inverter make</label>
-                <input
-                  id="qInverterMake"
-                  type="text"
-                  disabled={locked}
-                  value={form.inverterMake}
-                  onChange={(e) => setForm({ ...form, inverterMake: e.target.value })}
-                />
-              </div>
-            </div>
-
             <div className="quote-field">
               <label htmlFor="qDailyYield">Daily yield (kWh/kW/day)</label>
               <input
                 id="qDailyYield"
                 type="number"
                 step="0.1"
+                min={0}
                 disabled={locked}
                 value={form.dailyYield}
                 onChange={(e) => setForm({ ...form, dailyYield: e.target.value })}
@@ -440,13 +505,14 @@ export default function QuoteBuilderPage() {
             </div>
 
             <p className="quote-section-label">Pricing</p>
-            <div className="quote-field-row">
+            <div className="quote-field-row quote-field-row--3">
               <div className="quote-field">
                 <label htmlFor="qPricePerWatt">Price per watt (₹)</label>
                 <input
                   id="qPricePerWatt"
                   type="number"
                   step="0.5"
+                  min={0}
                   disabled={locked}
                   value={form.pricePerWatt}
                   onChange={(e) => setForm({ ...form, pricePerWatt: e.target.value })}
@@ -458,23 +524,25 @@ export default function QuoteBuilderPage() {
                   id="qGstRate"
                   type="number"
                   step="0.1"
+                  min={0}
+                  max={100}
                   disabled={locked}
                   value={form.gstRate}
                   onChange={(e) => setForm({ ...form, gstRate: e.target.value })}
                 />
               </div>
-            </div>
-
-            <div className="quote-field">
-              <label htmlFor="qTariff">Grid tariff (₹/unit)</label>
-              <input
-                id="qTariff"
-                type="number"
-                step="0.1"
-                disabled={locked}
-                value={form.tariff}
-                onChange={(e) => setForm({ ...form, tariff: e.target.value })}
-              />
+              <div className="quote-field">
+                <label htmlFor="qTariff">Grid tariff (₹/unit)</label>
+                <input
+                  id="qTariff"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  disabled={locked}
+                  value={form.tariff}
+                  onChange={(e) => setForm({ ...form, tariff: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="quote-checkbox-row">
@@ -496,6 +564,7 @@ export default function QuoteBuilderPage() {
                 <input
                   id="qSubsidyAmount"
                   type="number"
+                  min={0}
                   disabled={locked}
                   value={form.subsidyAmount}
                   onChange={(e) => {
@@ -536,6 +605,7 @@ export default function QuoteBuilderPage() {
                 <input
                   id="qAmcDuration"
                   type="number"
+                  min={0}
                   disabled={locked || !form.amcId}
                   value={form.amcDurationYears}
                   onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
@@ -577,7 +647,10 @@ export default function QuoteBuilderPage() {
                     const checked = form.amcPost5PlanIds.includes(idStr);
                     const atLimit = form.amcPost5PlanIds.length >= 3;
                     return (
-                      <div className="quote-checkbox-row" key={p.amc_id}>
+                      <div
+                        className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                        key={p.amc_id}
+                      >
                         <input
                           id={`qAmcPost5Plan-${p.amc_id}`}
                           type="checkbox"
@@ -597,8 +670,14 @@ export default function QuoteBuilderPage() {
                     );
                   })}
                 </div>
-                <p className="quote-field-hint">
-                  {form.amcPost5PlanIds.length}/3 selected — these render as columns alongside the years 1-5 AMC on the quote.
+                <p
+                  className={`quote-field-hint${
+                    form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
+                  }`}
+                >
+                  {form.amcPost5PlanIds.length}/3 selected
+                  {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns alongside
+                  the years 1-5 AMC on the quote.
                 </p>
               </div>
             )}
@@ -616,12 +695,13 @@ export default function QuoteBuilderPage() {
             </div>
             {form.loanEnabled && (
               <>
-                <div className="quote-field-row">
+                <div className="quote-field-row quote-field-row--3">
                   <div className="quote-field">
                     <label htmlFor="qLoanAmount">Loan amount (₹)</label>
                     <input
                       id="qLoanAmount"
                       type="number"
+                      min={0}
                       disabled={locked}
                       value={form.loanAmount}
                       onChange={(e) => setForm({ ...form, loanAmount: e.target.value })}
@@ -633,21 +713,24 @@ export default function QuoteBuilderPage() {
                       id="qLoanRate"
                       type="number"
                       step="0.1"
+                      min={0}
+                      max={100}
                       disabled={locked}
                       value={form.loanRatePercent}
                       onChange={(e) => setForm({ ...form, loanRatePercent: e.target.value })}
                     />
                   </div>
-                </div>
-                <div className="quote-field">
-                  <label htmlFor="qLoanTenure">Tenure (years)</label>
-                  <input
-                    id="qLoanTenure"
-                    type="number"
-                    disabled={locked}
-                    value={form.loanTenureYears}
-                    onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
-                  />
+                  <div className="quote-field">
+                    <label htmlFor="qLoanTenure">Tenure (years)</label>
+                    <input
+                      id="qLoanTenure"
+                      type="number"
+                      min={0}
+                      disabled={locked}
+                      value={form.loanTenureYears}
+                      onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
                   Self-funding: ₹
@@ -665,6 +748,7 @@ export default function QuoteBuilderPage() {
               <input
                 id="qValidityDays"
                 type="number"
+                min={0}
                 disabled={locked}
                 value={form.validityDays}
                 onChange={(e) => setForm({ ...form, validityDays: e.target.value })}
@@ -737,6 +821,7 @@ export default function QuoteBuilderPage() {
                         <th>Qty</th>
                         <th>Price</th>
                         <th>Tax %</th>
+                        <th>Warranty (yrs)</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -753,8 +838,8 @@ export default function QuoteBuilderPage() {
                           </td>
                           <td className="compb-qty">
                             <input
-                              type="text"
-                              inputMode="decimal"
+                              type="number"
+                              min={0}
                               disabled={locked}
                               value={row.qty ?? ""}
                               onChange={(e) => handleComponentFieldChange(i, "qty", e.target.value)}
@@ -762,8 +847,8 @@ export default function QuoteBuilderPage() {
                           </td>
                           <td className="compb-price">
                             <input
-                              type="text"
-                              inputMode="decimal"
+                              type="number"
+                              min={0}
                               disabled={locked}
                               value={row.price ?? ""}
                               onChange={(e) => handleComponentFieldChange(i, "price", e.target.value)}
@@ -771,11 +856,21 @@ export default function QuoteBuilderPage() {
                           </td>
                           <td className="compb-tax">
                             <input
-                              type="text"
-                              inputMode="decimal"
+                              type="number"
+                              min={0}
+                              max={100}
                               disabled={locked}
                               value={row.tax_percent ?? ""}
                               onChange={(e) => handleComponentFieldChange(i, "tax_percent", e.target.value)}
+                            />
+                          </td>
+                          <td className="compb-num">
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={locked}
+                              value={row.warranty_years ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "warranty_years", e.target.value)}
                             />
                           </td>
                           <td className="compb-actions">
@@ -798,7 +893,7 @@ export default function QuoteBuilderPage() {
                           <td colSpan={3} style={{ textAlign: "right" }}>
                             <strong>Grand total</strong>
                           </td>
-                          <td colSpan={2} style={{ textAlign: "right" }}>
+                          <td colSpan={3} style={{ textAlign: "right" }}>
                             <strong>
                               ₹
                               {form.components
@@ -863,7 +958,8 @@ export default function QuoteBuilderPage() {
             panelType={form.panelType || null}
             notes={form.notes || null}
             terms={form.terms}
-            components={form.componentsEnabled ? form.components : []}
+            components={form.components}
+            showComponentPricing={form.componentsEnabled}
             customerName={lead.name}
             customerAddress={lead.address}
             customerDiscom={getDiscomName(lead.discom)}
@@ -902,6 +998,7 @@ export default function QuoteBuilderPage() {
             paymentSchedule={preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
             branding={documentBranding}
             shareUrl={shareUrl}
+            highlightSections={highlightSections}
           />
         </div>
       </div>

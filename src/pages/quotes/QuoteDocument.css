@@ -73,8 +73,16 @@
 
 .qdoc-meta {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 8px;
   text-align: right;
+}
+
+/* "Issued" and "Valid till" sit together on their own row, below "Quote no." */
+.qdoc-meta-row {
+  display: flex;
+  gap: 20px;
+  justify-content: flex-end;
 }
 
 .qdoc-meta-label {
@@ -227,19 +235,44 @@
   text-align: left;
   font-size: var(--qdoc-small, 12px);
   color: var(--app-text-muted);
-  padding: 6px 0;
+  /* Horizontal gap between columns — headers previously had none, so a
+     right-aligned "Amount"/"Total" header sat flush against the column to
+     its left with no breathing room. */
+  padding: 6px 12px 6px 0;
   border-bottom: 1px solid var(--app-border);
 }
 
+.qdoc-table th:last-child {
+  padding-right: 0;
+}
+
 .qdoc-table td {
-  padding: 8px 0;
+  padding: 8px 12px 8px 0;
   border-bottom: 1px solid var(--app-border);
   vertical-align: top;
+}
+
+.qdoc-table td:last-child {
+  padding-right: 0;
+}
+
+/* `.qdoc-table th` above sets `text-align: left` with higher specificity
+   (element + class) than the plain `.qdoc-ta-r` class, so a right-aligned
+   header (Qty/Price/Tax/Total/Amount) was silently overridden back to
+   left-aligned while its data cells below rendered correctly right-aligned
+   — the actual cause of the column-header misalignment. Qualifying the
+   selector here restores the intended right alignment on headers too. */
+.qdoc-table th.qdoc-ta-r {
+  text-align: right;
 }
 
 .qdoc-table small {
   color: var(--app-text-muted);
   font-size: var(--qdoc-small, 12px);
+}
+
+.qdoc-comp-warranty {
+  white-space: nowrap;
 }
 
 .qdoc-ta-r {
@@ -372,6 +405,30 @@
 .qdoc-tile--purple {
   background: #fff;
   border-color: #6d28a8;
+}
+
+/* "Not included" / chargeable-add-on (AMC) and "pending details" (loan)
+   empty-state tiles — amber warning accent for the former, neutral grey for
+   the latter, following the same border-accent-only pattern as the other
+   variants above. */
+.qdoc-tile--chargeable {
+  background: #fff;
+  border-color: #b8860b;
+}
+
+.qdoc-tile--chargeable .qdoc-tile-tag {
+  border-color: #b8860b;
+  color: #b8860b;
+}
+
+.qdoc-tile--pending {
+  background: #fff;
+  border-color: var(--app-text-muted);
+}
+
+.qdoc-tile--pending .qdoc-tile-tag {
+  border-color: var(--app-text-muted);
+  color: var(--app-text-muted);
 }
 
 .qdoc-tile--green-dark h3,
@@ -661,6 +718,7 @@
 .qdoc-sign {
   text-align: center;
   min-width: 160px;
+  max-width: 160px;
 }
 
 .qdoc-sign-action {
@@ -705,6 +763,23 @@
   .qdoc-timeline li {
     grid-template-columns: 1fr;
   }
+}
+
+/* RHS live-preview "just changed" highlight — briefly pulses the background
+   of a section that just changed on the LHS form, then fades back to
+   transparent. Only ever applied by the EPC-side quote builder (via the
+   `highlightSections` prop); the public quote page never sets it. */
+@keyframes qdoc-flash-pulse {
+  0% {
+    background-color: rgba(255, 170, 40, 0.22);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.qdoc-flash {
+  animation: qdoc-flash-pulse 1.2s ease-out;
 }
 
 @media print {

@@ -177,7 +177,8 @@ export default function PublicQuotePage() {
   const signatureAction = accepted ? (
     <div className="public-quote-accepted">
       <div className="icon">✅</div>
-      <p>You've accepted this quote. Our team will be in touch shortly.</p>
+      <p>Quote accepted</p>
+      <p className="public-quote-accepted-sub">We'll be in touch shortly.</p>
     </div>
   ) : quote.status === "REJECTED" ? (
     <p>This quote is no longer active.</p>
@@ -200,7 +201,8 @@ export default function PublicQuotePage() {
           panelType={quote.panel_type}
           notes={quote.notes}
           terms={quote.terms ?? []}
-          components={quote.components_enabled ? quote.components ?? [] : []}
+          components={quote.components ?? []}
+          showComponentPricing={quote.components_enabled ?? false}
           customerName={lead.name}
           customerAddress={lead.address}
           customerDiscom={getDiscomName(lead.discom)}

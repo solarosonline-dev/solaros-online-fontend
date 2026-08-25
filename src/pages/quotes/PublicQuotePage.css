@@ -55,14 +55,34 @@
   color: var(--app-text-muted);
 }
 
+/* Lives inside the signature column (`.qdoc-sign`, min-width: 160px) in the
+   quote footer. Without a width cap + break-word here, the old long sentence
+   ("You've accepted this quote. Our team will be in touch shortly.") pushed
+   the column's intrinsic min-content wider than the footer had room for,
+   which flipped the whole flex-wrap footer row and dropped the signature
+   block onto a new line below everything else instead of staying in place. */
 .public-quote-accepted {
   text-align: center;
   padding: 8px;
+  max-width: 160px;
+  overflow-wrap: break-word;
 }
 
 .public-quote-accepted .icon {
-  font-size: 40px;
-  margin-bottom: 8px;
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.public-quote-accepted p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.public-quote-accepted-sub {
+  margin-top: 2px !important;
+  font-weight: 400 !important;
+  font-size: 12px;
+  color: var(--app-text-muted);
 }
 
 /* Printing should only produce the quote document itself — the grey page
@@ -87,6 +107,7 @@
   font-size: 13px;
   color: var(--app-text-muted);
   line-height: 1.5;
+  overflow-wrap: break-word;
 }
 
 .quote-accept-modal-checkbox {
@@ -102,6 +123,15 @@
 .quote-accept-modal-checkbox input {
   margin-top: 2px;
   flex-shrink: 0;
+}
+
+/* Flex items default to a min-width based on their intrinsic (single-line)
+   content, which refuses to shrink below that width inside a narrow flex
+   row — the root cause of the consent text clipping/overlapping on narrow
+   screens. min-width: 0 lets it shrink and wrap normally instead. */
+.quote-accept-modal-checkbox span {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .quote-accept-modal-otp-input {
@@ -127,6 +157,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .quote-accept-modal-btn {
@@ -136,6 +167,9 @@
   padding: 9px 18px;
   border-radius: 8px;
   cursor: pointer;
+  flex: 0 1 auto;
+  white-space: normal;
+  text-align: center;
 }
 
 .quote-accept-modal-btn:disabled {

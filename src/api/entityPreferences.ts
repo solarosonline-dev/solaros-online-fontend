@@ -25,11 +25,13 @@ export type DocumentCustomization = {
 
 export type Pricing = {
   default_price_per_watt: number;
+  default_gst_rate: number;
 };
 
 export type ComponentDefault = {
   particular: string;
   tax_percent: number;
+  warranty_years: number | null;
 };
 
 export type Components = {

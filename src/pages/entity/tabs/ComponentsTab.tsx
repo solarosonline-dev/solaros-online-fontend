@@ -9,7 +9,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
   const items = draft.items;
 
   function handleAdd() {
-    onChange({ items: [...items, { particular: "", tax_percent: 18 }] });
+    onChange({ items: [...items, { particular: "", tax_percent: 18, warranty_years: null }] });
   }
 
   function handleRemove(index: number) {
@@ -29,6 +29,13 @@ export default function ComponentsTab({ draft, onChange }: Props) {
     });
   }
 
+  function handleWarrantyChange(index: number, value: string) {
+    const warranty_years = value === "" ? null : Number(value);
+    onChange({
+      items: items.map((item, i) => (i === index ? { ...item, warranty_years } : item)),
+    });
+  }
+
   return (
     <div className="entity-field" style={{ maxWidth: "100%" }}>
       <label>
@@ -45,6 +52,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
             <tr>
               <th>Particulars</th>
               <th>Tax %</th>
+              <th>Warranty (yrs)</th>
               <th></th>
             </tr>
           </thead>
@@ -67,6 +75,15 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     step={0.01}
                     value={item.tax_percent}
                     onChange={(e) => handleTaxChange(i, e.target.value)}
+                  />
+                </td>
+                <td className="compb-num">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={item.warranty_years ?? ""}
+                    onChange={(e) => handleWarrantyChange(i, e.target.value)}
                   />
                 </td>
                 <td>

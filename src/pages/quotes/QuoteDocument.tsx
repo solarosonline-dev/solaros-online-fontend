@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   formatINR,
@@ -60,7 +60,14 @@ export type QuoteDocumentProps = {
   panelType: string | null;
   notes: string | null;
   terms: string[];
+  /** Always the full component-wise pricing list, regardless of whether the
+   * pricing table itself is shown — warranty info in "What's included" is
+   * derived from this and must keep working even when the table is hidden. */
   components: QuoteComponentRow[];
+  /** Whether to render the component-wise pricing table section. Defaults to
+   * true when omitted (the public quote page always wants it shown whenever
+   * there are rows; the builder's live preview passes the LHS toggle). */
+  showComponentPricing?: boolean;
   customerName: string;
   customerCompany?: string | null;
   customerAddress: string | null;
@@ -93,6 +100,17 @@ export type QuoteDocumentProps = {
    * entirely from print/PDF output (wrapped in `no-print`) and unused by the
    * EPC-side live preview, which doesn't pass it. */
   signatureAction?: ReactNode;
+  /** Which RHS sections just changed on the LHS form — used only by the
+   * EPC-side live preview to briefly flash the affected section so edits are
+   * easy to spot. Omitted (or all-false) entirely by the public page, which
+   * has no editable LHS. */
+  highlightSections?: {
+    pricing?: boolean;
+    metrics?: boolean;
+    amc?: boolean;
+    loan?: boolean;
+    components?: boolean;
+  };
 };
 
 export default function QuoteDocument({
@@ -106,6 +124,7 @@ export default function QuoteDocument({
   notes,
   terms,
   components,
+  showComponentPricing = true,
   customerName,
   customerCompany,
   customerAddress,
@@ -126,7 +145,42 @@ export default function QuoteDocument({
   branding,
   shareUrl,
   signatureAction,
+  highlightSections,
 }: QuoteDocumentProps) {
+  const flashClass = (key: keyof NonNullable<QuoteDocumentProps["highlightSections"]>) =>
+    highlightSections?.[key] ? " qdoc-flash" : "";
+
+  // Scroll the RHS live preview to whichever section just changed on the LHS
+  // form, so an edit anywhere in the builder is immediately visible without
+  // the admin having to hunt for it in a long scrollable preview. Only ever
+  // triggered by the EPC-side builder (which passes `highlightSections`) —
+  // the public page passes nothing, so this never fires there.
+  const pricingRef = useRef<HTMLElement>(null);
+  const metricsRef = useRef<HTMLElement>(null);
+  const amcRef = useRef<HTMLElement>(null);
+  const loanRef = useRef<HTMLElement>(null);
+  const componentsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!highlightSections) return;
+    // Most-specific first: if a component/AMC/loan edit and a pricing/metrics
+    // edit land in the same tick, prefer scrolling to the more specific
+    // section rather than the generic pricing summary.
+    const order: [keyof NonNullable<QuoteDocumentProps["highlightSections"]>, typeof pricingRef][] = [
+      ["components", componentsRef],
+      ["loan", loanRef],
+      ["amc", amcRef],
+      ["metrics", metricsRef],
+      ["pricing", pricingRef],
+    ];
+    for (const [key, ref] of order) {
+      if (highlightSections[key] && ref.current) {
+        ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightSections]);
+
   // The browser's own print header/footer (page title + URL + date) is a
   // browser-chrome print-dialog setting we can't remove via CSS, but we can
   // at least stop it from surfacing the app's marketing <title> — swap in a
@@ -152,6 +206,22 @@ export default function QuoteDocument({
   const isDCR = (panelType ?? "DCR") === "DCR";
   const isResidential = segment === "residential";
   const segLabel = SEGMENT_LABELS[segment ?? ""] ?? "Custom";
+
+  // "What's included" shows a warranty per line item — sourced from the
+  // component-wise pricing rows (matched by keyword in the particular text)
+  // whenever the admin has filled one in, so it stays accurate even when the
+  // component-wise pricing table itself is hidden from the customer. Falls
+  // back to the generic copy in WHATS_INCLUDED when no match/value exists.
+  const findWarrantyYears = (keywords: string[]): number | null => {
+    const row = components.find((r) => {
+      const particular = (r.particular ?? "").toLowerCase();
+      return keywords.some((k) => particular.includes(k));
+    });
+    return row?.warranty_years ?? null;
+  };
+  const panelWarrantyYears = findWarrantyYears(["panel"]);
+  const inverterWarrantyYears = findWarrantyYears(["inverter"]);
+  const structureWarrantyYears = findWarrantyYears(["structure", "mounting"]);
 
   const issuedOn = createdAt ? new Date(createdAt) : new Date();
   const validity = validityDays ?? 15;
@@ -207,8 +277,9 @@ export default function QuoteDocument({
     const taxPercent = r.tax_percent ?? 0;
     const subtotal = qty * price;
     const total = subtotal + subtotal * (taxPercent / 100);
-    return { particular: r.particular, qty, price, taxPercent, subtotal, total };
+    return { particular: r.particular, qty, price, taxPercent, warrantyYears: r.warranty_years, subtotal, total };
   });
+  const showComponentsTable = showComponentPricing && compRowsCalc.length > 0;
   const compTotalPrice = compRowsCalc.reduce((sum, r) => sum + r.subtotal, 0);
   const compGrandTotal = compRowsCalc.reduce((sum, r) => sum + r.total, 0);
   const compAvgTaxPercent =
@@ -267,13 +338,15 @@ export default function QuoteDocument({
             <span className="qdoc-meta-label">Quote no.</span>
             <strong>{quoteId ?? "DRAFT"}</strong>
           </div>
-          <div>
-            <span className="qdoc-meta-label">Issued</span>
-            <strong>{formatDate(issuedOn)}</strong>
-          </div>
-          <div>
-            <span className="qdoc-meta-label">Valid till</span>
-            <strong>{formatDate(validTill)}</strong>
+          <div className="qdoc-meta-row">
+            <div>
+              <span className="qdoc-meta-label">Issued</span>
+              <strong>{formatDate(issuedOn)}</strong>
+            </div>
+            <div>
+              <span className="qdoc-meta-label">Valid till</span>
+              <strong>{formatDate(validTill)}</strong>
+            </div>
           </div>
         </div>
       </header>
@@ -295,7 +368,7 @@ export default function QuoteDocument({
         </div>
       </section>
 
-      <section className="qdoc-metrics">
+      <section ref={metricsRef} className={`qdoc-metrics${flashClass("metrics")}`}>
         <div className="qdoc-metric">
           <span>System size</span>
           <strong>{capacityKw} kWp</strong>
@@ -331,7 +404,7 @@ export default function QuoteDocument({
         </div>
       </section>
 
-      <section className="qdoc-section">
+      <section ref={pricingRef} className={`qdoc-section${flashClass("pricing")}`}>
         <h2>Commercial summary</h2>
         <table className="qdoc-table">
           <thead>
@@ -398,7 +471,11 @@ export default function QuoteDocument({
           What's included <small className="qdoc-h2-sub">— turnkey, no surprises</small>
         </h2>
         <ul className="qdoc-incl">
-          {WHATS_INCLUDED(panelMake, inverterMake, isDCR, isResidential).map((item, i) => (
+          {WHATS_INCLUDED(panelMake, inverterMake, isDCR, isResidential, {
+            panelWarrantyYears,
+            inverterWarrantyYears,
+            structureWarrantyYears,
+          }).map((item, i) => (
             <li key={i}>
               <span className="qdoc-icon">{item.icon}</span>
               <div>
@@ -410,8 +487,8 @@ export default function QuoteDocument({
         </ul>
       </section>
 
-      {compRowsCalc.length > 0 && (
-        <section className="qdoc-section qdoc-components">
+      {showComponentsTable && (
+        <section ref={componentsRef} className={`qdoc-section qdoc-components${flashClass("components")}`}>
           <h2>Component-wise pricing</h2>
           <table className="qdoc-table">
             <thead>
@@ -426,7 +503,12 @@ export default function QuoteDocument({
             <tbody>
               {compRowsCalc.map((row, i) => (
                 <tr key={i}>
-                  <td>{row.particular}</td>
+                  <td>
+                    {row.particular}
+                    {row.warrantyYears != null && (
+                      <small className="qdoc-comp-warranty"> · {row.warrantyYears} yr warranty</small>
+                    )}
+                  </td>
                   <td className="qdoc-ta-r">{row.qty}</td>
                   <td className="qdoc-ta-r">{formatINR(row.price)}</td>
                   <td className="qdoc-ta-r">{row.taxPercent}%</td>
@@ -445,8 +527,8 @@ export default function QuoteDocument({
         </section>
       )}
 
-      {(amc || post5Include) && (
-        <section className="qdoc-section qdoc-amc">
+      {amc || post5Include ? (
+        <section ref={amcRef} className={`qdoc-section qdoc-amc${flashClass("amc")}`}>
           <h2>
             AMC <small className="qdoc-h2-sub">— we stay on the roof with you</small>
           </h2>
@@ -545,10 +627,34 @@ export default function QuoteDocument({
             </p>
           )}
         </section>
+      ) : (
+        <section ref={amcRef} className={`qdoc-section qdoc-amc${flashClass("amc")}`}>
+          <h2>AMC</h2>
+          <article className="qdoc-tile qdoc-tile--chargeable">
+            <div className="qdoc-tile-tag">Not included</div>
+            <h3>AMC is not bundled with this quote</h3>
+            <p className="qdoc-tile-rate">
+              Annual maintenance is available as a chargeable add-on — ask your sales contact for current rates.
+            </p>
+          </article>
+        </section>
+      )}
+
+      {loan.enabled && !loanInclude && (
+        <section ref={loanRef} className={`qdoc-section qdoc-loan${flashClass("loan")}`}>
+          <h2>
+            Loan financing <small className="qdoc-h2-sub">— cashflow vs. EMI, month on month</small>
+          </h2>
+          <article className="qdoc-tile qdoc-tile--pending">
+            <div className="qdoc-tile-tag">Pending</div>
+            <h3>Loan details pending</h3>
+            <p className="qdoc-tile-rate">Loan amount, rate and tenure will appear here once entered.</p>
+          </article>
+        </section>
       )}
 
       {loanInclude && (
-        <section className="qdoc-section qdoc-loan">
+        <section ref={loanRef} className={`qdoc-section qdoc-loan${flashClass("loan")}`}>
           <h2>
             Loan financing <small className="qdoc-h2-sub">— cashflow vs. EMI, month on month</small>
           </h2>
