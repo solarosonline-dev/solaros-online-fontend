@@ -1,0 +1,150 @@
+/* Agreement-only additions layered on top of QuoteDocument.css's shared
+   .qdoc-* system — kept intentionally small since the agreement reuses that
+   file's header/hero/table/tile/footer styling wholesale. */
+
+.qdoc-placeholder {
+  color: var(--app-text-muted);
+  font-style: italic;
+}
+
+/* Overrides .qdoc-hero's flexbox with a grid: the agreement's pitch text is
+   a fixed, longer sentence (unlike the quote's short generated pitch line),
+   and a long customer address/contact line was pushing the flex item wide
+   enough that flex-wrap dropped the pitch to its own row below instead of
+   keeping it beside the customer info. Grid's minmax(0, ...) tracks let
+   both columns shrink and wrap their own text instead of the whole item
+   wrapping to a new line. */
+.agr-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  align-items: start;
+}
+
+@media screen and (max-width: 640px) {
+  .agr-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The agreement's pitch sentence is a full legal-style sentence rather than
+   the quote's short punchy one-liner, so it reads better a touch larger
+   than QuoteDocument.css's shared 11px .qdoc-pitch p. */
+.agr-hero .qdoc-pitch p {
+  font-size: 13px;
+}
+
+/* The signature pad + name input need more room than the quote's plain
+   "Accept" button, which is all .qdoc-sign's default 160px was sized for.
+   Widening that column reintroduced the same wrap bug as the hero fix
+   above: .qdoc-footer is flex with flex-wrap, and once the firm-info +
+   QR + widened sign columns' hypothetical widths exceeded the container,
+   the sign column dropped to its own line instead of shrinking — same
+   fix, a grid with minmax(0, ...) tracks that shrink first. */
+.agr-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(200px, 320px);
+  align-items: end;
+  gap: 20px;
+}
+
+/* Grid auto-placement fills tracks in DOM order — pin each slot to an
+   explicit column so the layout can't shift if a slot's content is ever
+   conditionally omitted again (the QR box itself always renders now, with
+   a pending placeholder before a share link exists, but this stays cheap
+   insurance against the same class of bug). */
+.agr-footer > :first-child {
+  grid-column: 1;
+}
+
+.agr-footer .qdoc-qr {
+  grid-column: 2;
+}
+
+.agr-footer .agr-sign-col {
+  grid-column: 3;
+}
+
+/* Placeholder shown in the QR slot before the agreement has a share link
+   (e.g. still being drafted in the builder) — same footprint as the real
+   QR code (which sits inside .qdoc-qr-code's own bordered frame, so no
+   border is added here to avoid a double border) so the footer layout
+   doesn't shift once a real link appears. */
+.agr-qr-pending {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--app-text-muted);
+}
+
+@media screen and (max-width: 640px) {
+  .agr-footer {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .agr-footer > :first-child,
+  .agr-footer .qdoc-qr,
+  .agr-footer .agr-sign-col {
+    grid-column: 1;
+  }
+}
+
+.agr-sign-col {
+  min-width: 0;
+  max-width: 320px;
+}
+
+.agr-ack {
+  font-size: var(--qdoc-small, 12px);
+  color: var(--app-text-muted);
+  margin: 0 0 12px;
+}
+
+.agr-signed-img {
+  max-width: 220px;
+  max-height: 80px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.agr-signed-name {
+  font-weight: 700;
+  margin: 0;
+}
+
+.agr-signed-meta {
+  font-size: var(--qdoc-small, 11px);
+  color: var(--app-text-muted);
+  margin: 2px 0;
+}
+
+.agr-signed-consent {
+  font-size: var(--qdoc-small, 12px);
+  color: #166534;
+  font-weight: 600;
+  margin: 4px 0 0;
+}
+
+.agr-sign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.agr-sign-name-input {
+  width: 100%;
+  max-width: 260px;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+}

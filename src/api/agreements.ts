@@ -20,12 +20,28 @@ export type AgreementDetail = {
   terms: string[] | null;
   amc_id: number | null;
   amc_duration_years: number | null;
+  amc_mode: "included" | "chargeable" | null;
+  /** Years 1-5 multi-select, only used when amc_mode is "chargeable" —
+   * up to 3 amc_id values. `amc_id` above stays the single-plan pick for
+   * "included" mode. */
+  amc_plan_ids: number[] | null;
+  amc_post5_enabled: boolean | null;
+  /** Up to 3 amc_id values. */
+  amc_post5_plan_ids: number[] | null;
+  signer_name: string | null;
+  /** A `data:image/png;base64,...` data URL captured from the signature pad. */
+  signature_image: string | null;
+  signed_ip: string | null;
 };
 
 export type AgreementInput = {
   terms?: string[];
   amc_id?: number;
   amc_duration_years?: number;
+  amc_mode?: "included" | "chargeable";
+  amc_plan_ids?: number[];
+  amc_post5_enabled?: boolean;
+  amc_post5_plan_ids?: number[];
 };
 
 export function listAgreements(entityId: number, leadId: number) {
@@ -62,12 +78,22 @@ export type PublicAgreementResponse = {
   lead: LeadDetail;
   entity_id: number;
   entity_name: string;
+  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
+  amc_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
+  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
 };
 
 export function getPublicAgreement(token: string) {
   return apiRequest<PublicAgreementResponse>(`/public/agreements/${token}`, { auth: false });
 }
 
-export function acceptPublicAgreement(token: string) {
-  return apiRequest<{ message: string }>(`/public/agreements/${token}/accept`, { method: "POST", auth: false });
+/** Signs & accepts an agreement in one step — a drawn signature (PNG data
+ * URL) plus the name it was signed under, no OTP. The backend captures the
+ * requesting IP itself. */
+export function signPublicAgreement(token: string, data: { signerName: string; signatureImage: string }) {
+  return apiRequest<{ message: string }>(`/public/agreements/${token}/accept`, {
+    method: "POST",
+    auth: false,
+    body: { signer_name: data.signerName, signature_image: data.signatureImage },
+  });
 }

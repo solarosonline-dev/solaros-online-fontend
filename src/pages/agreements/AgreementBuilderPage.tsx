@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
-import { listQuotes, getQuote, type QuoteDetail } from "../../api/quotes";
+import { getQuote, listQuotes, type QuoteDetail } from "../../api/quotes";
 import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
-import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type PaymentScheduleRow } from "../../api/entityPreferences";
+import { getEntity, type Entity } from "../../api/entity";
+import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type EntityPreferences } from "../../api/entityPreferences";
 import {
   listAgreements,
   getAgreement,
@@ -14,13 +15,35 @@ import {
   type AgreementDetail,
 } from "../../api/agreements";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR, roundToTen } from "../../lib/quoteCalculations";
+import { computeQuote } from "../../lib/quoteCalculations";
+import AgreementDocument from "./AgreementDocument";
+import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
+import { getDiscomName } from "../leads/discomOptions";
 import "../quotes/QuoteBuilderPage.css";
 
 type FormState = {
+  /** Single years 1-5 plan — only used when amcMode is "included". */
   amcId: string;
+  /** Years 1-5 multi-select, up to 3 — only used when amcMode is
+   * "chargeable" (the customer is paying either way, so — like years
+   * 6-15 — they can be offered a few tiers instead of just one). */
+  amcPlanIds: string[];
   amcDurationYears: string;
+  amcMode: "included" | "chargeable";
+  amcPost5Enabled: boolean;
+  /** Up to 3 amc_id values, in selection order. */
+  amcPost5PlanIds: string[];
   terms: string[];
+};
+
+const DEFAULT_FORM: FormState = {
+  amcId: "",
+  amcPlanIds: [],
+  amcDurationYears: "",
+  amcMode: "chargeable",
+  amcPost5Enabled: false,
+  amcPost5PlanIds: [],
+  terms: [],
 };
 
 export default function AgreementBuilderPage() {
@@ -31,12 +54,13 @@ export default function AgreementBuilderPage() {
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [amcPlans, setAmcPlans] = useState<AmcPlan[]>([]);
+  const [entity, setEntity] = useState<Entity | null>(null);
+  const [preferences, setPreferences] = useState<EntityPreferences | null>(null);
   const [existingAgreement, setExistingAgreement] = useState<AgreementDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [form, setForm] = useState<FormState>({ amcId: "", amcDurationYears: "", terms: [] });
-  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleRow[]>(DEFAULT_PAYMENT_SCHEDULE);
+  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [newTerm, setNewTerm] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -54,10 +78,12 @@ export default function AgreementBuilderPage() {
       listQuotes(entityId, Number(leadId)),
       listAmcPlans(entityId, { is_active: true }),
       listAgreements(entityId, Number(leadId)),
+      getEntity(entityId),
     ])
-      .then(async ([leadRes, quotesRes, amcRes, agreementsRes]) => {
+      .then(async ([leadRes, quotesRes, amcRes, agreementsRes, entityRes]) => {
         setLead(leadRes);
         setAmcPlans(amcRes.items);
+        setEntity(entityRes);
 
         if (quotesRes.items.length === 0) {
           setLoadError("No quote found for this lead yet — generate and accept a quote first.");
@@ -67,20 +93,26 @@ export default function AgreementBuilderPage() {
         setQuote(quoteRes);
 
         const prefs = await getEntityPreferences(entityId);
-        setPaymentSchedule(prefs.payment_schedule.rows);
+        setPreferences(prefs);
 
         if (agreementsRes.items.length > 0) {
           const agreement = await getAgreement(entityId, Number(leadId), agreementsRes.items[0].agreement_id);
           setExistingAgreement(agreement);
           setForm({
             amcId: agreement.amc_id != null ? String(agreement.amc_id) : "",
+            amcPlanIds: (agreement.amc_plan_ids ?? []).map(String),
             amcDurationYears: agreement.amc_duration_years != null ? String(agreement.amc_duration_years) : "",
+            amcMode: agreement.amc_mode ?? "chargeable",
+            amcPost5Enabled: agreement.amc_post5_enabled ?? false,
+            amcPost5PlanIds: (agreement.amc_post5_plan_ids ?? []).map(String),
             terms: agreement.terms ?? [],
           });
         } else {
+          // AMC is only offered from the agreement when the quote didn't
+          // already carry one (see quoteHasAmc below) — nothing to default
+          // it from in that case, so it starts blank either way.
           setForm({
-            amcId: quoteRes.amc_id != null ? String(quoteRes.amc_id) : "",
-            amcDurationYears: quoteRes.amc_duration_years != null ? String(quoteRes.amc_duration_years) : "",
+            ...DEFAULT_FORM,
             // Same pattern as quotes: entity's document defaults are folded into
             // the editable terms list, not kept as separate free text.
             terms: [
@@ -106,9 +138,49 @@ export default function AgreementBuilderPage() {
       .finally(() => setSharing(false));
   }, [entityId, leadId, existingAgreement?.agreement_id]);
 
+  // Once a quote already carries AMC, it's already committed there — the
+  // agreement doesn't let the admin pick a fresh one, it just displays what
+  // the quote already agreed to (see quoteAmcPlan/quotePost5Plans below).
+  const quoteHasAmc = quote?.amc_id != null;
+
+  const mapAmcPlan = (p: AmcPlan) => ({
+    name: p.name,
+    ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+    inclusion: p.inclusion,
+  });
+
+  const quoteAmcPlan = useMemo(
+    () => (quote?.amc_id != null ? (amcPlans.find((p) => p.amc_id === quote.amc_id) ?? null) : null),
+    [amcPlans, quote],
+  );
+
+  const quotePost5Plans = useMemo(
+    () =>
+      (quote?.amc_post5_plan_ids ?? [])
+        .map((id) => amcPlans.find((p) => p.amc_id === id) ?? null)
+        .filter((p): p is AmcPlan => p != null),
+    [amcPlans, quote],
+  );
+
   const selectedAmcPlan = useMemo(
     () => amcPlans.find((p) => String(p.amc_id) === form.amcId) ?? null,
     [amcPlans, form.amcId],
+  );
+
+  const selectedAmcPlans = useMemo(
+    () =>
+      form.amcPlanIds
+        .map((id) => amcPlans.find((p) => String(p.amc_id) === id) ?? null)
+        .filter((p): p is AmcPlan => p != null),
+    [amcPlans, form.amcPlanIds],
+  );
+
+  const selectedPost5Plans = useMemo(
+    () =>
+      form.amcPost5PlanIds
+        .map((id) => amcPlans.find((p) => String(p.amc_id) === id) ?? null)
+        .filter((p): p is AmcPlan => p != null),
+    [amcPlans, form.amcPost5PlanIds],
   );
 
   const computed = useMemo(() => {
@@ -122,25 +194,33 @@ export default function AgreementBuilderPage() {
       applySubsidy: quote.apply_subsidy ?? false,
       subsidyAmount: quote.subsidy_amount != null ? Number(quote.subsidy_amount) : null,
       segment: lead?.type ?? null,
-      amcRatePerKw: selectedAmcPlan?.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
-      amcDurationYears: form.amcDurationYears ? Number(form.amcDurationYears) : null,
+      amcRatePerKw: null,
+      amcDurationYears: null,
     });
-  }, [quote, lead, form.amcDurationYears, selectedAmcPlan]);
+  }, [quote, lead]);
 
-  // Same derivation as QuoteDocument's payment-schedule section: each row's
-  // amount is its configured percent of the total cost, rounded to the
-  // nearest ₹10, except the last row which absorbs the rounding remainder
-  // so the rows foot exactly to the total.
-  const paymentRows = useMemo(() => {
-    if (!computed) return [];
-    let runningTotal = 0;
-    return paymentSchedule.map((row, i) => {
-      const isLast = i === paymentSchedule.length - 1;
-      const amount = isLast ? computed.totalCost - runningTotal : roundToTen(computed.totalCost * (row.percent / 100));
-      runningTotal += amount;
-      return { ...row, amount };
-    });
-  }, [computed, paymentSchedule]);
+  const documentBranding: QuoteDocumentBranding = useMemo(
+    () => ({
+      entityName: entity?.name ?? "SolarOS",
+      primaryColor: preferences?.branding.primary_color,
+      logoUrl: preferences?.branding.logo_url,
+      footerTag: preferences?.branding.footer_tag,
+      gstno: entity?.gstno,
+      address: entity?.address,
+      businessPhone: entity?.business_phone,
+      businessEmail: entity?.business_email,
+      typography: preferences
+        ? {
+            h1: preferences.typography.h1_font_size,
+            h2: preferences.typography.h2_font_size,
+            h3: preferences.typography.h3_font_size,
+            body: preferences.typography.body_font_size,
+            small: preferences.typography.small_font_size,
+          }
+        : undefined,
+    }),
+    [entity, preferences],
+  );
 
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
 
@@ -168,9 +248,14 @@ export default function AgreementBuilderPage() {
     setStatus(null);
     setSaving(true);
 
+    const amcIncluded = form.amcMode === "included";
     const payload = {
-      amc_id: form.amcId ? Number(form.amcId) : undefined,
-      amc_duration_years: form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
+      amc_id: !quoteHasAmc && amcIncluded && form.amcId ? Number(form.amcId) : undefined,
+      amc_plan_ids: !quoteHasAmc && !amcIncluded ? form.amcPlanIds.map(Number) : undefined,
+      amc_duration_years: !quoteHasAmc && form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
+      amc_mode: !quoteHasAmc ? form.amcMode : undefined,
+      amc_post5_enabled: !quoteHasAmc ? form.amcPost5Enabled : undefined,
+      amc_post5_plan_ids: !quoteHasAmc ? form.amcPost5PlanIds.map(Number) : undefined,
       terms: form.terms,
     };
 
@@ -205,11 +290,11 @@ export default function AgreementBuilderPage() {
 
   return (
     <div className="quote-builder">
-      <Link to={`/app/leads/${leadId}`} className="quote-builder-back">
+      <Link to={`/app/leads/${leadId}`} className="quote-builder-back no-print">
         ← Back to lead
       </Link>
 
-      <div className="quote-builder-header">
+      <div className="quote-builder-header no-print">
         <h1>
           Agreement for {lead.name}{" "}
           {existingAgreement && <span className="quote-status-badge">{existingAgreement.status}</span>}
@@ -217,7 +302,7 @@ export default function AgreementBuilderPage() {
       </div>
 
       <div className="quote-builder-grid">
-        <div className="quote-form-panel">
+        <div className="quote-form-panel no-print">
           <p className="quote-section-label" style={{ marginTop: 0 }}>
             From quote
           </p>
@@ -248,47 +333,176 @@ export default function AgreementBuilderPage() {
             </div>
             <div className="quote-field">
               <label>Net investment</label>
-              <input type="text" disabled value={computed ? formatINR(computed.netInvestment) : ""} />
+              <input type="text" disabled value={computed ? computed.netInvestment.toLocaleString("en-IN") : ""} />
             </div>
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
             <p className="quote-section-label">AMC</p>
-            <div className="quote-field-row">
-              <div className="quote-field">
-                <label htmlFor="aAmcId">AMC plan</label>
-                <select
-                  id="aAmcId"
-                  disabled={locked}
-                  value={form.amcId}
-                  onChange={(e) => {
-                    const amcId = e.target.value;
-                    setForm({
-                      ...form,
-                      amcId,
-                      amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
-                    });
-                  }}
-                >
-                  <option value="">None</option>
-                  {amcPlans.map((p) => (
-                    <option key={p.amc_id} value={p.amc_id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="quote-field">
-                <label htmlFor="aAmcDuration">Duration (years)</label>
-                <input
-                  id="aAmcDuration"
-                  type="number"
-                  disabled={locked || !form.amcId}
-                  value={form.amcDurationYears}
-                  onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
-                />
-              </div>
-            </div>
+            {!quoteHasAmc && (
+              <p className="quote-field-hint" style={{ marginTop: -8, marginBottom: 12 }}>
+                Offered as a recommended add-on since this quote had no AMC.
+              </p>
+            )}
+            {quoteHasAmc ? (
+              <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+                This quote already includes AMC — it carries over to the agreement as already agreed, shown in the
+                preview, and isn't editable here.
+              </p>
+            ) : (
+              <>
+                <div className="quote-field-row">
+                  <div className="quote-field">
+                    <label htmlFor="aAmcMode">Pricing</label>
+                    <select
+                      id="aAmcMode"
+                      disabled={locked}
+                      value={form.amcMode}
+                      onChange={(e) => setForm({ ...form, amcMode: e.target.value as "included" | "chargeable" })}
+                    >
+                      <option value="chargeable">Chargeable — customer pays</option>
+                      <option value="included">Included — bundled free of cost</option>
+                    </select>
+                  </div>
+                  <div className="quote-field">
+                    <label htmlFor="aAmcDuration">Duration (years)</label>
+                    <input
+                      id="aAmcDuration"
+                      type="number"
+                      disabled={locked}
+                      value={form.amcDurationYears}
+                      onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {form.amcMode === "included" ? (
+                  <div className="quote-field">
+                    <label htmlFor="aAmcId">AMC plan</label>
+                    <select
+                      id="aAmcId"
+                      disabled={locked}
+                      value={form.amcId}
+                      onChange={(e) => {
+                        const amcId = e.target.value;
+                        setForm({
+                          ...form,
+                          amcId,
+                          amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                        });
+                      }}
+                    >
+                      <option value="">None</option>
+                      {amcPlans.map((p) => (
+                        <option key={p.amc_id} value={p.amc_id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="quote-field-hint">
+                      Bundled free of cost — a single plan, since it's a freebie.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="quote-field">
+                    <label>Select up to 3 plans from the AMC catalog</label>
+                    <div className="quote-checkbox-list">
+                      {amcPlans.map((p) => {
+                        const idStr = String(p.amc_id);
+                        const checked = form.amcPlanIds.includes(idStr);
+                        const atLimit = form.amcPlanIds.length >= 3;
+                        return (
+                          <div
+                            className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                            key={p.amc_id}
+                          >
+                            <input
+                              id={`aAmcPlan-${p.amc_id}`}
+                              type="checkbox"
+                              disabled={locked || (!checked && atLimit)}
+                              checked={checked}
+                              onChange={(e) => {
+                                const amcPlanIds = e.target.checked
+                                  ? [...form.amcPlanIds, idStr]
+                                  : form.amcPlanIds.filter((id) => id !== idStr);
+                                setForm({
+                                  ...form,
+                                  amcPlanIds,
+                                  amcDurationYears: amcPlanIds.length && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                                });
+                              }}
+                            />
+                            <label htmlFor={`aAmcPlan-${p.amc_id}`}>{p.name}</label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p
+                      className={`quote-field-hint${form.amcPlanIds.length >= 3 ? " quote-field-hint--warning" : ""}`}
+                    >
+                      {form.amcPlanIds.length}/3 selected
+                      {form.amcPlanIds.length >= 3 ? " — maximum reached" : ""} — the customer sees these as options
+                      to choose between, since they're paying either way.
+                    </p>
+                  </div>
+                )}
+
+                <p className="quote-section-label">AMC — years 6-15 (next 10 years)</p>
+                <div className="quote-checkbox-row">
+                  <input
+                    id="aAmcPost5Enabled"
+                    type="checkbox"
+                    disabled={locked}
+                    checked={form.amcPost5Enabled}
+                    onChange={(e) => setForm({ ...form, amcPost5Enabled: e.target.checked })}
+                  />
+                  <label htmlFor="aAmcPost5Enabled">Offer AMC plans for years 6-15</label>
+                </div>
+                {form.amcPost5Enabled && (
+                  <div className="quote-field">
+                    <label>Select up to 3 plans from the AMC catalog</label>
+                    <div className="quote-checkbox-list">
+                      {amcPlans.map((p) => {
+                        const idStr = String(p.amc_id);
+                        const checked = form.amcPost5PlanIds.includes(idStr);
+                        const atLimit = form.amcPost5PlanIds.length >= 3;
+                        return (
+                          <div
+                            className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                            key={p.amc_id}
+                          >
+                            <input
+                              id={`aAmcPost5Plan-${p.amc_id}`}
+                              type="checkbox"
+                              disabled={locked || (!checked && atLimit)}
+                              checked={checked}
+                              onChange={(e) => {
+                                setForm({
+                                  ...form,
+                                  amcPost5PlanIds: e.target.checked
+                                    ? [...form.amcPost5PlanIds, idStr]
+                                    : form.amcPost5PlanIds.filter((id) => id !== idStr),
+                                });
+                              }}
+                            />
+                            <label htmlFor={`aAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p
+                      className={`quote-field-hint${
+                        form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
+                      }`}
+                    >
+                      {form.amcPost5PlanIds.length}/3 selected
+                      {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns
+                      alongside the years 1-5 AMC on the agreement.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="quote-field">
               <label htmlFor="aTermInput">Terms &amp; conditions</label>
@@ -354,117 +568,57 @@ export default function AgreementBuilderPage() {
         </div>
 
         <div className="quote-preview-panel">
-          <p className="quote-section-label" style={{ marginTop: 0 }}>
-            Live preview
-          </p>
-
-          {!computed ? (
+          {!computed || !quote ? (
             <p className="quote-status-msg">No quote data available.</p>
           ) : (
-            <>
-              <div className="quote-preview-metrics">
-                <div className="quote-preview-metric">
-                  <div className="value">{formatINR(computed.netInvestment)}</div>
-                  <div className="label">Net investment</div>
-                </div>
-                <div className="quote-preview-metric">
-                  <div className="value">{formatINR(computed.monthlySaving)}</div>
-                  <div className="label">Monthly savings</div>
-                </div>
-                <div className="quote-preview-metric">
-                  <div className="value">{computed.paybackYrs.toFixed(1)} yrs</div>
-                  <div className="label">Payback period</div>
-                </div>
-                <div className="quote-preview-metric">
-                  <div className="value">{Math.round(computed.monthlyKwh)} kWh</div>
-                  <div className="label">Monthly generation</div>
-                </div>
-              </div>
-
-              <table className="quote-breakdown-table">
-                <tbody>
-                  <tr>
-                    <td>Base cost</td>
-                    <td>{formatINR(computed.baseCost)}</td>
-                  </tr>
-                  <tr>
-                    <td>GST</td>
-                    <td>{formatINR(computed.gstAmount)}</td>
-                  </tr>
-                  <tr>
-                    <td>Total cost</td>
-                    <td>{formatINR(computed.totalCost)}</td>
-                  </tr>
-                  <tr>
-                    <td>Subsidy</td>
-                    <td>-{formatINR(computed.subsidy)}</td>
-                  </tr>
-                  <tr className="total">
-                    <td>Net investment</td>
-                    <td>{formatINR(computed.netInvestment)}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {selectedAmcPlan && (
-                <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontSize: 13, color: "var(--app-text-muted)", marginBottom: 6 }}>
-                    {selectedAmcPlan.name}
-                    {computed.amcTotalCost != null &&
-                      ` — ${formatINR(computed.amcTotalCost)} total over ${form.amcDurationYears} year(s)`}
-                  </p>
-                  {selectedAmcPlan.inclusion.length > 0 && (
-                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
-                      {selectedAmcPlan.inclusion.map((item, i) => (
-                        <li key={i}>{item}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              <p className="quote-section-label">Payment schedule</p>
-              <table className="quote-payment-table">
-                <thead>
-                  <tr>
-                    <th>Milestone</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentRows.map((row, i) => (
-                    <tr key={i}>
-                      <td>
-                        {row.label} ({row.percent}%)
-                      </td>
-                      <td>{formatINR(row.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--app-text-muted)",
-                  marginBottom: form.terms.length > 0 ? 20 : 0,
-                }}
-              >
-                {computed.co2Tons.toFixed(1)} tons CO₂ avoided/year · {Math.round(computed.trees)} tree-equivalent ·{" "}
-                {formatINR(computed.lifetimeNet)} lifetime net savings (25 yr)
-              </p>
-
-              {form.terms.length > 0 && (
-                <>
-                  <p className="quote-section-label">Terms &amp; conditions</p>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "var(--app-text-muted)" }}>
-                    {form.terms.map((term, i) => (
-                      <li key={i}>{term}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </>
+            <AgreementDocument
+              agreementId={existingAgreement?.agreement_id ?? null}
+              createdAt={existingAgreement?.created_at ?? null}
+              quoteId={quote.quote_id}
+              capacityKw={quote.capacity ?? 0}
+              panelMake={quote.panel_make}
+              inverterMake={quote.inverter_make}
+              components={quote.components ?? []}
+              customerName={lead.name}
+              customerAddress={lead.address}
+              customerDiscom={getDiscomName(lead.discom)}
+              customerMobile={lead.mobile}
+              customerEmail={lead.email}
+              segment={lead.type}
+              pricePerWatt={quote.price_per_watt ?? 0}
+              gstRate={quote.gst_rate ?? 0}
+              computed={computed}
+              amcFromQuote={quoteHasAmc}
+              amc={
+                quoteHasAmc
+                  ? quoteAmcPlan
+                    ? mapAmcPlan(quoteAmcPlan)
+                    : null
+                  : selectedAmcPlan
+                    ? mapAmcPlan(selectedAmcPlan)
+                    : null
+              }
+              amcPlans={quoteHasAmc ? [] : selectedAmcPlans.map(mapAmcPlan)}
+              amcDurationYears={
+                quoteHasAmc ? (quote.amc_duration_years ?? null) : form.amcDurationYears ? Number(form.amcDurationYears) : null
+              }
+              amcMode={quoteHasAmc ? (quote.amc_mode ?? "chargeable") : form.amcMode}
+              amcPost5={{
+                enabled: quoteHasAmc ? (quote.amc_post5_enabled ?? false) : form.amcPost5Enabled,
+                plans: (quoteHasAmc ? quotePost5Plans : selectedPost5Plans).map(mapAmcPlan),
+              }}
+              paymentSchedule={preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+              terms={form.terms}
+              branding={documentBranding}
+              shareUrl={shareUrl}
+              signature={{
+                signed: existingAgreement?.status === "ACCEPTED",
+                signerName: existingAgreement?.signer_name,
+                signatureImage: existingAgreement?.signature_image,
+                signedAt: existingAgreement?.signed_at,
+                signedIp: existingAgreement?.signed_ip,
+              }}
+            />
           )}
         </div>
       </div>
