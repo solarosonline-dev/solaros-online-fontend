@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type { LeadDetail } from "./leads";
+import type { AmcInclusionItem } from "./amcPlans";
 
 export type QuoteStatus = "GENERATED" | "ACCEPTED" | "REJECTED";
 
@@ -9,6 +10,7 @@ export type QuoteComponentRow = {
   price: number | null;
   tax_percent: number | null;
   warranty_years: number | null;
+  specification: string | null;
 };
 
 export type QuoteListItem = {
@@ -49,6 +51,7 @@ export type QuoteDetail = {
   terms: string[] | null;
   components: QuoteComponentRow[] | null;
   components_enabled: boolean | null;
+  components_pricing_enabled: boolean | null;
 };
 
 export type QuoteInput = {
@@ -77,6 +80,7 @@ export type QuoteInput = {
   terms?: string[];
   components?: QuoteComponentRow[];
   components_enabled?: boolean;
+  components_pricing_enabled?: boolean;
 };
 
 export function listQuotes(entityId: number, leadId: number) {
@@ -112,8 +116,8 @@ export type PublicQuoteResponse = {
   lead: LeadDetail;
   entity_id: number;
   entity_name: string;
-  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
-  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
+  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] } | null;
+  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
 };
 
 export function getPublicQuote(token: string) {

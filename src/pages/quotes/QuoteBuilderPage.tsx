@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
-import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
+import { listAmcPlans, formatAmcInclusion, type AmcPlan } from "../../api/amcPlans";
 import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type EntityPreferences } from "../../api/entityPreferences";
 import { getEntity, type Entity } from "../../api/entity";
 import {
@@ -22,10 +22,28 @@ import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
 
+// Placeholder row labels seeded by entity_preferences.py's DEFAULT_PREFERENCES —
+// treated as "not yet filled in" so brand-new quotes fall back to the generic
+// marketing copy in quoteDocumentCopy.ts instead of showing the literal
+// placeholder text until a sales rep renames the row.
+const PLACEHOLDER_PARTICULARS = ["panel make/model", "inverter make/model"];
+
+/** Panel make / Inverter make are no longer separate quote fields — they're
+ * read from the matching Default components row's particular text (edited
+ * in the component-wise pricing table below), same way warranty/specification
+ * are already keyword-matched off `components` in QuoteDocument.tsx. */
+function findComponentParticular(components: QuoteComponentRow[], keywords: string[]): string {
+  const row = components.find((r) => {
+    const particular = (r.particular ?? "").toLowerCase();
+    return keywords.some((k) => particular.includes(k));
+  });
+  const particular = row?.particular?.trim() ?? "";
+  if (!particular || PLACEHOLDER_PARTICULARS.includes(particular.toLowerCase())) return "";
+  return particular;
+}
+
 type FormState = {
   capacity: string;
-  panelMake: string;
-  inverterMake: string;
   panelType: string;
   validityDays: string;
   pricePerWatt: string;
@@ -48,12 +66,11 @@ type FormState = {
   terms: string[];
   components: QuoteComponentRow[];
   componentsEnabled: boolean;
+  componentsPricingEnabled: boolean;
 };
 
 const DEFAULT_FORM: FormState = {
   capacity: "5",
-  panelMake: "",
-  inverterMake: "",
   panelType: "DCR",
   validityDays: "15",
   pricePerWatt: "50",
@@ -75,6 +92,7 @@ const DEFAULT_FORM: FormState = {
   terms: [],
   components: [],
   componentsEnabled: false,
+  componentsPricingEnabled: true,
 };
 
 export default function QuoteBuilderPage() {
@@ -122,8 +140,6 @@ export default function QuoteBuilderPage() {
           setExistingQuote(quote);
           setForm({
             capacity: quote.capacity != null ? String(quote.capacity) : "",
-            panelMake: quote.panel_make ?? "",
-            inverterMake: quote.inverter_make ?? "",
             panelType: quote.panel_type ?? "DCR",
             validityDays: quote.validity_days != null ? String(quote.validity_days) : "15",
             pricePerWatt: quote.price_per_watt != null ? String(quote.price_per_watt) : "",
@@ -148,6 +164,7 @@ export default function QuoteBuilderPage() {
             terms: quote.terms ?? [],
             components: quote.components ?? [],
             componentsEnabled: quote.components_enabled ?? false,
+            componentsPricingEnabled: quote.components_pricing_enabled ?? true,
           });
           setSubsidyTouched(true);
         } else {
@@ -170,8 +187,10 @@ export default function QuoteBuilderPage() {
               price: null,
               tax_percent: item.tax_percent,
               warranty_years: item.warranty_years,
+              specification: item.specification,
             })),
             componentsEnabled: false,
+            componentsPricingEnabled: true,
           });
           setSubsidyTouched(false);
         }
@@ -179,6 +198,12 @@ export default function QuoteBuilderPage() {
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [entityId, leadId]);
+
+  const derivedPanelMake = useMemo(() => findComponentParticular(form.components, ["panel"]), [form.components]);
+  const derivedInverterMake = useMemo(
+    () => findComponentParticular(form.components, ["inverter"]),
+    [form.components],
+  );
 
   const selectedAmcPlan = useMemo(
     () => amcPlans.find((p) => String(p.amc_id) === form.amcId) ?? null,
@@ -279,7 +304,7 @@ export default function QuoteBuilderPage() {
     form.amcPost5PlanIds,
   ]);
   useSectionFlash("loan", [form.loanEnabled, form.loanAmount, form.loanRatePercent, form.loanTenureYears]);
-  useSectionFlash("components", [form.components, form.componentsEnabled]);
+  useSectionFlash("components", [form.components, form.componentsEnabled, form.componentsPricingEnabled]);
 
   const computed = useMemo(() => {
     return computeQuote({
@@ -321,7 +346,7 @@ export default function QuoteBuilderPage() {
       ...form,
       components: [
         ...form.components,
-        { particular: "", qty: null, price: null, tax_percent: 18, warranty_years: null },
+        { particular: "", qty: null, price: null, tax_percent: 18, warranty_years: null, specification: null },
       ],
     });
   }
@@ -354,8 +379,8 @@ export default function QuoteBuilderPage() {
     const payload = {
       total_amount: computed.netInvestment,
       capacity: form.capacity ? Number(form.capacity) : undefined,
-      panel_make: form.panelMake.trim() || undefined,
-      inverter_make: form.inverterMake.trim() || undefined,
+      panel_make: derivedPanelMake || undefined,
+      inverter_make: derivedInverterMake || undefined,
       panel_type: form.panelType || undefined,
       validity_days: form.validityDays ? Number(form.validityDays) : undefined,
       price_per_watt: form.pricePerWatt ? Number(form.pricePerWatt) : undefined,
@@ -377,6 +402,7 @@ export default function QuoteBuilderPage() {
       terms: form.terms,
       components: form.components,
       components_enabled: form.componentsEnabled,
+      components_pricing_enabled: form.componentsPricingEnabled,
     };
 
     try {
@@ -452,29 +478,6 @@ export default function QuoteBuilderPage() {
                 />
               </div>
               <div className="quote-field">
-                <label htmlFor="qInverterMake">Inverter make</label>
-                <input
-                  id="qInverterMake"
-                  type="text"
-                  disabled={locked}
-                  value={form.inverterMake}
-                  onChange={(e) => setForm({ ...form, inverterMake: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="quote-field-row">
-              <div className="quote-field">
-                <label htmlFor="qPanelMake">Panel make</label>
-                <input
-                  id="qPanelMake"
-                  type="text"
-                  disabled={locked}
-                  value={form.panelMake}
-                  onChange={(e) => setForm({ ...form, panelMake: e.target.value })}
-                />
-              </div>
-              <div className="quote-field">
                 <label htmlFor="qPanelType">Panel type</label>
                 <select
                   id="qPanelType"
@@ -490,6 +493,10 @@ export default function QuoteBuilderPage() {
                 </select>
               </div>
             </div>
+            <p className="quote-status-msg" style={{ marginTop: -6, marginBottom: 12, color: "var(--app-text-muted)" }}>
+              Panel make &amp; Inverter make now come from the Default components table below — rename the
+              "Panel make/model" / "Inverter make/model" rows' Particulars to set them for this quote.
+            </p>
 
             <div className="quote-field">
               <label htmlFor="qDailyYield">Daily yield (kWh/kW/day)</label>
@@ -808,8 +815,21 @@ export default function QuoteBuilderPage() {
                 checked={form.componentsEnabled}
                 onChange={(e) => setForm({ ...form, componentsEnabled: e.target.checked })}
               />
-              <label htmlFor="qComponentsEnabled">Show component-wise pricing on this quote</label>
+              <label htmlFor="qComponentsEnabled">Show component-wise details</label>
             </div>
+            <div className="quote-checkbox-row">
+              <input
+                id="qComponentsPricingEnabled"
+                type="checkbox"
+                disabled={locked || !form.componentsEnabled}
+                checked={form.componentsPricingEnabled}
+                onChange={(e) => setForm({ ...form, componentsPricingEnabled: e.target.checked })}
+              />
+              <label htmlFor="qComponentsPricingEnabled">Enable pricing</label>
+            </div>
+            <p className="quote-field-hint">
+              With pricing off, the quote shows only particulars and warranty — Qty, Price, Tax, and Total stay hidden.
+            </p>
 
             {form.componentsEnabled && (
               <div className="quote-field" style={{ maxWidth: "100%" }}>
@@ -953,13 +973,14 @@ export default function QuoteBuilderPage() {
             createdAt={existingQuote?.created_at ?? null}
             validityDays={form.validityDays ? Number(form.validityDays) : null}
             capacityKw={Number(form.capacity) || 0}
-            panelMake={form.panelMake || null}
-            inverterMake={form.inverterMake || null}
+            panelMake={derivedPanelMake || null}
+            inverterMake={derivedInverterMake || null}
             panelType={form.panelType || null}
             notes={form.notes || null}
             terms={form.terms}
             components={form.components}
-            showComponentPricing={form.componentsEnabled}
+            showComponentDetails={form.componentsEnabled}
+            showComponentPricing={form.componentsEnabled && form.componentsPricingEnabled}
             customerName={lead.name}
             customerAddress={lead.address}
             customerDiscom={getDiscomName(lead.discom)}
@@ -975,7 +996,7 @@ export default function QuoteBuilderPage() {
                 ? {
                     name: selectedAmcPlan.name,
                     ratePerKw: selectedAmcPlan.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
-                    inclusion: selectedAmcPlan.inclusion,
+                    inclusion: selectedAmcPlan.inclusion.map(formatAmcInclusion),
                   }
                 : null
             }
@@ -986,7 +1007,7 @@ export default function QuoteBuilderPage() {
               plans: selectedPost5Plans.map((p) => ({
                 name: p.name,
                 ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
-                inclusion: p.inclusion,
+                inclusion: p.inclusion.map(formatAmcInclusion),
               })),
             }}
             loan={{

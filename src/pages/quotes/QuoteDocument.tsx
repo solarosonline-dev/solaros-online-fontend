@@ -64,9 +64,14 @@ export type QuoteDocumentProps = {
    * pricing table itself is shown — warranty info in "What's included" is
    * derived from this and must keep working even when the table is hidden. */
   components: QuoteComponentRow[];
-  /** Whether to render the component-wise pricing table section. Defaults to
-   * true when omitted (the public quote page always wants it shown whenever
-   * there are rows; the builder's live preview passes the LHS toggle). */
+  /** Whether to render the component-wise section at all (Particulars +
+   * Warranty). Defaults to true when omitted. */
+  showComponentDetails?: boolean;
+  /** Independent of showComponentDetails: whether to additionally show the
+   * Qty/Price/Tax/Total columns and the grand-total row. When false, only
+   * Particulars (with warranty note) render. Defaults to true when omitted
+   * (the public quote page always wants it shown whenever there are rows;
+   * the builder's live preview passes the LHS "Enable pricing" toggle). */
   showComponentPricing?: boolean;
   customerName: string;
   customerCompany?: string | null;
@@ -124,6 +129,7 @@ export default function QuoteDocument({
   notes,
   terms,
   components,
+  showComponentDetails = true,
   showComponentPricing = true,
   customerName,
   customerCompany,
@@ -223,6 +229,21 @@ export default function QuoteDocument({
   const inverterWarrantyYears = findWarrantyYears(["inverter"]);
   const structureWarrantyYears = findWarrantyYears(["structure", "mounting"]);
 
+  // Same keyword-match pattern as findWarrantyYears above, but for the
+  // component row's `specification` text.
+  const findSpecification = (keywords: string[]): string | null => {
+    const row = components.find((r) => {
+      const particular = (r.particular ?? "").toLowerCase();
+      return keywords.some((k) => particular.includes(k));
+    });
+    return row?.specification ?? null;
+  };
+  const inverterSpec = findSpecification(["inverter"]);
+  const structureSpec = findSpecification(["structure", "mounting"]);
+  const cableSpec = findSpecification(["wire", "cable"]);
+  const enclosureSpec = findSpecification(["acdb", "dcdb"]);
+  const lightningSpec = findSpecification(["lightning"]);
+
   const issuedOn = createdAt ? new Date(createdAt) : new Date();
   const validity = validityDays ?? 15;
   const validTill = new Date(issuedOn.getTime() + validity * 86400000);
@@ -279,7 +300,7 @@ export default function QuoteDocument({
     const total = subtotal + subtotal * (taxPercent / 100);
     return { particular: r.particular, qty, price, taxPercent, warrantyYears: r.warranty_years, subtotal, total };
   });
-  const showComponentsTable = showComponentPricing && compRowsCalc.length > 0;
+  const showComponentsTable = showComponentDetails && compRowsCalc.length > 0;
   const compTotalPrice = compRowsCalc.reduce((sum, r) => sum + r.subtotal, 0);
   const compGrandTotal = compRowsCalc.reduce((sum, r) => sum + r.total, 0);
   const compAvgTaxPercent =
@@ -475,6 +496,11 @@ export default function QuoteDocument({
             panelWarrantyYears,
             inverterWarrantyYears,
             structureWarrantyYears,
+            inverterSpec,
+            structureSpec,
+            cableSpec,
+            enclosureSpec,
+            lightningSpec,
           }).map((item, i) => (
             <li key={i}>
               <span className="qdoc-icon">{item.icon}</span>
@@ -489,15 +515,19 @@ export default function QuoteDocument({
 
       {showComponentsTable && (
         <section ref={componentsRef} className={`qdoc-section qdoc-components${flashClass("components")}`}>
-          <h2>Component-wise pricing</h2>
+          <h2>{showComponentPricing ? "Component-wise pricing" : "What's included"}</h2>
           <table className="qdoc-table">
             <thead>
               <tr>
                 <th>Particulars</th>
-                <th className="qdoc-ta-r">Qty</th>
-                <th className="qdoc-ta-r">Price</th>
-                <th className="qdoc-ta-r">Tax</th>
-                <th className="qdoc-ta-r">Total</th>
+                {showComponentPricing && (
+                  <>
+                    <th className="qdoc-ta-r">Qty</th>
+                    <th className="qdoc-ta-r">Price</th>
+                    <th className="qdoc-ta-r">Tax</th>
+                    <th className="qdoc-ta-r">Total</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -509,19 +539,25 @@ export default function QuoteDocument({
                       <small className="qdoc-comp-warranty"> · {row.warrantyYears} yr warranty</small>
                     )}
                   </td>
-                  <td className="qdoc-ta-r">{row.qty}</td>
-                  <td className="qdoc-ta-r">{formatINR(row.price)}</td>
-                  <td className="qdoc-ta-r">{row.taxPercent}%</td>
-                  <td className="qdoc-ta-r">{formatINR(row.total)}</td>
+                  {showComponentPricing && (
+                    <>
+                      <td className="qdoc-ta-r">{row.qty}</td>
+                      <td className="qdoc-ta-r">{formatINR(row.price)}</td>
+                      <td className="qdoc-ta-r">{row.taxPercent}%</td>
+                      <td className="qdoc-ta-r">{formatINR(row.total)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
-              <tr className="qdoc-row-total">
-                <td>Total</td>
-                <td></td>
-                <td className="qdoc-ta-r">{formatINR(compTotalPrice)}</td>
-                <td className="qdoc-ta-r">{compAvgTaxPercent.toFixed(1)}%</td>
-                <td className="qdoc-ta-r">{formatINR(compGrandTotal)}</td>
-              </tr>
+              {showComponentPricing && (
+                <tr className="qdoc-row-total">
+                  <td>Total</td>
+                  <td></td>
+                  <td className="qdoc-ta-r">{formatINR(compTotalPrice)}</td>
+                  <td className="qdoc-ta-r">{compAvgTaxPercent.toFixed(1)}%</td>
+                  <td className="qdoc-ta-r">{formatINR(compGrandTotal)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </section>

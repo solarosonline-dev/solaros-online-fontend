@@ -1,5 +1,13 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { createAmcPlan, updateAmcPlan, type AmcPlan } from "../../api/amcPlans";
+import {
+  createAmcPlan,
+  updateAmcPlan,
+  formatAmcInclusion,
+  AMC_FREQUENCY_OPTIONS,
+  type AmcFrequency,
+  type AmcInclusionItem,
+  type AmcPlan,
+} from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
 
 type Props = {
@@ -12,17 +20,19 @@ type Props = {
 export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props) {
   const [name, setName] = useState(plan?.name ?? "");
   const [ratePerKw, setRatePerKw] = useState(plan?.rate_per_kw ?? "");
-  const [inclusions, setInclusions] = useState<string[]>(plan?.inclusion ?? []);
-  const [newItem, setNewItem] = useState("");
+  const [inclusions, setInclusions] = useState<AmcInclusionItem[]>(plan?.inclusion ?? []);
+  const [newItemFrequency, setNewItemFrequency] = useState<AmcFrequency | "">("");
+  const [newItemText, setNewItemText] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function handleAddItem() {
-    const trimmed = newItem.trim();
+    const trimmed = newItemText.trim();
     if (!trimmed) return;
-    setInclusions([...inclusions, trimmed]);
-    setNewItem("");
+    setInclusions([...inclusions, { text: trimmed, frequency: newItemFrequency || null }]);
+    setNewItemText("");
+    setNewItemFrequency("");
   }
 
   function handleNewItemKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -91,7 +101,7 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
             <ul className="amc-inclusion-editor-list">
               {inclusions.map((item, i) => (
                 <li key={i}>
-                  <span>{item}</span>
+                  <span>{formatAmcInclusion(item)}</span>
                   <button type="button" className="amc-inclusion-remove" onClick={() => handleRemoveItem(i)}>
                     ×
                   </button>
@@ -101,12 +111,25 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
           )}
 
           <div className="amc-inclusion-add-row">
+            <select
+              id="amcInclusionFrequency"
+              aria-label="Frequency"
+              value={newItemFrequency}
+              onChange={(e) => setNewItemFrequency(e.target.value as AmcFrequency | "")}
+            >
+              <option value="">None</option>
+              {AMC_FREQUENCY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             <input
               id="amcInclusionInput"
               type="text"
-              placeholder="e.g. Bi-annual panel cleaning"
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="e.g. Panel cleaning"
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={handleNewItemKeyDown}
             />
             <button type="button" className="amc-btn" onClick={handleAddItem}>

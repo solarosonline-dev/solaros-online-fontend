@@ -32,6 +32,7 @@ export type ComponentDefault = {
   particular: string;
   tax_percent: number;
   warranty_years: number | null;
+  specification: string | null;
 };
 
 export type Components = {

@@ -53,6 +53,7 @@
 }
 
 .amc-field input,
+.amc-field select,
 .amc-field textarea {
   font-family: inherit;
   font-size: 14px;
@@ -109,6 +110,10 @@
 .amc-inclusion-add-row {
   display: flex;
   gap: 8px;
+}
+
+.amc-inclusion-add-row select {
+  flex: 0 0 140px;
 }
 
 .amc-inclusion-add-row input {

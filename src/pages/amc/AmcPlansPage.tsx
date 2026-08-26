@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
-import { listAmcPlans, deactivateAmcPlan, type AmcPlan } from "../../api/amcPlans";
+import { listAmcPlans, deactivateAmcPlan, formatAmcInclusion, type AmcPlan } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
 import AmcPlanForm from "./AmcPlanForm";
 import "./AmcPlansPage.css";
@@ -123,7 +123,7 @@ export default function AmcPlansPage() {
                     {plan.inclusion.length > 0 ? (
                       <ul className="amc-inclusion-list">
                         {plan.inclusion.map((item, i) => (
-                          <li key={i}>{item}</li>
+                          <li key={i}>{formatAmcInclusion(item)}</li>
                         ))}
                       </ul>
                     ) : (

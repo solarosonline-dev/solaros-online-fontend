@@ -52,15 +52,24 @@ export function subsidyExplanationNote(segment: string | null, panelType: string
   return null;
 }
 
-/** Warranty years pulled from the component-wise pricing rows (matched by
- * keyword in the particular text), so "What's included" always reflects
- * what the admin actually configured there — even when the component-wise
- * pricing table itself is hidden from the customer. `null`/omitted falls
- * back to the generic copy below. */
+/** Warranty years + specification text pulled from the component-wise
+ * pricing rows (matched by keyword in the particular text), so "What's
+ * included" always reflects what the admin actually configured there — the
+ * default components' `specification` field flows in here via the entity's
+ * defaults or, if the sales rep hand-edited that row on this quote, from
+ * that override instead — even when the component-wise pricing table itself
+ * is hidden from the customer. `null`/omitted falls back to the generic
+ * copy below (which mirrors each field's seeded default in
+ * entity_preferences.py). */
 export type WhatsIncludedWarranty = {
   panelWarrantyYears?: number | null;
   inverterWarrantyYears?: number | null;
   structureWarrantyYears?: number | null;
+  inverterSpec?: string | null;
+  structureSpec?: string | null;
+  cableSpec?: string | null;
+  enclosureSpec?: string | null;
+  lightningSpec?: string | null;
 };
 
 export const WHATS_INCLUDED = (
@@ -82,17 +91,25 @@ export const WHATS_INCLUDED = (
     title: inverterMake || "Tier-1 string inverter",
     desc: `${
       warranty?.inverterWarrantyYears != null ? `${warranty.inverterWarrantyYears}-yr` : "10-yr"
-    } warranty · IP65 · WiFi monitoring built-in`,
+    } warranty · ${warranty?.inverterSpec ?? "IP65 · WiFi monitoring built-in"}`,
   },
   {
     icon: "🛠",
     title: "Elevated GI mounting structure",
     desc: `${
       warranty?.structureWarrantyYears != null ? `${warranty.structureWarrantyYears}-yr` : "10-yr"
-    } anti-corrosion · zero roof-leak guarantee`,
+    } ${warranty?.structureSpec ?? "anti-corrosion · zero roof-leak guarantee"}`,
   },
-  { icon: "🔌", title: "DC + AC cabling, ACDB & DCDB", desc: "IS-7098-2 cables · IP65 enclosures · SPD & isolators" },
-  { icon: "⏚", title: "Earthing, lightning & surge protection", desc: "Copper-bonded electrodes · Type-2 SPD · IS-3043 compliant" },
+  {
+    icon: "🔌",
+    title: "DC + AC cabling, ACDB & DCDB",
+    desc: `${warranty?.cableSpec ?? "IS-7098-2 cables"} · ${warranty?.enclosureSpec ?? "IP65 enclosures · SPD & isolators"}`,
+  },
+  {
+    icon: "⏚",
+    title: "Earthing, lightning & surge protection",
+    desc: warranty?.lightningSpec ?? "Copper-bonded electrodes · Type-2 SPD · IS-3043 compliant",
+  },
   { icon: "📋", title: "Single-window paperwork", desc: "PM Surya Ghar registration · DISCOM net-metering · loan facilitation" },
   { icon: "📱", title: "WiFi monitoring + WhatsApp savings report", desc: "Live generation & lifetime savings on your phone" },
   { icon: "🛡", title: "Performance Promise", desc: "≥80% design generation guaranteed in writing" },

@@ -8,6 +8,7 @@ import {
   type PublicQuoteResponse,
 } from "../../api/quotes";
 import { getPublicEntityBranding, DEFAULT_PAYMENT_SCHEDULE, type PublicBranding } from "../../api/entityPreferences";
+import { formatAmcInclusion } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
@@ -202,7 +203,8 @@ export default function PublicQuotePage() {
           notes={quote.notes}
           terms={quote.terms ?? []}
           components={quote.components ?? []}
-          showComponentPricing={quote.components_enabled ?? false}
+          showComponentDetails={quote.components_enabled ?? false}
+          showComponentPricing={quote.components_pricing_enabled ?? true}
           customerName={lead.name}
           customerAddress={lead.address}
           customerDiscom={getDiscomName(lead.discom)}
@@ -213,7 +215,15 @@ export default function PublicQuotePage() {
           gstRate={quote.gst_rate ?? 0}
           tariff={quote.tariff ?? 9}
           computed={computed}
-          amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}
+          amc={
+            amc
+              ? {
+                  name: amc.name,
+                  ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null,
+                  inclusion: amc.inclusion.map(formatAmcInclusion),
+                }
+              : null
+          }
           amcDurationYears={quote.amc_duration_years}
           amcMode={quote.amc_mode ?? "chargeable"}
           amcPost5={{
@@ -221,7 +231,7 @@ export default function PublicQuotePage() {
             plans: (amc_post5_plans ?? []).map((p) => ({
               name: p.name,
               ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
-              inclusion: p.inclusion,
+              inclusion: p.inclusion.map(formatAmcInclusion),
             })),
           }}
           loan={{

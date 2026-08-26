@@ -9,7 +9,9 @@ export default function ComponentsTab({ draft, onChange }: Props) {
   const items = draft.items;
 
   function handleAdd() {
-    onChange({ items: [...items, { particular: "", tax_percent: 18, warranty_years: null }] });
+    onChange({
+      items: [...items, { particular: "", tax_percent: 18, warranty_years: null, specification: null }],
+    });
   }
 
   function handleRemove(index: number) {
@@ -36,6 +38,13 @@ export default function ComponentsTab({ draft, onChange }: Props) {
     });
   }
 
+  function handleSpecificationChange(index: number, value: string) {
+    const specification = value === "" ? null : value;
+    onChange({
+      items: items.map((item, i) => (i === index ? { ...item, specification } : item)),
+    });
+  }
+
   return (
     <div className="entity-field" style={{ maxWidth: "100%" }}>
       <label>
@@ -53,6 +62,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
               <th>Particulars</th>
               <th>Tax %</th>
               <th>Warranty (yrs)</th>
+              <th>Specification</th>
               <th></th>
             </tr>
           </thead>
@@ -84,6 +94,14 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     step={1}
                     value={item.warranty_years ?? ""}
                     onChange={(e) => handleWarrantyChange(i, e.target.value)}
+                  />
+                </td>
+                <td className="compb-spec">
+                  <input
+                    type="text"
+                    placeholder="e.g. IP65 · WiFi monitoring built-in"
+                    value={item.specification ?? ""}
+                    onChange={(e) => handleSpecificationChange(i, e.target.value)}
                   />
                 </td>
                 <td>

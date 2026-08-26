@@ -16,9 +16,18 @@ import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
 import ComponentsTab from "./tabs/ComponentsTab";
 import PaymentScheduleTab from "./tabs/PaymentScheduleTab";
+import AmcPlansPage from "../amc/AmcPlansPage";
 import "./EntityManagementPage.css";
 
-type Tab = "business" | "branding" | "typography" | "documents" | "pricing" | "components" | "payment_schedule";
+type Tab =
+  | "business"
+  | "branding"
+  | "typography"
+  | "documents"
+  | "pricing"
+  | "components"
+  | "payment_schedule"
+  | "amc";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "business", label: "Business info" },
@@ -28,7 +37,14 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "pricing", label: "Pricing & language" },
   { key: "components", label: "Default components" },
   { key: "payment_schedule", label: "Payment schedule" },
+  { key: "amc", label: "AMC Plans" },
 ];
+
+// The AMC Plans tab manages its own CRUD/persistence per row (add/edit/
+// deactivate all hit the API immediately) rather than the draft-then-Save
+// pattern every other tab here uses, so it doesn't participate in the
+// shared Save/Reset bar below.
+const SELF_MANAGED_TABS: Tab[] = ["amc"];
 
 const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   branding: "branding",
@@ -190,19 +206,22 @@ export default function EntityManagementPage() {
             onChange={(payment_schedule) => setPrefs({ ...prefs, payment_schedule })}
           />
         )}
+        {tab === "amc" && <AmcPlansPage />}
       </div>
 
-      <div className="entity-save-bar">
-        <button className="entity-btn primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-        {RESETTABLE_CATEGORY[tab] && (
-          <button className="entity-btn" onClick={handleReset} disabled={saving}>
-            Reset to defaults
+      {!SELF_MANAGED_TABS.includes(tab) && (
+        <div className="entity-save-bar">
+          <button className="entity-btn primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </button>
-        )}
-        {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
-      </div>
+          {RESETTABLE_CATEGORY[tab] && (
+            <button className="entity-btn" onClick={handleReset} disabled={saving}>
+              Reset to defaults
+            </button>
+          )}
+          {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
+        </div>
+      )}
     </div>
   );
 }

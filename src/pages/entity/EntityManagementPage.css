@@ -1,5 +1,9 @@
 .entity-mgmt {
-  max-width: 900px;
+  /* Widened from 900px so the Default components table (which now has a
+     Specification column alongside Particulars/Tax/Warranty) has room to
+     breathe. Other tabs already self-constrain their fields to max-width:
+     480px, so this only visibly affects the components table. */
+  max-width: 1200px;
 }
 
 .entity-mgmt h1 {
@@ -270,6 +274,10 @@
 
 .compb-table td.compb-particular input {
   min-width: 160px;
+}
+
+.compb-table td.compb-spec input {
+  min-width: 200px;
 }
 
 .compb-table td.compb-num {

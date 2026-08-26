@@ -13,7 +13,6 @@ import EntityManagementPage from "./pages/entity/EntityManagementPage";
 import UsersPage from "./pages/entity/UsersPage";
 import LeadsPage from "./pages/leads/LeadsPage";
 import LeadDetailPage from "./pages/leads/LeadDetailPage";
-import AmcPlansPage from "./pages/amc/AmcPlansPage";
 import QuoteBuilderPage from "./pages/quotes/QuoteBuilderPage";
 import PublicQuotePage from "./pages/quotes/PublicQuotePage";
 import QuotesPage from "./pages/quotes/QuotesPage";
@@ -50,7 +49,6 @@ export default function App() {
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
-              <Route path="/app/amc-plans" element={<AmcPlansPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
                 <Route path="/app/admin/users" element={<AdminUsersPage />} />
