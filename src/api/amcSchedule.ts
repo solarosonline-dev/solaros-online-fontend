@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type { AmcFrequency } from "./amcPlans";
+import type { WorkOrderStatus } from "./workOrders";
 
 export type AmcScheduleStatus = "PENDING" | "COMPLETED";
 
@@ -11,6 +12,10 @@ export type AmcScheduleItem = {
   schedule_date: string;
   status: AmcScheduleStatus;
   completed_at: string | null;
+  // Set once this occurrence has been converted into a dispatchable work
+  // order (see generateAmcScheduleWorkOrder) -- null until then.
+  work_order_id: number | null;
+  work_order_status: WorkOrderStatus | null;
 };
 
 export type AmcScheduleListResponse = {
@@ -37,6 +42,13 @@ export function updateAmcScheduleItemStatus(entityId: number, scheduleId: number
     method: "PATCH",
     body: { status },
   });
+}
+
+export function generateAmcScheduleWorkOrder(entityId: number, scheduleId: number) {
+  return apiRequest<{ schedule_id: number; work_order_id: number; work_order_status: WorkOrderStatus }>(
+    `/entities/${entityId}/amc-schedule/${scheduleId}/work-order`,
+    { method: "POST" },
+  );
 }
 
 export function shareAmcSchedule(entityId: number, projectId: number) {

@@ -10,6 +10,7 @@ import {
   type WorkOrderDetail,
 } from "../../api/workOrders";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
+import { listTeams, type TeamListItem } from "../../api/teams";
 import { ApiError } from "../../api/client";
 import "./ProjectsPage.css";
 
@@ -29,6 +30,9 @@ export default function WorkOrderDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [users, setUsers] = useState<EntityUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [teams, setTeams] = useState<TeamListItem[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [assigneeType, setAssigneeType] = useState<"USER" | "TEAM">("USER");
 
   const [transitioning, setTransitioning] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -50,6 +54,9 @@ export default function WorkOrderDetailPage() {
   useEffect(() => {
     listEntityUsers(entityId)
       .then((res) => setUsers(res.items))
+      .catch(() => {});
+    listTeams(entityId, { active: true })
+      .then((res) => setTeams(res.items))
       .catch(() => {});
   }, [entityId]);
 
@@ -73,16 +80,18 @@ export default function WorkOrderDetailPage() {
   }
 
   async function handleAssign() {
-    if (!workOrderId || !selectedUserId) return;
+    const selectedId = assigneeType === "USER" ? selectedUserId : selectedTeamId;
+    if (!workOrderId || !selectedId) return;
     setAssigning(true);
     setStatus(null);
     try {
-      const res = await assignWorkOrder(entityId, Number(workOrderId), Number(selectedUserId));
-      const assignedUser = users.find((u) => u.user_id === res.assignee_id);
+      const res = await assignWorkOrder(entityId, Number(workOrderId), assigneeType, Number(selectedId));
+      const name =
+        assigneeType === "USER"
+          ? users.find((u) => u.user_id === res.assignee_id)?.full_name ?? ""
+          : teams.find((t) => t.team_id === res.assignee_id)?.name ?? "";
       setWo((prev) =>
-        prev
-          ? { ...prev, assignee: { assignee_type: "USER", assignee_id: res.assignee_id, name: assignedUser?.full_name ?? "" } }
-          : prev,
+        prev ? { ...prev, assignee: { assignee_type: assigneeType, assignee_id: res.assignee_id, name } } : prev,
       );
       setStatus({ kind: "success", message: "Assigned." });
     } catch (err) {
@@ -177,15 +186,34 @@ export default function WorkOrderDetailPage() {
 
       <p className="projects-section-label">Assign to</p>
       <div className="projects-filters">
-        <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
-          <option value="">Select a user…</option>
-          {users.map((u) => (
-            <option key={u.user_id} value={u.user_id}>
-              {u.full_name} ({u.email})
-            </option>
-          ))}
+        <select value={assigneeType} onChange={(e) => setAssigneeType(e.target.value as "USER" | "TEAM")}>
+          <option value="USER">Individual</option>
+          <option value="TEAM">Team</option>
         </select>
-        <button className="projects-btn primary" disabled={!selectedUserId || assigning} onClick={handleAssign}>
+        {assigneeType === "USER" ? (
+          <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+            <option value="">Select a user…</option>
+            {users.map((u) => (
+              <option key={u.user_id} value={u.user_id}>
+                {u.full_name} ({u.email})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
+            <option value="">Select a team…</option>
+            {teams.map((t) => (
+              <option key={t.team_id} value={t.team_id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          className="projects-btn primary"
+          disabled={(assigneeType === "USER" ? !selectedUserId : !selectedTeamId) || assigning}
+          onClick={handleAssign}
+        >
           {assigning ? "Assigning…" : "Assign"}
         </button>
       </div>

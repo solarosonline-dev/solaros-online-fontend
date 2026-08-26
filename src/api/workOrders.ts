@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION";
+export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "AMC_SERVICE";
 export type WorkOrderStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
 export function nextWorkOrderStatus(status: WorkOrderStatus): WorkOrderStatus | null {
@@ -74,10 +74,15 @@ export function updateWorkOrderStatus(entityId: number, workOrderId: number, sta
   }>(`/entities/${entityId}/work-orders/${workOrderId}/status`, { method: "PATCH", body: { status } });
 }
 
-export function assignWorkOrder(entityId: number, workOrderId: number, assigneeId: number) {
-  return apiRequest<{ assignment_id: number; work_order_id: number; assignee_type: "USER"; assignee_id: number; created_at: string }>(
+export function assignWorkOrder(
+  entityId: number,
+  workOrderId: number,
+  assigneeType: "USER" | "TEAM",
+  assigneeId: number,
+) {
+  return apiRequest<{ assignment_id: number; work_order_id: number; assignee_type: "USER" | "TEAM"; assignee_id: number; created_at: string }>(
     `/entities/${entityId}/work-orders/${workOrderId}/assignment`,
-    { method: "POST", body: { assignee_type: "USER", assignee_id: assigneeId } },
+    { method: "POST", body: { assignee_type: assigneeType, assignee_id: assigneeId } },
   );
 }
 

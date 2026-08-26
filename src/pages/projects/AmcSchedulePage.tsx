@@ -5,6 +5,7 @@ import {
   listAmcSchedule,
   generateAmcSchedule,
   updateAmcScheduleItemStatus,
+  generateAmcScheduleWorkOrder,
   shareAmcSchedule,
   type AmcScheduleItem,
 } from "../../api/amcSchedule";
@@ -26,6 +27,9 @@ export default function AmcSchedulePage() {
   const [generateError, setGenerateError] = useState<string | null>(null);
 
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const [generatingWorkOrderId, setGeneratingWorkOrderId] = useState<number | null>(null);
+  const [workOrderError, setWorkOrderError] = useState<string | null>(null);
 
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -54,6 +58,36 @@ export default function AmcSchedulePage() {
       return `${count} × ${text}${label ? ` (${label})` : ""}`;
     });
   }, [items]);
+
+  // Mirrors the backend's AMCScheduleRepository.get_next_pending_group:
+  // the earliest schedule_date among still-PENDING items, and every item
+  // sharing that exact date -- kept in lockstep with the server so the two
+  // never disagree about what's currently due for work-order generation.
+  const nextDue = useMemo(() => {
+    const pending = items.filter((i) => i.status === "PENDING");
+    if (pending.length === 0) return [];
+    const nextDate = pending.reduce((min, i) => (i.schedule_date < min ? i.schedule_date : min), pending[0].schedule_date);
+    return pending.filter((i) => i.schedule_date === nextDate);
+  }, [items]);
+
+  async function handleGenerateWorkOrder(scheduleId: number) {
+    setGeneratingWorkOrderId(scheduleId);
+    setWorkOrderError(null);
+    try {
+      const res = await generateAmcScheduleWorkOrder(entityId, scheduleId);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.schedule_id === scheduleId
+            ? { ...i, work_order_id: res.work_order_id, work_order_status: res.work_order_status }
+            : i,
+        ),
+      );
+    } catch (err) {
+      setWorkOrderError(err instanceof ApiError ? err.message : "Could not generate a work order for this item");
+    } finally {
+      setGeneratingWorkOrderId(null);
+    }
+  }
 
   async function handleGenerate(regenerate: boolean) {
     setGenerating(true);
@@ -142,7 +176,53 @@ export default function AmcSchedulePage() {
           {summary.length > 0 && (
             <p className="projects-section-label">{summary.join(" · ")}</p>
           )}
+
+          {workOrderError && <p className="projects-status error">{workOrderError}</p>}
+
           <div className="projects-table-wrap">
+            <p className="projects-section-label">
+              Next due{nextDue.length > 0 ? ` — ${new Date(nextDue[0].schedule_date).toLocaleDateString()}` : ""}
+            </p>
+            {nextDue.length === 0 ? (
+              <p>Nothing pending — every occurrence has been completed.</p>
+            ) : (
+              <table className="projects-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Frequency</th>
+                    <th>Work order</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nextDue.map((item) => (
+                    <tr key={item.schedule_id}>
+                      <td>{item.inclusion_text}</td>
+                      <td>{amcFrequencyLabel(item.frequency)}</td>
+                      <td>
+                        {item.work_order_id ? (
+                          <Link to={`/app/work-orders/${item.work_order_id}`}>
+                            View / assign work order → ({item.work_order_status})
+                          </Link>
+                        ) : (
+                          <button
+                            className="projects-btn primary"
+                            disabled={generatingWorkOrderId === item.schedule_id}
+                            onClick={() => handleGenerateWorkOrder(item.schedule_id)}
+                          >
+                            {generatingWorkOrderId === item.schedule_id ? "Generating…" : "Generate work order"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="projects-table-wrap">
+            <p className="projects-section-label">Full schedule</p>
             <table className="projects-table">
               <thead>
                 <tr>
@@ -150,6 +230,7 @@ export default function AmcSchedulePage() {
                   <th>Item</th>
                   <th>Frequency</th>
                   <th>Status</th>
+                  <th>Work order</th>
                   <th></th>
                 </tr>
               </thead>
@@ -165,6 +246,13 @@ export default function AmcSchedulePage() {
                       >
                         {item.status}
                       </span>
+                    </td>
+                    <td>
+                      {item.work_order_id ? (
+                        <Link to={`/app/work-orders/${item.work_order_id}`}>{item.work_order_status}</Link>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       {item.status === "PENDING" && (
