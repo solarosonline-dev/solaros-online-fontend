@@ -4,17 +4,8 @@ import { useAuth } from "../../lib/AuthContext";
 import { listLeads, type Lead, type LeadStatus } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import AddLeadForm from "./AddLeadForm";
+import { LeadFunnelNav, LeadStatusBadge } from "./leadFunnel";
 import "./LeadsPage.css";
-
-const STATUS_OPTIONS: { label: string; value: LeadStatus | "" }[] = [
-  { label: "All statuses", value: "" },
-  { label: "New", value: "NEW" },
-  { label: "Quote generated", value: "QUOTE_GENERATED" },
-  { label: "Quote accepted", value: "QUOTE_ACCEPTED" },
-  { label: "Agreement generated", value: "AGREEMENT_GENERATED" },
-  { label: "Agreement accepted", value: "AGREEMENT_ACCEPTED" },
-  { label: "Rejected", value: "REJECTED" },
-];
 
 export default function LeadsPage() {
   const { user } = useAuth();
@@ -67,21 +58,17 @@ export default function LeadsPage() {
       )}
 
       {!showAddForm && (
-        <form className="leads-filters" onSubmit={handleSearchSubmit}>
-          <input
-            type="search"
-            placeholder="Search name or mobile…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as LeadStatus | "")}>
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.label} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </form>
+        <>
+          <LeadFunnelNav value={statusFilter} onSelect={setStatusFilter} />
+          <form className="leads-filters" onSubmit={handleSearchSubmit}>
+            <input
+              type="search"
+              placeholder="Search name or mobile…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </form>
+        </>
       )}
 
       <div className="leads-table-wrap">
@@ -107,7 +94,7 @@ export default function LeadsPage() {
                   <td>{lead.name}</td>
                   <td>{lead.mobile}</td>
                   <td>
-                    <span className="lead-status-badge">{lead.status}</span>
+                    <LeadStatusBadge status={lead.status} />
                   </td>
                   <td>{new Date(lead.created_at).toLocaleDateString()}</td>
                 </tr>

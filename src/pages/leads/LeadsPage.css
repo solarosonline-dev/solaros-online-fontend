@@ -75,6 +75,9 @@
   border-bottom: none;
 }
 
+/* Plain lead status pill -- shown inline wherever a single lead's current
+   status appears (table rows, detail-page header). No funnel shape here;
+   the funnel visualization lives one level up, as navigation. */
 .lead-status-badge {
   display: inline-block;
   padding: 2px 10px;
@@ -83,6 +86,99 @@
   font-weight: 600;
   background: var(--app-bg);
   color: var(--app-text-muted);
+}
+
+.lead-status-badge.rejected {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--app-danger);
+}
+
+/* Top-level funnel navigation (leads list) -- New > Quote generated > Quote
+   accepted > ... Clicking a stage filters the list to leads currently
+   there. Every stage shares the same accent blue (same as "Agreement
+   accepted") rather than a depth gradient, with visible spacing between
+   each chevron so they read as distinct, clickable steps. "All leads" and
+   "Rejected" are plain tabs either side, since neither is a stage within
+   the funnel itself. */
+.lead-funnel-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 16px;
+}
+
+.lead-funnel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lead-funnel-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--app-accent-contrast);
+  background: var(--app-accent);
+  border: 1px solid var(--app-accent);
+  cursor: pointer;
+  position: relative;
+  clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%, 10px 50%);
+}
+
+.lead-funnel-chevron:first-child {
+  clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%);
+  padding-left: 18px;
+}
+
+.lead-funnel-chevron:hover {
+  opacity: 0.85;
+}
+
+.lead-funnel-chevron.active {
+  box-shadow: 0 0 0 2px var(--app-text) inset;
+  transform: scale(1.04);
+}
+
+.lead-funnel-tab {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.lead-funnel-tab.active {
+  border-color: var(--app-text);
+  color: var(--app-text);
+}
+
+.lead-funnel-tab--rejected.active {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+@media (max-width: 860px) {
+  .lead-funnel-chevron {
+    clip-path: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+  }
+
+  .lead-funnel-chevron:first-child {
+    clip-path: none;
+    padding-left: 14px;
+  }
 }
 
 .leads-empty,

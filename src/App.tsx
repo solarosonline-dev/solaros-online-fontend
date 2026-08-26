@@ -23,6 +23,8 @@ import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import ProjectsPage from "./pages/projects/ProjectsPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import WorkOrderDetailPage from "./pages/projects/WorkOrderDetailPage";
+import AmcSchedulePage from "./pages/projects/AmcSchedulePage";
+import PublicAmcSchedulePage from "./pages/amc/PublicAmcSchedulePage";
 
 export default function App() {
   return (
@@ -35,6 +37,7 @@ export default function App() {
           <Route path="/activate" element={<ActivatePage />} />
           <Route path="/q/:token" element={<PublicQuotePage />} />
           <Route path="/a/:token" element={<PublicAgreementPage />} />
+          <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />
@@ -48,6 +51,7 @@ export default function App() {
               <Route path="/app/agreements" element={<AgreementsPage />} />
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="/app/projects/:projectId/amc-schedule" element={<AmcSchedulePage />} />
               <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />

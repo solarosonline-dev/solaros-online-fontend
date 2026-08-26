@@ -57,6 +57,13 @@
   color: var(--app-accent);
 }
 
+.app-nav-settings {
+  flex: 0 0 auto;
+  padding-left: 12px;
+  margin-left: auto;
+  border-left: 1px solid var(--app-border);
+}
+
 .app-topbar-right {
   display: flex;
   align-items: center;

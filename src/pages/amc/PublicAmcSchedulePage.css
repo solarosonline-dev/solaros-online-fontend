@@ -1,0 +1,84 @@
+.amc-schedule-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 28px;
+}
+
+.amc-schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.amc-schedule-header h1 {
+  margin: 0 0 4px;
+}
+
+.amc-schedule-header p {
+  margin: 0;
+  color: var(--app-text-muted);
+}
+
+.amc-schedule-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.amc-schedule-meta div span {
+  display: block;
+}
+
+.amc-schedule-meta .label {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.amc-schedule-summary {
+  font-size: 14px;
+  color: var(--app-text-muted);
+  margin-bottom: 16px;
+}
+
+.amc-schedule-print-btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--app-accent);
+  color: var(--app-accent-contrast);
+  cursor: pointer;
+}
+
+.amc-schedule-card .public-quote-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.amc-schedule-card .public-quote-table thead td {
+  font-weight: 600;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.amc-schedule-card .public-quote-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

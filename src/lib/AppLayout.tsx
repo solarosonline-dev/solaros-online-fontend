@@ -27,9 +27,13 @@ export default function AppLayout() {
           {!systemAdmin && user?.entity_id && <NavLink to="/app/quotes">Quotes</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/agreements">Agreements</NavLink>}
           {!systemAdmin && user?.entity_id && <NavLink to="/app/projects">Projects</NavLink>}
-          {!systemAdmin && user?.entity_id && <NavLink to="/app/entity">Entity Settings</NavLink>}
-          {!systemAdmin && user?.entity_id && <NavLink to="/app/users">Users</NavLink>}
         </nav>
+        {!systemAdmin && user?.entity_id && (
+          <nav className="app-nav app-nav-settings">
+            <NavLink to="/app/entity">Entity Settings</NavLink>
+            <NavLink to="/app/users">Users</NavLink>
+          </nav>
+        )}
         <div className="app-topbar-right">
           <span className="app-topbar-user">{user?.full_name}</span>
           <button className="app-topbar-signout" onClick={handleSignOut}>

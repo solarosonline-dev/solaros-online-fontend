@@ -13,6 +13,7 @@ import {
 import { ApiError } from "../../api/client";
 import { getProjectForLead, type ProjectForLead } from "../../api/projects";
 import BillUploadWidget from "./BillUploadWidget";
+import { LeadStatusBadge } from "./leadFunnel";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
 import "./LeadsPage.css";
@@ -198,7 +199,7 @@ export default function LeadDetailPage() {
 
       <div className="lead-detail-header">
         <h1 style={{ margin: 0 }}>
-          {lead.name} <span className="lead-status-badge">{lead.status}</span>
+          {lead.name} <LeadStatusBadge status={lead.status} />
         </h1>
         <div className="lead-detail-actions">
           <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">

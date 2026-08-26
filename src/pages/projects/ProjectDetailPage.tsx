@@ -106,6 +106,9 @@ export default function ProjectDetailPage() {
           <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
             View lead
           </Link>
+          <Link to={`/app/projects/${project.project_id}/amc-schedule`} className="projects-btn">
+            AMC schedule
+          </Link>
           {next && (
             <button
               className="projects-btn primary"
