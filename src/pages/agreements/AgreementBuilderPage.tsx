@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
@@ -12,6 +12,7 @@ import {
   createAgreement,
   updateAgreement,
   shareAgreement,
+  getAgreementPdfUrl,
   type AgreementDetail,
 } from "../../api/agreements";
 import { ApiError } from "../../api/client";
@@ -67,6 +68,8 @@ export default function AgreementBuilderPage() {
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
   useEffect(() => {
     if (!leadId) return;
@@ -224,6 +227,38 @@ export default function AgreementBuilderPage() {
 
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
 
+  // RHS "just changed" highlight — flashes the affected preview section for
+  // ~1.2s whenever its underlying LHS fields change, skipping the initial
+  // mount so the preview doesn't flash on first load. Same pattern as
+  // QuoteBuilderPage.
+  const [highlightSections, setHighlightSections] = useState<{ amc?: boolean; terms?: boolean }>({});
+
+  function useSectionFlash(section: "amc" | "terms", deps: unknown[]) {
+    const mountedRef = useRef(false);
+    useEffect(() => {
+      if (!mountedRef.current) {
+        mountedRef.current = true;
+        return;
+      }
+      setHighlightSections((h) => ({ ...h, [section]: true }));
+      const timer = setTimeout(() => {
+        setHighlightSections((h) => ({ ...h, [section]: false }));
+      }, 1200);
+      return () => clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps);
+  }
+
+  useSectionFlash("amc", [
+    form.amcId,
+    form.amcPlanIds,
+    form.amcDurationYears,
+    form.amcMode,
+    form.amcPost5Enabled,
+    form.amcPost5PlanIds,
+  ]);
+  useSectionFlash("terms", [form.terms]);
+
   function handleAddTerm() {
     const trimmed = newTerm.trim();
     if (!trimmed) return;
@@ -240,6 +275,28 @@ export default function AgreementBuilderPage() {
 
   function handleRemoveTerm(index: number) {
     setForm({ ...form, terms: form.terms.filter((_, i) => i !== index) });
+  }
+
+  // Fetched on demand rather than eagerly (like the share link) — presigned
+  // URLs expire, so there's no reason to mint one before the admin actually
+  // wants to view the PDF. Opens the tab synchronously on click (before the
+  // await) and only then points it at the fetched URL — some browsers'
+  // popup blockers reject window.open once it's past the click's own
+  // synchronous call stack.
+  async function handleViewPdf() {
+    if (!leadId || !existingAgreement) return;
+    setPdfError(null);
+    setLoadingPdf(true);
+    const tab = window.open("", "_blank", "noreferrer");
+    try {
+      const { pdf_url } = await getAgreementPdfUrl(entityId, Number(leadId), existingAgreement.agreement_id);
+      if (tab) tab.location.href = pdf_url;
+    } catch (err) {
+      tab?.close();
+      setPdfError(err instanceof ApiError ? err.message : "Could not load the signed PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -565,6 +622,19 @@ export default function AgreementBuilderPage() {
               )}
             </div>
           )}
+
+          {existingAgreement?.pdf_key && (
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className="quote-btn" onClick={handleViewPdf} disabled={loadingPdf}>
+                {loadingPdf ? "Loading…" : "📄 View signed PDF"}
+              </button>
+              {pdfError && (
+                <p className="quote-status-msg error" style={{ marginTop: 6 }}>
+                  {pdfError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="quote-preview-panel">
@@ -618,6 +688,7 @@ export default function AgreementBuilderPage() {
                 signedAt: existingAgreement?.signed_at,
                 signedIp: existingAgreement?.signed_ip,
               }}
+              highlightSections={highlightSections}
             />
           )}
         </div>

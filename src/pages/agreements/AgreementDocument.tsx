@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatINR, type QuoteComputeResult } from "../../lib/quoteCalculations";
 import type { PaymentScheduleRow } from "../../api/entityPreferences";
@@ -71,6 +72,14 @@ export type AgreementDocumentProps = {
    * signature-pad + "Sign & accept" control. Omitted on the EPC-side
    * builder preview, which has no visitor to sign. */
   signatureAction?: ReactNode;
+  /** Which RHS sections just changed on the LHS form — used only by the
+   * EPC-side live preview to briefly flash the affected section so edits
+   * are easy to spot, same pattern as QuoteDocument. Omitted (or all-false)
+   * entirely by the public page, which has no editable LHS. */
+  highlightSections?: {
+    amc?: boolean;
+    terms?: boolean;
+  };
 };
 
 export default function AgreementDocument({
@@ -103,7 +112,32 @@ export default function AgreementDocument({
   shareUrl,
   signature,
   signatureAction,
+  highlightSections,
 }: AgreementDocumentProps) {
+  const flashClass = (key: keyof NonNullable<AgreementDocumentProps["highlightSections"]>) =>
+    highlightSections?.[key] ? " qdoc-flash" : "";
+
+  // Scroll the RHS live preview to whichever section just changed on the LHS
+  // form — same pattern as QuoteDocument. Only ever triggered by the
+  // EPC-side builder (which passes `highlightSections`); the public page
+  // passes nothing, so this never fires there.
+  const amcRef = useRef<HTMLElement>(null);
+  const termsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!highlightSections) return;
+    const order: [keyof NonNullable<AgreementDocumentProps["highlightSections"]>, typeof amcRef][] = [
+      ["amc", amcRef],
+      ["terms", termsRef],
+    ];
+    for (const [key, ref] of order) {
+      if (highlightSections[key] && ref.current) {
+        ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightSections]);
+
   const segLabel = SEGMENT_LABELS[segment ?? ""] ?? "Custom";
   const issuedOn = createdAt ? new Date(createdAt) : new Date();
 
@@ -401,7 +435,7 @@ export default function AgreementDocument({
         </table>
       </section>
 
-      <section className="qdoc-section qdoc-amc">
+      <section ref={amcRef} className={`qdoc-section qdoc-amc${flashClass("amc")}`}>
         <h2>
           {numAmc}. AMC{" "}
           <small className="qdoc-h2-sub">
@@ -560,7 +594,7 @@ export default function AgreementDocument({
       </section>
 
       {terms.length > 0 && (
-        <section className="qdoc-section">
+        <section ref={termsRef} className={`qdoc-section${flashClass("terms")}`}>
           <h2>{numTerms}. Terms &amp; conditions</h2>
           <ol className="qdoc-terms">
             {terms.map((term, i) => (

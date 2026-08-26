@@ -1,9 +1,15 @@
 import { useRef, useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { getPublicAgreement, signPublicAgreement, type PublicAgreementResponse } from "../../api/agreements";
+import {
+  getPublicAgreement,
+  signPublicAgreement,
+  uploadAgreementPdf,
+  type PublicAgreementResponse,
+} from "../../api/agreements";
 import { getPublicEntityBranding, DEFAULT_PAYMENT_SCHEDULE, type PublicBranding } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
+import { captureElementAsPdf } from "../../lib/capturePdf";
 import AgreementDocument from "./AgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import SignaturePad, { type SignaturePadHandle } from "../../components/SignaturePad";
@@ -23,6 +29,14 @@ export default function PublicAgreementPage() {
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
   const sigPadRef = useRef<SignaturePadHandle>(null);
+
+  // Set right after a successful sign to trigger the PDF-capture effect
+  // below, once the DOM has actually re-rendered in the signed state
+  // (name/image/timestamp/IP all filled in) — capturing synchronously
+  // inside handleSign would race the render.
+  const [pdfCapturePending, setPdfCapturePending] = useState(false);
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
+  const docRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -50,12 +64,33 @@ export default function PublicAgreementPage() {
       // Refetch rather than patching local state — picks up signed_ip and
       // the server's own signed_at, which the client can't know on its own.
       setData(await getPublicAgreement(token));
+      setPdfCapturePending(true);
     } catch (err) {
       setSignError(err instanceof ApiError ? err.message : "Could not sign this agreement — try again");
     } finally {
       setSigning(false);
     }
   }
+
+  // Runs once the DOM has committed the signed state (name/image/timestamp/
+  // IP all rendered) — captures that as a PDF and uploads it. Best-effort:
+  // the agreement is already legally accepted regardless of whether this
+  // succeeds, so a failure here is a quiet notice, not a blocking error.
+  useEffect(() => {
+    if (!pdfCapturePending || !token || !data || data.agreement.status !== "ACCEPTED") return;
+    setPdfCapturePending(false);
+    const container = docRef.current;
+    if (!container) return;
+
+    (async () => {
+      try {
+        const pdf = await captureElementAsPdf(container);
+        await uploadAgreementPdf(token, pdf);
+      } catch {
+        setPdfNotice("Signed successfully — a PDF copy couldn't be saved automatically, but you can revisit this link anytime.");
+      }
+    })();
+  }, [pdfCapturePending, token, data]);
 
   if (loading) {
     return (
@@ -137,7 +172,14 @@ export default function PublicAgreementPage() {
 
   return (
     <div className="public-quote-shell">
-      <div className="public-quote-wrap">
+      {pdfNotice && (
+        <div className="public-quote-wrap no-print">
+          <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+            {pdfNotice}
+          </p>
+        </div>
+      )}
+      <div className="public-quote-wrap" ref={docRef}>
         {computed && quote ? (
           <AgreementDocument
             agreementId={agreement.agreement_id}

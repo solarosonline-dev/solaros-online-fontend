@@ -32,6 +32,9 @@ export type AgreementDetail = {
   /** A `data:image/png;base64,...` data URL captured from the signature pad. */
   signature_image: string | null;
   signed_ip: string | null;
+  /** Raw S3 key, not a URL — presence means a signed PDF snapshot exists;
+   * fetch a short-lived viewing URL via getAgreementPdfUrl. */
+  pdf_key: string | null;
 };
 
 export type AgreementInput = {
@@ -72,6 +75,12 @@ export function shareAgreement(entityId: number, leadId: number, agreementId: nu
   });
 }
 
+/** A short-lived presigned URL for viewing/downloading the signed PDF
+ * snapshot — 404s (via ApiError) until one has been uploaded. */
+export function getAgreementPdfUrl(entityId: number, leadId: number, agreementId: number) {
+  return apiRequest<{ pdf_url: string }>(`/entities/${entityId}/leads/${leadId}/agreements/${agreementId}/pdf`);
+}
+
 export type PublicAgreementResponse = {
   agreement: AgreementDetail;
   quote: QuoteDetail | null;
@@ -95,5 +104,18 @@ export function signPublicAgreement(token: string, data: { signerName: string; s
     method: "POST",
     auth: false,
     body: { signer_name: data.signerName, signature_image: data.signatureImage },
+  });
+}
+
+/** Uploads the PDF snapshot captured client-side right after a successful
+ * sign (see capturePdf.ts) — a separate call from signPublicAgreement so a
+ * failure here never jeopardizes the (already-recorded) acceptance itself. */
+export function uploadAgreementPdf(token: string, pdf: Blob) {
+  const form = new FormData();
+  form.append("file", pdf, "agreement.pdf");
+  return apiRequest<{ message: string; pdf_key: string }>(`/public/agreements/${token}/pdf`, {
+    method: "POST",
+    auth: false,
+    body: form,
   });
 }
