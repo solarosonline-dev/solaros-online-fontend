@@ -1,40 +1,59 @@
-import { useEffect, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { getPublicAgreement, acceptPublicAgreement, type PublicAgreementResponse } from "../../api/agreements";
+import { getPublicAgreement, signPublicAgreement, type PublicAgreementResponse } from "../../api/agreements";
+import { getPublicEntityBranding, DEFAULT_PAYMENT_SCHEDULE, type PublicBranding } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
-import { computeQuote, formatINR } from "../../lib/quoteCalculations";
+import { computeQuote } from "../../lib/quoteCalculations";
+import AgreementDocument from "./AgreementDocument";
+import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
+import SignaturePad, { type SignaturePadHandle } from "../../components/SignaturePad";
+import { getDiscomName } from "../leads/discomOptions";
 import "../quotes/PublicQuotePage.css";
 
 export default function PublicAgreementPage() {
   const { token } = useParams();
 
   const [data, setData] = useState<PublicAgreementResponse | null>(null);
+  const [branding, setBranding] = useState<PublicBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [accepting, setAccepting] = useState(false);
-  const [acceptError, setAcceptError] = useState<string | null>(null);
-  const [justAccepted, setJustAccepted] = useState(false);
+  const [signerName, setSignerName] = useState("");
+  const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
+  const sigPadRef = useRef<SignaturePadHandle>(null);
 
   useEffect(() => {
     if (!token) return;
     getPublicAgreement(token)
-      .then(setData)
+      .then(async (res) => {
+        setData(res);
+        try {
+          setBranding(await getPublicEntityBranding(res.entity_id));
+        } catch {
+          // Branding is cosmetic — a fetch failure here shouldn't block the agreement itself.
+        }
+      })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Could not load this agreement"))
       .finally(() => setLoading(false));
   }, [token]);
 
-  async function handleAccept() {
+  async function handleSign() {
     if (!token) return;
-    setAccepting(true);
-    setAcceptError(null);
+    const dataUrl = sigPadRef.current?.toDataUrl();
+    if (!signerName.trim() || !dataUrl) return;
+    setSigning(true);
+    setSignError(null);
     try {
-      await acceptPublicAgreement(token);
-      setJustAccepted(true);
+      await signPublicAgreement(token, { signerName: signerName.trim(), signatureImage: dataUrl });
+      // Refetch rather than patching local state — picks up signed_ip and
+      // the server's own signed_at, which the client can't know on its own.
+      setData(await getPublicAgreement(token));
     } catch (err) {
-      setAcceptError(err instanceof ApiError ? err.message : "Could not accept this agreement");
+      setSignError(err instanceof ApiError ? err.message : "Could not sign this agreement — try again");
     } finally {
-      setAccepting(false);
+      setSigning(false);
     }
   }
 
@@ -54,8 +73,8 @@ export default function PublicAgreementPage() {
     );
   }
 
-  const { agreement, quote, lead, entity_name } = data;
-  const accepted = justAccepted || agreement.status === "ACCEPTED";
+  const { agreement, quote, lead, entity_name, amc, amc_plans, amc_post5_plans } = data;
+  const signed = agreement.status === "ACCEPTED";
 
   const computed = quote
     ? computeQuote({
@@ -68,105 +87,108 @@ export default function PublicAgreementPage() {
         subsidyAmount: quote.subsidy_amount != null ? Number(quote.subsidy_amount) : null,
         segment: lead.type,
         amcRatePerKw: null,
-        amcDurationYears: agreement.amc_duration_years,
+        amcDurationYears: null,
       })
     : null;
 
+  const documentBranding: QuoteDocumentBranding = {
+    entityName: branding?.entity_name ?? entity_name,
+    primaryColor: branding?.primary_color,
+    logoUrl: branding?.logo_url,
+    footerTag: branding?.footer_tag,
+    gstno: branding?.gstno,
+    address: branding?.address,
+    businessPhone: branding?.business_phone,
+    businessEmail: branding?.business_email,
+    typography: branding
+      ? {
+          h1: branding.h1_font_size,
+          h2: branding.h2_font_size,
+          h3: branding.h3_font_size,
+          body: branding.body_font_size,
+          small: branding.small_font_size,
+        }
+      : undefined,
+  };
+
+  const signatureAction = agreement.status === "REJECTED" ? (
+    <p>This agreement is no longer active.</p>
+  ) : (
+    <div className="agr-sign-form">
+      <input
+        className="agr-sign-name-input"
+        type="text"
+        placeholder="Your full name"
+        value={signerName}
+        onChange={(e) => setSignerName(e.target.value)}
+        disabled={signing}
+      />
+      <SignaturePad ref={sigPadRef} onChange={setHasDrawnSignature} disabled={signing} />
+      {signError && <p className="quote-accept-modal-error">{signError}</p>}
+      <button
+        className="public-quote-btn public-quote-btn--sign"
+        onClick={handleSign}
+        disabled={signing || !signerName.trim() || !hasDrawnSignature}
+      >
+        {signing ? "Signing…" : "Sign & accept"}
+      </button>
+    </div>
+  );
+
   return (
     <div className="public-quote-shell">
-      <div className="public-quote-card">
-        <div className="public-quote-header">
-          <h1>{entity_name}</h1>
-          <p>Agreement for {lead.name}</p>
-        </div>
-
-        {computed && quote && (
-          <>
-            <div className="public-quote-metrics">
-              <div className="public-quote-metric">
-                <div className="value">{quote.capacity} kW</div>
-                <div className="label">System size</div>
-              </div>
-              <div className="public-quote-metric">
-                <div className="value">{formatINR(computed.monthlySaving)}</div>
-                <div className="label">Monthly savings</div>
-              </div>
-              <div className="public-quote-metric">
-                <div className="value">{computed.paybackYrs.toFixed(1)} yrs</div>
-                <div className="label">Payback period</div>
-              </div>
-              <div className="public-quote-metric">
-                <div className="value">{Math.round(computed.trees)}</div>
-                <div className="label">Tree-equivalent CO₂ offset</div>
-              </div>
-            </div>
-
-            <table className="public-quote-table">
-              <tbody>
-                <tr>
-                  <td>Total system cost</td>
-                  <td>{formatINR(computed.totalCost)}</td>
-                </tr>
-                {computed.subsidy > 0 && (
-                  <tr>
-                    <td>Subsidy</td>
-                    <td>-{formatINR(computed.subsidy)}</td>
-                  </tr>
-                )}
-                <tr className="total">
-                  <td>Net investment</td>
-                  <td>{formatINR(computed.netInvestment)}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            {(quote.panel_make || quote.inverter_make) && (
-              <>
-                <p className="public-quote-section-title">Equipment</p>
-                <p style={{ fontSize: 14 }}>
-                  {quote.panel_make && (
-                    <>
-                      Panels: {quote.panel_make} ({quote.panel_type})
-                      <br />
-                    </>
-                  )}
-                  {quote.inverter_make && <>Inverter: {quote.inverter_make}</>}
-                </p>
-              </>
-            )}
-          </>
+      <div className="public-quote-wrap">
+        {computed && quote ? (
+          <AgreementDocument
+            agreementId={agreement.agreement_id}
+            createdAt={agreement.created_at}
+            quoteId={quote.quote_id}
+            capacityKw={quote.capacity ?? 0}
+            panelMake={quote.panel_make}
+            inverterMake={quote.inverter_make}
+            components={quote.components ?? []}
+            customerName={lead.name}
+            customerAddress={lead.address}
+            customerDiscom={getDiscomName(lead.discom)}
+            customerMobile={lead.mobile}
+            customerEmail={lead.email}
+            segment={lead.type}
+            pricePerWatt={quote.price_per_watt ?? 0}
+            gstRate={quote.gst_rate ?? 0}
+            computed={computed}
+            amcFromQuote={quote.amc_id != null}
+            amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}
+            amcPlans={(amc_plans ?? []).map((p) => ({
+              name: p.name,
+              ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+              inclusion: p.inclusion,
+            }))}
+            amcDurationYears={agreement.amc_duration_years}
+            amcMode={agreement.amc_mode ?? "chargeable"}
+            amcPost5={{
+              enabled: agreement.amc_post5_enabled ?? false,
+              plans: (amc_post5_plans ?? []).map((p) => ({
+                name: p.name,
+                ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+                inclusion: p.inclusion,
+              })),
+            }}
+            paymentSchedule={branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
+            terms={agreement.terms ?? []}
+            branding={documentBranding}
+            shareUrl={typeof window !== "undefined" ? window.location.href : null}
+            signature={{
+              signed,
+              signerName: agreement.signer_name,
+              signatureImage: agreement.signature_image,
+              signedAt: agreement.signed_at,
+              signedIp: agreement.signed_ip,
+            }}
+            signatureAction={signatureAction}
+          />
+        ) : (
+          <div className="public-quote-status">This agreement has no linked quote to display.</div>
         )}
-
-        {agreement.terms && agreement.terms.length > 0 && (
-          <>
-            <p className="public-quote-section-title">Terms &amp; conditions</p>
-            <ul className="public-quote-terms">
-              {agreement.terms.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        <div className="public-quote-actions">
-          {accepted ? (
-            <div className="public-quote-accepted">
-              <div className="icon">✅</div>
-              <p>You've accepted this agreement. Our team will be in touch shortly.</p>
-            </div>
-          ) : agreement.status === "REJECTED" ? (
-            <p>This agreement is no longer active.</p>
-          ) : (
-            <>
-              <button className="public-quote-btn" onClick={handleAccept} disabled={accepting}>
-                {accepting ? "Accepting…" : "Accept this agreement"}
-              </button>
-              {acceptError && (
-                <p style={{ color: "var(--app-danger)", marginTop: 10, fontSize: 13 }}>{acceptError}</p>
-              )}
-            </>
-          )}
-        </div>
       </div>
     </div>
   );
