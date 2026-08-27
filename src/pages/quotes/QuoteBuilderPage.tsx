@@ -18,6 +18,7 @@ import { ApiError } from "../../api/client";
 import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
+import CopyLinkButton from "../../components/CopyLinkButton";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -957,9 +958,12 @@ export default function QuoteBuilderPage() {
               {sharing ? (
                 "Loading share link…"
               ) : shareUrl ? (
-                <a href={shareUrl} target="_blank" rel="noreferrer">
-                  {shareUrl}
-                </a>
+                <>
+                  <a className="quote-share-box-link" href={shareUrl} target="_blank" rel="noreferrer">
+                    {shareUrl}
+                  </a>
+                  <CopyLinkButton url={shareUrl} />
+                </>
               ) : (
                 "Could not load share link."
               )}

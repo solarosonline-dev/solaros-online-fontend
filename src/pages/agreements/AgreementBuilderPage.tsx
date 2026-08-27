@@ -20,6 +20,7 @@ import { computeQuote } from "../../lib/quoteCalculations";
 import AgreementDocument from "./AgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
+import CopyLinkButton from "../../components/CopyLinkButton";
 import "../quotes/QuoteBuilderPage.css";
 
 type FormState = {
@@ -614,9 +615,12 @@ export default function AgreementBuilderPage() {
               {sharing ? (
                 "Loading share link…"
               ) : shareUrl ? (
-                <a href={shareUrl} target="_blank" rel="noreferrer">
-                  {shareUrl}
-                </a>
+                <>
+                  <a className="quote-share-box-link" href={shareUrl} target="_blank" rel="noreferrer">
+                    {shareUrl}
+                  </a>
+                  <CopyLinkButton url={shareUrl} />
+                </>
               ) : (
                 "Could not load share link."
               )}

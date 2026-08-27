@@ -11,6 +11,7 @@ import {
 } from "../../api/amcSchedule";
 import { amcFrequencyLabel } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
+import CopyLinkButton from "../../components/CopyLinkButton";
 import "./ProjectsPage.css";
 
 export default function AmcSchedulePage() {
@@ -160,7 +161,8 @@ export default function AmcSchedulePage() {
           Share link:{" "}
           <a href={shareUrl} target="_blank" rel="noreferrer">
             {shareUrl}
-          </a>
+          </a>{" "}
+          <CopyLinkButton url={shareUrl} />
         </p>
       )}
 
