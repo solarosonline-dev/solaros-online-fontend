@@ -1,6 +1,7 @@
 import { apiRequest } from "./client";
 import type { LeadDetail } from "./leads";
 import type { QuoteDetail } from "./quotes";
+import type { AmcInclusionItem } from "./amcPlans";
 
 export type AgreementStatus = "NEW" | "ACCEPTED" | "REJECTED";
 
@@ -87,9 +88,9 @@ export type PublicAgreementResponse = {
   lead: LeadDetail;
   entity_id: number;
   entity_name: string;
-  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] } | null;
-  amc_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
-  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: string[] }[];
+  amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] } | null;
+  amc_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
+  amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
 };
 
 export function getPublicAgreement(token: string) {

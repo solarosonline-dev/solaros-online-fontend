@@ -8,15 +8,16 @@ import type { QuoteComponentRow } from "../../api/quotes";
 import { formatDate, SEGMENT_LABELS } from "../../lib/quoteDocumentCopy";
 import { AGREEMENT_ACKNOWLEDGEMENT, AGREEMENT_SCOPE_ITEMS, EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
+import { formatAmcInclusion, type AmcInclusionItem } from "../../api/amcPlans";
 import "../quotes/QuoteDocument.css";
 import "./AgreementDocument.css";
 
-export type AgreementDocumentAmc = { name: string; ratePerKw: number | null; inclusion: string[] } | null;
+export type AgreementDocumentAmc = { name: string; ratePerKw: number | null; inclusion: AmcInclusionItem[] } | null;
 
 export type AgreementDocumentAmcPost5 = {
   enabled: boolean;
   /** Up to 3 plans, selected from the same AMC catalog as `amc`. */
-  plans: { name: string; ratePerKw: number | null; inclusion: string[] }[];
+  plans: { name: string; ratePerKw: number | null; inclusion: AmcInclusionItem[] }[];
 };
 
 export type AgreementDocumentSignature = {
@@ -59,7 +60,7 @@ export type AgreementDocumentProps = {
    * since the customer is paying either way and can be given a few tiers
    * to choose from, same as the years 6-15 upsell already offers. Up to 3
    * plans. */
-  amcPlans: { name: string; ratePerKw: number | null; inclusion: string[] }[];
+  amcPlans: { name: string; ratePerKw: number | null; inclusion: AmcInclusionItem[] }[];
   amcDurationYears: number | null;
   amcMode: "included" | "chargeable";
   amcPost5: AgreementDocumentAmcPost5;
@@ -493,7 +494,7 @@ export default function AgreementDocument({
                           {amc.inclusion.length > 0 && (
                             <ul>
                               {amc.inclusion.map((item, i) => (
-                                <li key={i}>{item}</li>
+                                <li key={i}>{formatAmcInclusion(item)}</li>
                               ))}
                             </ul>
                           )}
@@ -515,7 +516,7 @@ export default function AgreementDocument({
                         {plan.inclusion.length > 0 && (
                           <ul>
                             {plan.inclusion.map((item, j) => (
-                              <li key={j}>{item}</li>
+                              <li key={j}>{formatAmcInclusion(item)}</li>
                             ))}
                           </ul>
                         )}
@@ -537,7 +538,7 @@ export default function AgreementDocument({
                         {plan.inclusion.length > 0 && (
                           <ul>
                             {plan.inclusion.map((item, j) => (
-                              <li key={j}>{item}</li>
+                              <li key={j}>{formatAmcInclusion(item)}</li>
                             ))}
                           </ul>
                         )}
