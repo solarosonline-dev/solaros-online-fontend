@@ -101,11 +101,20 @@
    "Rejected" are plain tabs either side, since neither is a stage within
    the funnel itself. */
 .lead-funnel-nav {
+  margin: 4px 0 16px;
+}
+
+/* Native dropdown shown only ≤640px in place of the button row below —
+   see .lead-funnel-buttons. */
+.lead-funnel-select {
+  display: none;
+}
+
+.lead-funnel-buttons {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  margin: 4px 0 16px;
 }
 
 .lead-funnel {
@@ -173,11 +182,165 @@
     clip-path: none;
     border-radius: 999px;
     padding: 6px 14px;
+    min-height: var(--app-tap-target);
   }
 
   .lead-funnel-chevron:first-child {
     clip-path: none;
     padding-left: 14px;
+  }
+
+  .lead-funnel-tab,
+  .leads-btn,
+  .lead-detail-back {
+    min-height: var(--app-tap-target);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .leads-filters input[type="search"],
+  .leads-filters select {
+    min-height: var(--app-tap-target);
+  }
+}
+
+/* Leads list -> stacked cards; funnel nav & form fields -> single column */
+@media (max-width: 640px) {
+  .leads-page h1 {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .leads-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .leads-filters input[type="search"],
+  .leads-filters select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .lead-funnel-buttons {
+    display: none;
+  }
+
+  .lead-funnel-select {
+    display: block;
+    width: 100%;
+    min-height: var(--app-tap-target);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 12px;
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    background: var(--app-surface);
+    color: var(--app-text);
+  }
+
+  /* `tbody` must be switched to `display: block` too, not just `table` and
+     `tr` — leaving it at its default `table-row-group` makes the browser
+     wrap it in an anonymous table box that still lays out with table sizing
+     rules, so each row card shrinks to its content width instead of
+     stretching to fill the card list. */
+  .leads-table,
+  .leads-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .leads-table thead {
+    display: none;
+  }
+
+  .leads-table tr {
+    display: block;
+    width: 100%;
+    margin-bottom: 12px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  .leads-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .leads-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: none;
+  }
+
+  .leads-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--app-text-muted);
+  }
+
+  .add-lead-panel,
+  .lead-detail-panel {
+    max-width: none;
+    padding: 16px;
+  }
+
+  .add-lead-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .add-lead-upload {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-lead-upload .leads-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .lead-detail-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .lead-detail-actions {
+    flex-wrap: wrap;
+  }
+
+  .lead-detail-actions .leads-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .add-lead-actions {
+    flex-direction: column;
+  }
+
+  .add-lead-actions .leads-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .leads-page h1 {
+    font-size: 18px;
+  }
+
+  .add-lead-panel,
+  .lead-detail-panel {
+    padding: 12px;
+  }
+
+  .lead-funnel-select {
+    font-size: 13px;
   }
 }
 
@@ -290,6 +453,12 @@
 .leads-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.add-lead-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .leads-status {

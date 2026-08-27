@@ -13,4 +13,15 @@
   --app-radius: 10px;
   --app-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.06);
   --app-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Reference responsive breakpoint scale. CSS custom properties cannot be
+     used inside @media conditions in plain CSS, so hard-code these literal
+     px values in every @media (max-width: …) rule across the app — this
+     block exists purely so every page uses the same numbers.
+       1080px  -- collapse secondary columns / wide multi-col layouts
+       860px   -- app shell / topbar nav collapse point
+       640px   -- single-column / stacked-card breakpoint ("phone" tier)
+       400px   -- small-phone padding & font-size tightening */
+  --app-tap-target: 44px; /* minimum interactive element size ≤860px */
+  --app-content-pad-mobile: 16px;
 }

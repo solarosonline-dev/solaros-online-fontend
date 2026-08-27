@@ -122,16 +122,16 @@ export default function UsersTab({ entityId }: Props) {
           <tbody>
             {users.map((u) => (
               <tr key={u.user_id}>
-                <td>{u.full_name}</td>
-                <td>{u.email}</td>
-                <td>
+                <td data-label="Name">{u.full_name}</td>
+                <td data-label="Email">{u.email}</td>
+                <td data-label="Role">
                   {u.roles.map((r) => (
                     <span className="entity-role-badge" key={r}>
                       {r}
                     </span>
                   ))}
                 </td>
-                <td>{u.state}</td>
+                <td data-label="State">{u.state}</td>
                 <td>
                   <button
                     type="button"

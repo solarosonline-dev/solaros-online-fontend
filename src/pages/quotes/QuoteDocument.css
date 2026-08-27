@@ -225,10 +225,25 @@
   color: var(--app-text-muted);
 }
 
+/* Lets a wide pricing table (Particulars/Qty/Price/Tax/Total, etc.) scroll
+   horizontally within its own bounded box on narrow screens instead of
+   overflowing the whole document width. */
+.qdoc-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .qdoc-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--qdoc-body, 14px);
+}
+
+@media screen and (max-width: 640px) {
+  .qdoc-table-wrap .qdoc-table {
+    width: auto;
+    min-width: 100%;
+  }
 }
 
 .qdoc-table th {
@@ -765,6 +780,15 @@
   }
 }
 
+/* At phone width even 2 columns of .qdoc-metrics can crowd a long rupee
+   value (e.g. "₹18,50,000") against the tile edge — drop to a single
+   column, matching .qdoc-incl/.qdoc-timeline's own phone-tier collapse. */
+@media screen and (max-width: 480px) {
+  .qdoc-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* RHS live-preview "just changed" highlight — briefly pulses the background
    of a section that just changed on the LHS form, then fades back to
    transparent. Only ever applied by the EPC-side quote builder (via the
@@ -790,6 +814,12 @@
     border: none;
     box-shadow: none;
     max-width: none;
+  }
+
+  /* Never clip/scroll a table when printing or exporting to PDF — the
+     mobile-only horizontal-scroll wrapper must render its full width. */
+  .qdoc-table-wrap {
+    overflow-x: visible;
   }
 
   /* AMC / loan-financing tile grids must never split across a page break —

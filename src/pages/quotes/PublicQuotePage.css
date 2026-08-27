@@ -205,3 +205,50 @@
   color: var(--app-text-muted);
   cursor: not-allowed;
 }
+
+/* Direct mobile viewing (shared link opened on a phone, not the PDF export
+   flow) — the desktop qdoc layout inside .public-quote-wrap already collapses
+   its own multi-column sections via QuoteDocument.css's own breakpoints;
+   these rules cover this page's own chrome (shell padding, status text,
+   accept modal) so nothing overflows a 320-480px viewport. */
+@media (max-width: 640px) {
+  .public-quote-shell {
+    padding: 16px 12px;
+  }
+
+  .public-quote-status {
+    padding: 40px 16px;
+    font-size: 14px;
+  }
+
+  .public-quote-actions {
+    padding: 16px;
+  }
+
+  .public-quote-btn {
+    width: 100%;
+    min-height: var(--app-tap-target);
+  }
+
+  .quote-accept-modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .quote-accept-modal-btn {
+    width: 100%;
+    min-height: var(--app-tap-target);
+  }
+}
+
+@media (max-width: 480px) {
+  .quote-accept-modal h3 {
+    font-size: 16px;
+  }
+
+  .quote-accept-modal-otp-input {
+    font-size: 18px;
+    letter-spacing: 4px;
+    padding: 8px 10px;
+  }
+}

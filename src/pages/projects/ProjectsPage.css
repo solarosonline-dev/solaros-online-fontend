@@ -253,3 +253,142 @@
   color: var(--app-text-muted);
   width: 100%;
 }
+
+/* Tap-target sizing for buttons, action links, and icon-sized controls
+   across ProjectsPage / ProjectDetailPage / WorkOrderDetailPage /
+   AmcSchedulePage once the shell/nav has already collapsed. */
+@media (max-width: 860px) {
+  .projects-btn,
+  .project-detail-back,
+  .project-detail-actions a,
+  .project-step {
+    min-height: var(--app-tap-target);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .projects-filters select,
+  .work-orders-new-panel select,
+  .work-orders-new-panel input[type="text"] {
+    min-height: var(--app-tap-target);
+  }
+
+  .projects-table tbody tr {
+    min-height: var(--app-tap-target);
+  }
+}
+
+/* Projects list / work-orders list -> stacked cards; detail-page header
+   (title + action buttons) and the assign/new-item panels -> single column,
+   full-width controls. */
+@media (max-width: 640px) {
+  .projects-filters,
+  .work-orders-new-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .projects-filters label {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .projects-filters select,
+  .work-orders-new-panel select,
+  .work-orders-new-panel input[type="text"] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .project-detail-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-detail-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-detail-actions .projects-btn,
+  .project-detail-actions a {
+    width: 100%;
+  }
+
+  .project-detail-panel {
+    max-width: none;
+    padding: 16px;
+  }
+
+  .project-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .project-detail-stepper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-step {
+    text-align: center;
+  }
+
+  /* `tbody` must be switched to `display: block` too, not just `table` and
+     `tr` — leaving it at its default `table-row-group` makes the browser
+     wrap it in an anonymous table box that still lays out with table sizing
+     rules, so each row card shrinks to its content width instead of
+     stretching to fill the card list (Projects list, Work orders list, AMC
+     schedule — all share this stylesheet). */
+  .projects-table,
+  .projects-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .projects-table thead {
+    display: none;
+  }
+
+  .projects-table tr {
+    display: block;
+    width: 100%;
+    margin-bottom: 12px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  .projects-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .projects-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: none;
+  }
+
+  .projects-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--app-text-muted);
+  }
+}
+
+@media (max-width: 400px) {
+  .projects-page h1 {
+    font-size: 18px;
+  }
+
+  .project-detail-panel,
+  .work-orders-new-panel {
+    padding: 12px;
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
@@ -22,6 +22,54 @@ import CopyLinkButton from "../../components/CopyLinkButton";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
+
+/** LHS form sections, in display order — collapsed into a single-open-at-a-
+ * time accordion so a long form doesn't require endless scrolling to find a
+ * field. Distinct from the RHS preview's `highlightSections` keys (pricing/
+ * metrics/amc/loan/components), which flash whichever *preview* block just
+ * changed rather than track which *form* section is expanded. */
+type SectionKey =
+  | "system"
+  | "pricing"
+  | "amc"
+  | "amcPost5"
+  | "loan"
+  | "details"
+  | "terms"
+  | "components";
+
+/** One collapsible accordion panel. Only one section is ever open across the
+ * whole form (see `openSection` state in QuoteBuilderPage) — clicking an
+ * already-open section's header collapses it, clicking a closed one opens it
+ * and implicitly closes whichever section was previously open. */
+function AccordionSection({
+  id,
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  id: SectionKey;
+  title: string;
+  open: boolean;
+  onToggle: (id: SectionKey) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`quote-accordion-section${open ? " open" : ""}`}>
+      <button
+        type="button"
+        className="quote-accordion-toggle"
+        aria-expanded={open}
+        onClick={() => onToggle(id)}
+      >
+        <span className="quote-section-label">{title}</span>
+        <span className="quote-accordion-icon" aria-hidden="true" />
+      </button>
+      {open && <div className="quote-accordion-body">{children}</div>}
+    </div>
+  );
+}
 
 // Placeholder row labels seeded by entity_preferences.py's DEFAULT_PREFERENCES —
 // treated as "not yet filled in" so brand-new quotes fall back to the generic
@@ -56,10 +104,10 @@ type FormState = {
   amcId: string;
   amcDurationYears: string;
   amcMode: "included" | "chargeable";
-  amcPost5Enabled: boolean;
-  /** Up to 3 amc_id values, in selection order. */
+  /** Up to 3 amc_id values, in selection order. Years 6-15 AMC is considered
+   * "on" for this quote whenever at least one plan is selected here — there
+   * is no separate enable checkbox. */
   amcPost5PlanIds: string[];
-  loanEnabled: boolean;
   loanAmount: string;
   loanRatePercent: string;
   loanTenureYears: string;
@@ -83,9 +131,7 @@ const DEFAULT_FORM: FormState = {
   amcId: "",
   amcDurationYears: "",
   amcMode: "chargeable",
-  amcPost5Enabled: false,
   amcPost5PlanIds: [],
-  loanEnabled: false,
   loanAmount: "",
   loanRatePercent: "",
   loanTenureYears: "",
@@ -155,9 +201,7 @@ export default function QuoteBuilderPage() {
             amcId: quote.amc_id != null ? String(quote.amc_id) : "",
             amcDurationYears: quote.amc_duration_years != null ? String(quote.amc_duration_years) : "",
             amcMode: quote.amc_mode ?? "chargeable",
-            amcPost5Enabled: quote.amc_post5_enabled ?? false,
             amcPost5PlanIds: (quote.amc_post5_plan_ids ?? []).map(String),
-            loanEnabled: quote.loan_enabled ?? false,
             loanAmount: quote.loan_amount ?? "",
             loanRatePercent: quote.loan_rate_percent ?? "",
             loanTenureYears: quote.loan_tenure_years != null ? String(quote.loan_tenure_years) : "",
@@ -263,6 +307,13 @@ export default function QuoteBuilderPage() {
     components?: boolean;
   }>({});
 
+  // Single-open-at-a-time accordion for the LHS form — see AccordionSection.
+  // Defaults to the first section so the form isn't fully collapsed on load.
+  const [openSection, setOpenSection] = useState<SectionKey | null>("system");
+  function toggleSection(id: SectionKey) {
+    setOpenSection((cur) => (cur === id ? null : id));
+  }
+
   function useSectionFlash(section: "pricing" | "metrics" | "amc" | "loan" | "components", deps: unknown[]) {
     const mountedRef = useRef(false);
     useEffect(() => {
@@ -301,11 +352,17 @@ export default function QuoteBuilderPage() {
     form.amcId,
     form.amcMode,
     form.amcDurationYears,
-    form.amcPost5Enabled,
     form.amcPost5PlanIds,
   ]);
-  useSectionFlash("loan", [form.loanEnabled, form.loanAmount, form.loanRatePercent, form.loanTenureYears]);
+  useSectionFlash("loan", [form.loanAmount, form.loanRatePercent, form.loanTenureYears]);
   useSectionFlash("components", [form.components, form.componentsEnabled, form.componentsPricingEnabled]);
+
+  // No standalone enable checkboxes for these two sections — years 6-15 AMC
+  // is "on" once at least one plan is picked, and loan financing is "on"
+  // once every required field (amount/rate/tenure) has a value, so the RHS
+  // preview appears as soon as the admin finishes filling the section in.
+  const amcPost5Enabled = form.amcPost5PlanIds.length > 0;
+  const loanEnabled = Boolean(form.loanAmount) && Boolean(form.loanRatePercent) && Boolean(form.loanTenureYears);
 
   const computed = useMemo(() => {
     return computeQuote({
@@ -393,9 +450,9 @@ export default function QuoteBuilderPage() {
       amc_id: form.amcId ? Number(form.amcId) : undefined,
       amc_duration_years: form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
       amc_mode: form.amcId ? form.amcMode : undefined,
-      amc_post5_enabled: form.amcPost5Enabled,
+      amc_post5_enabled: amcPost5Enabled,
       amc_post5_plan_ids: form.amcPost5PlanIds.map(Number),
-      loan_enabled: form.loanEnabled,
+      loan_enabled: loanEnabled,
       loan_amount: form.loanAmount ? Number(form.loanAmount) : undefined,
       loan_rate_percent: form.loanRatePercent ? Number(form.loanRatePercent) : undefined,
       loan_tenure_years: form.loanTenureYears ? Number(form.loanTenureYears) : undefined,
@@ -464,7 +521,7 @@ export default function QuoteBuilderPage() {
       <div className="quote-builder-grid">
         <div className="quote-form-panel no-print">
           <form onSubmit={handleSubmit} noValidate>
-            <p className="quote-section-label">System</p>
+            <AccordionSection id="system" title="System" open={openSection === "system"} onToggle={toggleSection}>
             <div className="quote-field-row">
               <div className="quote-field">
                 <label htmlFor="qCapacity">Capacity (kW)</label>
@@ -511,8 +568,9 @@ export default function QuoteBuilderPage() {
                 onChange={(e) => setForm({ ...form, dailyYield: e.target.value })}
               />
             </div>
+            </AccordionSection>
 
-            <p className="quote-section-label">Pricing</p>
+            <AccordionSection id="pricing" title="Pricing" open={openSection === "pricing"} onToggle={toggleSection}>
             <div className="quote-field-row quote-field-row--3">
               <div className="quote-field">
                 <label htmlFor="qPricePerWatt">Price per watt (₹)</label>
@@ -582,8 +640,9 @@ export default function QuoteBuilderPage() {
                 />
               </div>
             )}
+            </AccordionSection>
 
-            <p className="quote-section-label">AMC</p>
+            <AccordionSection id="amc" title="AMC" open={openSection === "amc"} onToggle={toggleSection}>
             <div className="quote-field-row">
               <div className="quote-field">
                 <label htmlFor="qAmcId">AMC plan</label>
@@ -634,123 +693,110 @@ export default function QuoteBuilderPage() {
                 </select>
               </div>
             )}
+            </AccordionSection>
 
-            <p className="quote-section-label">AMC — years 6-15 (next 10 years)</p>
-            <div className="quote-checkbox-row">
-              <input
-                id="qAmcPost5Enabled"
-                type="checkbox"
-                disabled={locked}
-                checked={form.amcPost5Enabled}
-                onChange={(e) => setForm({ ...form, amcPost5Enabled: e.target.checked })}
-              />
-              <label htmlFor="qAmcPost5Enabled">Offer AMC plans for years 6-15</label>
-            </div>
-            {form.amcPost5Enabled && (
-              <div className="quote-field">
-                <label>Select up to 3 plans from the AMC catalog</label>
-                <div className="quote-checkbox-list">
-                  {amcPlans.map((p) => {
-                    const idStr = String(p.amc_id);
-                    const checked = form.amcPost5PlanIds.includes(idStr);
-                    const atLimit = form.amcPost5PlanIds.length >= 3;
-                    return (
-                      <div
-                        className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
-                        key={p.amc_id}
-                      >
-                        <input
-                          id={`qAmcPost5Plan-${p.amc_id}`}
-                          type="checkbox"
-                          disabled={locked || (!checked && atLimit)}
-                          checked={checked}
-                          onChange={(e) => {
-                            setForm({
-                              ...form,
-                              amcPost5PlanIds: e.target.checked
-                                ? [...form.amcPost5PlanIds, idStr]
-                                : form.amcPost5PlanIds.filter((id) => id !== idStr),
-                            });
-                          }}
-                        />
-                        <label htmlFor={`qAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p
-                  className={`quote-field-hint${
-                    form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
-                  }`}
-                >
-                  {form.amcPost5PlanIds.length}/3 selected
-                  {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns alongside
-                  the years 1-5 AMC on the quote.
-                </p>
+            <AccordionSection
+              id="amcPost5"
+              title="AMC — years 6-15 (next 10 years)"
+              open={openSection === "amcPost5"}
+              onToggle={toggleSection}
+            >
+            <div className="quote-field">
+              <label>Select up to 3 plans from the AMC catalog</label>
+              <div className="quote-checkbox-list">
+                {amcPlans.map((p) => {
+                  const idStr = String(p.amc_id);
+                  const checked = form.amcPost5PlanIds.includes(idStr);
+                  const atLimit = form.amcPost5PlanIds.length >= 3;
+                  return (
+                    <div
+                      className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                      key={p.amc_id}
+                    >
+                      <input
+                        id={`qAmcPost5Plan-${p.amc_id}`}
+                        type="checkbox"
+                        disabled={locked || (!checked && atLimit)}
+                        checked={checked}
+                        onChange={(e) => {
+                          setForm({
+                            ...form,
+                            amcPost5PlanIds: e.target.checked
+                              ? [...form.amcPost5PlanIds, idStr]
+                              : form.amcPost5PlanIds.filter((id) => id !== idStr),
+                          });
+                        }}
+                      />
+                      <label htmlFor={`qAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-
-            <p className="quote-section-label">Loan financing</p>
-            <div className="quote-checkbox-row">
-              <input
-                id="qLoanEnabled"
-                type="checkbox"
-                disabled={locked}
-                checked={form.loanEnabled}
-                onChange={(e) => setForm({ ...form, loanEnabled: e.target.checked })}
-              />
-              <label htmlFor="qLoanEnabled">Show loan financing on this quote</label>
+              <p
+                className={`quote-field-hint${
+                  form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
+                }`}
+              >
+                {form.amcPost5PlanIds.length}/3 selected
+                {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns alongside
+                the years 1-5 AMC on the quote. Selecting a plan here automatically shows this section on the quote.
+              </p>
             </div>
-            {form.loanEnabled && (
-              <>
-                <div className="quote-field-row quote-field-row--3">
-                  <div className="quote-field">
-                    <label htmlFor="qLoanAmount">Loan amount (₹)</label>
-                    <input
-                      id="qLoanAmount"
-                      type="number"
-                      min={0}
-                      disabled={locked}
-                      value={form.loanAmount}
-                      onChange={(e) => setForm({ ...form, loanAmount: e.target.value })}
-                    />
-                  </div>
-                  <div className="quote-field">
-                    <label htmlFor="qLoanRate">Interest rate (% p.a.)</label>
-                    <input
-                      id="qLoanRate"
-                      type="number"
-                      step="0.1"
-                      min={0}
-                      max={100}
-                      disabled={locked}
-                      value={form.loanRatePercent}
-                      onChange={(e) => setForm({ ...form, loanRatePercent: e.target.value })}
-                    />
-                  </div>
-                  <div className="quote-field">
-                    <label htmlFor="qLoanTenure">Tenure (years)</label>
-                    <input
-                      id="qLoanTenure"
-                      type="number"
-                      min={0}
-                      disabled={locked}
-                      value={form.loanTenureYears}
-                      onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
-                  Self-funding: ₹
-                  {Math.max(0, (computed.netInvestment || 0) - (Number(form.loanAmount) || 0)).toLocaleString(
-                    "en-IN",
-                  )}{" "}
-                  (net investment minus loan amount)
-                </p>
-              </>
-            )}
+            </AccordionSection>
 
-            <p className="quote-section-label">Quote details</p>
+            <AccordionSection id="loan" title="Loan financing" open={openSection === "loan"} onToggle={toggleSection}>
+            <p className="quote-field-hint">
+              Fill in all three fields below to show loan financing on this quote — there's no separate toggle.
+            </p>
+            <div className="quote-field-row quote-field-row--3">
+              <div className="quote-field">
+                <label htmlFor="qLoanAmount">Loan amount (₹)</label>
+                <input
+                  id="qLoanAmount"
+                  type="number"
+                  min={0}
+                  disabled={locked}
+                  value={form.loanAmount}
+                  onChange={(e) => setForm({ ...form, loanAmount: e.target.value })}
+                />
+              </div>
+              <div className="quote-field">
+                <label htmlFor="qLoanRate">Interest rate (% p.a.)</label>
+                <input
+                  id="qLoanRate"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  max={100}
+                  disabled={locked}
+                  value={form.loanRatePercent}
+                  onChange={(e) => setForm({ ...form, loanRatePercent: e.target.value })}
+                />
+              </div>
+              <div className="quote-field">
+                <label htmlFor="qLoanTenure">Tenure (years)</label>
+                <input
+                  id="qLoanTenure"
+                  type="number"
+                  min={0}
+                  disabled={locked}
+                  value={form.loanTenureYears}
+                  onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
+                />
+              </div>
+            </div>
+            {loanEnabled && (
+              <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+                Self-funding: ₹
+                {Math.max(0, (computed.netInvestment || 0) - (Number(form.loanAmount) || 0)).toLocaleString(
+                  "en-IN",
+                )}{" "}
+                (net investment minus loan amount)
+              </p>
+            )}
+            </AccordionSection>
+
+            <AccordionSection id="details" title="Quote details" open={openSection === "details"} onToggle={toggleSection}>
             <div className="quote-field">
               <label htmlFor="qValidityDays">Validity (days)</label>
               <input
@@ -773,7 +819,9 @@ export default function QuoteBuilderPage() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+            </AccordionSection>
 
+            <AccordionSection id="terms" title="Terms & conditions" open={openSection === "terms"} onToggle={toggleSection}>
             <div className="quote-field">
               <label htmlFor="qTermInput">Terms &amp; conditions</label>
               {form.terms.length > 0 && (
@@ -806,8 +854,14 @@ export default function QuoteBuilderPage() {
                 </div>
               )}
             </div>
+            </AccordionSection>
 
-            <p className="quote-section-label">Component-wise pricing</p>
+            <AccordionSection
+              id="components"
+              title="Component-wise pricing"
+              open={openSection === "components"}
+              onToggle={toggleSection}
+            >
             <div className="quote-checkbox-row">
               <input
                 id="qComponentsEnabled"
@@ -941,6 +995,7 @@ export default function QuoteBuilderPage() {
                 </p>
               </div>
             )}
+            </AccordionSection>
 
             {!locked && (
               <div className="quote-status-bar">
@@ -1007,7 +1062,7 @@ export default function QuoteBuilderPage() {
             amcDurationYears={form.amcDurationYears ? Number(form.amcDurationYears) : null}
             amcMode={form.amcMode}
             amcPost5={{
-              enabled: form.amcPost5Enabled,
+              enabled: amcPost5Enabled,
               plans: selectedPost5Plans.map((p) => ({
                 name: p.name,
                 ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
@@ -1015,7 +1070,7 @@ export default function QuoteBuilderPage() {
               })),
             }}
             loan={{
-              enabled: form.loanEnabled,
+              enabled: loanEnabled,
               amount: form.loanAmount ? Number(form.loanAmount) : null,
               ratePercent: form.loanRatePercent ? Number(form.loanRatePercent) : null,
               tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,

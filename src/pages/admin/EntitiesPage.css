@@ -150,3 +150,20 @@
   color: var(--app-text-muted);
   font-size: 14px;
 }
+
+@media (max-width: 860px) {
+  .entities-filters button,
+  .entities-action-btn {
+    min-height: var(--app-tap-target);
+  }
+}
+
+@media (max-width: 640px) {
+  .entities-table-wrap {
+    overflow-x: auto;
+  }
+
+  .entities-table {
+    min-width: 640px;
+  }
+}

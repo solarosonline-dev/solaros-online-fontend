@@ -117,9 +117,9 @@ export default function AmcPlansPage() {
             <tbody>
               {plans.map((plan) => (
                 <tr key={plan.amc_id}>
-                  <td>{plan.name}</td>
-                  <td>{plan.rate_per_kw ?? "—"}</td>
-                  <td>
+                  <td data-label="Name">{plan.name}</td>
+                  <td data-label="Rate (₹/kW/yr)">{plan.rate_per_kw ?? "—"}</td>
+                  <td data-label="Inclusions">
                     {plan.inclusion.length > 0 ? (
                       <ul className="amc-inclusion-list">
                         {plan.inclusion.map((item, i) => (
@@ -130,12 +130,12 @@ export default function AmcPlansPage() {
                       <span className="amc-inclusion-list">—</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`amc-status-badge ${plan.is_active ? "active" : "inactive"}`}>
                       {plan.is_active ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <div className="amc-row-actions">
                       <button className="amc-btn" onClick={() => openEditForm(plan)}>
                         Edit

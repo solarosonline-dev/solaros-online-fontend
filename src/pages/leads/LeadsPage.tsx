@@ -91,12 +91,12 @@ export default function LeadsPage() {
             <tbody>
               {leads.map((lead) => (
                 <tr key={lead.lead_id} onClick={() => navigate(`/app/leads/${lead.lead_id}`)}>
-                  <td>{lead.name}</td>
-                  <td>{lead.mobile}</td>
-                  <td>
+                  <td data-label="Name">{lead.name}</td>
+                  <td data-label="Mobile">{lead.mobile}</td>
+                  <td data-label="Status">
                     <LeadStatusBadge status={lead.status} />
                   </td>
-                  <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                  <td data-label="Created">{new Date(lead.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

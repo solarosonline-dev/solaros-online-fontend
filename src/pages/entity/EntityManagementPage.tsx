@@ -60,6 +60,7 @@ export default function EntityManagementPage() {
   const entityId = user!.entity_id!;
 
   const [tab, setTab] = useState<Tab>("business");
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [entity, setEntity] = useState<Entity | null>(null);
   const [prefs, setPrefs] = useState<EntityPreferences | null>(null);
   const [businessDraft, setBusinessDraft] = useState<BusinessInfoDraft>({
@@ -160,12 +161,35 @@ export default function EntityManagementPage() {
     <div className="entity-mgmt">
       <h1>Entity settings</h1>
 
-      <div className="entity-tabs">
-        {TABS.map((t) => (
-          <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
-            {t.label}
-          </button>
-        ))}
+      <div className="entity-tabs-bar">
+        <button
+          type="button"
+          className="entity-tabs-toggle"
+          aria-expanded={tabMenuOpen}
+          aria-label="Toggle settings sections"
+          onClick={() => setTabMenuOpen((open) => !open)}
+        >
+          <span className="entity-tabs-toggle-label">{TABS.find((t) => t.key === tab)?.label}</span>
+          <span className="entity-tabs-toggle-icon" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
+        <div className={`entity-tabs ${tabMenuOpen ? "open" : ""}`}>
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              className={tab === t.key ? "active" : ""}
+              onClick={() => {
+                setTab(t.key);
+                setTabMenuOpen(false);
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="entity-panel">

@@ -59,17 +59,98 @@
   }
 }
 
-/* Phone-width: trim the panel's own padding so paired fields (capacity +
-   inverter make, panel make + panel type, price/watt + GST + tariff) keep
-   enough room to stay side by side instead of falling back to one per row. */
+/* Tap-target sizing for the small controls in this page's buttons/tabs/
+   row-actions once the shell/nav has already collapsed. */
+@media screen and (max-width: 860px) {
+  .quote-btn,
+  .quote-builder-back {
+    min-height: var(--app-tap-target);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .quote-terms-remove,
+  .compb-remove-btn {
+    min-height: var(--app-tap-target);
+    min-width: var(--app-tap-target);
+  }
+
+  .quote-field input,
+  .quote-field select,
+  .compb-table td input {
+    min-height: var(--app-tap-target);
+  }
+}
+
+/* Phone tier: stack the header, terms-add row, and status bar; collapse the
+   field grids to a single full-width column per the standard breakpoint
+   scale. The narrower 480px block below (unchanged) re-asserts the tighter
+   side-by-side layout for sub-480 screens, since it is more specific in the
+   cascade (declared later). */
+@media screen and (max-width: 640px) {
+  .quote-builder-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .quote-field-row,
+  .quote-field-row--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-field input,
+  .quote-field select,
+  .quote-field textarea {
+    width: 100%;
+  }
+
+  .quote-terms-add-row {
+    flex-direction: column;
+  }
+
+  .quote-terms-add-row input,
+  .quote-terms-add-row .quote-btn {
+    width: 100%;
+  }
+
+  .quote-status-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quote-status-bar .quote-btn {
+    width: 100%;
+  }
+
+  .quote-share-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quote-preview-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Phone-width: trim the panel's own padding, and let plain 2-field rows
+   (capacity + panel type, AMC plan + duration) stay side by side since their
+   labels are short enough not to wrap. Deliberately does NOT re-apply to
+   `.quote-field-row--3` — a 3-field row (Pricing's price/GST/tariff, Loan's
+   amount/rate/tenure) packed this tight forces a long label like "Interest
+   rate (% p.a.)" to wrap to two lines, which grid's default row-stretch then
+   uses to push that field's input down out of line with its neighbours'.
+   Those stay single-column (from the 640px block above) all the way down,
+   so every input in a row lines up and looks the same regardless of label
+   length. */
 @media screen and (max-width: 480px) {
   .quote-form-panel,
   .quote-preview-panel {
     padding: 14px;
   }
 
-  .quote-field-row,
-  .quote-field-row--3 {
+  .quote-field-row {
     grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 8px 10px;
   }
@@ -100,16 +181,101 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--app-text-muted);
-  margin: 14px 0 8px;
+  margin: 0;
 }
 
-.quote-section-label:first-child {
-  margin-top: 0;
+/* Accordion — single section open at a time. Each section's header is a
+   full-width button (the pre-existing .quote-section-label styling is reused
+   unchanged inside it) with a chevron that rotates on open; the body is only
+   rendered in the DOM while open (see AccordionSection), so collapsed
+   sections don't keep hidden inputs mounted. */
+.quote-accordion-section {
+  border-bottom: 1px solid var(--app-border);
 }
 
+.quote-accordion-section:first-child {
+  border-top: 1px solid var(--app-border);
+}
+
+.quote-accordion-toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 24px;
+  padding: 12px 2px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.quote-accordion-toggle .quote-section-label {
+  /* Some section titles ("AMC — years 6-15 (next 10 years)") are long enough
+     to wrap on a phone-width form panel — let them, instead of forcing a
+     single squeezed line, and keep the chevron pinned to the first line via
+     align-items: flex-start on the button above. */
+  white-space: normal;
+}
+
+.quote-accordion-toggle .quote-section-label {
+  color: var(--app-text);
+}
+
+.quote-accordion-section.open .quote-accordion-toggle .quote-section-label {
+  color: var(--app-accent);
+}
+
+.quote-accordion-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  /* Centers the icon against the first line of the (now top-aligned, see
+     .quote-accordion-toggle) label instead of the whole wrapped block. */
+  margin-top: 1px;
+  position: relative;
+}
+
+.quote-accordion-icon::before,
+.quote-accordion-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: var(--app-text-muted);
+  transform: translate(-50%, -50%);
+}
+
+.quote-accordion-icon::before {
+  width: 10px;
+  height: 2px;
+}
+
+.quote-accordion-icon::after {
+  width: 2px;
+  height: 10px;
+  transition: transform 0.15s ease;
+}
+
+.quote-accordion-section.open .quote-accordion-icon::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.quote-accordion-body {
+  padding: 0 2px 16px;
+}
+
+/* `justify-content: flex-end` (rather than the flex default of flex-start)
+   keeps every input bottom-aligned within its grid cell — so if a sibling
+   field in the same `.quote-field-row` has a longer label that wraps to two
+   lines, that field's own label grows upward into the row's extra stretched
+   height instead of pushing its input down out of line with the others. */
 .quote-field {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 4px;
   margin-bottom: 10px;
 }
@@ -151,15 +317,36 @@
 
 .quote-checkbox-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.quote-checkbox-row input[type="checkbox"] {
+  /* Explicit fixed size + higher specificity than `.quote-field input`'s
+     mobile rules (min-height: var(--app-tap-target) at ≤860px, width: 100%
+     at ≤640px, both meant for text/number inputs, not checkboxes) — without
+     this a checkbox nested in a `.quote-field` (e.g. the AMC years 6-15
+     plan list) would stretch to a 44px-tall, full-width block on phones,
+     forcing its label onto a separate line instead of sharing one row. */
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  /* Nudge down to line up with the first line of the label rather than the
+     label's full (possibly multi-line, on a narrow AMC plan-name list)
+     block — align-items: flex-start above keeps a long wrapped label from
+     vertically centering the checkbox in the middle of the whole block. */
+  margin-top: 3px;
 }
 
 .quote-checkbox-row label {
   font-size: 13px;
   font-weight: 500;
   color: var(--app-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .quote-checkbox-list {

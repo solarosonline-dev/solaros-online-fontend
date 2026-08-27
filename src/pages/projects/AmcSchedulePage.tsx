@@ -199,9 +199,9 @@ export default function AmcSchedulePage() {
                 <tbody>
                   {nextDue.map((item) => (
                     <tr key={item.schedule_id}>
-                      <td>{item.inclusion_text}</td>
-                      <td>{amcFrequencyLabel(item.frequency)}</td>
-                      <td>
+                      <td data-label="Item">{item.inclusion_text}</td>
+                      <td data-label="Frequency">{amcFrequencyLabel(item.frequency)}</td>
+                      <td data-label="Work order">
                         {item.work_order_id ? (
                           <Link to={`/app/work-orders/${item.work_order_id}`}>
                             View / assign work order → ({item.work_order_status})
@@ -239,24 +239,24 @@ export default function AmcSchedulePage() {
               <tbody>
                 {items.map((item) => (
                   <tr key={item.schedule_id}>
-                    <td>{new Date(item.schedule_date).toLocaleDateString()}</td>
-                    <td>{item.inclusion_text}</td>
-                    <td>{amcFrequencyLabel(item.frequency)}</td>
-                    <td>
+                    <td data-label="Date">{new Date(item.schedule_date).toLocaleDateString()}</td>
+                    <td data-label="Item">{item.inclusion_text}</td>
+                    <td data-label="Frequency">{amcFrequencyLabel(item.frequency)}</td>
+                    <td data-label="Status">
                       <span
                         className={item.status === "COMPLETED" ? "project-status-badge completed" : "project-status-badge"}
                       >
                         {item.status}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Work order">
                       {item.work_order_id ? (
                         <Link to={`/app/work-orders/${item.work_order_id}`}>{item.work_order_status}</Link>
                       ) : (
                         "—"
                       )}
                     </td>
-                    <td>
+                    <td data-label="Action">
                       {item.status === "PENDING" && (
                         <button
                           className="projects-btn"

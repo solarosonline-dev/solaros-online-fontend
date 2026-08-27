@@ -77,6 +77,61 @@
   border-bottom: 1px solid var(--app-border);
 }
 
+/* Direct mobile viewing (shared link opened on a phone, not the PDF export
+   flow) — no wrapper div exists around the table in the JSX, so scroll the
+   card itself horizontally rather than adding one, per the pragmatic
+   scroll-wrap approach used for other low-traffic data tables. */
+@media (max-width: 640px) {
+  .amc-schedule-card {
+    padding: 16px;
+    overflow-x: auto;
+  }
+
+  .amc-schedule-header {
+    gap: 12px;
+  }
+
+  .amc-schedule-print-btn {
+    width: 100%;
+    min-height: var(--app-tap-target);
+  }
+
+  .amc-schedule-meta {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .amc-schedule-card .public-quote-table {
+    min-width: 480px;
+  }
+}
+
+@media (max-width: 480px) {
+  .amc-schedule-card {
+    padding: 12px;
+  }
+
+  .amc-schedule-header h1 {
+    font-size: 18px;
+  }
+
+  .amc-schedule-meta {
+    grid-template-columns: 1fr 1fr;
+    font-size: 13px;
+  }
+
+  .amc-schedule-summary {
+    font-size: 13px;
+  }
+
+  .amc-schedule-card .public-quote-table {
+    font-size: 12px;
+  }
+
+  .amc-schedule-card .public-quote-table td {
+    padding: 6px 8px;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

@@ -92,6 +92,7 @@
 
 .auth-field input,
 .auth-field select {
+  width: 100%;
   font-family: inherit;
   font-size: 14px;
   padding: 10px 12px;
@@ -173,4 +174,28 @@
 .auth-success-icon {
   font-size: 32px;
   margin-bottom: 8px;
+}
+
+@media (max-width: 400px) {
+  .auth-shell {
+    padding: 12px;
+  }
+
+  .auth-card {
+    width: calc(100% - 32px);
+    padding: 20px;
+  }
+
+  .auth-logo {
+    font-size: 18px;
+  }
+
+  .auth-title {
+    font-size: 19px;
+  }
+
+  .auth-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }

@@ -312,6 +312,7 @@ export default function AgreementDocument({
 
       <section className="qdoc-section">
         <h2>{numPrice}. Agreed price</h2>
+        <div className="qdoc-table-wrap">
         <table className="qdoc-table">
           <thead>
             <tr>
@@ -364,6 +365,7 @@ export default function AgreementDocument({
             )}
           </tbody>
         </table>
+        </div>
         {c.subsidy > 0 && (
           <p className="qdoc-row-note">
             The {formatINR(c.subsidy)} PM Surya Ghar subsidy is credited directly by the government to the
@@ -375,6 +377,7 @@ export default function AgreementDocument({
 
       <section className="qdoc-section">
         <h2>{numEquipment}. Equipment — make, model &amp; warranty</h2>
+        <div className="qdoc-table-wrap">
         <table className="qdoc-table">
           <thead>
             <tr>
@@ -405,6 +408,7 @@ export default function AgreementDocument({
             ))}
           </tbody>
         </table>
+        </div>
         <p className="qdoc-row-note">
           Warranty on all electrical components is as provided by the make and model, and warranty cards are handed
           over before installation. Beyond the stated warranty period, repair or replacement is at the customer's
@@ -414,6 +418,7 @@ export default function AgreementDocument({
 
       <section className="qdoc-section">
         <h2>{numPayment}. Payment schedule</h2>
+        <div className="qdoc-table-wrap">
         <table className="qdoc-table qdoc-table-pay">
           <tbody>
             {paymentRows.map((row, i) => (
@@ -434,6 +439,7 @@ export default function AgreementDocument({
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section ref={amcRef} className={`qdoc-section qdoc-amc${flashClass("amc")}`}>

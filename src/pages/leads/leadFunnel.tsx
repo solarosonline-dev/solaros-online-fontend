@@ -38,32 +38,52 @@ export function LeadFunnelNav({
 }) {
   return (
     <div className="lead-funnel-nav">
-      <button
-        type="button"
-        className={`lead-funnel-tab lead-funnel-tab--all${value === "" ? " active" : ""}`}
-        onClick={() => onSelect("")}
+      {/* Mobile (≤640px): a single native dropdown instead of a row of
+       * separate buttons — see .lead-funnel-select / .lead-funnel-buttons in
+       * LeadsPage.css for the breakpoint that swaps between the two. */}
+      <select
+        className="lead-funnel-select"
+        aria-label="Filter leads by status"
+        value={value}
+        onChange={(e) => onSelect(e.target.value as LeadStatus | "")}
       >
-        All leads
-      </button>
-      <div className="lead-funnel">
+        <option value="">All leads</option>
         {LEAD_FUNNEL_STEPS.map((step) => (
-          <button
-            key={step.status}
-            type="button"
-            className={`lead-funnel-chevron${value === step.status ? " active" : ""}`}
-            onClick={() => onSelect(step.status)}
-          >
+          <option key={step.status} value={step.status}>
             {step.label}
-          </button>
+          </option>
         ))}
+        <option value="REJECTED">Rejected</option>
+      </select>
+
+      <div className="lead-funnel-buttons">
+        <button
+          type="button"
+          className={`lead-funnel-tab lead-funnel-tab--all${value === "" ? " active" : ""}`}
+          onClick={() => onSelect("")}
+        >
+          All leads
+        </button>
+        <div className="lead-funnel">
+          {LEAD_FUNNEL_STEPS.map((step) => (
+            <button
+              key={step.status}
+              type="button"
+              className={`lead-funnel-chevron${value === step.status ? " active" : ""}`}
+              onClick={() => onSelect(step.status)}
+            >
+              {step.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={`lead-funnel-tab lead-funnel-tab--rejected${value === "REJECTED" ? " active" : ""}`}
+          onClick={() => onSelect("REJECTED")}
+        >
+          Rejected
+        </button>
       </div>
-      <button
-        type="button"
-        className={`lead-funnel-tab lead-funnel-tab--rejected${value === "REJECTED" ? " active" : ""}`}
-        onClick={() => onSelect("REJECTED")}
-      >
-        Rejected
-      </button>
     </div>
   );
 }

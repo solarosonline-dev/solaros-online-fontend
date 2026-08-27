@@ -103,12 +103,12 @@ export default function AgreementsPage() {
             <tbody>
               {agreementRows.map((row) => (
                 <tr key={row.agreement_id} onClick={() => navigate(`/app/leads/${row.leadId}/agreement`)}>
-                  <td>{row.leadName}</td>
-                  <td>{row.leadMobile}</td>
-                  <td>
+                  <td data-label="Lead">{row.leadName}</td>
+                  <td data-label="Mobile">{row.leadMobile}</td>
+                  <td data-label="Status">
                     <span className="quotes-status-badge">{row.status}</span>
                   </td>
-                  <td>{new Date(row.created_at).toLocaleDateString()}</td>
+                  <td data-label="Created">{new Date(row.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

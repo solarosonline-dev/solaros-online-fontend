@@ -95,12 +95,15 @@ function Ticker() {
 }
 
 function Nav() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   function scrollToId(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     const target = document.getElementById(id);
     if (target) {
       e.preventDefault();
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    setMenuOpen(false);
   }
 
   return (
@@ -119,14 +122,27 @@ function Nav() {
           Solar<em>OS</em>
         </span>
       </a>
-      <nav className="nav-links">
-        <a href="#platform" onClick={(e) => scrollToId(e, "platform")}>Platform</a>
-        <a href="#pipeline" onClick={(e) => scrollToId(e, "pipeline")}>How it works</a>
-        <a href="#faq" onClick={(e) => scrollToId(e, "faq")}>FAQ</a>
-      </nav>
-      <div className="nav-cta-group">
-        <a href="/login" className="cta-pill highlight">Try Now →</a>
-        <a href="#contact" onClick={(e) => scrollToId(e, "contact")} className="cta-pill">Book a demo →</a>
+      <button
+        type="button"
+        className="nav-menu-btn"
+        aria-expanded={menuOpen}
+        aria-label="Toggle navigation"
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      <div className={`nav-mobile-panel ${menuOpen ? "open" : ""}`}>
+        <nav className="nav-links">
+          <a href="#platform" onClick={(e) => scrollToId(e, "platform")}>Platform</a>
+          <a href="#pipeline" onClick={(e) => scrollToId(e, "pipeline")}>How it works</a>
+          <a href="#faq" onClick={(e) => scrollToId(e, "faq")}>FAQ</a>
+        </nav>
+        <div className="nav-cta-group">
+          <a href="/login" className="cta-pill highlight" onClick={() => setMenuOpen(false)}>Try Now →</a>
+          <a href="#contact" onClick={(e) => scrollToId(e, "contact")} className="cta-pill">Book a demo →</a>
+        </div>
       </div>
     </header>
   );

@@ -281,7 +281,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           </p>
         )}
 
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <div className="add-lead-actions">
           <button type="submit" className="leads-btn primary" disabled={submitting}>
             {submitting ? "Adding…" : "Add lead"}
           </button>

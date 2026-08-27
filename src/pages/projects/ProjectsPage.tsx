@@ -79,11 +79,11 @@ export default function ProjectsPage() {
             <tbody>
               {projects.map((p) => (
                 <tr key={p.project_id} onClick={() => navigate(`/app/projects/${p.project_id}`)}>
-                  <td>{p.customer_name}</td>
-                  <td>
+                  <td data-label="Customer">{p.customer_name}</td>
+                  <td data-label="Status">
                     <span className={badgeClass(p.status)}>{p.status}</span>
                   </td>
-                  <td>{new Date(p.created_at).toLocaleDateString()}</td>
+                  <td data-label="Created">{new Date(p.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

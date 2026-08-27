@@ -168,6 +168,13 @@ export default function QuoteDocument({
   const componentsRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!highlightSections) return;
+    // On mobile the LHS form and RHS preview stack into a single column
+    // (QuoteBuilderPage.css's 900px breakpoint) instead of sitting in
+    // independently-scrollable side-by-side panes, so this scroll would
+    // yank the whole page away from whatever field the admin is actively
+    // typing into. Only auto-scroll on wider viewports where the preview is
+    // a separate pane the admin isn't looking at while editing.
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches) return;
     // Most-specific first: if a component/AMC/loan edit and a pricing/metrics
     // edit land in the same tick, prefer scrolling to the more specific
     // section rather than the generic pricing summary.
@@ -427,6 +434,7 @@ export default function QuoteDocument({
 
       <section ref={pricingRef} className={`qdoc-section${flashClass("pricing")}`}>
         <h2>Commercial summary</h2>
+        <div className="qdoc-table-wrap">
         <table className="qdoc-table">
           <thead>
             <tr>
@@ -485,6 +493,7 @@ export default function QuoteDocument({
             </tr>
           </tbody>
         </table>
+        </div>
       </section>
 
       <section className="qdoc-section">
@@ -516,6 +525,7 @@ export default function QuoteDocument({
       {showComponentsTable && (
         <section ref={componentsRef} className={`qdoc-section qdoc-components${flashClass("components")}`}>
           <h2>{showComponentPricing ? "Component-wise pricing" : "What's included"}</h2>
+          <div className="qdoc-table-wrap">
           <table className="qdoc-table">
             <thead>
               <tr>
@@ -560,6 +570,7 @@ export default function QuoteDocument({
               )}
             </tbody>
           </table>
+          </div>
         </section>
       )}
 
@@ -694,6 +705,7 @@ export default function QuoteDocument({
           <h2>
             Loan financing <small className="qdoc-h2-sub">— cashflow vs. EMI, month on month</small>
           </h2>
+          <div className="qdoc-table-wrap">
           <table className="qdoc-table">
             <thead>
               <tr>
@@ -766,6 +778,7 @@ export default function QuoteDocument({
               </tr>
             </tbody>
           </table>
+          </div>
           <div className="qdoc-tile-grid">
             <article className="qdoc-tile qdoc-tile--orange">
               <div className="qdoc-tile-tag">
@@ -820,6 +833,7 @@ export default function QuoteDocument({
 
       <section className="qdoc-section">
         <h2>Payment schedule</h2>
+        <div className="qdoc-table-wrap">
         <table className="qdoc-table qdoc-table-pay">
           <tbody>
             {paymentRows.map((row, i) => (
@@ -840,6 +854,7 @@ export default function QuoteDocument({
             </tr>
           </tbody>
         </table>
+        </div>
         {c.subsidy > 0 && (
           <p className="qdoc-pay-note">
             PM Surya Ghar subsidy of <strong>{formatINR(c.subsidy)}</strong> credits to your bank account ~30 days after

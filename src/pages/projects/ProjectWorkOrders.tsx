@@ -101,14 +101,14 @@ export default function ProjectWorkOrders({ entityId, projectId }: { entityId: n
             <tbody>
               {items.map((wo) => (
                 <tr key={wo.work_order_id} onClick={() => navigate(`/app/work-orders/${wo.work_order_id}`)}>
-                  <td>{wo.type.replace("_", " ")}</td>
-                  <td>
+                  <td data-label="Type">{wo.type.replace("_", " ")}</td>
+                  <td data-label="Status">
                     <span className={wo.status === "COMPLETED" ? "project-status-badge completed" : "project-status-badge"}>
                       {wo.status}
                     </span>
                   </td>
-                  <td>{wo.assignee ? wo.assignee.name : "Unassigned"}</td>
-                  <td>{new Date(wo.opened_at).toLocaleDateString()}</td>
+                  <td data-label="Assignee">{wo.assignee ? wo.assignee.name : "Unassigned"}</td>
+                  <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
