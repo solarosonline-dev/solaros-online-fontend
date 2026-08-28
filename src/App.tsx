@@ -25,6 +25,9 @@ import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import WorkOrderDetailPage from "./pages/projects/WorkOrderDetailPage";
 import AmcSchedulePage from "./pages/projects/AmcSchedulePage";
 import PublicAmcSchedulePage from "./pages/amc/PublicAmcSchedulePage";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import EntityMetricsDrilldownPage from "./pages/admin/EntityMetricsDrilldownPage";
+import EntityDashboardPage from "./pages/admin/EntityDashboardPage";
 
 export default function App() {
   return (
@@ -41,6 +44,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />
+              <Route path="/app/dashboard" element={<EntityDashboardPage />} />
               <Route path="/app/entity" element={<EntityManagementPage />} />
               <Route path="/app/users" element={<UsersPage />} />
               <Route path="/app/leads" element={<LeadsPage />} />
@@ -56,6 +60,8 @@ export default function App() {
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
                 <Route path="/app/admin/users" element={<AdminUsersPage />} />
+                <Route path="/app/admin/dashboard" element={<AdminDashboardPage />} />
+                <Route path="/app/admin/entities/:entityId/metrics" element={<EntityMetricsDrilldownPage />} />
               </Route>
             </Route>
           </Route>

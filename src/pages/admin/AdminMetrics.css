@@ -1,0 +1,373 @@
+.admin-dashboard-page h1 {
+  margin: 0 0 4px;
+}
+
+.admin-metrics-page-subtitle {
+  color: var(--app-text-muted);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.admin-metrics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.admin-metrics-kpi-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 14px 16px;
+}
+
+.admin-metrics-kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
+.admin-metrics-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-metrics-kpi-sublabel {
+  font-size: 12px;
+  color: var(--app-text-muted);
+  margin-top: 2px;
+}
+
+.admin-metrics-section {
+  margin-bottom: 28px;
+}
+
+/* --- Funnel grid: Leads -> Quotes -> Agreements -> Projects as a 2x2
+     quadrant flow (clockwise: right, down, left), each quadrant filled with
+     small metric tiles; Work orders sits in its own full-width row below
+     since it's the output of a project, not a funnel stage. ------------- */
+.admin-funnel-grid {
+  display: grid;
+  /* Leads:Quotes (and, sharing the same columns, Projects:Agreements) split
+     30/70 — Quotes carries far more tiles, so it gets the wider column. */
+  grid-template-columns: 3fr 36px 7fr;
+  grid-template-rows: auto 36px auto;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 28px;
+}
+
+.admin-funnel-stage {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px;
+  align-self: stretch;
+}
+
+.admin-funnel-stage h2 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+.admin-funnel-stage-lead {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.admin-funnel-stage-quote {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.admin-funnel-stage-agreement {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.admin-funnel-stage-project {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.admin-funnel-stage-workorder {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-top: 12px;
+}
+
+.admin-funnel-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+}
+
+.admin-funnel-arrow-lead-quote {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.admin-funnel-arrow-quote-agreement {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.admin-funnel-arrow-agreement-project {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.admin-funnel-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.admin-funnel-tile {
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 8px 10px;
+}
+
+.admin-funnel-tile-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+}
+
+.admin-funnel-tile-label {
+  font-size: 11px;
+  color: var(--app-text-muted);
+  margin-top: 2px;
+}
+
+.admin-funnel-tile-sublabel {
+  font-size: 10px;
+  color: var(--app-text-muted);
+  margin-top: 1px;
+}
+
+@media (max-width: 720px) {
+  .admin-funnel-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .admin-funnel-stage-lead,
+  .admin-funnel-stage-quote,
+  .admin-funnel-stage-agreement,
+  .admin-funnel-stage-project,
+  .admin-funnel-stage-workorder {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .admin-funnel-arrow-lead-quote,
+  .admin-funnel-arrow-quote-agreement,
+  .admin-funnel-arrow-agreement-project {
+    grid-column: 1;
+    grid-row: auto;
+    padding: 4px 0;
+  }
+
+  /* Stacked single-column layout: every connector should read as "down to
+     the next stage", regardless of its left/right orientation in the 2x2. */
+  .admin-funnel-arrow-lead-quote {
+    transform: rotate(90deg);
+  }
+
+  .admin-funnel-arrow-agreement-project {
+    transform: rotate(-90deg);
+  }
+}
+
+.admin-metrics-section h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.admin-metrics-subsection-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  margin: 20px 0 8px;
+}
+
+.admin-metrics-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.admin-metrics-chart-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px;
+}
+
+.admin-metrics-chart-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  margin: 0 0 8px;
+}
+
+.admin-metrics-chart-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+.admin-metrics-collapsible {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.admin-metrics-collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--app-text);
+}
+
+.admin-metrics-collapsible-header:hover {
+  background: var(--app-bg);
+}
+
+.admin-metrics-collapsible-chevron {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--app-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.admin-metrics-collapsible-chevron.open {
+  transform: rotate(90deg);
+}
+
+.admin-metrics-collapsible-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-metrics-collapsible-subtitle {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--app-text-muted);
+}
+
+.admin-metrics-collapsible-body {
+  padding: 0 14px 14px;
+}
+
+.admin-metrics-collapsible-body .admin-metrics-table-wrap {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--app-border);
+}
+
+.admin-metrics-collapsible-body .admin-metrics-kpi-grid {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.admin-metrics-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+}
+
+.admin-metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-metrics-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-bg);
+  white-space: nowrap;
+}
+
+.admin-metrics-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-metrics-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--app-border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.admin-metrics-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-metrics-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-metrics-table tbody tr:hover {
+  background: var(--app-bg);
+}
+
+.admin-metrics-loading,
+.admin-metrics-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.admin-metrics-back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--app-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-metrics-back-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .admin-metrics-table-wrap {
+    overflow-x: auto;
+  }
+
+  .admin-metrics-table {
+    min-width: 720px;
+  }
+}

@@ -51,8 +51,10 @@ export default function AppLayout() {
         </button>
         <div className={`app-mobile-panel ${menuOpen ? "open" : ""}`}>
           <nav className="app-nav">
+            {systemAdmin && <NavLink to="/app/admin/dashboard">Dashboard</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
+            {!systemAdmin && user?.entity_id && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {!systemAdmin && user?.entity_id && <NavLink to="/app/leads">Leads</NavLink>}
             {!systemAdmin && user?.entity_id && <NavLink to="/app/quotes">Quotes</NavLink>}
             {!systemAdmin && user?.entity_id && <NavLink to="/app/agreements">Agreements</NavLink>}
