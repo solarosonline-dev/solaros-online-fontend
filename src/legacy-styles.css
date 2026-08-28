@@ -184,6 +184,19 @@ em { font-style: italic; }
 .nav-links a:hover { opacity: 1; }
 .nav-links a.is-active { opacity: 1; color: var(--sun-deep); font-weight: 700; }
 
+/* Login pill -- sits in .nav-cta-group alongside Try Now / Book a demo, so
+   it's sized to match those (not the plain text-link styling of .nav-links)
+   and, like them, is always visible rather than collapsing into the
+   hamburger menu on small screens. */
+.nav-link-login {
+  display: inline-flex; align-items: center;
+  padding: 11px 20px; border-radius: 99px;
+  border: 1.5px solid var(--ink);
+  color: var(--ink); font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
+  transition: all 0.16s ease;
+}
+.nav-link-login:hover { background: var(--ink); color: var(--paper); }
+
 .nav-menu-btn {
   display: none;
   flex-direction: column;
@@ -212,7 +225,7 @@ em { font-style: italic; }
     align-items: stretch;
     gap: 16px;
     position: absolute;
-    top: 100%;
+    top: calc(100% + 8px);
     left: 0;
     right: 0;
     background: var(--paper, #fff);
@@ -224,6 +237,7 @@ em { font-style: italic; }
   .nav-mobile-panel.open .nav-links {
     flex-direction: column;
     gap: 4px;
+    margin-top: 6px;
   }
   .nav-mobile-panel.open .nav-links a {
     padding: 10px 4px;
@@ -231,10 +245,43 @@ em { font-style: italic; }
     display: flex;
     align-items: center;
   }
-  .nav-mobile-panel.open .nav-cta-group {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+
+  /* Login / Try Now / Book a demo stay visible in the header bar itself at
+     every width -- they never move into the dropdown above. Just shrink
+     them a bit so all three plus the logo and hamburger fit comfortably. */
+  .nav-cta-group {
+    gap: 8px;
+  }
+  .nav-cta-group .cta-pill,
+  .nav-link-login {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .nav {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .nav-menu-btn {
+    order: 2;
+  }
+  /* Not enough width for logo + 3 buttons + hamburger on one line -- wrap
+     the CTA group onto its own full-width row instead of hiding any of the
+     buttons behind the hamburger toggle. */
+  .nav-cta-group {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .nav-cta-group .cta-pill,
+  .nav-link-login {
+    padding: 7px 10px;
+    font-size: 12px;
   }
 }
 

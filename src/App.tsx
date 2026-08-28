@@ -23,7 +23,6 @@ import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import ProjectsPage from "./pages/projects/ProjectsPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import WorkOrderDetailPage from "./pages/projects/WorkOrderDetailPage";
-import AmcSchedulePage from "./pages/projects/AmcSchedulePage";
 import PublicAmcSchedulePage from "./pages/amc/PublicAmcSchedulePage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import EntityMetricsDrilldownPage from "./pages/admin/EntityMetricsDrilldownPage";
@@ -55,7 +54,6 @@ export default function App() {
               <Route path="/app/agreements" element={<AgreementsPage />} />
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
-              <Route path="/app/projects/:projectId/amc-schedule" element={<AmcSchedulePage />} />
               <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />

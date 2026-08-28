@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { canManageAmc } from "../../lib/roles";
 import {
   getWorkOrder,
   updateWorkOrderStatus,
@@ -51,6 +52,19 @@ export default function WorkOrderDetailPage() {
 
   useEffect(load, [entityId, workOrderId]);
 
+  // Prefill the assign form with the current assignee once the work order
+  // (and, for a team assignee, the teams list) has loaded, so reassigning is
+  // a one-field change from the existing value rather than a blank form.
+  useEffect(() => {
+    if (!wo?.assignee) return;
+    setAssigneeType(wo.assignee.assignee_type);
+    if (wo.assignee.assignee_type === "USER") {
+      setSelectedUserId(String(wo.assignee.assignee_id));
+    } else {
+      setSelectedTeamId(String(wo.assignee.assignee_id));
+    }
+  }, [wo?.assignee]);
+
   useEffect(() => {
     listEntityUsers(entityId)
       .then((res) => setUsers(res.items))
@@ -85,6 +99,7 @@ export default function WorkOrderDetailPage() {
     setAssigning(true);
     setStatus(null);
     try {
+      const wasAssigned = wo?.assignee != null;
       const res = await assignWorkOrder(entityId, Number(workOrderId), assigneeType, Number(selectedId));
       const name =
         assigneeType === "USER"
@@ -93,7 +108,7 @@ export default function WorkOrderDetailPage() {
       setWo((prev) =>
         prev ? { ...prev, assignee: { assignee_type: assigneeType, assignee_id: res.assignee_id, name } } : prev,
       );
-      setStatus({ kind: "success", message: "Assigned." });
+      setStatus({ kind: "success", message: wasAssigned ? "Reassigned." : "Assigned." });
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not assign" });
     } finally {
@@ -128,6 +143,10 @@ export default function WorkOrderDetailPage() {
 
   const next = nextWorkOrderStatus(wo.status);
   const backLink = wo.project_id ? `/app/projects/${wo.project_id}` : "/app/projects";
+  // AMC_SERVICE assignment is backend-gated to entity admins/
+  // ENTITY_SERVICE_MANAGER (see require_amc_manager / is_amc_manager) --
+  // other work order types are unrestricted, same as the backend.
+  const canAssign = wo.type !== "AMC_SERVICE" || canManageAmc(user!.roles);
 
   return (
     <div className="projects-page">
@@ -184,39 +203,45 @@ export default function WorkOrderDetailPage() {
         </div>
       </div>
 
-      <p className="projects-section-label">Assign to</p>
-      <div className="projects-filters">
-        <select value={assigneeType} onChange={(e) => setAssigneeType(e.target.value as "USER" | "TEAM")}>
-          <option value="USER">Individual</option>
-          <option value="TEAM">Team</option>
-        </select>
-        {assigneeType === "USER" ? (
-          <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
-            <option value="">Select a user…</option>
-            {users.map((u) => (
-              <option key={u.user_id} value={u.user_id}>
-                {u.full_name} ({u.email})
-              </option>
-            ))}
-          </select>
-        ) : (
-          <select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
-            <option value="">Select a team…</option>
-            {teams.map((t) => (
-              <option key={t.team_id} value={t.team_id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        )}
-        <button
-          className="projects-btn primary"
-          disabled={(assigneeType === "USER" ? !selectedUserId : !selectedTeamId) || assigning}
-          onClick={handleAssign}
-        >
-          {assigning ? "Assigning…" : "Assign"}
-        </button>
-      </div>
+      {canAssign ? (
+        <>
+          <p className="projects-section-label">{wo.assignee ? "Reassign to" : "Assign to"}</p>
+          <div className="projects-filters">
+            <select value={assigneeType} onChange={(e) => setAssigneeType(e.target.value as "USER" | "TEAM")}>
+              <option value="USER">Individual</option>
+              <option value="TEAM">Team</option>
+            </select>
+            {assigneeType === "USER" ? (
+              <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+                <option value="">Select a user…</option>
+                {users.map((u) => (
+                  <option key={u.user_id} value={u.user_id}>
+                    {u.full_name} ({u.email})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
+                <option value="">Select a team…</option>
+                {teams.map((t) => (
+                  <option key={t.team_id} value={t.team_id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              className="projects-btn primary"
+              disabled={(assigneeType === "USER" ? !selectedUserId : !selectedTeamId) || assigning}
+              onClick={handleAssign}
+            >
+              {assigning ? "Assigning…" : wo.assignee ? "Reassign" : "Assign"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="work-order-type-hint">Only entity admins or AMC service managers can assign AMC work orders.</p>
+      )}
 
       {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
     </div>

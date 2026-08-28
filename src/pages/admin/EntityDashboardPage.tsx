@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMyEntityMetrics, type AdminEntityMetrics } from "../../api/adminMetrics";
 import { ApiError } from "../../api/client";
-import { formatCount, formatDays, formatKw, formatMs, formatPercent, formatPerKw } from "./adminMetricsFormat";
+import { formatCount, formatDays, formatKw, formatMs, formatPercent } from "./adminMetricsFormat";
 import { FunnelGrid, FunnelStage, FunnelArrow, Tile } from "./FunnelGrid";
 import { formatINRShort } from "../../lib/quoteDocumentCopy";
 import "./AdminMetrics.css";
@@ -63,7 +63,6 @@ export default function EntityDashboardPage() {
           <Tile label="Total amount" value={formatINRShort(metrics.quotes.quotes_total_amount)} />
           <Tile label="Total kW" value={formatKw(metrics.quotes.total_capacity_kw)} />
           <Tile label="Accepted kW" value={formatKw(metrics.quotes.accepted_capacity_kw)} />
-          <Tile label="₹/kW (accepted)" value={formatPerKw(metrics.quotes.accepted_amount_per_kw)} />
           <Tile
             label="Residential"
             value={formatCount(metrics.quotes.residential.count)}

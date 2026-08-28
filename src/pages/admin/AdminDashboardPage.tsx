@@ -83,7 +83,6 @@ export default function AdminDashboardPage() {
           <Tile label="Total amount" value={formatINRShort(summary.quotes.quotes_total_amount)} />
           <Tile label="Total kW" value={formatKw(summary.quotes.total_capacity_kw)} />
           <Tile label="Accepted kW" value={formatKw(summary.quotes.accepted_capacity_kw)} />
-          <Tile label="₹/kW (accepted)" value={formatPerKw(summary.quotes.accepted_amount_per_kw)} />
           <Tile
             label="Residential"
             value={formatCount(summary.quotes.residential.count)}

@@ -7,7 +7,7 @@ import {
 } from "../../../api/entityUsers";
 import { ApiError } from "../../../api/client";
 
-const ROLES = ["ENTITY_ADMIN", "WORKER", "TECHNICIAN"];
+const ROLES = ["ENTITY_ADMIN", "ENTITY_SERVICE_MANAGER", "WORKER", "TECHNICIAN"];
 
 type Props = {
   entityId: number;

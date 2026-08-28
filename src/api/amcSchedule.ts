@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 import type { AmcFrequency } from "./amcPlans";
-import type { WorkOrderStatus } from "./workOrders";
+import type { Assignee, WorkOrderStatus } from "./workOrders";
 
 export type AmcScheduleStatus = "PENDING" | "COMPLETED";
 
@@ -16,14 +16,34 @@ export type AmcScheduleItem = {
   // order (see generateAmcScheduleWorkOrder) -- null until then.
   work_order_id: number | null;
   work_order_status: WorkOrderStatus | null;
+  // Current assignee of that work order -- always null when work_order_id
+  // is null. Lets callers show "Assigned to X" and offer reassignment
+  // without a separate work-order fetch per row.
+  assignee: Assignee | null;
 };
 
 export type AmcScheduleListResponse = {
   items: AmcScheduleItem[];
 };
 
+// Cross-project variant used by the Projects list page -- same fields as
+// AmcScheduleItem plus which project/customer each pending occurrence
+// belongs to.
+export type AmcScheduleDueItem = AmcScheduleItem & {
+  project_id: number;
+  customer_name: string;
+};
+
+export type AmcScheduleDueListResponse = {
+  items: AmcScheduleDueItem[];
+};
+
 export function listAmcSchedule(entityId: number, projectId: number) {
   return apiRequest<AmcScheduleListResponse>(`/entities/${entityId}/projects/${projectId}/amc-schedule`);
+}
+
+export function listAmcScheduleDue(entityId: number) {
+  return apiRequest<AmcScheduleDueListResponse>(`/entities/${entityId}/amc-schedule/due`);
 }
 
 export function generateAmcSchedule(

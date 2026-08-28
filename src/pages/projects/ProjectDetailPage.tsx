@@ -11,7 +11,10 @@ import {
 } from "../../api/projects";
 import { ApiError } from "../../api/client";
 import ProjectWorkOrders from "./ProjectWorkOrders";
+import ProjectAmcTab from "./ProjectAmcTab";
 import "./ProjectsPage.css";
+
+type ProjectTab = "installations" | "amc";
 
 const STEPS: { status: ProjectStatus; label: string }[] = [
   { status: "NEW", label: "New" },
@@ -49,6 +52,7 @@ export default function ProjectDetailPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [tab, setTab] = useState<ProjectTab>("installations");
 
   function load() {
     if (!projectId) return;
@@ -106,9 +110,6 @@ export default function ProjectDetailPage() {
           <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
             View lead
           </Link>
-          <Link to={`/app/projects/${project.project_id}/amc-schedule`} className="projects-btn">
-            AMC schedule
-          </Link>
           {next && (
             <button
               className="projects-btn primary"
@@ -130,47 +131,74 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {project.status !== "REJECTED" && (
-        <div className="project-detail-stepper">
-          {STEPS.map((s, i) => (
-            <span
-              key={s.status}
-              className={`project-step${i < stepIdx ? " done" : ""}${i === stepIdx ? " current" : ""}`}
-            >
-              {s.label}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="project-detail-panel">
-        <div className="project-detail-row">
-          <span>Project ID</span>
-          <span>{project.project_id}</span>
-        </div>
-        <div className="project-detail-row">
-          <span>Customer</span>
-          <span>{project.customer_name}</span>
-        </div>
-        <div className="project-detail-row">
-          <span>Created</span>
-          <span>{new Date(project.created_at).toLocaleString()}</span>
-        </div>
-        <div className="project-detail-row">
-          <span>Status</span>
-          <span>{project.status}</span>
-        </div>
-      </div>
-
-      {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
-
-      <ProjectWorkOrders entityId={entityId} projectId={project.project_id} />
-
-      <div style={{ marginTop: 16 }}>
-        <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>
-          Back to projects
+      <div className="project-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "installations"}
+          className={`project-tab${tab === "installations" ? " active" : ""}`}
+          onClick={() => setTab("installations")}
+        >
+          Installations
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "amc"}
+          className={`project-tab${tab === "amc" ? " active" : ""}`}
+          onClick={() => setTab("amc")}
+        >
+          AMC
         </button>
       </div>
+
+      {tab === "installations" ? (
+        <>
+          {project.status !== "REJECTED" && (
+            <div className="project-detail-stepper">
+              {STEPS.map((s, i) => (
+                <span
+                  key={s.status}
+                  className={`project-step${i < stepIdx ? " done" : ""}${i === stepIdx ? " current" : ""}`}
+                >
+                  {s.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="project-detail-panel">
+            <div className="project-detail-row">
+              <span>Project ID</span>
+              <span>{project.project_id}</span>
+            </div>
+            <div className="project-detail-row">
+              <span>Customer</span>
+              <span>{project.customer_name}</span>
+            </div>
+            <div className="project-detail-row">
+              <span>Created</span>
+              <span>{new Date(project.created_at).toLocaleString()}</span>
+            </div>
+            <div className="project-detail-row">
+              <span>Status</span>
+              <span>{project.status}</span>
+            </div>
+          </div>
+
+          {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
+
+          <ProjectWorkOrders entityId={entityId} projectId={project.project_id} />
+
+          <div style={{ marginTop: 16 }}>
+            <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>
+              Back to projects
+            </button>
+          </div>
+        </>
+      ) : (
+        <ProjectAmcTab entityId={entityId} projectId={project.project_id} />
+      )}
     </div>
   );
 }
