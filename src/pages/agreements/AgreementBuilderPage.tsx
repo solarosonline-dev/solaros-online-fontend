@@ -21,6 +21,7 @@ import AgreementDocument from "./AgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
 import CopyLinkButton from "../../components/CopyLinkButton";
+import { useElapsedMs } from "../../hooks/useElapsedMs";
 import "../quotes/QuoteBuilderPage.css";
 
 type FormState = {
@@ -52,6 +53,13 @@ export default function AgreementBuilderPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const { leadId } = useParams();
+
+  // Wall-clock time spent on this page, from mount to submit — sent as
+  // generation_duration_ms (create only, see handleSubmit below) to power
+  // the admin "p50/p95 time to generate an agreement" metric. Safe here:
+  // this page mounts fresh per route navigation to
+  // /app/leads/:leadId/agreement.
+  const getElapsedMs = useElapsedMs();
 
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
@@ -325,7 +333,10 @@ export default function AgreementBuilderPage() {
         const updated = await updateAgreement(entityId, Number(leadId), existingAgreement.agreement_id, payload);
         setExistingAgreement(updated);
       } else {
-        const created = await createAgreement(entityId, Number(leadId), payload);
+        const created = await createAgreement(entityId, Number(leadId), {
+          ...payload,
+          generation_duration_ms: getElapsedMs(),
+        });
         const full = await getAgreement(entityId, Number(leadId), created.agreement_id);
         setExistingAgreement(full);
       }

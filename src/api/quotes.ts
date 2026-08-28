@@ -81,6 +81,8 @@ export type QuoteInput = {
   components?: QuoteComponentRow[];
   components_enabled?: boolean;
   components_pricing_enabled?: boolean;
+  /** Only meaningful on create — see createQuote. Never sent on update. */
+  generation_duration_ms?: number;
 };
 
 export function listQuotes(entityId: number, leadId: number) {

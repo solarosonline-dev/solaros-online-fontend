@@ -47,6 +47,7 @@ export type CreateLeadInput = {
   avg_monthly_bill?: number;
   avg_monthly_units?: number;
   requirement?: string;
+  entry_duration_ms?: number;
 };
 
 export type UpdateLeadInput = Partial<CreateLeadInput>;

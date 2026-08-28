@@ -4,6 +4,7 @@ import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
+import { useElapsedMs } from "../../hooks/useElapsedMs";
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
 
@@ -28,6 +29,13 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [avgBill, setAvgBill] = useState("");
   const [avgUnits, setAvgUnits] = useState("");
   const [requirement, setRequirement] = useState("");
+
+  // Wall-clock time spent on this form, from mount to submit — sent as
+  // entry_duration_ms to power the admin "p50/p95 time to enter a lead"
+  // metric. Safe here: this component is fully unmounted and remounted
+  // each time the "Add lead" panel is opened (see LeadsPage), so the
+  // hook's mount-time start point re-runs on every open.
+  const getElapsedMs = useElapsedMs();
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -104,6 +112,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         avg_monthly_bill: avgBill ? Number(avgBill) : undefined,
         avg_monthly_units: avgUnits ? Number(avgUnits) : undefined,
         requirement: requirement.trim() || undefined,
+        entry_duration_ms: getElapsedMs(),
       });
       onCreated();
     } catch (err) {

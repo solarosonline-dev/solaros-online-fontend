@@ -46,6 +46,8 @@ export type AgreementInput = {
   amc_plan_ids?: number[];
   amc_post5_enabled?: boolean;
   amc_post5_plan_ids?: number[];
+  /** Only meaningful on create — see createAgreement. Never sent on update. */
+  generation_duration_ms?: number;
 };
 
 export function listAgreements(entityId: number, leadId: number) {

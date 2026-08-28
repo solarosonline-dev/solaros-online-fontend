@@ -19,6 +19,7 @@ import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
 import CopyLinkButton from "../../components/CopyLinkButton";
+import { useElapsedMs } from "../../hooks/useElapsedMs";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -146,6 +147,12 @@ export default function QuoteBuilderPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const { leadId } = useParams();
+
+  // Wall-clock time spent on this page, from mount to submit — sent as
+  // generation_duration_ms (create only, see handleSubmit below) to power
+  // the admin "p50/p95 time to generate a quote" metric. Safe here: this
+  // page mounts fresh per route navigation to /app/leads/:leadId/quote.
+  const getElapsedMs = useElapsedMs();
 
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [amcPlans, setAmcPlans] = useState<AmcPlan[]>([]);
@@ -471,7 +478,10 @@ export default function QuoteBuilderPage() {
         const updated = await updateQuote(entityId, Number(leadId), existingQuote.quote_id, payload);
         setExistingQuote(updated);
       } else {
-        const created = await createQuote(entityId, Number(leadId), payload);
+        const created = await createQuote(entityId, Number(leadId), {
+          ...payload,
+          generation_duration_ms: getElapsedMs(),
+        });
         const full = await getQuote(entityId, Number(leadId), created.quote_id);
         setExistingQuote(full);
       }
