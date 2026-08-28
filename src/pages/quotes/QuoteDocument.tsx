@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  formatINR,
+  formatINR as formatINRBase,
   emiMonthly,
   loanPaybackYears,
   roundToTen,
@@ -12,7 +12,7 @@ import {
 import type { PaymentScheduleRow } from "../../api/entityPreferences";
 import type { QuoteComponentRow } from "../../api/quotes";
 import {
-  formatINRShort,
+  formatINRShort as formatINRShortBase,
   formatDate,
   SEGMENT_LABELS,
   pitchLine,
@@ -33,6 +33,10 @@ export type QuoteDocumentBranding = {
   businessPhone?: string | null;
   businessEmail?: string | null;
   typography?: { h1?: string; h2?: string; h3?: string; body?: string; small?: string };
+  /** ISO 4217, e.g. "INR" -- from the owning Entity's `currency`. Defaults to
+   * INR when omitted (callers that don't yet have an Entity in scope, e.g.
+   * the public quote page). */
+  currency?: string;
 };
 
 export type QuoteDocumentAmc = { name: string; ratePerKw: number | null; inclusion: string[] } | null;
@@ -153,6 +157,12 @@ export default function QuoteDocument({
   signatureAction,
   highlightSections,
 }: QuoteDocumentProps) {
+  // Shadow the INR-defaulted base formatters with ones bound to this
+  // document's currency, so every formatINR(...)/formatINRShort(...) call
+  // below picks it up automatically without touching each call site.
+  const formatINR = (n: number) => formatINRBase(n, branding.currency);
+  const formatINRShort = (n: number) => formatINRShortBase(n, branding.currency);
+
   const flashClass = (key: keyof NonNullable<QuoteDocumentProps["highlightSections"]>) =>
     highlightSections?.[key] ? " qdoc-flash" : "";
 

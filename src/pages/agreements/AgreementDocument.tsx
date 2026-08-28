@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { formatINR, type QuoteComputeResult } from "../../lib/quoteCalculations";
+import { formatINR as formatINRBase, type QuoteComputeResult } from "../../lib/quoteCalculations";
 import type { PaymentScheduleRow } from "../../api/entityPreferences";
 import type { QuoteComponentRow } from "../../api/quotes";
 import { formatDate, SEGMENT_LABELS } from "../../lib/quoteDocumentCopy";
@@ -115,6 +115,10 @@ export default function AgreementDocument({
   signatureAction,
   highlightSections,
 }: AgreementDocumentProps) {
+  // Shadow the INR-defaulted base formatter with one bound to this
+  // document's currency -- same pattern as QuoteDocument.
+  const formatINR = (n: number) => formatINRBase(n, branding.currency);
+
   const flashClass = (key: keyof NonNullable<AgreementDocumentProps["highlightSections"]>) =>
     highlightSections?.[key] ? " qdoc-flash" : "";
 

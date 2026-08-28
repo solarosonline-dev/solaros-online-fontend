@@ -8,6 +8,8 @@
    from the raw stored inputs.
 ============================================================ */
 
+import { formatMoney } from "./money";
+
 export type QuoteComputeInput = {
   capacityKw: number;
   pricePerWatt: number;
@@ -171,12 +173,10 @@ export function tenYearSavingsProjection(yearlyKwh: number, tariff: number): num
   return Math.round(savings);
 }
 
-export function formatINR(n: number): string {
-  if (!isFinite(n) || n == null) return "₹0";
-  const sign = n < 0 ? "-" : "";
-  const rounded = Math.round(Math.abs(n));
-  const s = rounded.toString();
-  const last3 = s.slice(-3);
-  const rest = s.slice(0, -3);
-  return sign + "₹" + (rest ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3 : last3);
+/** @deprecated use formatMoney from src/lib/money.ts directly -- kept as a
+ *  thin INR-defaulted wrapper so existing call sites (which don't yet pass
+ *  a currency) keep rendering exactly as before. Accepts an optional
+ *  currency for callers that do have one in scope (e.g. an Entity). */
+export function formatINR(n: number, currency?: string): string {
+  return formatMoney(n, currency);
 }

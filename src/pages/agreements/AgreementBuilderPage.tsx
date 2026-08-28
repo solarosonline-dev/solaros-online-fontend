@@ -213,6 +213,7 @@ export default function AgreementBuilderPage() {
       address: entity?.address,
       businessPhone: entity?.business_phone,
       businessEmail: entity?.business_email,
+      currency: entity?.currency,
       typography: preferences
         ? {
             h1: preferences.typography.h1_font_size,

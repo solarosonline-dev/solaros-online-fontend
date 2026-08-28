@@ -1,5 +1,15 @@
 // Shared formatting helpers for the admin dashboard + per-EPC drilldown page —
 // keeps number/duration/percentage presentation consistent across both.
+//
+// formatPerKw defaults to INR: these views aggregate metrics across
+// entities (system-admin dashboard) or look one up by id from that same
+// cross-entity list (per-EPC drilldown), and the admin-metrics API doesn't
+// carry a currency for those rows yet. Rather than silently mixing
+// currencies or guessing, we display INR consistently here until the
+// metrics endpoints are extended to carry a currency — a decision, not an
+// oversight.
+
+import { formatMoneyPerUnit } from "../../lib/money";
 
 export function formatMs(ms: number | null): string {
   if (ms == null) return "—";
@@ -27,6 +37,5 @@ export function formatCount(n: number): string {
 }
 
 export function formatPerKw(amount: number | null): string {
-  if (amount == null) return "—";
-  return `₹${Math.round(amount).toLocaleString("en-IN")}/kW`;
+  return formatMoneyPerUnit(amount, "kW");
 }

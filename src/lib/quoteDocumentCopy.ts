@@ -8,11 +8,13 @@
 ============================================================ */
 
 import type { QuoteComputeResult } from "./quoteCalculations";
+import { formatMoneyShort } from "./money";
 
-export function formatINRShort(n: number): string {
-  if (n >= 1e7) return "₹" + (n / 1e7).toFixed(2).replace(/\.00$/, "") + " Cr";
-  if (n >= 1e5) return "₹" + (n / 1e5).toFixed(2).replace(/\.00$/, "") + " L";
-  return "₹" + Math.round(n).toLocaleString("en-IN");
+/** @deprecated use formatMoneyShort from src/lib/money.ts directly -- kept
+ *  as a thin INR-defaulted wrapper so existing call sites (which don't yet
+ *  pass a currency) keep rendering exactly as before. */
+export function formatINRShort(n: number, currency?: string): string {
+  return formatMoneyShort(n, currency);
 }
 
 export function formatDate(d: Date): string {
