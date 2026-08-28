@@ -44,7 +44,7 @@ export type AgreementDocumentProps = {
   customerEmail: string | null;
   segment: string | null;
   pricePerWatt: number;
-  gstRate: number;
+  taxRate: number;
   computed: QuoteComputeResult;
   /** True when this AMC data was already committed on the linked quote
    * (not freshly offered here) — the quote's AMC is always a single plan,
@@ -99,7 +99,7 @@ export default function AgreementDocument({
   customerEmail,
   segment,
   pricePerWatt,
-  gstRate,
+  taxRate,
   computed: c,
   amcFromQuote,
   amc,
@@ -118,6 +118,8 @@ export default function AgreementDocument({
   // Shadow the INR-defaulted base formatter with one bound to this
   // document's currency -- same pattern as QuoteDocument.
   const formatINR = (n: number) => formatINRBase(n, branding.currency);
+  const taxLabel = branding.tax_label ?? "GST";
+  const taxIdLabel = branding.tax_id_label ?? "GSTIN";
 
   const flashClass = (key: keyof NonNullable<AgreementDocumentProps["highlightSections"]>) =>
     highlightSections?.[key] ? " qdoc-flash" : "";
@@ -250,7 +252,7 @@ export default function AgreementDocument({
           <p className="qdoc-tagline">Solar Rooftop Installation Agreement</p>
           {branding.address && <p className="qdoc-creds">{branding.address}</p>}
           {firmContact && <p className="qdoc-creds">{firmContact}</p>}
-          {branding.gstno && <p className="qdoc-creds">GSTIN: {branding.gstno}</p>}
+          {branding.gstno && <p className="qdoc-creds">{taxIdLabel}: {branding.gstno}</p>}
         </div>
         <div className="qdoc-meta">
           <div>
@@ -327,7 +329,7 @@ export default function AgreementDocument({
           </thead>
           <tbody>
             <tr>
-              <td>System cost (ex-GST)</td>
+              <td>System cost (ex-{taxLabel})</td>
               <td>
                 <small>
                   {capacityKw} kW × ₹{pricePerWatt.toFixed(2)}/W
@@ -336,7 +338,7 @@ export default function AgreementDocument({
               <td className="qdoc-ta-r">{formatINR(c.baseCost)}</td>
             </tr>
             <tr>
-              <td>GST @ {gstRate.toFixed(1)}%</td>
+              <td>{taxLabel} @ {taxRate.toFixed(1)}%</td>
               <td>
                 <small>Solar PV generating system</small>
               </td>
@@ -345,7 +347,7 @@ export default function AgreementDocument({
             <tr className="qdoc-row-strong">
               <td>Total system cost</td>
               <td>
-                <small>Inclusive of GST</small>
+                <small>Inclusive of {taxLabel}</small>
               </td>
               <td className="qdoc-ta-r">{formatINR(c.totalCost)}</td>
             </tr>
@@ -620,7 +622,7 @@ export default function AgreementDocument({
           <strong>{branding.entityName}</strong>
           {branding.address && <p>{branding.address}</p>}
           {firmContact && <p>{firmContact}</p>}
-          {branding.gstno && <p>GSTIN: {branding.gstno}</p>}
+          {branding.gstno && <p>{taxIdLabel}: {branding.gstno}</p>}
           {branding.footerTag && <p className="qdoc-footer-tag">{branding.footerTag}</p>}
         </div>
         <div className="qdoc-qr">

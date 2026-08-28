@@ -192,7 +192,7 @@ export default function AgreementBuilderPage() {
     return computeQuote({
       capacityKw: quote.capacity ?? 0,
       pricePerWatt: quote.price_per_watt ?? 0,
-      gstRate: quote.gst_rate ?? 0,
+      taxRate: quote.tax_rate ?? 0,
       dailyYield: quote.daily_yield ?? 4.2,
       tariff: quote.tariff ?? 9,
       applySubsidy: quote.apply_subsidy ?? false,
@@ -214,6 +214,8 @@ export default function AgreementBuilderPage() {
       businessPhone: entity?.business_phone,
       businessEmail: entity?.business_email,
       currency: entity?.currency,
+      tax_label: entity?.tax_label,
+      tax_id_label: entity?.tax_id_label,
       typography: preferences
         ? {
             h1: preferences.typography.h1_font_size,
@@ -661,7 +663,7 @@ export default function AgreementBuilderPage() {
               customerEmail={lead.email}
               segment={lead.type}
               pricePerWatt={quote.price_per_watt ?? 0}
-              gstRate={quote.gst_rate ?? 0}
+              taxRate={quote.tax_rate ?? 0}
               computed={computed}
               amcFromQuote={quoteHasAmc}
               amc={

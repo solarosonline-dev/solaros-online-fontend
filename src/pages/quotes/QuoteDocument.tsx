@@ -37,6 +37,13 @@ export type QuoteDocumentBranding = {
    * INR when omitted (callers that don't yet have an Entity in scope, e.g.
    * the public quote page). */
   currency?: string;
+  /** e.g. "GST" -- from the owning Entity's `tax_label`, resolved
+   * server-side from its country. Falls back to "GST" at render sites when
+   * omitted. */
+  tax_label?: string;
+  /** e.g. "GSTIN" -- from the owning Entity's `tax_id_label`. Falls back to
+   * "GSTIN" at render sites when omitted. */
+  tax_id_label?: string;
 };
 
 export type QuoteDocumentAmc = { name: string; ratePerKw: number | null; inclusion: string[] } | null;
@@ -85,7 +92,7 @@ export type QuoteDocumentProps = {
   customerEmail: string | null;
   segment: string | null;
   pricePerWatt: number;
-  gstRate: number;
+  taxRate: number;
   tariff: number;
   computed: QuoteComputeResult;
   amc: QuoteDocumentAmc;
@@ -143,7 +150,7 @@ export default function QuoteDocument({
   customerEmail,
   segment,
   pricePerWatt,
-  gstRate,
+  taxRate,
   tariff,
   computed: c,
   amc,
@@ -162,6 +169,8 @@ export default function QuoteDocument({
   // below picks it up automatically without touching each call site.
   const formatINR = (n: number) => formatINRBase(n, branding.currency);
   const formatINRShort = (n: number) => formatINRShortBase(n, branding.currency);
+  const taxLabel = branding.tax_label ?? "GST";
+  const taxIdLabel = branding.tax_id_label ?? "GSTIN";
 
   const flashClass = (key: keyof NonNullable<QuoteDocumentProps["highlightSections"]>) =>
     highlightSections?.[key] ? " qdoc-flash" : "";
@@ -369,7 +378,7 @@ export default function QuoteDocument({
           {branding.tagline && <p className="qdoc-tagline">{branding.tagline}</p>}
           {branding.address && <p className="qdoc-creds">{branding.address}</p>}
           {firmContact && <p className="qdoc-creds">{firmContact}</p>}
-          {branding.gstno && <p className="qdoc-creds">GSTIN: {branding.gstno}</p>}
+          {branding.gstno && <p className="qdoc-creds">{taxIdLabel}: {branding.gstno}</p>}
         </div>
         <div className="qdoc-meta">
           <div>
@@ -455,7 +464,7 @@ export default function QuoteDocument({
           </thead>
           <tbody>
             <tr>
-              <td>System cost (ex-GST)</td>
+              <td>System cost (ex-{taxLabel})</td>
               <td>
                 <small>
                   {capacityKw} kW × ₹{pricePerWatt.toFixed(2)}/W
@@ -464,7 +473,7 @@ export default function QuoteDocument({
               <td className="qdoc-ta-r">{formatINR(c.baseCost)}</td>
             </tr>
             <tr>
-              <td>GST @ {gstRate.toFixed(1)}%</td>
+              <td>{taxLabel} @ {taxRate.toFixed(1)}%</td>
               <td>
                 <small>Solar PV generating system</small>
               </td>
@@ -473,7 +482,7 @@ export default function QuoteDocument({
             <tr className="qdoc-row-strong">
               <td>Total project cost</td>
               <td>
-                <small>Inclusive of GST</small>
+                <small>Inclusive of {taxLabel}</small>
               </td>
               <td className="qdoc-ta-r">{formatINR(c.totalCost)}</td>
             </tr>
@@ -936,7 +945,7 @@ export default function QuoteDocument({
           <strong>{branding.entityName}</strong>
           {branding.address && <p>{branding.address}</p>}
           {firmContact && <p>{firmContact}</p>}
-          {branding.gstno && <p>GSTIN: {branding.gstno}</p>}
+          {branding.gstno && <p>{taxIdLabel}: {branding.gstno}</p>}
           {branding.footerTag && <p className="qdoc-footer-tag">{branding.footerTag}</p>}
         </div>
         {shareUrl && (

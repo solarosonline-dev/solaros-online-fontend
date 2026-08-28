@@ -115,7 +115,7 @@ export default function PublicAgreementPage() {
     ? computeQuote({
         capacityKw: quote.capacity ?? 0,
         pricePerWatt: quote.price_per_watt ?? 0,
-        gstRate: quote.gst_rate ?? 0,
+        taxRate: quote.tax_rate ?? 0,
         dailyYield: quote.daily_yield ?? 4.2,
         tariff: quote.tariff ?? 9,
         applySubsidy: quote.apply_subsidy ?? false,
@@ -135,6 +135,8 @@ export default function PublicAgreementPage() {
     address: branding?.address,
     businessPhone: branding?.business_phone,
     businessEmail: branding?.business_email,
+    tax_label: branding?.tax_label,
+    tax_id_label: branding?.tax_id_label,
     typography: branding
       ? {
           h1: branding.h1_font_size,
@@ -196,7 +198,7 @@ export default function PublicAgreementPage() {
             customerEmail={lead.email}
             segment={lead.type}
             pricePerWatt={quote.price_per_watt ?? 0}
-            gstRate={quote.gst_rate ?? 0}
+            taxRate={quote.tax_rate ?? 0}
             computed={computed}
             amcFromQuote={quote.amc_id != null}
             amc={amc ? { name: amc.name, ratePerKw: amc.rate_per_kw != null ? Number(amc.rate_per_kw) : null, inclusion: amc.inclusion } : null}

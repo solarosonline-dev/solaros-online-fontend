@@ -61,7 +61,7 @@ export default function BusinessInfoTab({ entity, draft, onChange }: Props) {
       <div className="entity-field-row">
         <div className="entity-field">
           <label>
-            GST number <span className="entity-field-help">(fixed at registration)</span>
+            {entity.tax_id_label} number <span className="entity-field-help">(fixed at registration)</span>
           </label>
           <input type="text" value={entity.gstno} disabled />
         </div>

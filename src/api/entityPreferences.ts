@@ -25,7 +25,7 @@ export type DocumentCustomization = {
 
 export type Pricing = {
   default_price_per_watt: number;
-  default_gst_rate: number;
+  default_tax_rate: number;
 };
 
 export type ComponentDefault = {
@@ -119,6 +119,8 @@ export type PublicBranding = {
   business_email: string | null;
   skip_quote_otp: boolean;
   payment_schedule: PaymentScheduleRow[];
+  tax_label: string;
+  tax_id_label: string;
 };
 
 export function getPublicEntityBranding(entityId: number) {

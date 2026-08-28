@@ -96,7 +96,7 @@ type FormState = {
   panelType: string;
   validityDays: string;
   pricePerWatt: string;
-  gstRate: string;
+  taxRate: string;
   dailyYield: string;
   tariff: string;
   applySubsidy: boolean;
@@ -123,7 +123,7 @@ const DEFAULT_FORM: FormState = {
   panelType: "DCR",
   validityDays: "15",
   pricePerWatt: "50",
-  gstRate: "8.9",
+  taxRate: "8.9",
   dailyYield: "4.2",
   tariff: "9",
   applySubsidy: true,
@@ -190,10 +190,10 @@ export default function QuoteBuilderPage() {
             panelType: quote.panel_type ?? "DCR",
             validityDays: quote.validity_days != null ? String(quote.validity_days) : "15",
             pricePerWatt: quote.price_per_watt != null ? String(quote.price_per_watt) : "",
-            gstRate:
-              quote.gst_rate != null
-                ? String(quote.gst_rate)
-                : String(prefsRes.pricing.default_gst_rate ?? DEFAULT_FORM.gstRate),
+            taxRate:
+              quote.tax_rate != null
+                ? String(quote.tax_rate)
+                : String(prefsRes.pricing.default_tax_rate ?? DEFAULT_FORM.taxRate),
             dailyYield: quote.daily_yield != null ? String(quote.daily_yield) : "4.2",
             tariff: quote.tariff != null ? String(quote.tariff) : "9",
             applySubsidy: quote.apply_subsidy ?? true,
@@ -218,7 +218,7 @@ export default function QuoteBuilderPage() {
             ...DEFAULT_FORM,
             capacity: String(capacity),
             pricePerWatt: String(prefsRes.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
-            gstRate: String(prefsRes.pricing.default_gst_rate ?? DEFAULT_FORM.gstRate),
+            taxRate: String(prefsRes.pricing.default_tax_rate ?? DEFAULT_FORM.taxRate),
             subsidyAmount: String(subsidyForKw(capacity, leadRes.type)),
             // Quote notes are folded into terms (not kept as separate free text) so they're
             // individually addable/removable the same way as the rest of the terms list.
@@ -275,6 +275,8 @@ export default function QuoteBuilderPage() {
       businessPhone: entity?.business_phone,
       businessEmail: entity?.business_email,
       currency: entity?.currency,
+      tax_label: entity?.tax_label,
+      tax_id_label: entity?.tax_id_label,
       typography: preferences
         ? {
             h1: preferences.typography.h1_font_size,
@@ -334,7 +336,7 @@ export default function QuoteBuilderPage() {
   useSectionFlash("pricing", [
     form.capacity,
     form.pricePerWatt,
-    form.gstRate,
+    form.taxRate,
     form.tariff,
     form.dailyYield,
     form.applySubsidy,
@@ -343,7 +345,7 @@ export default function QuoteBuilderPage() {
   useSectionFlash("metrics", [
     form.capacity,
     form.pricePerWatt,
-    form.gstRate,
+    form.taxRate,
     form.tariff,
     form.dailyYield,
     form.applySubsidy,
@@ -369,7 +371,7 @@ export default function QuoteBuilderPage() {
     return computeQuote({
       capacityKw: Number(form.capacity) || 0,
       pricePerWatt: Number(form.pricePerWatt) || 0,
-      gstRate: Number(form.gstRate) || 0,
+      taxRate: Number(form.taxRate) || 0,
       dailyYield: Number(form.dailyYield) || 4.2,
       tariff: Number(form.tariff) || 9,
       applySubsidy: form.applySubsidy,
@@ -443,7 +445,7 @@ export default function QuoteBuilderPage() {
       panel_type: form.panelType || undefined,
       validity_days: form.validityDays ? Number(form.validityDays) : undefined,
       price_per_watt: form.pricePerWatt ? Number(form.pricePerWatt) : undefined,
-      gst_rate: form.gstRate ? Number(form.gstRate) : undefined,
+      tax_rate: form.taxRate ? Number(form.taxRate) : undefined,
       daily_yield: form.dailyYield ? Number(form.dailyYield) : undefined,
       tariff: form.tariff ? Number(form.tariff) : undefined,
       apply_subsidy: form.applySubsidy,
@@ -586,7 +588,7 @@ export default function QuoteBuilderPage() {
                 />
               </div>
               <div className="quote-field">
-                <label htmlFor="qGstRate">GST rate (%)</label>
+                <label htmlFor="qGstRate">{entity?.tax_label ?? "GST"} rate (%)</label>
                 <input
                   id="qGstRate"
                   type="number"
@@ -594,8 +596,8 @@ export default function QuoteBuilderPage() {
                   min={0}
                   max={100}
                   disabled={locked}
-                  value={form.gstRate}
-                  onChange={(e) => setForm({ ...form, gstRate: e.target.value })}
+                  value={form.taxRate}
+                  onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
                 />
               </div>
               <div className="quote-field">
@@ -1048,7 +1050,7 @@ export default function QuoteBuilderPage() {
             customerEmail={lead.email}
             segment={lead.type}
             pricePerWatt={Number(form.pricePerWatt) || 0}
-            gstRate={Number(form.gstRate) || 0}
+            taxRate={Number(form.taxRate) || 0}
             tariff={Number(form.tariff) || 9}
             computed={computed}
             amc={

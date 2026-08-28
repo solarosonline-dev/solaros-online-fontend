@@ -18,6 +18,8 @@ export type Entity = {
   // isn't needed since the backend backfills both via server_default.
   country: string;
   currency: string;
+  tax_label: string;
+  tax_id_label: string;
 };
 
 export function getEntity(entityId: number) {

@@ -95,7 +95,7 @@ export default function EntitiesPage() {
             <thead>
               <tr>
                 <th>Name</th>
-                <th>GST</th>
+                <th>Tax ID</th>
                 <th>Type</th>
                 <th>State</th>
                 <th>Founder</th>

@@ -13,7 +13,7 @@ import { formatMoney } from "./money";
 export type QuoteComputeInput = {
   capacityKw: number;
   pricePerWatt: number;
-  gstRate: number;
+  taxRate: number;
   dailyYield: number;
   tariff: number;
   applySubsidy: boolean;
@@ -59,7 +59,7 @@ export function roundToTen(n: number): number {
 export function computeQuote(input: QuoteComputeInput): QuoteComputeResult {
   const kw = input.capacityKw || 0;
   const ppw = input.pricePerWatt || 0;
-  const gst = (input.gstRate || 0) / 100;
+  const gst = (input.taxRate || 0) / 100;
   const yieldPerKw = input.dailyYield || 4.2;
   const tariff = input.tariff || 9;
 

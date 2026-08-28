@@ -33,7 +33,7 @@ export type QuoteDetail = {
   panel_type: string | null;
   validity_days: number | null;
   price_per_watt: number | null;
-  gst_rate: number | null;
+  tax_rate: number | null;
   daily_yield: number | null;
   tariff: number | null;
   apply_subsidy: boolean | null;
@@ -62,7 +62,7 @@ export type QuoteInput = {
   panel_type?: string;
   validity_days?: number;
   price_per_watt?: number;
-  gst_rate?: number;
+  tax_rate?: number;
   daily_yield?: number;
   tariff?: number;
   apply_subsidy?: boolean;

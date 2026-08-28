@@ -49,6 +49,8 @@ export default function ComponentsTab({ draft, onChange }: Props) {
     <div className="entity-field" style={{ maxWidth: "100%" }}>
       <label>
         Default components{" "}
+        {/* Example/help copy, not a field label — this component only receives `draft`/`onChange`
+            props, no `entity`/`tax_label`, so "GST" here stays literal rather than guessing. */}
         <span className="entity-field-help">
           Shared with customers as the starting component-wise pricing rows on new quotes — qty/price are
           filled in per quote. Solar panels &amp; inverter default to 5% GST, other components to 18%.
