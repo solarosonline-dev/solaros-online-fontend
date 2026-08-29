@@ -587,3 +587,15 @@
 .lead-detail-side .lead-detail-panel {
   max-width: none;
 }
+
+/* iOS Safari auto-zooms the page when a focused form control's font-size
+   is under 16px — Android/Chrome doesn't do this, which is why tapping any
+   field on the Add Lead form felt broken only on iOS. 16px sidesteps that
+   zoom. Declared last so it wins over the same-specificity base rule above. */
+@media screen and (max-width: 640px) {
+  .add-lead-field input,
+  .add-lead-field select,
+  .add-lead-field textarea {
+    font-size: 16px;
+  }
+}
