@@ -43,6 +43,8 @@ export type ProjectMetrics = {
   avg_project_completion_days: number | null;
   total_capacity_kw: number;
   completed_capacity_kw: number;
+  total_amount: number;
+  completed_amount: number;
 };
 
 export type WorkOrderMetrics = {

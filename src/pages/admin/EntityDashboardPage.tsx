@@ -121,6 +121,7 @@ export default function EntityDashboardPage() {
             <MetricTile label="Started" value={formatCount(projects.projects_started_count)} />
             <MetricTile label="Active" value={formatCount(projects.projects_active_count)} />
             <MetricTile label="Avg. completion" value={formatDays(projects.avg_project_completion_days)} />
+            <MetricTile label="Total amount" value={formatMoneyShort(projects.total_amount, currency)} />
             <MetricTile label="Total kW" value={formatKw(projects.total_capacity_kw)} />
             <MetricTile label="Completed kW" value={formatKw(projects.completed_capacity_kw)} />
           </div>
