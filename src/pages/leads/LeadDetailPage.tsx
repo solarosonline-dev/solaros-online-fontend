@@ -382,7 +382,7 @@ export default function LeadDetailPage() {
 
           <div className="add-lead-field-row">
             <div className="add-lead-field">
-              <label htmlFor="detailAvgUnits">Avg. Monthly Units (kWh)</label>
+              <label htmlFor="detailAvgUnits">Avg. Monthly Units</label>
               <input
                 id="detailAvgUnits"
                 type="number"

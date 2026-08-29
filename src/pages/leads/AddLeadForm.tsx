@@ -251,7 +251,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
         <div className="add-lead-field-row">
           <div className="add-lead-field">
-            <label htmlFor="leadAvgUnits">Avg. Monthly Units (kWh)</label>
+            <label htmlFor="leadAvgUnits">Avg. Monthly Units</label>
             <input
               id="leadAvgUnits"
               type="number"
