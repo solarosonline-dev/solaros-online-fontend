@@ -111,7 +111,7 @@ export type QuoteDocumentProps = {
   paymentSchedule: PaymentScheduleRow[];
   branding: QuoteDocumentBranding;
   /** Site design/site-condition photos attached to the lead -- rendered as a
-   * max-3-per-row grid. Empty/omitted hides the section entirely. */
+   * 2-per-row grid. Empty/omitted hides the section entirely. */
   siteImages?: { imageId: number; url: string; fileName: string }[];
   /** The customer-facing share link for this quote, if one has been generated
    * yet — rendered as a scannable QR code in the footer so a printed copy can
