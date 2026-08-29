@@ -139,17 +139,19 @@ export default function LeadSiteImages({
     setStagedItems((prev) => prev.filter((i) => stagedKey(i) !== stagedKey(item)));
   }
 
-  function handleDrop(targetIndex: number) {
-    if (dragIndex === null || dragIndex === targetIndex) {
-      setDragIndex(null);
-      return;
-    }
+  function moveItem(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= stagedItems.length) return;
     setStagedItems((prev) => {
       const next = [...prev];
-      const [moved] = next.splice(dragIndex, 1);
-      next.splice(targetIndex, 0, moved);
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
       return next;
     });
+  }
+
+  function handleDrop(targetIndex: number) {
+    if (dragIndex === null) return;
+    moveItem(dragIndex, targetIndex);
     setDragIndex(null);
   }
 
@@ -214,7 +216,7 @@ export default function LeadSiteImages({
         <div className="projects-empty">No site design images yet.</div>
       ) : (
         <>
-          <p className="work-order-type-hint site-images-drag-hint">Drag and drop to reorder.</p>
+          <p className="work-order-type-hint site-images-drag-hint">Drag and drop or click arrows to reorder.</p>
           <div className="site-images-grid">
             {stagedItems.map((item, index) => {
               const url = item.kind === "existing" ? item.image.url : item.previewUrl;
@@ -241,6 +243,26 @@ export default function LeadSiteImages({
                     )}
                   </div>
                   <span className="site-image-file-name">{fileName}</span>
+                  <span className="site-image-move-buttons">
+                    <button
+                      type="button"
+                      className="site-image-move-btn"
+                      aria-label="Move up"
+                      disabled={index === 0}
+                      onClick={() => moveItem(index, index - 1)}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      className="site-image-move-btn"
+                      aria-label="Move down"
+                      disabled={index === stagedItems.length - 1}
+                      onClick={() => moveItem(index, index + 1)}
+                    >
+                      ▼
+                    </button>
+                  </span>
                   <button type="button" className="projects-btn danger" onClick={() => handleRemove(item)}>
                     Remove
                   </button>
