@@ -3,20 +3,19 @@ import { getMyEntityMetrics, type AdminEntityMetrics } from "../../api/adminMetr
 import { getEntity } from "../../api/entity";
 import { useAuth } from "../../lib/AuthContext";
 import { ApiError } from "../../api/client";
-import { formatCount, formatDays, formatKw, formatPercent } from "./adminMetricsFormat";
+import { formatCount, formatDays, formatKw, formatPercent, formatPerKw } from "./adminMetricsFormat";
 import { formatMoneyShort } from "../../lib/money";
-import { EntityFunnelGrid, EntityFunnelStage, EntityFunnelArrow } from "./EntityFunnelGrid";
+import { EntityStepperRow, EntityStepperStage, EntityStepperArrow } from "./EntityFunnelSteps";
 import { HeroMetric, MetricTile } from "./EntityMetricCard";
 import { QuoteStatusDonut, SegmentBreakdownBar } from "./EntityDashboardCharts";
 import "./EntityDashboard.css";
 
 // Business-friendly dashboard for entity-scoped admins (ENTITY_ADMIN /
-// ENTITY_SUPER_ADMIN). Forked from the system-admin dashboard's funnel
-// layout, but re-presented for an EPC owner rather than SolarOS's own ops
-// team: no processing-latency percentiles (p50/p95), a hero KPI strip up
-// top, derived conversion-rate badges on the funnel arrows, and small
-// charts instead of flat count tiles for anything compositional (quote
-// status, customer segment mix).
+// ENTITY_SUPER_ADMIN). Structure: a hero KPI strip, a single-row funnel
+// stepper (one glanceable number per stage, deliberately uniform in size --
+// see EntityFunnelSteps.tsx for why the old clockwise-grid layout was
+// dropped), then dedicated sections for anything compositional (quote mix,
+// project economics) that needs more room than a stepper card can offer.
 
 // Division helper for client-side derived rates — guards against 0/0 and
 // n/0 instead of surfacing NaN/Infinity in the UI.
@@ -74,35 +73,32 @@ export default function EntityDashboardPage() {
       <div className="entity-hero-strip">
         <HeroMetric label="Active projects" value={formatCount(projects.projects_active_count)} />
         <HeroMetric label="Pipeline value" value={formatMoneyShort(quotes.quotes_total_amount, currency)} />
+        <HeroMetric label="Revenue realized" value={formatMoneyShort(projects.completed_amount, currency)} />
         <HeroMetric label="Capacity quoted" value={formatKw(quotes.total_capacity_kw)} />
         <HeroMetric label="Lead → project conversion" value={formatPercent(leadToProject)} />
       </div>
 
-      <EntityFunnelGrid>
-        <EntityFunnelStage title="Leads" area="lead">
+      <EntityStepperRow>
+        <EntityStepperStage title="Leads" area="lead">
           <HeroMetric label="Leads generated" value={formatCount(leads.leads_count)} />
-        </EntityFunnelStage>
+        </EntityStepperStage>
 
-        <EntityFunnelArrow direction="right" area="lead-quote" conversion={formatPercent(leadToQuote)} />
+        <EntityStepperArrow conversion={formatPercent(leadToQuote)} />
 
-        <EntityFunnelStage title="Quotes" area="quote">
+        <EntityStepperStage title="Quotes" area="quote">
           <HeroMetric
             label="Accepted"
             value={formatCount(quotes.quotes_accepted_count)}
             secondary={`${formatPercent(quotes.quote_acceptance_rate)} acceptance rate`}
           />
-          <QuoteStatusDonut quotes={quotes} />
           <div className="entity-metric-tile-row">
-            <MetricTile label="Total amount" value={formatMoneyShort(quotes.quotes_total_amount, currency)} />
-            <MetricTile label="Total kW" value={formatKw(quotes.total_capacity_kw)} />
-            <MetricTile label="Accepted kW" value={formatKw(quotes.accepted_capacity_kw)} />
+            <MetricTile label="Generated" value={formatCount(quotes.quotes_count)} />
           </div>
-          <SegmentBreakdownBar quotes={quotes} />
-        </EntityFunnelStage>
+        </EntityStepperStage>
 
-        <EntityFunnelArrow direction="down" area="quote-agreement" conversion={formatPercent(quoteToAgreement)} />
+        <EntityStepperArrow conversion={formatPercent(quoteToAgreement)} />
 
-        <EntityFunnelStage title="Agreements" area="agreement">
+        <EntityStepperStage title="Agreements" area="agreement">
           <HeroMetric
             label="Signed"
             value={formatCount(agreements.agreements_signed_count)}
@@ -111,23 +107,21 @@ export default function EntityDashboardPage() {
           <div className="entity-metric-tile-row">
             <MetricTile label="Generated" value={formatCount(agreements.agreements_count)} />
           </div>
-        </EntityFunnelStage>
+        </EntityStepperStage>
 
-        <EntityFunnelArrow direction="left" area="agreement-project" conversion={formatPercent(agreementToProject)} />
+        <EntityStepperArrow conversion={formatPercent(agreementToProject)} />
 
-        <EntityFunnelStage title="Projects" area="project">
+        <EntityStepperStage title="Projects" area="project">
           <HeroMetric label="Completed" value={formatCount(projects.projects_completed_count)} />
           <div className="entity-metric-tile-row">
             <MetricTile label="Started" value={formatCount(projects.projects_started_count)} />
             <MetricTile label="Active" value={formatCount(projects.projects_active_count)} />
-            <MetricTile label="Avg. completion" value={formatDays(projects.avg_project_completion_days)} />
-            <MetricTile label="Total amount" value={formatMoneyShort(projects.total_amount, currency)} />
-            <MetricTile label="Total kW" value={formatKw(projects.total_capacity_kw)} />
-            <MetricTile label="Completed kW" value={formatKw(projects.completed_capacity_kw)} />
           </div>
-        </EntityFunnelStage>
+        </EntityStepperStage>
 
-        <EntityFunnelStage title="Work orders" area="workorder">
+        <EntityStepperArrow />
+
+        <EntityStepperStage title="Work orders" area="workorder">
           <HeroMetric
             label="Completed"
             value={formatCount(workorders.workorders_completed_count)}
@@ -136,8 +130,43 @@ export default function EntityDashboardPage() {
           <div className="entity-metric-tile-row">
             <MetricTile label="Generated" value={formatCount(workorders.workorders_generated_count)} />
           </div>
-        </EntityFunnelStage>
-      </EntityFunnelGrid>
+        </EntityStepperStage>
+      </EntityStepperRow>
+
+      <div className="entity-section">
+        <h2 className="entity-section-title">Quote insights</h2>
+        <div className="entity-card-row">
+          <div className="entity-card">
+            <h3>Status mix</h3>
+            <QuoteStatusDonut quotes={quotes} />
+          </div>
+          <div className="entity-card">
+            <h3>Customer segments</h3>
+            <SegmentBreakdownBar quotes={quotes} />
+          </div>
+          <div className="entity-card">
+            <h3>Unit economics</h3>
+            <div className="entity-metric-tile-row entity-metric-tile-row-stack">
+              <MetricTile label="Total quoted" value={formatMoneyShort(quotes.quotes_total_amount, currency)} />
+              <MetricTile label="Accepted kW" value={formatKw(quotes.accepted_capacity_kw)} />
+              <MetricTile label="₹ per kW (accepted)" value={formatPerKw(quotes.accepted_amount_per_kw)} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="entity-section">
+        <h2 className="entity-section-title">Project economics</h2>
+        <div className="entity-card entity-card-wide">
+          <div className="entity-metric-tile-row">
+            <MetricTile label="Total quoted" value={formatMoneyShort(projects.total_amount, currency)} />
+            <MetricTile label="Realized" value={formatMoneyShort(projects.completed_amount, currency)} />
+            <MetricTile label="Total kW" value={formatKw(projects.total_capacity_kw)} />
+            <MetricTile label="Completed kW" value={formatKw(projects.completed_capacity_kw)} />
+            <MetricTile label="Avg. completion" value={formatDays(projects.avg_project_completion_days)} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -64,110 +64,146 @@
   margin-top: 4px;
 }
 
-/* --- Funnel grid: same clockwise 2x2 shape as AdminMetrics.css's funnel,
-     forked so per-stage accent colors and arrow badges don't bleed into
-     the system-admin dashboard. --------------------------------------- */
+/* --- Funnel stepper: a single row of equally-shaped stage cards, each
+     holding the same amount of content (one hero number + at most one row
+     of small tiles) so every card ends up the same height without relying
+     on a grid row to stretch them into alignment. Anything compositional
+     (charts, unit economics) lives in its own section below instead of
+     inside a stepper card -- see EntityFunnelSteps.tsx. ------------------ */
 
-.entity-funnel-grid {
+.entity-stepper-row {
   display: grid;
-  grid-template-columns: 3fr 44px 7fr;
-  grid-template-rows: auto 44px auto;
-  align-items: center;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr auto 1fr;
+  align-items: stretch;
   gap: 4px;
   margin-bottom: 28px;
 }
 
-.entity-funnel-stage {
+.entity-stepper-stage {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
   box-shadow: var(--app-shadow);
-  padding: 18px;
-  align-self: stretch;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
   border-top: 3px solid var(--stage-accent, var(--app-accent));
+  min-width: 0;
 }
 
-.entity-funnel-stage h2 {
-  font-size: 15px;
-  margin: 0 0 14px;
+.entity-stepper-stage h2 {
+  font-size: 14px;
+  margin: 0 0 12px;
   color: var(--app-text);
 }
 
-.entity-funnel-stage-lead {
+.entity-stepper-stage-lead {
   --stage-accent: #2563eb;
-  grid-column: 1;
-  grid-row: 1;
 }
 
-.entity-funnel-stage-quote {
+.entity-stepper-stage-quote {
   --stage-accent: #d97706;
-  grid-column: 3;
-  grid-row: 1;
 }
 
-.entity-funnel-stage-agreement {
+.entity-stepper-stage-agreement {
   --stage-accent: #7c3aed;
-  grid-column: 3;
-  grid-row: 3;
 }
 
-.entity-funnel-stage-project {
+.entity-stepper-stage-project {
   --stage-accent: #16a34a;
-  grid-column: 1;
-  grid-row: 3;
 }
 
-.entity-funnel-stage-workorder {
+.entity-stepper-stage-workorder {
   --stage-accent: #0d9488;
-  grid-column: 1 / -1;
-  grid-row: 4;
-  margin-top: 14px;
 }
 
-.entity-funnel-body {
+.entity-stepper-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  flex: 1;
 }
 
-.entity-funnel-arrow {
+.entity-stepper-arrow {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
+  padding: 0 2px;
 }
 
-.entity-funnel-arrow-glyph {
-  font-size: 22px;
+.entity-stepper-arrow-glyph {
+  font-size: 20px;
   font-weight: 700;
   color: var(--app-text-muted);
 }
 
-.entity-funnel-arrow-badge {
-  font-size: 11px;
+.entity-stepper-arrow-badge {
+  font-size: 10px;
   font-weight: 700;
   color: var(--app-accent);
   background: var(--app-bg);
   border: 1px solid var(--app-border);
   border-radius: 999px;
-  padding: 1px 6px;
+  padding: 1px 5px;
   white-space: nowrap;
 }
 
-.entity-funnel-arrow-lead-quote {
-  grid-column: 2;
-  grid-row: 1;
+/* --- Section headings + card rows for anything below the stepper
+     (quote insights, project economics, AMC due). --------------------- */
+
+.entity-section {
+  margin-bottom: 28px;
 }
 
-.entity-funnel-arrow-quote-agreement {
-  grid-column: 3;
-  grid-row: 2;
+.entity-section-title {
+  font-size: 15px;
+  margin: 0 0 12px;
+  color: var(--app-text);
 }
 
-.entity-funnel-arrow-agreement-project {
-  grid-column: 2;
-  grid-row: 3;
+.entity-card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+.entity-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  padding: 18px;
+}
+
+.entity-card h3 {
+  font-size: 13px;
+  margin: 0 0 12px;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.entity-card-wide {
+  width: 100%;
+}
+
+.entity-card-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.entity-card-heading-row h3 {
+  margin: 0;
+}
+
+.entity-metric-tile-row-stack {
+  grid-template-columns: 1fr;
 }
 
 /* --- Hero + secondary tiles within a stage --------------------------- */
@@ -318,42 +354,26 @@
   padding: 8px 0;
 }
 
-/* --- Responsive: same collapse-to-single-column pattern as the shared
-     admin funnel (AdminMetrics.css:161-193). ---------------------------- */
+/* --- Responsive: collapse the stepper to a single column, one stage per
+     row, arrows rotated to point downward instead of right. -------------- */
 
-@media (max-width: 720px) {
-  .entity-funnel-grid {
+@media (max-width: 900px) {
+  .entity-stepper-row {
     grid-template-columns: 1fr;
-    grid-template-rows: none;
   }
 
-  .entity-funnel-stage-lead,
-  .entity-funnel-stage-quote,
-  .entity-funnel-stage-agreement,
-  .entity-funnel-stage-project,
-  .entity-funnel-stage-workorder {
-    grid-column: 1;
-    grid-row: auto;
+  .entity-stepper-arrow {
+    flex-direction: row;
+    padding: 2px 0;
   }
 
-  .entity-funnel-arrow-lead-quote,
-  .entity-funnel-arrow-quote-agreement,
-  .entity-funnel-arrow-agreement-project {
-    grid-column: 1;
-    grid-row: auto;
-    padding: 4px 0;
-  }
-
-  .entity-funnel-arrow-lead-quote .entity-funnel-arrow-glyph {
+  .entity-stepper-arrow-glyph {
     transform: rotate(90deg);
     display: inline-block;
   }
+}
 
-  .entity-funnel-arrow-agreement-project .entity-funnel-arrow-glyph {
-    transform: rotate(-90deg);
-    display: inline-block;
-  }
-
+@media (max-width: 720px) {
   .entity-quote-donut {
     flex-direction: column;
     align-items: flex-start;
