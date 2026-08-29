@@ -5,3 +5,22 @@
 body {
   margin: 0;
 }
+
+/* iOS Safari auto-zooms the page when a focused form control's font-size is
+   under 16px — Android/Chrome doesn't do this, so a field styled smaller
+   (most of this app's form inputs are 13-14px) feels broken only on iOS:
+   tapping it snaps the whole page to a zoomed-in view until the field is
+   blurred again. Global (this file loads on every route, authenticated app
+   pages and public pages like login/register/the OTP box on a public
+   quote-or-agreement link alike) so no page needs its own copy of this rule
+   to avoid the same bug. !important because per-page stylesheets set their
+   own field font-sizes with the same specificity (a single class + element,
+   e.g. `.quote-field input`) — relying on import order to make this win
+   everywhere isn't safe, so it must always win outright. */
+@media screen and (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
