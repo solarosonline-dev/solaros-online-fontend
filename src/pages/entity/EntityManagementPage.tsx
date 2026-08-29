@@ -11,8 +11,7 @@ import {
 } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import BusinessInfoTab, { type BusinessInfoDraft } from "./tabs/BusinessInfoTab";
-import BrandingTab from "./tabs/BrandingTab";
-import TypographyTab from "./tabs/TypographyTab";
+import BrandingTypographyTab from "./tabs/BrandingTypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
 import ComponentsTab from "./tabs/ComponentsTab";
@@ -23,7 +22,6 @@ import "./EntityManagementPage.css";
 type Tab =
   | "business"
   | "branding"
-  | "typography"
   | "documents"
   | "pricing"
   | "components"
@@ -32,8 +30,7 @@ type Tab =
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "business", label: "Business info" },
-  { key: "branding", label: "Branding" },
-  { key: "typography", label: "Typography" },
+  { key: "branding", label: "Branding & Typography" },
   { key: "documents", label: "Documents" },
   { key: "pricing", label: "Pricing & language" },
   { key: "components", label: "Default components" },
@@ -47,9 +44,11 @@ const TABS: { key: Tab; label: string }[] = [
 // shared Save/Reset bar below.
 const SELF_MANAGED_TABS: Tab[] = ["amc"];
 
+// "branding" here covers the merged Branding & Typography tab -- resetting
+// it resets both underlying categories (see handleReset), so this only
+// needs to name one to make the Reset button render for that tab.
 const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   branding: "branding",
-  typography: "typography",
   documents: "document_customization",
   pricing: "pricing",
   components: "components",
@@ -163,7 +162,13 @@ export default function EntityManagementPage() {
     setSaving(true);
     setStatus(null);
     try {
-      const updated = await resetPreferenceCategory(entityId, category);
+      // The merged Branding & Typography tab edits two separate preference
+      // categories at once -- reset both so "Reset to defaults" here isn't
+      // silently a no-op for whichever half it doesn't name.
+      let updated = await resetPreferenceCategory(entityId, category);
+      if (tab === "branding") {
+        updated = await resetPreferenceCategory(entityId, "typography");
+      }
       setPrefs(updated);
       setStatus({ kind: "success", message: "Reset to defaults." });
     } catch (err) {
@@ -224,10 +229,18 @@ export default function EntityManagementPage() {
           <BusinessInfoTab entity={entity} draft={businessDraft} onChange={setBusinessDraft} />
         )}
         {tab === "branding" && (
-          <BrandingTab entityId={entityId} draft={prefs.branding} onChange={(branding) => setPrefs({ ...prefs, branding })} />
-        )}
-        {tab === "typography" && (
-          <TypographyTab draft={prefs.typography} onChange={(typography) => setPrefs({ ...prefs, typography })} />
+          <BrandingTypographyTab
+            entityId={entityId}
+            entity={entity}
+            brandingDraft={prefs.branding}
+            typographyDraft={prefs.typography}
+            onChangeBranding={(branding) => setPrefs({ ...prefs, branding })}
+            onChangeTypography={(typography) => setPrefs({ ...prefs, typography })}
+            paymentScheduleRows={prefs.payment_schedule.rows}
+            componentDefaults={prefs.components.items}
+            defaultPricePerWatt={prefs.pricing.default_price_per_watt}
+            defaultTaxRate={prefs.pricing.default_tax_rate}
+          />
         )}
         {tab === "documents" && (
           <DocumentsTab

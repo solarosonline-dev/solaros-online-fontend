@@ -71,6 +71,80 @@
   padding: 24px;
 }
 
+/* Branding & Typography tab -- form fields on the left, a live sample-quote
+   preview (see BrandingTypographyTab.tsx / QuoteDocument.tsx) on the right
+   so an admin can see exactly how a color/logo/font-size edit reads on the
+   actual document customers receive, instead of judging it from a color
+   swatch or a raw px number alone. */
+.entity-bt-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.entity-bt-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text);
+  margin: 28px 0 14px;
+}
+
+.entity-bt-heading:first-child {
+  margin-top: 0;
+}
+
+/* Independently scrollable, pinned to the viewport -- same pattern as
+   .quote-form-panel/.quote-preview-panel in QuoteBuilderPage.css -- so the
+   (often much taller) sample quote can scroll on its own without dragging
+   the branding/typography form fields along with it. */
+.entity-bt-preview {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-bg);
+  padding: 16px;
+}
+
+.entity-bt-preview-label {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.entity-bt-preview-label span {
+  font-weight: 400;
+  color: var(--app-text-muted);
+}
+
+.entity-bt-preview-frame {
+  background: var(--app-surface);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* This is a settings-page preview, not an actual document -- hide the
+   print/PDF toolbar QuoteDocument normally renders at its top since there's
+   nothing real here to print. */
+.entity-bt-preview-frame .qdoc-toolbar {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .entity-bt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-bt-preview {
+    position: static;
+    max-height: none;
+  }
+}
+
 .entity-field {
   display: flex;
   flex-direction: column;

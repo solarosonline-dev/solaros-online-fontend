@@ -9,6 +9,10 @@ type Props = {
   onChange: (draft: Branding) => void;
 };
 
+// Logo upload is temporarily disabled -- flip this back on to re-show the
+// "Logo" field (and its file picker) once it's ready again.
+const SHOW_LOGO_UPLOAD = false;
+
 export default function BrandingTab({ entityId, draft, onChange }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -81,32 +85,34 @@ export default function BrandingTab({ entityId, draft, onChange }: Props) {
         </div>
       </div>
 
-      <div className="entity-field">
-        <label>Logo</label>
-        <div className="entity-logo-row">
-          {draft.logo_url ? (
-            <img src={draft.logo_url} alt="Logo" className="entity-logo-preview" />
-          ) : (
-            <div className="entity-logo-placeholder">No logo</div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/svg+xml"
-            style={{ display: "none" }}
-            onChange={handleFileSelect}
-          />
-          <button type="button" className="entity-btn" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? "Uploading…" : "Choose file"}
-          </button>
-          {draft.logo_url && (
-            <button type="button" className="entity-btn" onClick={() => onChange({ ...draft, logo_url: null })}>
-              Remove
+      {SHOW_LOGO_UPLOAD && (
+        <div className="entity-field">
+          <label>Logo</label>
+          <div className="entity-logo-row">
+            {draft.logo_url ? (
+              <img src={draft.logo_url} alt="Logo" className="entity-logo-preview" />
+            ) : (
+              <div className="entity-logo-placeholder">No logo</div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml"
+              style={{ display: "none" }}
+              onChange={handleFileSelect}
+            />
+            <button type="button" className="entity-btn" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              {uploading ? "Uploading…" : "Choose file"}
             </button>
-          )}
+            {draft.logo_url && (
+              <button type="button" className="entity-btn" onClick={() => onChange({ ...draft, logo_url: null })}>
+                Remove
+              </button>
+            )}
+          </div>
+          {uploadError && <p className="entity-status error">{uploadError}</p>}
         </div>
-        {uploadError && <p className="entity-status error">{uploadError}</p>}
-      </div>
+      )}
 
       <div className="entity-field">
         <label htmlFor="company_tagline">Company tagline</label>
