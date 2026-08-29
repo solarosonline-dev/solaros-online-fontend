@@ -1,0 +1,188 @@
+/* First-time guided tour -- a self-contained modal (not the shared
+   Modal.tsx, which caps at 420px) so the walkthrough copy has room to
+   breathe. Mirrors Modal.tsx's backdrop/escape conventions for consistency. */
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1200;
+}
+
+.tour-card {
+  position: relative;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  padding: 28px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: var(--app-font);
+  color: var(--app-text);
+}
+
+.tour-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.tour-close:hover {
+  color: var(--app-text);
+}
+
+.tour-step-count {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+}
+
+.tour-card h2 {
+  margin: 0 0 12px;
+  font-size: 19px;
+  padding-right: 20px;
+}
+
+.tour-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--app-text);
+}
+
+.tour-body p {
+  margin: 0 0 10px;
+}
+
+.tour-body ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.tour-body li {
+  margin-bottom: 4px;
+}
+
+.tour-flow {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--app-accent);
+}
+
+.tour-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--app-accent);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--app-accent);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.tour-cta:hover {
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.tour-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 22px 0 16px;
+}
+
+.tour-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--app-border);
+}
+
+.tour-dots span.active {
+  background: var(--app-accent);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tour-nav-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.tour-btn.primary {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.tour-btn.tour-skip {
+  border-color: transparent;
+  background: none;
+  color: var(--app-text-muted);
+}
+
+.tour-btn.tour-skip:hover {
+  color: var(--app-text);
+}
+
+@media (max-width: 640px) {
+  .tour-backdrop {
+    padding: 8px;
+    align-items: flex-start;
+  }
+
+  .tour-card {
+    margin-top: 8px;
+    max-width: 100%;
+    max-height: calc(100vh - 16px);
+    padding: 20px;
+  }
+
+  .tour-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .tour-nav-btns {
+    justify-content: flex-end;
+  }
+}

@@ -152,6 +152,22 @@
   color: var(--app-text-muted);
 }
 
+.app-topbar-tour-link {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--app-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.app-topbar-tour-link:hover {
+  color: var(--app-text);
+}
+
 .app-topbar-signout {
   font-family: inherit;
   font-size: 13px;

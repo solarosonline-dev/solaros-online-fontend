@@ -3,7 +3,12 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { isSystemAdmin, isEntityAdmin } from "./roles";
 import { TourProvider, useTour } from "./TourContext";
+import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
 import "./AppLayout.css";
+
+function onboardingTourSeenKey(userId: number) {
+  return `onboarding_tour_seen_${userId}`;
+}
 
 export default function AppLayout() {
   // TourProvider has to be an ancestor of both this component (which reads
@@ -24,6 +29,37 @@ function AppLayoutInner() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { needsAmcSetup } = useTour();
+
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+
+  // Auto-show the guided tour the first time this user reaches the app --
+  // "seen" is tracked per user id in localStorage (simplest option, no
+  // backend change; the tradeoff is it resets on a different browser/
+  // device). Runs once `user` first resolves, not on every render.
+  useEffect(() => {
+    if (!user) return;
+    if (!localStorage.getItem(onboardingTourSeenKey(user.user_id))) {
+      setOnboardingStep(0);
+      setOnboardingOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id]);
+
+  function closeOnboardingTour() {
+    setOnboardingOpen(false);
+    if (user) localStorage.setItem(onboardingTourSeenKey(user.user_id), "1");
+  }
+
+  function replayOnboardingTour() {
+    setOnboardingStep(0);
+    setOnboardingOpen(true);
+  }
+
+  function handleOnboardingNavigate(path: string) {
+    closeOnboardingTour();
+    navigate(path);
+  }
 
   function handleSignOut() {
     signOut();
@@ -58,6 +94,7 @@ function AppLayoutInner() {
 
   const systemAdmin = user ? isSystemAdmin(user.roles) : false;
   const entityAdmin = user ? isEntityAdmin(user.roles) : false;
+  const onboardingRole: OnboardingRole = systemAdmin ? "system_admin" : entityAdmin ? "entity_admin" : "worker";
 
   // Only pulse the nav link while the user hasn't already arrived at Entity
   // Settings -- once there, the AMC Plans tab itself takes over the
@@ -114,6 +151,9 @@ function AppLayoutInner() {
           )}
           <div className="app-topbar-right">
             <span className="app-topbar-user">{user?.full_name}</span>
+            <button type="button" className="app-topbar-tour-link" onClick={replayOnboardingTour}>
+              Take the tour
+            </button>
             <button className="app-topbar-signout" onClick={handleSignOut}>
               Sign out
             </button>
@@ -123,6 +163,16 @@ function AppLayoutInner() {
       <main className="app-content">
         <Outlet />
       </main>
+      {user && (
+        <OnboardingTour
+          open={onboardingOpen}
+          step={onboardingStep}
+          role={onboardingRole}
+          onStepChange={setOnboardingStep}
+          onClose={closeOnboardingTour}
+          onNavigate={handleOnboardingNavigate}
+        />
+      )}
     </div>
   );
 }
