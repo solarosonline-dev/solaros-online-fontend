@@ -86,3 +86,4 @@ The backend's API is documented in `../solaros-online-backend/ApiSpecs.md` (endp
 ## Error handling convention
 
 The backend returns errors as `{ "error": { "code": "STRING_CODE", "message": "..." } }`. The API client throws `ApiError` (`src/api/client.ts`) with `.status`, `.code`, and `.message` — catch it and branch on `.code` for specific error handling rather than parsing `.message`.
+
