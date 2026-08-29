@@ -102,15 +102,21 @@ export default function AmcActionTable({
     setAssignError(null);
     try {
       const res = await assignWorkOrder(entityId, workOrderId, assigneeType, Number(selectedAssigneeId));
-      const name =
-        assigneeType === "USER"
-          ? users.find((u) => u.user_id === res.assignee_id)?.full_name ?? ""
-          : teams.find((t) => t.team_id === res.assignee_id)?.name ?? "";
+      const matchedUser = assigneeType === "USER" ? users.find((u) => u.user_id === res.assignee_id) : undefined;
+      const name = assigneeType === "USER" ? matchedUser?.full_name ?? "" : teams.find((t) => t.team_id === res.assignee_id)?.name ?? "";
       // Feed the persisted assignment back into the shared item state (not
       // just local component state) so it survives this row re-rendering and
       // is what "Reassign" prefills from next time -- this is the piece that
       // makes reassignment durable rather than a one-shot local flag.
-      onItemChanged(scheduleId, { assignee: { assignee_type: assigneeType, assignee_id: Number(selectedAssigneeId), name } });
+      onItemChanged(scheduleId, {
+        assignee: {
+          assignee_type: assigneeType,
+          assignee_id: Number(selectedAssigneeId),
+          name,
+          email: matchedUser?.email ?? null,
+          phone: matchedUser?.phone ?? null,
+        },
+      });
       setExpandedScheduleId(null);
     } catch (err) {
       setAssignError(err instanceof ApiError ? err.message : "Could not assign this work order");
