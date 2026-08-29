@@ -4,9 +4,8 @@ import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatINR as formatINRBase, type QuoteComputeResult } from "../../lib/quoteCalculations";
 import type { PaymentScheduleRow } from "../../api/entityPreferences";
-import type { QuoteComponentRow } from "../../api/quotes";
 import { formatDate, SEGMENT_LABELS } from "../../lib/quoteDocumentCopy";
-import { AGREEMENT_ACKNOWLEDGEMENT, AGREEMENT_SCOPE_ITEMS, EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
+import { AGREEMENT_ACKNOWLEDGEMENT, AGREEMENT_SCOPE_ITEMS } from "../../lib/agreementDocumentCopy";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { formatAmcInclusion, type AmcInclusionItem } from "../../api/amcPlans";
 import "../quotes/QuoteDocument.css";
@@ -29,18 +28,24 @@ export type AgreementDocumentSignature = {
 };
 
 export type AgreementDocumentProps = {
-  /** Human-readable reference (e.g. "A-VINO-28-08-2025-WS67") -- shown in
-   * place of the raw numeric agreement id. Null before the agreement has
-   * ever been saved. */
+  /** Human-readable reference (e.g. "A-0826-6CBG") -- shown in place of the
+   * raw numeric agreement id. Null before the agreement has ever been
+   * saved. */
   agreementNumber: string | null;
   createdAt: string | null;
-  /** Human-readable reference for the linked quote (e.g.
-   * "Q-VINO-28-08-2025-WS67"), shown as "Quote ref." */
+  /** Days from `createdAt` this agreement stays valid -- also mirrors what
+   * the backend uses for the share link's expiry. Defaults to 15 when
+   * null, same as QuoteDocument's `validityDays`. */
+  validityDays: number | null;
+  notes: string | null;
+  /** Human-readable reference for the linked quote (e.g. "Q-0826-6CBG"),
+   * shown as "Quote ref." */
   quoteNumber: string | null;
   capacityKw: number;
-  panelMake: string | null;
-  inverterMake: string | null;
-  components: QuoteComponentRow[];
+  /** Admin-entered make/model/warranty for the fixed equipment rows (see
+   * EQUIPMENT_ROWS) -- one row per component, in EQUIPMENT_ROWS order. A
+   * missing/blank field on a row renders as a "to be confirmed" placeholder. */
+  equipment: { label: string; make: string | null; model: string | null; warrantyYears: number | null }[];
   customerName: string;
   customerCompany?: string | null;
   customerAddress: string | null;
@@ -84,6 +89,8 @@ export type AgreementDocumentProps = {
    * entirely by the public page, which has no editable LHS. */
   highlightSections?: {
     amc?: boolean;
+    equipment?: boolean;
+    details?: boolean;
     terms?: boolean;
   };
 };
@@ -91,11 +98,11 @@ export type AgreementDocumentProps = {
 export default function AgreementDocument({
   agreementNumber,
   createdAt,
+  validityDays,
+  notes,
   quoteNumber,
   capacityKw,
-  panelMake,
-  inverterMake,
-  components,
+  equipment,
   customerName,
   customerCompany,
   customerAddress,
@@ -134,11 +141,15 @@ export default function AgreementDocument({
   // EPC-side builder (which passes `highlightSections`); the public page
   // passes nothing, so this never fires there.
   const amcRef = useRef<HTMLElement>(null);
+  const equipmentRef = useRef<HTMLElement>(null);
+  const detailsRef = useRef<HTMLElement>(null);
   const termsRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!highlightSections) return;
     const order: [keyof NonNullable<AgreementDocumentProps["highlightSections"]>, typeof amcRef][] = [
       ["amc", amcRef],
+      ["equipment", equipmentRef],
+      ["details", detailsRef],
       ["terms", termsRef],
     ];
     for (const [key, ref] of order) {
@@ -152,20 +163,6 @@ export default function AgreementDocument({
 
   const segLabel = SEGMENT_LABELS[segment ?? ""] ?? "Custom";
   const issuedOn = createdAt ? new Date(createdAt) : new Date();
-
-  const findWarrantyYears = (keywords: string[]): number | null => {
-    const row = components.find((r) => {
-      const particular = (r.particular ?? "").toLowerCase();
-      return keywords.some((k) => particular.includes(k));
-    });
-    return row?.warranty_years ?? null;
-  };
-  const equipmentRows = EQUIPMENT_ROWS.map((row) => {
-    const make =
-      row.label === "Solar Panels" ? panelMake : row.label === "Inverter" ? inverterMake : null;
-    const warrantyYears = findWarrantyYears(row.keywords);
-    return { ...row, make, warrantyYears };
-  });
 
   let paymentRunningTotal = 0;
   const paymentRows = paymentSchedule.map((row, i) => {
@@ -226,7 +223,9 @@ export default function AgreementDocument({
   const numEquipment = sectionNumber++;
   const numPayment = sectionNumber++;
   const numAmc = sectionNumber++;
+  const numNotes = notes ? sectionNumber++ : null;
   const numTerms = terms.length > 0 ? sectionNumber++ : null;
+  const validity = validityDays ?? 15;
 
   const style = {
     "--qdoc-primary": branding.primaryColor || "#ff6b1a",
@@ -386,7 +385,7 @@ export default function AgreementDocument({
         )}
       </section>
 
-      <section className="qdoc-section">
+      <section ref={equipmentRef} className={`qdoc-section${flashClass("equipment")}`}>
         <h2>{numEquipment}. Equipment — make, model &amp; warranty</h2>
         <div className="qdoc-table-wrap">
         <table className="qdoc-table">
@@ -399,15 +398,13 @@ export default function AgreementDocument({
             </tr>
           </thead>
           <tbody>
-            {equipmentRows.map((row) => (
+            {equipment.map((row) => (
               <tr key={row.label}>
                 <td>
                   <strong>{row.label}</strong>
                 </td>
                 <td>{row.make || <span className="qdoc-placeholder">to be confirmed</span>}</td>
-                <td>
-                  <span className="qdoc-placeholder">to be confirmed</span>
-                </td>
+                <td>{row.model || <span className="qdoc-placeholder">to be confirmed</span>}</td>
                 <td className="qdoc-ta-r">
                   {row.warrantyYears != null ? (
                     `${row.warrantyYears} yr`
@@ -611,6 +608,13 @@ export default function AgreementDocument({
           </p>
       </section>
 
+      {notes && (
+        <section ref={detailsRef} className={`qdoc-section${flashClass("details")}`}>
+          <h2>{numNotes}. Notes</h2>
+          <p className="qdoc-notes">{notes}</p>
+        </section>
+      )}
+
       {terms.length > 0 && (
         <section ref={termsRef} className={`qdoc-section${flashClass("terms")}`}>
           <h2>{numTerms}. Terms &amp; conditions</h2>
@@ -619,6 +623,9 @@ export default function AgreementDocument({
               <li key={i}>{term}</li>
             ))}
           </ol>
+          <p className="qdoc-row-note" style={{ marginTop: 8 }}>
+            This agreement is valid for {validity} days from issue.
+          </p>
         </section>
       )}
 

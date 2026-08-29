@@ -11,21 +11,61 @@ import {
   getAgreement,
   createAgreement,
   updateAgreement,
-  shareAgreement,
   getAgreementPdfUrl,
   type AgreementDetail,
   type AgreementSettingsSnapshot,
+  type AgreementEquipmentRow,
 } from "../../api/agreements";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import AgreementDocument from "./AgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
+import { EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import CopyLinkButton from "../../components/CopyLinkButton";
+import AccordionSection from "../../components/AccordionSection";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import "../quotes/QuoteBuilderPage.css";
 
+/** LHS form sections, in display order -- collapsed into a single-open-at-
+ * a-time accordion, same pattern as QuoteBuilderPage.tsx's SectionKey. AMC
+ * (years 1-5) and AMC years 6-15 stay one "amc" section rather than two,
+ * unlike QuoteBuilderPage -- they're already one nested block here (years
+ * 6-15 editing only exists inside the !quoteHasAmc branch), so splitting
+ * them would mean restructuring that conditional instead of just wrapping
+ * the existing content. */
+type SectionKey = "fromQuote" | "amc" | "equipment" | "details" | "terms";
+
+/** One row of the LHS equipment form -- `label` is fixed (from
+ * EQUIPMENT_ROWS), the rest are free text/number inputs the admin fills in.
+ * Kept as strings in form state (like every other numeric field on this
+ * page) and parsed to a number only when building the save payload. */
+type EquipmentFormRow = { label: string; make: string; model: string; warrantyYears: string };
+
+function defaultEquipmentRows(): EquipmentFormRow[] {
+  return EQUIPMENT_ROWS.map((row) => ({ label: row.label, make: "", model: "", warrantyYears: "" }));
+}
+
+/** Merges saved equipment rows onto the fixed EQUIPMENT_ROWS shape by label
+ * -- so if EQUIPMENT_ROWS ever gains/loses a row, an older saved agreement's
+ * data for the rows that still exist isn't lost, and a new row just starts
+ * blank rather than the whole section erroring out. */
+function equipmentFormFromSaved(saved: AgreementEquipmentRow[] | null): EquipmentFormRow[] {
+  const byLabel = new Map(saved?.map((r) => [r.label, r]) ?? []);
+  return EQUIPMENT_ROWS.map((row) => {
+    const existing = byLabel.get(row.label);
+    return {
+      label: row.label,
+      make: existing?.make ?? "",
+      model: existing?.model ?? "",
+      warrantyYears: existing?.warranty_years != null ? String(existing.warranty_years) : "",
+    };
+  });
+}
+
 type FormState = {
+  validityDays: string;
+  notes: string;
   /** Single years 1-5 plan — only used when amcMode is "included". */
   amcId: string;
   /** Years 1-5 multi-select, up to 3 — only used when amcMode is
@@ -37,16 +77,20 @@ type FormState = {
   amcPost5Enabled: boolean;
   /** Up to 3 amc_id values, in selection order. */
   amcPost5PlanIds: string[];
+  equipment: EquipmentFormRow[];
   terms: string[];
 };
 
 const DEFAULT_FORM: FormState = {
+  validityDays: "15",
+  notes: "",
   amcId: "",
   amcPlanIds: [],
   amcDurationYears: "",
   amcMode: "chargeable",
   amcPost5Enabled: false,
   amcPost5PlanIds: [],
+  equipment: defaultEquipmentRows(),
   terms: [],
 };
 
@@ -76,8 +120,6 @@ export default function AgreementBuilderPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
@@ -112,12 +154,15 @@ export default function AgreementBuilderPage() {
           const agreement = await getAgreement(entityId, Number(leadId), agreementsRes.items[0].agreement_id);
           setExistingAgreement(agreement);
           setForm({
+            validityDays: agreement.validity_days != null ? String(agreement.validity_days) : "15",
+            notes: agreement.notes ?? "",
             amcId: agreement.amc_id != null ? String(agreement.amc_id) : "",
             amcPlanIds: (agreement.amc_plan_ids ?? []).map(String),
             amcDurationYears: agreement.amc_duration_years != null ? String(agreement.amc_duration_years) : "",
             amcMode: agreement.amc_mode ?? "chargeable",
             amcPost5Enabled: agreement.amc_post5_enabled ?? false,
             amcPost5PlanIds: (agreement.amc_post5_plan_ids ?? []).map(String),
+            equipment: equipmentFormFromSaved(agreement.equipment_details),
             terms: agreement.terms ?? [],
           });
         } else {
@@ -138,18 +183,6 @@ export default function AgreementBuilderPage() {
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [entityId, leadId]);
-
-  // POST .../share is idempotent (stable even after acceptance), so load it
-  // eagerly as soon as an agreement exists — same pattern as the quote builder.
-  useEffect(() => {
-    if (!leadId || !existingAgreement) return;
-    setSharing(true);
-    setShareUrl(null);
-    shareAgreement(entityId, Number(leadId), existingAgreement.agreement_id)
-      .then((res) => setShareUrl(res.share_url))
-      .catch((err) => setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not load share link" }))
-      .finally(() => setSharing(false));
-  }, [entityId, leadId, existingAgreement?.agreement_id]);
 
   // Once a quote already carries AMC, it's already committed there — the
   // agreement doesn't let the admin pick a fresh one, it just displays what
@@ -252,13 +285,24 @@ export default function AgreementBuilderPage() {
 
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
 
+  // Single-open-at-a-time accordion for the LHS form -- see AccordionSection.
+  const [openSection, setOpenSection] = useState<SectionKey | null>("fromQuote");
+  function toggleSection(id: SectionKey) {
+    setOpenSection((cur) => (cur === id ? null : id));
+  }
+
   // RHS "just changed" highlight — flashes the affected preview section for
   // ~1.2s whenever its underlying LHS fields change, skipping the initial
   // mount so the preview doesn't flash on first load. Same pattern as
   // QuoteBuilderPage.
-  const [highlightSections, setHighlightSections] = useState<{ amc?: boolean; terms?: boolean }>({});
+  const [highlightSections, setHighlightSections] = useState<{
+    amc?: boolean;
+    equipment?: boolean;
+    details?: boolean;
+    terms?: boolean;
+  }>({});
 
-  function useSectionFlash(section: "amc" | "terms", deps: unknown[]) {
+  function useSectionFlash(section: "amc" | "equipment" | "details" | "terms", deps: unknown[]) {
     const mountedRef = useRef(false);
     useEffect(() => {
       if (!mountedRef.current) {
@@ -282,6 +326,8 @@ export default function AgreementBuilderPage() {
     form.amcPost5Enabled,
     form.amcPost5PlanIds,
   ]);
+  useSectionFlash("equipment", [form.equipment]);
+  useSectionFlash("details", [form.validityDays, form.notes]);
   useSectionFlash("terms", [form.terms]);
 
   function handleAddTerm() {
@@ -332,12 +378,20 @@ export default function AgreementBuilderPage() {
 
     const amcIncluded = form.amcMode === "included";
     const payload = {
+      validity_days: form.validityDays ? Number(form.validityDays) : undefined,
+      notes: form.notes.trim() || undefined,
       amc_id: !quoteHasAmc && amcIncluded && form.amcId ? Number(form.amcId) : undefined,
       amc_plan_ids: !quoteHasAmc && !amcIncluded ? form.amcPlanIds.map(Number) : undefined,
       amc_duration_years: !quoteHasAmc && form.amcDurationYears ? Number(form.amcDurationYears) : undefined,
       amc_mode: !quoteHasAmc ? form.amcMode : undefined,
       amc_post5_enabled: !quoteHasAmc ? form.amcPost5Enabled : undefined,
       amc_post5_plan_ids: !quoteHasAmc ? form.amcPost5PlanIds.map(Number) : undefined,
+      equipment_details: form.equipment.map((row) => ({
+        label: row.label,
+        make: row.make.trim() || null,
+        model: row.model.trim() || null,
+        warranty_years: row.warrantyYears ? Number(row.warrantyYears) : null,
+      })),
       terms: form.terms,
     };
 
@@ -391,245 +445,333 @@ export default function AgreementBuilderPage() {
 
       <div className="quote-builder-grid">
         <div className="quote-form-panel no-print">
-          <p className="quote-section-label" style={{ marginTop: 0 }}>
-            From quote
-          </p>
-          <div className="quote-field-row">
-            <div className="quote-field">
-              <label>Capacity (kW)</label>
-              <input type="text" disabled value={quote?.capacity ?? ""} />
-            </div>
-            <div className="quote-field">
-              <label>Panel type</label>
-              <input type="text" disabled value={quote?.panel_type ?? ""} />
-            </div>
-          </div>
-          <div className="quote-field-row">
-            <div className="quote-field">
-              <label>Panel make</label>
-              <input type="text" disabled value={quote?.panel_make ?? ""} />
-            </div>
-            <div className="quote-field">
-              <label>Inverter make</label>
-              <input type="text" disabled value={quote?.inverter_make ?? ""} />
-            </div>
-          </div>
-          <div className="quote-field-row">
-            <div className="quote-field">
-              <label>Price per watt (₹)</label>
-              <input type="text" disabled value={quote?.price_per_watt ?? ""} />
-            </div>
-            <div className="quote-field">
-              <label>Net investment</label>
-              <input type="text" disabled value={computed ? computed.netInvestment.toLocaleString("en-IN") : ""} />
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} noValidate>
-            <p className="quote-section-label">AMC</p>
-            {!quoteHasAmc && (
-              <p className="quote-field-hint" style={{ marginTop: -8, marginBottom: 12 }}>
-                Offered as a recommended add-on since this quote had no AMC.
-              </p>
-            )}
-            {quoteHasAmc ? (
-              <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
-                This quote already includes AMC — it carries over to the agreement as already agreed, shown in the
-                preview, and isn't editable here.
-              </p>
-            ) : (
-              <>
-                <div className="quote-field-row">
-                  <div className="quote-field">
-                    <label htmlFor="aAmcMode">Pricing</label>
-                    <select
-                      id="aAmcMode"
-                      disabled={locked}
-                      value={form.amcMode}
-                      onChange={(e) => setForm({ ...form, amcMode: e.target.value as "included" | "chargeable" })}
-                    >
-                      <option value="chargeable">Chargeable — customer pays</option>
-                      <option value="included">Included — bundled free of cost</option>
-                    </select>
-                  </div>
-                  <div className="quote-field">
-                    <label htmlFor="aAmcDuration">Duration (years)</label>
-                    <input
-                      id="aAmcDuration"
-                      type="number"
-                      disabled={locked}
-                      value={form.amcDurationYears}
-                      onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
-                    />
-                  </div>
+            <AccordionSection
+              id="fromQuote"
+              title="From quote"
+              open={openSection === "fromQuote"}
+              onToggle={toggleSection}
+            >
+              <div className="quote-field-row">
+                <div className="quote-field">
+                  <label>Capacity (kW)</label>
+                  <input type="text" disabled value={quote?.capacity ?? ""} />
                 </div>
-
-                {form.amcMode === "included" ? (
-                  <div className="quote-field">
-                    <label htmlFor="aAmcId">AMC plan</label>
-                    <select
-                      id="aAmcId"
-                      disabled={locked}
-                      value={form.amcId}
-                      onChange={(e) => {
-                        const amcId = e.target.value;
-                        setForm({
-                          ...form,
-                          amcId,
-                          amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
-                        });
-                      }}
-                    >
-                      <option value="">None</option>
-                      {amcPlans.map((p) => (
-                        <option key={p.amc_id} value={p.amc_id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="quote-field-hint">
-                      Bundled free of cost — a single plan, since it's a freebie.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="quote-field">
-                    <label>Select up to 3 plans from the AMC catalog</label>
-                    <div className="quote-checkbox-list">
-                      {amcPlans.map((p) => {
-                        const idStr = String(p.amc_id);
-                        const checked = form.amcPlanIds.includes(idStr);
-                        const atLimit = form.amcPlanIds.length >= 3;
-                        return (
-                          <div
-                            className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
-                            key={p.amc_id}
-                          >
-                            <input
-                              id={`aAmcPlan-${p.amc_id}`}
-                              type="checkbox"
-                              disabled={locked || (!checked && atLimit)}
-                              checked={checked}
-                              onChange={(e) => {
-                                const amcPlanIds = e.target.checked
-                                  ? [...form.amcPlanIds, idStr]
-                                  : form.amcPlanIds.filter((id) => id !== idStr);
-                                setForm({
-                                  ...form,
-                                  amcPlanIds,
-                                  amcDurationYears: amcPlanIds.length && !form.amcDurationYears ? "1" : form.amcDurationYears,
-                                });
-                              }}
-                            />
-                            <label htmlFor={`aAmcPlan-${p.amc_id}`}>{p.name}</label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p
-                      className={`quote-field-hint${form.amcPlanIds.length >= 3 ? " quote-field-hint--warning" : ""}`}
-                    >
-                      {form.amcPlanIds.length}/3 selected
-                      {form.amcPlanIds.length >= 3 ? " — maximum reached" : ""} — the customer sees these as options
-                      to choose between, since they're paying either way.
-                    </p>
-                  </div>
-                )}
-
-                <p className="quote-section-label">AMC — years 6-15 (next 10 years)</p>
-                <div className="quote-checkbox-row">
-                  <input
-                    id="aAmcPost5Enabled"
-                    type="checkbox"
-                    disabled={locked}
-                    checked={form.amcPost5Enabled}
-                    onChange={(e) => setForm({ ...form, amcPost5Enabled: e.target.checked })}
-                  />
-                  <label htmlFor="aAmcPost5Enabled">Offer AMC plans for years 6-15</label>
+                <div className="quote-field">
+                  <label>Panel type</label>
+                  <input type="text" disabled value={quote?.panel_type ?? ""} />
                 </div>
-                {form.amcPost5Enabled && (
-                  <div className="quote-field">
-                    <label>Select up to 3 plans from the AMC catalog</label>
-                    <div className="quote-checkbox-list">
-                      {amcPlans.map((p) => {
-                        const idStr = String(p.amc_id);
-                        const checked = form.amcPost5PlanIds.includes(idStr);
-                        const atLimit = form.amcPost5PlanIds.length >= 3;
-                        return (
-                          <div
-                            className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
-                            key={p.amc_id}
-                          >
-                            <input
-                              id={`aAmcPost5Plan-${p.amc_id}`}
-                              type="checkbox"
-                              disabled={locked || (!checked && atLimit)}
-                              checked={checked}
-                              onChange={(e) => {
-                                setForm({
-                                  ...form,
-                                  amcPost5PlanIds: e.target.checked
-                                    ? [...form.amcPost5PlanIds, idStr]
-                                    : form.amcPost5PlanIds.filter((id) => id !== idStr),
-                                });
-                              }}
-                            />
-                            <label htmlFor={`aAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p
-                      className={`quote-field-hint${
-                        form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
-                      }`}
-                    >
-                      {form.amcPost5PlanIds.length}/3 selected
-                      {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns
-                      alongside the years 1-5 AMC on the agreement.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="quote-field">
-              <label htmlFor="aTermInput">Terms &amp; conditions</label>
-              {form.terms.length > 0 && (
-                <ul className="quote-terms-list">
-                  {form.terms.map((term, i) => (
-                    <li key={i}>
-                      <span>{term}</span>
-                      {!locked && (
-                        <button type="button" className="quote-terms-remove" onClick={() => handleRemoveTerm(i)}>
-                          ×
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!locked && (
-                <div className="quote-terms-add-row">
+              </div>
+              <div className="quote-field-row">
+                <div className="quote-field">
+                  <label>Price per watt (₹)</label>
+                  <input type="text" disabled value={quote?.price_per_watt ?? ""} />
+                </div>
+                <div className="quote-field">
+                  <label>Net investment</label>
                   <input
-                    id="aTermInput"
                     type="text"
-                    placeholder="e.g. Ownership transfers on final payment"
-                    value={newTerm}
-                    onChange={(e) => setNewTerm(e.target.value)}
-                    onKeyDown={handleTermKeyDown}
+                    disabled
+                    value={computed ? computed.netInvestment.toLocaleString("en-IN") : ""}
                   />
-                  <button type="button" className="quote-btn" onClick={handleAddTerm}>
-                    + Add
-                  </button>
                 </div>
+              </div>
+            </AccordionSection>
+
+            <AccordionSection id="amc" title="AMC" open={openSection === "amc"} onToggle={toggleSection}>
+              {!quoteHasAmc && (
+                <p className="quote-field-hint" style={{ marginTop: -8, marginBottom: 12 }}>
+                  Offered as a recommended add-on since this quote had no AMC.
+                </p>
               )}
-            </div>
+              {quoteHasAmc ? (
+                <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+                  This quote already includes AMC — it carries over to the agreement as already agreed, shown in the
+                  preview, and isn't editable here.
+                </p>
+              ) : (
+                <>
+                  <div className="quote-field-row">
+                    <div className="quote-field">
+                      <label htmlFor="aAmcMode">Pricing</label>
+                      <select
+                        id="aAmcMode"
+                        disabled={locked}
+                        value={form.amcMode}
+                        onChange={(e) => setForm({ ...form, amcMode: e.target.value as "included" | "chargeable" })}
+                      >
+                        <option value="chargeable">Chargeable — customer pays</option>
+                        <option value="included">Included — bundled free of cost</option>
+                      </select>
+                    </div>
+                    <div className="quote-field">
+                      <label htmlFor="aAmcDuration">Duration (years)</label>
+                      <input
+                        id="aAmcDuration"
+                        type="number"
+                        disabled={locked}
+                        value={form.amcDurationYears}
+                        onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  {form.amcMode === "included" ? (
+                    <div className="quote-field">
+                      <label htmlFor="aAmcId">AMC plan</label>
+                      <select
+                        id="aAmcId"
+                        disabled={locked}
+                        value={form.amcId}
+                        onChange={(e) => {
+                          const amcId = e.target.value;
+                          setForm({
+                            ...form,
+                            amcId,
+                            amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                          });
+                        }}
+                      >
+                        <option value="">None</option>
+                        {amcPlans.map((p) => (
+                          <option key={p.amc_id} value={p.amc_id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="quote-field-hint">
+                        Bundled free of cost — a single plan, since it's a freebie.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="quote-field">
+                      <label>Select up to 3 plans from the AMC catalog</label>
+                      <div className="quote-checkbox-list">
+                        {amcPlans.map((p) => {
+                          const idStr = String(p.amc_id);
+                          const checked = form.amcPlanIds.includes(idStr);
+                          const atLimit = form.amcPlanIds.length >= 3;
+                          return (
+                            <div
+                              className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                              key={p.amc_id}
+                            >
+                              <input
+                                id={`aAmcPlan-${p.amc_id}`}
+                                type="checkbox"
+                                disabled={locked || (!checked && atLimit)}
+                                checked={checked}
+                                onChange={(e) => {
+                                  const amcPlanIds = e.target.checked
+                                    ? [...form.amcPlanIds, idStr]
+                                    : form.amcPlanIds.filter((id) => id !== idStr);
+                                  setForm({
+                                    ...form,
+                                    amcPlanIds,
+                                    amcDurationYears: amcPlanIds.length && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                                  });
+                                }}
+                              />
+                              <label htmlFor={`aAmcPlan-${p.amc_id}`}>{p.name}</label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p
+                        className={`quote-field-hint${form.amcPlanIds.length >= 3 ? " quote-field-hint--warning" : ""}`}
+                      >
+                        {form.amcPlanIds.length}/3 selected
+                        {form.amcPlanIds.length >= 3 ? " — maximum reached" : ""} — the customer sees these as options
+                        to choose between, since they're paying either way.
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="quote-section-label">AMC — years 6-15 (next 10 years)</p>
+                  <div className="quote-checkbox-row">
+                    <input
+                      id="aAmcPost5Enabled"
+                      type="checkbox"
+                      disabled={locked}
+                      checked={form.amcPost5Enabled}
+                      onChange={(e) => setForm({ ...form, amcPost5Enabled: e.target.checked })}
+                    />
+                    <label htmlFor="aAmcPost5Enabled">Offer AMC plans for years 6-15</label>
+                  </div>
+                  {form.amcPost5Enabled && (
+                    <div className="quote-field">
+                      <label>Select up to 3 plans from the AMC catalog</label>
+                      <div className="quote-checkbox-list">
+                        {amcPlans.map((p) => {
+                          const idStr = String(p.amc_id);
+                          const checked = form.amcPost5PlanIds.includes(idStr);
+                          const atLimit = form.amcPost5PlanIds.length >= 3;
+                          return (
+                            <div
+                              className={`quote-checkbox-row${!checked && atLimit ? " quote-checkbox-row--disabled" : ""}`}
+                              key={p.amc_id}
+                            >
+                              <input
+                                id={`aAmcPost5Plan-${p.amc_id}`}
+                                type="checkbox"
+                                disabled={locked || (!checked && atLimit)}
+                                checked={checked}
+                                onChange={(e) => {
+                                  setForm({
+                                    ...form,
+                                    amcPost5PlanIds: e.target.checked
+                                      ? [...form.amcPost5PlanIds, idStr]
+                                      : form.amcPost5PlanIds.filter((id) => id !== idStr),
+                                  });
+                                }}
+                              />
+                              <label htmlFor={`aAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p
+                        className={`quote-field-hint${
+                          form.amcPost5PlanIds.length >= 3 ? " quote-field-hint--warning" : ""
+                        }`}
+                      >
+                        {form.amcPost5PlanIds.length}/3 selected
+                        {form.amcPost5PlanIds.length >= 3 ? " — maximum reached" : ""} — these render as columns
+                        alongside the years 1-5 AMC on the agreement.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </AccordionSection>
+
+            <AccordionSection
+              id="equipment"
+              title="Equipment — make, model & warranty"
+              open={openSection === "equipment"}
+              onToggle={toggleSection}
+            >
+              {form.equipment.map((row, i) => (
+                <div key={row.label} style={{ marginBottom: i < form.equipment.length - 1 ? 14 : 0 }}>
+                  <p style={{ fontWeight: 600, marginBottom: 4 }}>{row.label}</p>
+                  <div className="quote-field-row quote-field-row--3">
+                    <div className="quote-field">
+                      <label htmlFor={`equipMake-${i}`}>Make</label>
+                      <input
+                        id={`equipMake-${i}`}
+                        type="text"
+                        disabled={locked}
+                        value={row.make}
+                        onChange={(e) => {
+                          const equipment = [...form.equipment];
+                          equipment[i] = { ...equipment[i], make: e.target.value };
+                          setForm({ ...form, equipment });
+                        }}
+                      />
+                    </div>
+                    <div className="quote-field">
+                      <label htmlFor={`equipModel-${i}`}>Model</label>
+                      <input
+                        id={`equipModel-${i}`}
+                        type="text"
+                        disabled={locked}
+                        value={row.model}
+                        onChange={(e) => {
+                          const equipment = [...form.equipment];
+                          equipment[i] = { ...equipment[i], model: e.target.value };
+                          setForm({ ...form, equipment });
+                        }}
+                      />
+                    </div>
+                    <div className="quote-field">
+                      <label htmlFor={`equipWarranty-${i}`}>Warranty (years)</label>
+                      <input
+                        id={`equipWarranty-${i}`}
+                        type="number"
+                        disabled={locked}
+                        value={row.warrantyYears}
+                        onChange={(e) => {
+                          const equipment = [...form.equipment];
+                          equipment[i] = { ...equipment[i], warrantyYears: e.target.value };
+                          setForm({ ...form, equipment });
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </AccordionSection>
+
+            <AccordionSection
+              id="details"
+              title="Agreement validity & notes"
+              open={openSection === "details"}
+              onToggle={toggleSection}
+            >
+              <div className="quote-field">
+                <label htmlFor="aValidityDays">Validity (days)</label>
+                <input
+                  id="aValidityDays"
+                  type="number"
+                  min={0}
+                  disabled={locked}
+                  value={form.validityDays}
+                  onChange={(e) => setForm({ ...form, validityDays: e.target.value })}
+                />
+              </div>
+
+              <div className="quote-field">
+                <label htmlFor="aNotes">Notes</label>
+                <textarea
+                  id="aNotes"
+                  rows={3}
+                  disabled={locked}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+            </AccordionSection>
+
+            <AccordionSection id="terms" title="Terms & conditions" open={openSection === "terms"} onToggle={toggleSection}>
+              <div className="quote-field">
+                {form.terms.length > 0 && (
+                  <ul className="quote-terms-list">
+                    {form.terms.map((term, i) => (
+                      <li key={i}>
+                        <span>{term}</span>
+                        {!locked && (
+                          <button type="button" className="quote-terms-remove" onClick={() => handleRemoveTerm(i)}>
+                            ×
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!locked && (
+                  <div className="quote-terms-add-row">
+                    <input
+                      id="aTermInput"
+                      type="text"
+                      placeholder="e.g. Ownership transfers on final payment"
+                      value={newTerm}
+                      onChange={(e) => setNewTerm(e.target.value)}
+                      onKeyDown={handleTermKeyDown}
+                    />
+                    <button type="button" className="quote-btn" onClick={handleAddTerm}>
+                      + Add
+                    </button>
+                  </div>
+                )}
+              </div>
+            </AccordionSection>
 
             {!locked && (
               <div className="quote-status-bar">
                 <button type="submit" className="quote-btn primary" disabled={saving}>
                   {saving ? "Saving…" : existingAgreement ? "Save changes" : "Generate agreement"}
                 </button>
+                {existingAgreement?.share_url && <CopyLinkButton url={existingAgreement.share_url} />}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
               </div>
             )}
@@ -639,23 +781,6 @@ export default function AgreementBuilderPage() {
               </p>
             )}
           </form>
-
-          {existingAgreement && (
-            <div className="quote-share-box" style={{ marginTop: 16 }}>
-              {sharing ? (
-                "Loading share link…"
-              ) : shareUrl ? (
-                <>
-                  <a className="quote-share-box-link" href={shareUrl} target="_blank" rel="noreferrer">
-                    {shareUrl}
-                  </a>
-                  <CopyLinkButton url={shareUrl} />
-                </>
-              ) : (
-                "Could not load share link."
-              )}
-            </div>
-          )}
 
           {existingAgreement?.pdf_key && (
             <div style={{ marginTop: 12 }}>
@@ -678,11 +803,16 @@ export default function AgreementBuilderPage() {
             <AgreementDocument
               agreementNumber={existingAgreement?.agreement_number ?? null}
               createdAt={existingAgreement?.created_at ?? null}
+              validityDays={form.validityDays ? Number(form.validityDays) : null}
+              notes={form.notes || null}
               quoteNumber={quote.quote_number}
               capacityKw={quote.capacity ?? 0}
-              panelMake={quote.panel_make}
-              inverterMake={quote.inverter_make}
-              components={quote.components ?? []}
+              equipment={form.equipment.map((row) => ({
+                label: row.label,
+                make: row.make.trim() || null,
+                model: row.model.trim() || null,
+                warrantyYears: row.warrantyYears ? Number(row.warrantyYears) : null,
+              }))}
               customerName={lead.name}
               customerAddress={lead.address}
               customerDiscom={getDiscomName(lead.discom)}
@@ -726,7 +856,7 @@ export default function AgreementBuilderPage() {
               paymentSchedule={acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
               terms={form.terms}
               branding={documentBranding}
-              shareUrl={shareUrl}
+              shareUrl={existingAgreement?.share_url ?? null}
               signature={{
                 signed: existingAgreement?.status === "ACCEPTED",
                 signerName: existingAgreement?.signer_name,

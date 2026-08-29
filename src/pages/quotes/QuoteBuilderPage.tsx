@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { useTour } from "../../lib/TourContext";
@@ -11,7 +11,6 @@ import {
   getQuote,
   createQuote,
   updateQuote,
-  shareQuote,
   type QuoteDetail,
   type QuoteComponentRow,
 } from "../../api/quotes";
@@ -22,6 +21,7 @@ import { getDiscomName } from "../leads/discomOptions";
 import LeadSiteImages from "../leads/LeadSiteImages";
 import { listLeadSiteImages, type LeadSiteImage } from "../../api/leadSiteImages";
 import CopyLinkButton from "../../components/CopyLinkButton";
+import AccordionSection from "../../components/AccordionSection";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import "./QuoteBuilderPage.css";
 
@@ -43,38 +43,8 @@ type SectionKey =
   | "components"
   | "siteImages";
 
-/** One collapsible accordion panel. Only one section is ever open across the
- * whole form (see `openSection` state in QuoteBuilderPage) — clicking an
- * already-open section's header collapses it, clicking a closed one opens it
- * and implicitly closes whichever section was previously open. */
-function AccordionSection({
-  id,
-  title,
-  open,
-  onToggle,
-  children,
-}: {
-  id: SectionKey;
-  title: string;
-  open: boolean;
-  onToggle: (id: SectionKey) => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`quote-accordion-section${open ? " open" : ""}`}>
-      <button
-        type="button"
-        className="quote-accordion-toggle"
-        aria-expanded={open}
-        onClick={() => onToggle(id)}
-      >
-        <span className="quote-section-label">{title}</span>
-        <span className="quote-accordion-icon" aria-hidden="true" />
-      </button>
-      {open && <div className="quote-accordion-body">{children}</div>}
-    </div>
-  );
-}
+// AccordionSection itself lives in src/components/AccordionSection.tsx --
+// shared with AgreementBuilderPage.tsx.
 
 // Placeholder row labels seeded by entity_preferences.py's DEFAULT_PREFERENCES —
 // treated as "not yet filled in" so brand-new quotes fall back to the generic
@@ -185,8 +155,6 @@ export default function QuoteBuilderPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
 
   // Nudge the "Entity Settings" nav link (see AppLayout.tsx/TourContext.tsx)
   // once we know the entity has zero AMC plans defined -- an admin building a
@@ -572,19 +540,6 @@ export default function QuoteBuilderPage() {
       setSaving(false);
     }
   }
-
-  // POST .../share is idempotent — it returns the same stable URL on every
-  // call once the quote's first share link exists — so we can fetch it
-  // eagerly as soon as a quote exists, instead of waiting for a button click.
-  useEffect(() => {
-    if (!leadId || !existingQuote) return;
-    setSharing(true);
-    setShareUrl(null);
-    shareQuote(entityId, Number(leadId), existingQuote.quote_id)
-      .then((res) => setShareUrl(res.share_url))
-      .catch((err) => setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not load share link" }))
-      .finally(() => setSharing(false));
-  }, [entityId, leadId, existingQuote?.quote_id]);
 
   if (loading) return <div className="quote-loading">Loading…</div>;
   if (loadError || !lead) {
@@ -1132,28 +1087,13 @@ export default function QuoteBuilderPage() {
                 <button type="submit" className="quote-btn primary" disabled={saving}>
                   {saving ? "Saving…" : existingQuote ? "Save changes" : "Generate quote"}
                 </button>
+                {existingQuote?.share_url && <CopyLinkButton url={existingQuote.share_url} />}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
               </div>
             )}
             {locked && <p className="quote-status-msg">This quote is {existingQuote?.status.toLowerCase()} and can no longer be edited.</p>}
           </form>
 
-          {existingQuote && (
-            <div className="quote-share-box" style={{ marginTop: 16 }}>
-              {sharing ? (
-                "Loading share link…"
-              ) : shareUrl ? (
-                <>
-                  <a className="quote-share-box-link" href={shareUrl} target="_blank" rel="noreferrer">
-                    {shareUrl}
-                  </a>
-                  <CopyLinkButton url={shareUrl} />
-                </>
-              ) : (
-                "Could not load share link."
-              )}
-            </div>
-          )}
         </div>
 
         <div className="quote-preview-panel">
@@ -1217,7 +1157,7 @@ export default function QuoteBuilderPage() {
               acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE
             }
             branding={documentBranding}
-            shareUrl={shareUrl}
+            shareUrl={existingQuote?.share_url ?? null}
             siteImages={
               siteImagesPreview ??
               siteImages

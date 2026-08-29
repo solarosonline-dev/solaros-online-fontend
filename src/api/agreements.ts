@@ -19,6 +19,17 @@ export type AgreementSettingsSnapshot = {
 
 export type AgreementStatus = "NEW" | "ACCEPTED" | "REJECTED";
 
+/** One row of the "Equipment — make, model & warranty" table. `label` is
+ * one of the fixed component names from EQUIPMENT_ROWS
+ * (agreementDocumentCopy.ts) -- admin-entered make/model/warranty per row,
+ * not derived from the linked quote. */
+export type AgreementEquipmentRow = {
+  label: string;
+  make: string | null;
+  model: string | null;
+  warranty_years: number | null;
+};
+
 export type AgreementListItem = {
   agreement_id: number;
   agreement_number: string;
@@ -34,6 +45,11 @@ export type AgreementDetail = {
   created_at: string;
   status: AgreementStatus;
   signed_at: string | null;
+  /** Days from `created_at` this agreement stays valid -- also the TTL used
+   * for the share link (see the backend's share_agreement). Null renders
+   * as 15 in the document (AgreementDocument's default). */
+  validity_days: number | null;
+  notes: string | null;
   terms: string[] | null;
   amc_id: number | null;
   amc_duration_years: number | null;
@@ -55,9 +71,16 @@ export type AgreementDetail = {
   /** Present (non-null) once the agreement is ACCEPTED -- see
    * AgreementSettingsSnapshot. */
   settings_snapshot: AgreementSettingsSnapshot | null;
+  equipment_details: AgreementEquipmentRow[] | null;
+  /** The public share link -- always created alongside the agreement (see
+   * the backend's create_agreement), so null here specifically means the
+   * link has expired, not "never shared". */
+  share_url: string | null;
 };
 
 export type AgreementInput = {
+  validity_days?: number;
+  notes?: string;
   terms?: string[];
   amc_id?: number;
   amc_duration_years?: number;
@@ -65,6 +88,7 @@ export type AgreementInput = {
   amc_plan_ids?: number[];
   amc_post5_enabled?: boolean;
   amc_post5_plan_ids?: number[];
+  equipment_details?: AgreementEquipmentRow[];
   /** Only meaningful on create — see createAgreement. Never sent on update. */
   generation_duration_ms?: number;
 };
@@ -95,11 +119,6 @@ export function updateAgreement(entityId: number, leadId: number, agreementId: n
   });
 }
 
-export function shareAgreement(entityId: number, leadId: number, agreementId: number) {
-  return apiRequest<{ share_url: string }>(`/entities/${entityId}/leads/${leadId}/agreements/${agreementId}/share`, {
-    method: "POST",
-  });
-}
 
 /** A short-lived presigned URL for viewing/downloading the signed PDF
  * snapshot — 404s (via ApiError) until one has been uploaded. */

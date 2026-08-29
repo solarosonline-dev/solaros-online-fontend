@@ -40,21 +40,17 @@ export const AGREEMENT_ACKNOWLEDGEMENT =
 
 export type EquipmentRow = {
   label: string;
-  /** Keywords used to find a matching quote component row for warranty
-   * lookup — mirrors QuoteDocument's findWarrantyYears pattern. */
-  keywords: string[];
 };
 
-/** The 6 fixed equipment slots shown in the agreement's equipment table.
- * Make/model data isn't captured anywhere yet — Panels/Inverter make comes
- * from the linked quote's panel_make/inverter_make, everything else (model,
- * and make for the remaining 4 rows) renders as an on-paper placeholder
- * until that data has a real home. */
+/** The 6 fixed component names shown in the agreement's "Equipment — make,
+ * model & warranty" table -- only the label is fixed here, make/model/
+ * warranty are admin-entered per agreement (AgreementBuilderPage.tsx's
+ * "Equipment" accordion section, stored as Agreement.equipment_details). */
 export const EQUIPMENT_ROWS: EquipmentRow[] = [
-  { label: "Solar Panels", keywords: ["panel"] },
-  { label: "Inverter", keywords: ["inverter"] },
-  { label: "DC & AC Cabling", keywords: ["cabl"] },
-  { label: "ACDB", keywords: ["acdb"] },
-  { label: "DCDB", keywords: ["dcdb"] },
-  { label: "Surge Protection (SPD)", keywords: ["surge", "spd"] },
+  { label: "Solar Panels" },
+  { label: "Inverter" },
+  { label: "DC & AC Cabling" },
+  { label: "ACDB" },
+  { label: "DCDB" },
+  { label: "Surge Protection (SPD)" },
 ];

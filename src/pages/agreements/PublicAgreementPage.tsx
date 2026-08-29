@@ -14,6 +14,7 @@ import AgreementDocument from "./AgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import SignaturePad, { type SignaturePadHandle } from "../../components/SignaturePad";
 import { getDiscomName } from "../leads/discomOptions";
+import { EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import "../quotes/PublicQuotePage.css";
 
 export default function PublicAgreementPage() {
@@ -111,6 +112,20 @@ export default function PublicAgreementPage() {
   const { agreement, quote, lead, entity_name, amc, amc_plans, amc_post5_plans } = data;
   const signed = agreement.status === "ACCEPTED";
 
+  // Merge saved equipment rows onto the fixed EQUIPMENT_ROWS shape by label
+  // -- same reasoning as AgreementBuilderPage's equipmentFormFromSaved, but
+  // read-only here (this page has no form to edit it).
+  const equipmentByLabel = new Map((agreement.equipment_details ?? []).map((r) => [r.label, r]));
+  const equipment = EQUIPMENT_ROWS.map((row) => {
+    const saved = equipmentByLabel.get(row.label);
+    return {
+      label: row.label,
+      make: saved?.make ?? null,
+      model: saved?.model ?? null,
+      warrantyYears: saved?.warranty_years ?? null,
+    };
+  });
+
   const computed = quote
     ? computeQuote({
         capacityKw: quote.capacity ?? 0,
@@ -186,11 +201,11 @@ export default function PublicAgreementPage() {
           <AgreementDocument
             agreementNumber={agreement.agreement_number}
             createdAt={agreement.created_at}
+            validityDays={agreement.validity_days}
+            notes={agreement.notes}
             quoteNumber={quote.quote_number}
             capacityKw={quote.capacity ?? 0}
-            panelMake={quote.panel_make}
-            inverterMake={quote.inverter_make}
-            components={quote.components ?? []}
+            equipment={equipment}
             customerName={lead.name}
             customerAddress={lead.address}
             customerDiscom={getDiscomName(lead.discom)}

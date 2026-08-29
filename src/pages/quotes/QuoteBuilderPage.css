@@ -152,11 +152,6 @@
     width: 100%;
   }
 
-  .quote-share-box {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .quote-preview-metrics {
     grid-template-columns: 1fr;
   }
@@ -560,28 +555,6 @@
   font-weight: 600;
   background: var(--app-bg);
   color: var(--app-text-muted);
-}
-
-.quote-share-box {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--app-bg);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.quote-share-box-link {
-  flex: 1;
-  word-break: break-all;
-}
-
-.quote-share-box .quote-btn {
-  flex-shrink: 0;
-  padding: 4px 12px;
-  font-size: 12px;
 }
 
 .quote-loading {

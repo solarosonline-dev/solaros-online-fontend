@@ -71,6 +71,10 @@ export type QuoteDetail = {
   /** Present (non-null) once the quote is ACCEPTED -- see
    * QuoteSettingsSnapshot. */
   settings_snapshot: QuoteSettingsSnapshot | null;
+  /** The public share link -- always created alongside the quote (see the
+   * backend's create_quote), so null here specifically means the link has
+   * expired, not "never shared". */
+  share_url: string | null;
 };
 
 export type QuoteInput = {
@@ -127,11 +131,6 @@ export function updateQuote(entityId: number, leadId: number, quoteId: number, d
   });
 }
 
-export function shareQuote(entityId: number, leadId: number, quoteId: number) {
-  return apiRequest<{ share_url: string }>(`/entities/${entityId}/leads/${leadId}/quotes/${quoteId}/share`, {
-    method: "POST",
-  });
-}
 
 export type PublicQuoteResponse = {
   quote: QuoteDetail;
