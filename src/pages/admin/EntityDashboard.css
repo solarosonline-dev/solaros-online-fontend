@@ -1,0 +1,361 @@
+/* Entity-admin dashboard — business-friendly redesign of EntityDashboardPage.tsx.
+   Deliberately separate from AdminMetrics.css (shared with the system-admin
+   dashboard, which keeps its denser, technical layout). Uses the app's own
+   design tokens (src/styles/tokens.css) that AdminMetrics.css defines but
+   never applies — shadow, accent color, radius — so this reads as a richer
+   evolution of the existing look, not a foreign style. */
+
+.entity-dashboard-page h1 {
+  margin: 0 0 4px;
+}
+
+.entity-dashboard-subtitle {
+  color: var(--app-text-muted);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.entity-dashboard-loading {
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+/* --- Hero KPI strip -------------------------------------------------- */
+
+.entity-hero-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.entity-hero-metric {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  padding: 18px 20px;
+  border-top: 3px solid var(--app-accent);
+}
+
+.entity-hero-metric-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.entity-hero-metric-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 6px;
+}
+
+.entity-hero-metric-secondary {
+  font-size: 12px;
+  color: var(--app-accent);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* --- Funnel grid: same clockwise 2x2 shape as AdminMetrics.css's funnel,
+     forked so per-stage accent colors and arrow badges don't bleed into
+     the system-admin dashboard. --------------------------------------- */
+
+.entity-funnel-grid {
+  display: grid;
+  grid-template-columns: 3fr 44px 7fr;
+  grid-template-rows: auto 44px auto;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 28px;
+}
+
+.entity-funnel-stage {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  padding: 18px;
+  align-self: stretch;
+  border-top: 3px solid var(--stage-accent, var(--app-accent));
+}
+
+.entity-funnel-stage h2 {
+  font-size: 15px;
+  margin: 0 0 14px;
+  color: var(--app-text);
+}
+
+.entity-funnel-stage-lead {
+  --stage-accent: #2563eb;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.entity-funnel-stage-quote {
+  --stage-accent: #d97706;
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.entity-funnel-stage-agreement {
+  --stage-accent: #7c3aed;
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.entity-funnel-stage-project {
+  --stage-accent: #16a34a;
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.entity-funnel-stage-workorder {
+  --stage-accent: #0d9488;
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin-top: 14px;
+}
+
+.entity-funnel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.entity-funnel-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.entity-funnel-arrow-glyph {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+}
+
+.entity-funnel-arrow-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-accent);
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.entity-funnel-arrow-lead-quote {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.entity-funnel-arrow-quote-agreement {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.entity-funnel-arrow-agreement-project {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+/* --- Hero + secondary tiles within a stage --------------------------- */
+
+.entity-metric-tile-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.entity-metric-tile {
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 10px 12px;
+}
+
+.entity-metric-tile-value {
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+}
+
+.entity-metric-tile-label {
+  font-size: 11px;
+  color: var(--app-text-muted);
+  margin-top: 3px;
+}
+
+.entity-metric-tile-sublabel {
+  font-size: 10px;
+  color: var(--app-text-muted);
+  margin-top: 1px;
+}
+
+/* --- Quote status donut ----------------------------------------------- */
+
+.entity-quote-donut {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.entity-quote-donut-chart {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+.entity-quote-donut-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.entity-quote-donut-center-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--app-text);
+}
+
+.entity-quote-donut-center-label {
+  font-size: 9px;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+}
+
+.entity-quote-donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--app-text);
+}
+
+.entity-quote-donut-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entity-quote-donut-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.entity-quote-donut-legend-value {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Segment breakdown bar --------------------------------------------- */
+
+.entity-segment-bar-track {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--app-bg);
+}
+
+.entity-segment-bar-fill {
+  height: 100%;
+}
+
+.entity-segment-bar-legend {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 12px;
+  color: var(--app-text);
+}
+
+.entity-segment-bar-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entity-segment-bar-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.entity-segment-bar-legend-value {
+  color: var(--app-text-muted);
+}
+
+.entity-chart-empty {
+  font-size: 12px;
+  color: var(--app-text-muted);
+  padding: 8px 0;
+}
+
+/* --- Responsive: same collapse-to-single-column pattern as the shared
+     admin funnel (AdminMetrics.css:161-193). ---------------------------- */
+
+@media (max-width: 720px) {
+  .entity-funnel-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .entity-funnel-stage-lead,
+  .entity-funnel-stage-quote,
+  .entity-funnel-stage-agreement,
+  .entity-funnel-stage-project,
+  .entity-funnel-stage-workorder {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .entity-funnel-arrow-lead-quote,
+  .entity-funnel-arrow-quote-agreement,
+  .entity-funnel-arrow-agreement-project {
+    grid-column: 1;
+    grid-row: auto;
+    padding: 4px 0;
+  }
+
+  .entity-funnel-arrow-lead-quote .entity-funnel-arrow-glyph {
+    transform: rotate(90deg);
+    display: inline-block;
+  }
+
+  .entity-funnel-arrow-agreement-project .entity-funnel-arrow-glyph {
+    transform: rotate(-90deg);
+    display: inline-block;
+  }
+
+  .entity-quote-donut {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

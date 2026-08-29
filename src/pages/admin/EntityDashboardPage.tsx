@@ -1,18 +1,34 @@
 import { useEffect, useState } from "react";
 import { getMyEntityMetrics, type AdminEntityMetrics } from "../../api/adminMetrics";
+import { getEntity } from "../../api/entity";
+import { useAuth } from "../../lib/AuthContext";
 import { ApiError } from "../../api/client";
-import { formatCount, formatDays, formatKw, formatMs, formatPercent } from "./adminMetricsFormat";
-import { FunnelGrid, FunnelStage, FunnelArrow, Tile } from "./FunnelGrid";
-import { formatINRShort } from "../../lib/quoteDocumentCopy";
-import "./AdminMetrics.css";
+import { formatCount, formatDays, formatKw, formatPercent } from "./adminMetricsFormat";
+import { formatMoneyShort } from "../../lib/money";
+import { EntityFunnelGrid, EntityFunnelStage, EntityFunnelArrow } from "./EntityFunnelGrid";
+import { HeroMetric, MetricTile } from "./EntityMetricCard";
+import { QuoteStatusDonut, SegmentBreakdownBar } from "./EntityDashboardCharts";
+import "./EntityDashboard.css";
 
-// Self-service dashboard for entity-scoped admins (ENTITY_ADMIN /
-// ENTITY_SUPER_ADMIN) — the same funnel layout as the system admin's
-// dashboard, but scoped to the caller's own EPC and with no per-EPC
-// breakdown section, comparative charts, or top-5 tables, since there's
-// only ever one entity's worth of data to show here.
+// Business-friendly dashboard for entity-scoped admins (ENTITY_ADMIN /
+// ENTITY_SUPER_ADMIN). Forked from the system-admin dashboard's funnel
+// layout, but re-presented for an EPC owner rather than SolarOS's own ops
+// team: no processing-latency percentiles (p50/p95), a hero KPI strip up
+// top, derived conversion-rate badges on the funnel arrows, and small
+// charts instead of flat count tiles for anything compositional (quote
+// status, customer segment mix).
+
+// Division helper for client-side derived rates — guards against 0/0 and
+// n/0 instead of surfacing NaN/Infinity in the UI.
+function safeRate(numerator: number, denominator: number): number | null {
+  if (!denominator) return null;
+  return numerator / denominator;
+}
+
 export default function EntityDashboardPage() {
+  const { user } = useAuth();
   const [metrics, setMetrics] = useState<AdminEntityMetrics | null>(null);
+  const [currency, setCurrency] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -20,9 +36,12 @@ export default function EntityDashboardPage() {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    getMyEntityMetrics()
-      .then((res) => {
-        if (!cancelled) setMetrics(res);
+    const entityId = user?.entity_id;
+    Promise.all([getMyEntityMetrics(), entityId != null ? getEntity(entityId) : Promise.resolve(null)])
+      .then(([metricsRes, entityRes]) => {
+        if (cancelled) return;
+        setMetrics(metricsRes);
+        setCurrency(entityRes?.currency);
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err instanceof ApiError ? err.message : "Failed to load dashboard metrics");
@@ -33,78 +52,91 @@ export default function EntityDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.entity_id]);
 
-  if (loading) return <div className="admin-metrics-loading">Loading…</div>;
-  if (loadError || !metrics) return <div className="admin-metrics-loading">{loadError ?? "No data"}</div>;
+  if (loading) return <div className="entity-dashboard-loading">Loading…</div>;
+  if (loadError || !metrics) return <div className="entity-dashboard-loading">{loadError ?? "No data"}</div>;
+
+  const { leads, quotes, agreements, projects, workorders } = metrics;
+
+  const leadToQuote = safeRate(quotes.quotes_count, leads.leads_count);
+  const quoteToAgreement = safeRate(agreements.agreements_count, quotes.quotes_accepted_count);
+  const agreementToProject = safeRate(projects.projects_started_count, agreements.agreements_signed_count);
+  const leadToProject = safeRate(projects.projects_started_count, leads.leads_count);
+  const signingRate = safeRate(agreements.agreements_signed_count, agreements.agreements_count);
+  const workorderCompletionRate = safeRate(workorders.workorders_completed_count, workorders.workorders_generated_count);
 
   return (
-    <div className="admin-dashboard-page">
+    <div className="entity-dashboard-page">
       <h1>{metrics.entity_name}</h1>
-      <p className="admin-metrics-page-subtitle">Your leads, quotes, agreements, projects, and work orders.</p>
+      <p className="entity-dashboard-subtitle">Your leads, quotes, agreements, projects, and work orders — at a glance.</p>
 
-      <FunnelGrid>
-        <FunnelStage title="Leads" area="lead">
-          <Tile label="Leads generated" value={formatCount(metrics.leads.leads_count)} />
-          <Tile label="Entry time p50" value={formatMs(metrics.leads.lead_entry_p50_ms)} />
-          <Tile label="Entry time p95" value={formatMs(metrics.leads.lead_entry_p95_ms)} />
-        </FunnelStage>
+      <div className="entity-hero-strip">
+        <HeroMetric label="Active projects" value={formatCount(projects.projects_active_count)} />
+        <HeroMetric label="Pipeline value" value={formatMoneyShort(quotes.quotes_total_amount, currency)} />
+        <HeroMetric label="Capacity quoted" value={formatKw(quotes.total_capacity_kw)} />
+        <HeroMetric label="Lead → project conversion" value={formatPercent(leadToProject)} />
+      </div>
 
-        <FunnelArrow direction="right" area="lead-quote" />
+      <EntityFunnelGrid>
+        <EntityFunnelStage title="Leads" area="lead">
+          <HeroMetric label="Leads generated" value={formatCount(leads.leads_count)} />
+        </EntityFunnelStage>
 
-        <FunnelStage title="Quotes" area="quote">
-          <Tile label="Generated" value={formatCount(metrics.quotes.quotes_count)} />
-          <Tile label="Accepted" value={formatCount(metrics.quotes.quotes_accepted_count)} />
-          <Tile label="Dropped" value={formatCount(metrics.quotes.quotes_rejected_count)} />
-          <Tile label="In progress" value={formatCount(metrics.quotes.quotes_in_progress_count)} />
-          <Tile label="Acceptance" value={formatPercent(metrics.quotes.quote_acceptance_rate)} />
-          <Tile label="Gen. p50" value={formatMs(metrics.quotes.quote_generation_p50_ms)} />
-          <Tile label="Gen. p95" value={formatMs(metrics.quotes.quote_generation_p95_ms)} />
-          <Tile label="Total amount" value={formatINRShort(metrics.quotes.quotes_total_amount)} />
-          <Tile label="Total kW" value={formatKw(metrics.quotes.total_capacity_kw)} />
-          <Tile label="Accepted kW" value={formatKw(metrics.quotes.accepted_capacity_kw)} />
-          <Tile
-            label="Residential"
-            value={formatCount(metrics.quotes.residential.count)}
-            sublabel={`avg ${formatKw(metrics.quotes.residential.avg_capacity_kw ?? 0)}`}
+        <EntityFunnelArrow direction="right" area="lead-quote" conversion={formatPercent(leadToQuote)} />
+
+        <EntityFunnelStage title="Quotes" area="quote">
+          <HeroMetric
+            label="Accepted"
+            value={formatCount(quotes.quotes_accepted_count)}
+            secondary={`${formatPercent(quotes.quote_acceptance_rate)} acceptance rate`}
           />
-          <Tile
-            label="Commercial"
-            value={formatCount(metrics.quotes.commercial.count)}
-            sublabel={`avg ${formatKw(metrics.quotes.commercial.avg_capacity_kw ?? 0)}`}
+          <QuoteStatusDonut quotes={quotes} />
+          <div className="entity-metric-tile-row">
+            <MetricTile label="Total amount" value={formatMoneyShort(quotes.quotes_total_amount, currency)} />
+            <MetricTile label="Total kW" value={formatKw(quotes.total_capacity_kw)} />
+            <MetricTile label="Accepted kW" value={formatKw(quotes.accepted_capacity_kw)} />
+          </div>
+          <SegmentBreakdownBar quotes={quotes} />
+        </EntityFunnelStage>
+
+        <EntityFunnelArrow direction="down" area="quote-agreement" conversion={formatPercent(quoteToAgreement)} />
+
+        <EntityFunnelStage title="Agreements" area="agreement">
+          <HeroMetric
+            label="Signed"
+            value={formatCount(agreements.agreements_signed_count)}
+            secondary={`${formatPercent(signingRate)} signing rate`}
           />
-          <Tile
-            label="Industrial"
-            value={formatCount(metrics.quotes.industrial.count)}
-            sublabel={`avg ${formatKw(metrics.quotes.industrial.avg_capacity_kw ?? 0)}`}
+          <div className="entity-metric-tile-row">
+            <MetricTile label="Generated" value={formatCount(agreements.agreements_count)} />
+          </div>
+        </EntityFunnelStage>
+
+        <EntityFunnelArrow direction="left" area="agreement-project" conversion={formatPercent(agreementToProject)} />
+
+        <EntityFunnelStage title="Projects" area="project">
+          <HeroMetric label="Completed" value={formatCount(projects.projects_completed_count)} />
+          <div className="entity-metric-tile-row">
+            <MetricTile label="Started" value={formatCount(projects.projects_started_count)} />
+            <MetricTile label="Active" value={formatCount(projects.projects_active_count)} />
+            <MetricTile label="Avg. completion" value={formatDays(projects.avg_project_completion_days)} />
+            <MetricTile label="Total kW" value={formatKw(projects.total_capacity_kw)} />
+            <MetricTile label="Completed kW" value={formatKw(projects.completed_capacity_kw)} />
+          </div>
+        </EntityFunnelStage>
+
+        <EntityFunnelStage title="Work orders" area="workorder">
+          <HeroMetric
+            label="Completed"
+            value={formatCount(workorders.workorders_completed_count)}
+            secondary={`${formatPercent(workorderCompletionRate)} completion rate`}
           />
-        </FunnelStage>
-
-        <FunnelArrow direction="down" area="quote-agreement" />
-
-        <FunnelStage title="Agreements" area="agreement">
-          <Tile label="Generated" value={formatCount(metrics.agreements.agreements_count)} />
-          <Tile label="Signed" value={formatCount(metrics.agreements.agreements_signed_count)} />
-          <Tile label="Gen. p50" value={formatMs(metrics.agreements.agreement_generation_p50_ms)} />
-          <Tile label="Gen. p95" value={formatMs(metrics.agreements.agreement_generation_p95_ms)} />
-        </FunnelStage>
-
-        <FunnelArrow direction="left" area="agreement-project" />
-
-        <FunnelStage title="Projects" area="project">
-          <Tile label="Started" value={formatCount(metrics.projects.projects_started_count)} />
-          <Tile label="Active" value={formatCount(metrics.projects.projects_active_count)} />
-          <Tile label="Completed" value={formatCount(metrics.projects.projects_completed_count)} />
-          <Tile label="Avg. completion" value={formatDays(metrics.projects.avg_project_completion_days)} />
-          <Tile label="Total kW" value={formatKw(metrics.projects.total_capacity_kw)} />
-          <Tile label="Completed kW" value={formatKw(metrics.projects.completed_capacity_kw)} />
-        </FunnelStage>
-
-        <FunnelStage title="Work orders" area="workorder">
-          <Tile label="Generated" value={formatCount(metrics.workorders.workorders_generated_count)} />
-          <Tile label="Completed" value={formatCount(metrics.workorders.workorders_completed_count)} />
-        </FunnelStage>
-      </FunnelGrid>
+          <div className="entity-metric-tile-row">
+            <MetricTile label="Generated" value={formatCount(workorders.workorders_generated_count)} />
+          </div>
+        </EntityFunnelStage>
+      </EntityFunnelGrid>
     </div>
   );
 }
