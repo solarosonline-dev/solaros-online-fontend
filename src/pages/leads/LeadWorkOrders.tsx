@@ -49,17 +49,19 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
     <div className="lead-detail-panel">
       <p className="projects-section-label">Site survey</p>
 
-      <div className="work-orders-new-panel">
-        <input
-          type="text"
-          placeholder="Notes (optional)"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-        <button className="leads-btn primary" disabled={creating || alreadyOpen} onClick={handleCreate}>
-          {creating ? "Creating…" : alreadyOpen ? "Already open" : "+ Create site survey"}
-        </button>
-      </div>
+      {!alreadyOpen && (
+        <div className="work-orders-new-panel">
+          <input
+            type="text"
+            placeholder="Notes (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+          <button className="leads-btn primary" disabled={creating} onClick={handleCreate}>
+            {creating ? "Creating…" : "+ Create site survey"}
+          </button>
+        </div>
+      )}
       {createError && <p className="leads-status error">{createError}</p>}
 
       <div className="leads-table-wrap">
@@ -70,7 +72,7 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
         ) : items.length === 0 ? (
           <div className="projects-empty">No site surveys created for this lead yet.</div>
         ) : (
-          <table className="leads-table">
+          <table className="leads-table leads-table-clickable">
             <thead>
               <tr>
                 <th>Type</th>
@@ -89,7 +91,20 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
                       {wo.status}
                     </span>
                   </td>
-                  <td data-label="Assignee">{wo.assignee ? wo.assignee.name : "Unassigned"}</td>
+                  <td data-label="Assignee">
+                    {wo.assignee ? (
+                      <>
+                        <div>{wo.assignee.name}</div>
+                        {(wo.assignee.email || wo.assignee.phone) && (
+                          <div className="work-order-assignee-contact">
+                            {[wo.assignee.email, wo.assignee.phone].filter(Boolean).join(" · ")}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      "Unassigned"
+                    )}
+                  </td>
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}

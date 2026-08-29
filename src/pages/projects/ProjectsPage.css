@@ -222,9 +222,30 @@
   max-width: 640px;
 }
 
-.project-detail-row {
+/* Work order documents sit alongside the detail panel/assign section on
+   wide screens instead of scrolled below them -- .project-detail-main
+   takes the panel's own 640px cap (no flex-grow, so it doesn't grow past
+   that and leave a gap before the side column), .project-detail-side gets
+   the remaining space. */
+.project-detail-layout {
   display: flex;
-  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.project-detail-main {
+  flex: 0 1 640px;
+  min-width: 0;
+}
+
+.project-detail-side {
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+
+.project-detail-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
   gap: 16px;
   padding: 10px 0;
   border-bottom: 1px solid var(--app-border);
@@ -237,13 +258,13 @@
 
 .project-detail-row span:first-child {
   color: var(--app-text-muted);
-  flex-shrink: 0;
 }
 
 .project-detail-row span:last-child {
   min-width: 0;
-  text-align: right;
+  text-align: left;
   overflow-wrap: break-word;
+  line-height: 1.5;
 }
 
 .work-order-assignee-contact {
@@ -443,6 +464,79 @@
   width: 100%;
 }
 
+.work-order-documents-heading {
+  font-size: 16px;
+}
+
+.work-order-documents-hint {
+  margin-bottom: 16px;
+}
+
+/* The whole row opens the file picker (a <label> wrapping the actual,
+   visually-hidden <input type="file">), not just the browser's own tiny
+   "Choose File" button text -- cursor:pointer has to be explicit since a
+   <label> doesn't get one by default. */
+.work-order-upload-row {
+  cursor: pointer;
+}
+
+.work-order-upload-row:hover:not(.disabled) {
+  background: var(--app-bg);
+}
+
+.work-order-upload-row.disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.work-order-upload-error {
+  margin: 12px 0 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A card list, not a data table -- .project-detail-side is narrow (as low
+   as 280px), and a File/Size/Uploaded by/Uploaded/actions table forces the
+   filename column down to a sliver that wraps every filename across
+   several lines. Each document gets its own bordered card instead, same
+   visual language as .project-detail-panel, with the filename given the
+   full card width to wrap naturally. */
+.work-order-documents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.work-order-document-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 14px 16px;
+}
+
+.work-order-document-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: break-word;
+  margin-bottom: 4px;
+}
+
+.work-order-document-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 /* The single work-order type creatable at the project's current phase --
    e.g. "Site survey" while NEW -- shown in place of the old type dropdown
    in .work-orders-new-panel now that only one type is ever offered. */
@@ -450,6 +544,16 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--app-text);
+}
+
+@media (max-width: 900px) {
+  .project-detail-layout {
+    flex-direction: column;
+  }
+
+  .project-detail-side {
+    width: 100%;
+  }
 }
 
 /* Tap-target sizing for buttons, action links, and icon-sized controls
@@ -574,13 +678,8 @@
   }
 
   .project-detail-row {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
     gap: 4px;
-  }
-
-  .project-detail-row span:last-child {
-    text-align: left;
   }
 
   .project-detail-stepper {
@@ -635,6 +734,16 @@
     content: attr(data-label);
     font-weight: 600;
     color: var(--app-text-muted);
+  }
+
+  /* A long-text cell (address, in practice) doesn't fit the label/value
+     side-by-side row above -- the value gets squeezed into a narrow
+     right-hand column and wraps awkwardly. Stack label above value
+     instead, value at full card width, same fix as .project-detail-row. */
+  .projects-table td[data-label="Address"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 
   /* Action cells have no data-label (nothing to show but the buttons), so

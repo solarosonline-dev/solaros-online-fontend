@@ -39,6 +39,13 @@
   background: var(--app-bg);
 }
 
+/* LeadsPage's own rows aren't clickable (row actions moved to explicit
+   buttons) -- only opt a table into the pointer cursor when its rows
+   actually navigate somewhere, e.g. LeadWorkOrders.tsx's site survey list. */
+.leads-table-clickable tbody tr {
+  cursor: pointer;
+}
+
 .leads-table-wrap {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
@@ -176,6 +183,16 @@
 .lead-funnel-tab--rejected.active {
   border-color: var(--app-danger);
   color: var(--app-danger);
+}
+
+@media (max-width: 900px) {
+  .lead-detail-layout {
+    flex-direction: column;
+  }
+
+  .lead-detail-side {
+    width: 100%;
+  }
 }
 
 @media (max-width: 860px) {
@@ -532,4 +549,31 @@
   border-radius: var(--app-radius);
   padding: 24px;
   max-width: 640px;
+}
+
+/* Site survey work orders sit alongside the lead form on wide screens
+   instead of scrolled below it -- .lead-detail-main takes the form's own
+   640px cap, .lead-detail-side gets the remaining space (floored so it
+   doesn't get squeezed to nothing on medium widths). */
+.lead-detail-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.lead-detail-main {
+  /* No flex-grow -- .lead-detail-panel inside caps at 640px, so growing
+     the flex item past that would leave visible empty space before the
+     side column starts. */
+  flex: 0 1 640px;
+  min-width: 0;
+}
+
+.lead-detail-side {
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+
+.lead-detail-side .lead-detail-panel {
+  max-width: none;
 }

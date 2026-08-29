@@ -187,6 +187,10 @@ export default function ProjectDetailPage() {
               <span>{project.customer_email || "—"}</span>
             </div>
             <div className="project-detail-row">
+              <span>Address</span>
+              <span>{project.customer_address || "—"}</span>
+            </div>
+            <div className="project-detail-row">
               <span>Created</span>
               <span>{new Date(project.created_at).toLocaleString()}</span>
             </div>

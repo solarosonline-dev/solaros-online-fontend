@@ -200,6 +200,8 @@ export default function WorkOrderDetailPage() {
         </div>
       </div>
 
+      <div className="project-detail-layout">
+      <div className="project-detail-main">
       <div className="project-detail-panel">
         <div className="project-detail-row">
           <span>Work order ID</span>
@@ -306,8 +308,12 @@ export default function WorkOrderDetailPage() {
       )}
 
       {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
+      </div>
 
-      <WorkOrderDocuments entityId={entityId} workOrderId={Number(workOrderId)} />
+      <div className="project-detail-side">
+        <WorkOrderDocuments entityId={entityId} workOrderId={Number(workOrderId)} />
+      </div>
+      </div>
     </div>
   );
 }

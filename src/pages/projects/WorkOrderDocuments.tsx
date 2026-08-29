@@ -30,6 +30,7 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
@@ -49,25 +50,51 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
   const atLimit = documents.length >= MAX_WORK_ORDER_DOCUMENTS;
 
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file after an error
-    if (!file) return;
+    const selected = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow re-selecting the same file(s) after an error
+    if (selected.length === 0) return;
 
     setUploadError(null);
-    if (file.size > MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES) {
-      setUploadError(`File must be ${MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES / (1024 * 1024)} MB or smaller.`);
-      return;
+
+    // Only take as many as there's room for -- the rest are reported as
+    // skipped rather than attempted and rejected one by one by the backend's
+    // own count check.
+    const remainingSlots = MAX_WORK_ORDER_DOCUMENTS - documents.length;
+    const toUpload = selected.slice(0, remainingSlots);
+    const skippedForLimit = selected.length - toUpload.length;
+
+    const tooLarge = toUpload.filter((f) => f.size > MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES);
+    const withinLimit = toUpload.filter((f) => f.size <= MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES);
+
+    const errors: string[] = [];
+    if (tooLarge.length > 0) {
+      errors.push(
+        `${tooLarge.map((f) => f.name).join(", ")} — must be ${MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES / (1024 * 1024)} MB or smaller.`,
+      );
+    }
+    if (skippedForLimit > 0) {
+      errors.push(`${skippedForLimit} file(s) skipped — only ${remainingSlots} slot(s) left.`);
     }
 
-    setUploading(true);
-    try {
-      const doc = await uploadWorkOrderDocument(entityId, workOrderId, file);
-      setDocuments((prev) => [doc, ...prev]);
-    } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : "Could not upload document");
-    } finally {
+    if (withinLimit.length > 0) {
+      setUploading(true);
+      // Sequential, not parallel -- the backend re-checks the "max N per
+      // work order" count on every request, so uploading concurrently could
+      // race past the limit rather than stopping cleanly at it.
+      for (let i = 0; i < withinLimit.length; i++) {
+        setUploadProgress({ done: i, total: withinLimit.length });
+        try {
+          const doc = await uploadWorkOrderDocument(entityId, workOrderId, withinLimit[i]);
+          setDocuments((prev) => [doc, ...prev]);
+        } catch (err) {
+          errors.push(`${withinLimit[i].name} — ${err instanceof ApiError ? err.message : "could not upload"}.`);
+        }
+      }
+      setUploadProgress(null);
       setUploading(false);
     }
+
+    if (errors.length > 0) setUploadError(errors.join(" "));
   }
 
   async function handleView(document: WorkOrderDocument) {
@@ -97,76 +124,75 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
 
   return (
     <>
-      <p className="projects-section-label">
+      <p className="projects-section-label work-order-documents-heading">
         Documents <span className="work-order-type-hint">({documents.length}/{MAX_WORK_ORDER_DOCUMENTS})</span>
       </p>
+      <p className="work-order-type-hint work-order-documents-hint">
+        PDF, JPG, PNG, WEBP, XLS, or XLSX — up to {MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES / (1024 * 1024)} MB each,{" "}
+        {MAX_WORK_ORDER_DOCUMENTS} per work order.
+      </p>
 
-      <div className="work-orders-new-panel">
+      <label
+        className={`work-orders-new-panel work-order-upload-row${uploading || atLimit ? " disabled" : ""}`}
+      >
         <input
           ref={fileInputRef}
           type="file"
           accept={ACCEPTED_EXTENSIONS}
+          multiple
           disabled={uploading || atLimit}
           onChange={handleFileSelected}
+          className="visually-hidden"
         />
-        {uploading && <span className="work-order-type-hint">Uploading…</span>}
-        {atLimit && !uploading && (
-          <span className="work-order-type-hint">Limit reached — delete one to add another.</span>
-        )}
-        {uploadError && (
-          <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
-            {uploadError}
-          </span>
-        )}
-      </div>
+        <span>
+          {uploading
+            ? `Uploading ${uploadProgress ? uploadProgress.done + 1 : 1} of ${uploadProgress?.total ?? 1}…`
+            : atLimit
+              ? "Limit reached — delete one to add another."
+              : "Choose files to upload"}
+        </span>
+      </label>
+      {uploadError && (
+        <p className="work-order-type-hint work-order-upload-error" style={{ color: "var(--app-danger)" }}>
+          {uploadError}
+        </p>
+      )}
 
-      <div className="projects-table-wrap">
-        {loading ? (
-          <div className="projects-loading">Loading…</div>
-        ) : loadError ? (
-          <div className="projects-loading">{loadError}</div>
-        ) : documents.length === 0 ? (
-          <div className="projects-empty">No documents yet.</div>
-        ) : (
-          <table className="projects-table">
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Size</th>
-                <th>Uploaded by</th>
-                <th>Uploaded</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((doc) => (
-                <tr key={doc.document_id}>
-                  <td data-label="File">{doc.file_name}</td>
-                  <td data-label="Size">{formatSize(doc.size_bytes)}</td>
-                  <td data-label="Uploaded by">{doc.uploaded_by_name}</td>
-                  <td data-label="Uploaded">{new Date(doc.created_at).toLocaleDateString()}</td>
-                  <td className="projects-table-action-cell">
-                    <button
-                      className="projects-btn"
-                      disabled={openingId === doc.document_id}
-                      onClick={() => handleView(doc)}
-                    >
-                      {openingId === doc.document_id ? "Opening…" : "View"}
-                    </button>
-                    <button
-                      className="projects-btn danger"
-                      disabled={deletingId === doc.document_id}
-                      onClick={() => handleDelete(doc.document_id)}
-                    >
-                      {deletingId === doc.document_id ? "Deleting…" : "Delete"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <div className="projects-loading">Loading…</div>
+      ) : loadError ? (
+        <div className="projects-loading">{loadError}</div>
+      ) : documents.length === 0 ? (
+        <div className="projects-empty">No documents yet.</div>
+      ) : (
+        <div className="work-order-documents-list">
+          {documents.map((doc) => (
+            <div key={doc.document_id} className="work-order-document-card">
+              <div className="work-order-document-name">{doc.file_name}</div>
+              <div className="work-order-assignee-contact">
+                {formatSize(doc.size_bytes)} · {doc.uploaded_by_name} ·{" "}
+                {new Date(doc.created_at).toLocaleDateString()}
+              </div>
+              <div className="work-order-document-actions">
+                <button
+                  className="projects-btn"
+                  disabled={openingId === doc.document_id}
+                  onClick={() => handleView(doc)}
+                >
+                  {openingId === doc.document_id ? "Opening…" : "View"}
+                </button>
+                <button
+                  className="projects-btn danger"
+                  disabled={deletingId === doc.document_id}
+                  onClick={() => handleDelete(doc.document_id)}
+                >
+                  {deletingId === doc.document_id ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

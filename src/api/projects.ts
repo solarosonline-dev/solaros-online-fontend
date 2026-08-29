@@ -114,6 +114,7 @@ export type ProjectDetail = {
   customer_name: string;
   customer_mobile: string;
   customer_email: string | null;
+  customer_address: string | null;
   lead_id: number;
   created_at: string;
   status: ProjectStatus;

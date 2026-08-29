@@ -231,6 +231,8 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
+      <div className="lead-detail-layout">
+      <div className="lead-detail-main">
       <div className="lead-detail-panel">
         <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
 
@@ -413,8 +415,6 @@ export default function LeadDetailPage() {
             />
           </div>
 
-          {status && <p className={`leads-status ${status.kind}`}>{status.message}</p>}
-
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button type="submit" className="leads-btn primary" disabled={saving}>
               {saving ? "Saving…" : "Save"}
@@ -423,10 +423,16 @@ export default function LeadDetailPage() {
               Back to leads
             </button>
           </div>
+
+          {status && <p className={`leads-status ${status.kind}`}>{status.message}</p>}
         </form>
       </div>
+      </div>
 
-      <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
+      <div className="lead-detail-side">
+        <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
+      </div>
+      </div>
     </div>
   );
 }
