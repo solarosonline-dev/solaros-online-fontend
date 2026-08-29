@@ -99,14 +99,20 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
 
           {inclusions.length > 0 && (
             <ul className="amc-inclusion-editor-list">
-              {inclusions.map((item, i) => (
-                <li key={i}>
-                  <span>{formatAmcInclusion(item)}</span>
-                  <button type="button" className="amc-inclusion-remove" onClick={() => handleRemoveItem(i)}>
-                    ×
-                  </button>
-                </li>
-              ))}
+              {inclusions.map((item, i) => {
+                const full = formatAmcInclusion(item);
+                return (
+                  <li key={i}>
+                    {/* title carries the full text for hover/long-press since the
+                        span itself truncates with an ellipsis on narrow screens
+                        (see .amc-inclusion-editor-list li span in the CSS). */}
+                    <span title={full}>{full}</span>
+                    <button type="button" className="amc-inclusion-remove" onClick={() => handleRemoveItem(i)}>
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -114,13 +120,17 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
             <select
               id="amcInclusionFrequency"
               aria-label="Frequency"
+              // Full name on hover (desktop) / long-press (some mobile
+              // browsers) since the visible option text is abbreviated --
+              // see the shortLabel comment in api/amcPlans.ts.
+              title={AMC_FREQUENCY_OPTIONS.find((opt) => opt.value === newItemFrequency)?.label ?? "Frequency"}
               value={newItemFrequency}
               onChange={(e) => setNewItemFrequency(e.target.value as AmcFrequency | "")}
             >
-              <option value="">Frequency</option>
+              <option value="">Freq.</option>
               {AMC_FREQUENCY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                <option key={opt.value} value={opt.value} title={opt.label}>
+                  {opt.shortLabel}
                 </option>
               ))}
             </select>

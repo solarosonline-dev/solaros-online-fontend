@@ -93,6 +93,17 @@
   color: var(--app-text);
 }
 
+/* Truncate long "<Frequency> <text>" lines instead of overflowing the row
+   horizontally on narrow screens -- the full text is still available via
+   the span's title attribute (hover/long-press). min-width: 0 is required
+   for a flex child to shrink below its content size at all. */
+.amc-inclusion-editor-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .amc-inclusion-remove {
   border: none;
   background: none;
@@ -101,6 +112,7 @@
   line-height: 1;
   cursor: pointer;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 
 .amc-inclusion-remove:hover {
@@ -110,17 +122,27 @@
 .amc-inclusion-add-row {
   display: flex;
   gap: 8px;
+  /* Wrap as a last resort on very narrow screens (see the 400px breakpoint
+     below) rather than letting the row overflow horizontally or squeeze
+     the select past readability. */
+  flex-wrap: wrap;
 }
 
+/* Sized to fit the frequency abbreviations ("Mo"/"Qtr"/"H-Yr"/"Yr", see
+   AMC_FREQUENCY_OPTIONS.shortLabel) rather than the old 1:3 flex ratio,
+   which gave the select ~1/4 of the row's width with no floor -- on a
+   ~360px phone that was too narrow for full words like "Half-yearly" to
+   render without clipping. A fixed basis + min-width keeps it comfortably
+   readable at any width instead of shrinking indefinitely. */
 .amc-inclusion-add-row select {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 1 92px;
+  min-width: 72px;
   margin: 0;
 }
 
 .amc-inclusion-add-row input {
-  flex: 3 1 0;
-  min-width: 0;
+  flex: 1 1 160px;
+  min-width: 120px;
 }
 
 .amc-table-wrap {
@@ -300,16 +322,24 @@
     margin-bottom: 2px;
   }
 
+  .amc-row-actions {
+    flex-direction: column;
+  }
+}
+
+/* Smallest phones (e.g. 320-380px): the base 92px/160px basis plus the
+   panel's own padding can get tight enough that trimming the select's own
+   padding/font-size buys back the few px needed to avoid a wrap, without
+   touching the abbreviation text itself. */
+@media (max-width: 400px) {
   .amc-inclusion-add-row select {
-    flex: 1 1 0;
-    width: auto;
+    flex-basis: 78px;
+    min-width: 64px;
+    font-size: 13px;
+    padding: 9px 6px;
   }
 
   .amc-inclusion-add-row input {
-    flex: 3 1 0;
-  }
-
-  .amc-row-actions {
-    flex-direction: column;
+    flex-basis: 120px;
   }
 }

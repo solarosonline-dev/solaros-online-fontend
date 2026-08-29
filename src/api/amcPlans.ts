@@ -2,11 +2,19 @@ import { apiRequest } from "./client";
 
 export type AmcFrequency = "monthly" | "quarterly" | "half-yearly" | "annually";
 
-export const AMC_FREQUENCY_OPTIONS: { value: AmcFrequency; label: string }[] = [
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "half-yearly", label: "Half-yearly" },
-  { value: "annually", label: "Annually" },
+// `shortLabel` exists only for the compact frequency <select> in
+// AmcPlanForm.tsx's "add inclusion" row -- that row is too narrow on mobile
+// for full words like "Half-yearly" to render without clipping (a native
+// <select>'s rendering can't be reliably fixed with font-size/overflow CSS
+// on touch devices), so the closed control shows the abbreviation while the
+// full word rides along as a `title` attribute for hover/long-press. Every
+// other read surface (`amcFrequencyLabel`/`formatAmcInclusion`, tables,
+// customer-facing schedules) keeps using `label` unabbreviated.
+export const AMC_FREQUENCY_OPTIONS: { value: AmcFrequency; label: string; shortLabel: string }[] = [
+  { value: "monthly", label: "Monthly", shortLabel: "Mo" },
+  { value: "quarterly", label: "Quarterly", shortLabel: "Qtr" },
+  { value: "half-yearly", label: "Half-yearly", shortLabel: "H-Yr" },
+  { value: "annually", label: "Annually", shortLabel: "Yr" },
 ];
 
 export function amcFrequencyLabel(frequency: AmcFrequency | null | undefined): string | null {
