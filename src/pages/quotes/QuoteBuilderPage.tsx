@@ -525,10 +525,13 @@ export default function QuoteBuilderPage() {
       </Link>
 
       <div className="quote-builder-header no-print">
-        <h1>
-          Quote for {lead.name}{" "}
-          {existingQuote && <span className="quote-status-badge">{existingQuote.status}</span>}
-        </h1>
+        <div>
+          <h1>
+            Quote for {lead.name}{" "}
+            {existingQuote && <span className="quote-status-badge">{existingQuote.status}</span>}
+          </h1>
+          {existingQuote && <p className="quote-builder-reference">{existingQuote.quote_number}</p>}
+        </div>
       </div>
 
       <div className="quote-builder-grid">
@@ -1041,7 +1044,7 @@ export default function QuoteBuilderPage() {
 
         <div className="quote-preview-panel">
           <QuoteDocument
-            quoteId={existingQuote?.quote_id ?? null}
+            quoteNumber={existingQuote?.quote_number ?? null}
             createdAt={existingQuote?.created_at ?? null}
             validityDays={form.validityDays ? Number(form.validityDays) : null}
             capacityKw={Number(form.capacity) || 0}

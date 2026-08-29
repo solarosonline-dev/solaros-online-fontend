@@ -57,8 +57,6 @@ export default function AppLayout() {
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/leads">Leads</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/quotes">Quotes</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/agreements">Agreements</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/projects">Projects</NavLink>}
             {!systemAdmin && !entityAdmin && user?.entity_id && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>

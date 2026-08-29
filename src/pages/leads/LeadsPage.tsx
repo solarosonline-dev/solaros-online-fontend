@@ -110,6 +110,8 @@ export default function LeadsPage() {
                 <th>Created</th>
                 <th></th>
                 <th></th>
+                <th></th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -125,6 +127,18 @@ export default function LeadsPage() {
                     : lead.status === "REJECTED"
                       ? null
                       : "view";
+                // Same rule, one step further along the pipeline: an
+                // agreement can only be created while QUOTE_ACCEPTED
+                // (backend: 409 INVALID_LEAD_STATE otherwise), and
+                // AGREEMENT_GENERATED/AGREEMENT_ACCEPTED means one already
+                // exists. Mirrors the same action the old Quotes page used
+                // to offer per row.
+                const agreementAction: "generate" | "view" | null =
+                  lead.status === "QUOTE_ACCEPTED"
+                    ? "generate"
+                    : lead.status === "AGREEMENT_GENERATED" || lead.status === "AGREEMENT_ACCEPTED"
+                      ? "view"
+                      : null;
                 return (
                   <tr key={lead.lead_id}>
                     <td data-label="Name">{lead.name}</td>
@@ -145,6 +159,28 @@ export default function LeadsPage() {
                           onClick={() => navigate(`/app/leads/${lead.lead_id}/quote`)}
                         >
                           {quoteAction === "generate" ? "Generate quote" : "View quote"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="leads-table-action-cell">
+                      {agreementAction && (
+                        <button
+                          className="leads-btn primary"
+                          onClick={() => navigate(`/app/leads/${lead.lead_id}/agreement`)}
+                        >
+                          {agreementAction === "generate" ? "Generate agreement" : "View agreement"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="leads-table-action-cell">
+                      {/* project_id is only set once the agreement is
+                          ACCEPTED -- that's what creates the Project. */}
+                      {lead.project_id != null && (
+                        <button
+                          className="leads-btn primary"
+                          onClick={() => navigate(`/app/projects/${lead.project_id}`)}
+                        >
+                          View project
                         </button>
                       )}
                     </td>

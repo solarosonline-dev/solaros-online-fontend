@@ -16,10 +16,8 @@ import LeadsPage from "./pages/leads/LeadsPage";
 import LeadDetailPage from "./pages/leads/LeadDetailPage";
 import QuoteBuilderPage from "./pages/quotes/QuoteBuilderPage";
 import PublicQuotePage from "./pages/quotes/PublicQuotePage";
-import QuotesPage from "./pages/quotes/QuotesPage";
 import AgreementBuilderPage from "./pages/agreements/AgreementBuilderPage";
 import PublicAgreementPage from "./pages/agreements/PublicAgreementPage";
-import AgreementsPage from "./pages/agreements/AgreementsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import ProjectsPage from "./pages/projects/ProjectsPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
@@ -55,8 +53,6 @@ export default function App() {
                 <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
                 <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
                 <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
-                <Route path="/app/quotes" element={<QuotesPage />} />
-                <Route path="/app/agreements" element={<AgreementsPage />} />
                 <Route path="/app/projects" element={<ProjectsPage />} />
                 <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
               </Route>

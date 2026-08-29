@@ -8,6 +8,7 @@ export type Lead = {
   mobile: string;
   status: LeadStatus;
   created_at: string;
+  project_id: number | null;
 };
 
 export type LeadDetail = Lead & {

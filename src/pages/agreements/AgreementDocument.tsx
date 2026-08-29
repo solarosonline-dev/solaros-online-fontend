@@ -29,9 +29,14 @@ export type AgreementDocumentSignature = {
 };
 
 export type AgreementDocumentProps = {
-  agreementId: number | null;
+  /** Human-readable reference (e.g. "A-VINO-28-08-2025-WS67") -- shown in
+   * place of the raw numeric agreement id. Null before the agreement has
+   * ever been saved. */
+  agreementNumber: string | null;
   createdAt: string | null;
-  quoteId: number | null;
+  /** Human-readable reference for the linked quote (e.g.
+   * "Q-VINO-28-08-2025-WS67"), shown as "Quote ref." */
+  quoteNumber: string | null;
   capacityKw: number;
   panelMake: string | null;
   inverterMake: string | null;
@@ -84,9 +89,9 @@ export type AgreementDocumentProps = {
 };
 
 export default function AgreementDocument({
-  agreementId,
+  agreementNumber,
   createdAt,
-  quoteId,
+  quoteNumber,
   capacityKw,
   panelMake,
   inverterMake,
@@ -257,7 +262,7 @@ export default function AgreementDocument({
         <div className="qdoc-meta">
           <div>
             <span className="qdoc-meta-label">Agreement no.</span>
-            <strong>{agreementId ?? "DRAFT"}</strong>
+            <strong>{agreementNumber ?? "DRAFT"}</strong>
           </div>
           <div className="qdoc-meta-row">
             <div>
@@ -268,10 +273,10 @@ export default function AgreementDocument({
               <span className="qdoc-meta-label">System</span>
               <strong>{capacityKw ? `${capacityKw} kWp` : "—"}</strong>
             </div>
-            {quoteId != null && (
+            {quoteNumber != null && (
               <div>
                 <span className="qdoc-meta-label">Quote ref.</span>
-                <strong>{quoteId}</strong>
+                <strong>{quoteNumber}</strong>
               </div>
             )}
           </div>

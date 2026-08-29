@@ -367,10 +367,13 @@ export default function AgreementBuilderPage() {
       </Link>
 
       <div className="quote-builder-header no-print">
-        <h1>
-          Agreement for {lead.name}{" "}
-          {existingAgreement && <span className="quote-status-badge">{existingAgreement.status}</span>}
-        </h1>
+        <div>
+          <h1>
+            Agreement for {lead.name}{" "}
+            {existingAgreement && <span className="quote-status-badge">{existingAgreement.status}</span>}
+          </h1>
+          {existingAgreement && <p className="quote-builder-reference">{existingAgreement.agreement_number}</p>}
+        </div>
       </div>
 
       <div className="quote-builder-grid">
@@ -660,9 +663,9 @@ export default function AgreementBuilderPage() {
             <p className="quote-status-msg">No quote data available.</p>
           ) : (
             <AgreementDocument
-              agreementId={existingAgreement?.agreement_id ?? null}
+              agreementNumber={existingAgreement?.agreement_number ?? null}
               createdAt={existingAgreement?.created_at ?? null}
-              quoteId={quote.quote_id}
+              quoteNumber={quote.quote_number}
               capacityKw={quote.capacity ?? 0}
               panelMake={quote.panel_make}
               inverterMake={quote.inverter_make}

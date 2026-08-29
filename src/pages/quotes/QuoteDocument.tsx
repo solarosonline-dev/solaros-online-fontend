@@ -62,7 +62,10 @@ export type QuoteDocumentLoan = {
 };
 
 export type QuoteDocumentProps = {
-  quoteId: number | null;
+  /** Human-readable reference (e.g. "Q-VINO-28-08-2025-WS67"), shown in
+   * place of the raw numeric quote id. Null before the quote has ever been
+   * saved. */
+  quoteNumber: string | null;
   createdAt: string | null;
   validityDays: number | null;
   capacityKw: number;
@@ -130,7 +133,7 @@ export type QuoteDocumentProps = {
 };
 
 export default function QuoteDocument({
-  quoteId,
+  quoteNumber,
   createdAt,
   validityDays,
   capacityKw,
@@ -383,7 +386,7 @@ export default function QuoteDocument({
         <div className="qdoc-meta">
           <div>
             <span className="qdoc-meta-label">Quote no.</span>
-            <strong>{quoteId ?? "DRAFT"}</strong>
+            <strong>{quoteNumber ?? "DRAFT"}</strong>
           </div>
           <div className="qdoc-meta-row">
             <div>
@@ -925,7 +928,7 @@ export default function QuoteDocument({
               <a
                 className="qdoc-btn qdoc-btn-primary"
                 href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-                  `Hi ${branding.entityName}, I'd like to proceed with quote ${quoteId ?? ""}.`,
+                  `Hi ${branding.entityName}, I'd like to proceed with quote ${quoteNumber ?? ""}.`,
                 )}`}
                 target="_blank"
                 rel="noreferrer"

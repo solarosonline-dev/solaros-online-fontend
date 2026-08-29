@@ -195,7 +195,7 @@ export default function PublicQuotePage() {
     <div className="public-quote-shell">
       <div className="public-quote-wrap">
         <QuoteDocument
-          quoteId={quote.quote_id}
+          quoteNumber={quote.quote_number}
           createdAt={quote.created_at}
           validityDays={quote.validity_days}
           capacityKw={quote.capacity ?? 0}

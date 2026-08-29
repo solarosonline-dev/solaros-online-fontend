@@ -184,9 +184,9 @@ export default function PublicAgreementPage() {
       <div className="public-quote-wrap" ref={docRef}>
         {computed && quote ? (
           <AgreementDocument
-            agreementId={agreement.agreement_id}
+            agreementNumber={agreement.agreement_number}
             createdAt={agreement.created_at}
-            quoteId={quote.quote_id}
+            quoteNumber={quote.quote_number}
             capacityKw={quote.capacity ?? 0}
             panelMake={quote.panel_make}
             inverterMake={quote.inverter_make}
