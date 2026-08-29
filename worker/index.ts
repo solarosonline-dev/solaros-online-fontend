@@ -28,11 +28,11 @@ const SITE_NAME = "SolarOS";
 
 const LINK_TYPE_COPY = {
   quote: {
-    title: "Your Solar Quote — SolarOS",
+    title: "Your Solar Installation Quote — SolarOS",
     description: "View your personalized solar quote — system details, pricing, and next steps.",
   },
   agreement: {
-    title: "Your Service Agreement — SolarOS",
+    title: "Your Solar Installation Agreement — SolarOS",
     description: "View your service agreement — terms, payment schedule, and signature.",
   },
 } as const;
