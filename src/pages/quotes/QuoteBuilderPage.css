@@ -627,6 +627,15 @@
   color: var(--app-text);
 }
 
+/* The site-wide :focus-visible rule (legacy-styles.css) draws a heavy 3px
+   ring with a 2px offset -- fine for nav/buttons, but overwhelming on a
+   dense grid of small inputs like this one. Thin it down to a regular
+   1px border-style highlight here without touching the global rule. */
+.compb-table td input:focus-visible {
+  outline: 1px solid var(--sun);
+  outline-offset: 0;
+}
+
 /* Particular gets the lion's share of the row; qty/price get generous room
    to type into (plain text boxes, not spinners); tax is narrower; the
    remove-row action is just wide enough for the "×" button. */
@@ -695,6 +704,176 @@
   padding-top: 10px;
   border-top: 2px solid var(--app-border);
   border-bottom: 0;
+}
+
+/* Mobile: each line item reflows from one cramped, horizontally-scrolling
+   row into a bordered 2-row card. Row 1 is Particulars (80%) + Warranty
+   (20%); row 2 is Price (35%) + Qty (35%) + Tax % (15%) + remove (15%). A
+   20-column grid (rather than named grid-template-areas, which need one
+   area per column per row) makes those exact percentages trivial: each
+   field just spans the right number of 1fr tracks, and grid-row pins it to
+   row 1 or row 2 regardless of DOM/source order (unchanged from desktop). */
+@media (max-width: 640px) {
+  .compb-table thead {
+    display: none;
+  }
+
+  .compb-table,
+  .compb-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .compb-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(20, 1fr);
+    column-gap: 4px;
+    row-gap: 8px;
+    padding: 10px 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+  }
+
+  .compb-table td {
+    padding: 0;
+    border-bottom: none;
+  }
+
+  /* Row 1: Particulars 80% / Warranty 20%. */
+  .compb-table td.compb-particular {
+    grid-column: 1 / 17;
+    grid-row: 1;
+    width: auto;
+  }
+
+  .compb-table td.compb-num {
+    grid-column: 17 / 21;
+    grid-row: 1;
+    width: auto;
+  }
+
+  /* Row 2: Price 35% / Qty 35% / Tax % 15% / remove 15%. */
+  .compb-table td.compb-price {
+    grid-column: 1 / 8;
+    grid-row: 2;
+    width: auto;
+  }
+
+  .compb-table td.compb-qty {
+    grid-column: 8 / 15;
+    grid-row: 2;
+    width: auto;
+  }
+
+  .compb-table td.compb-tax {
+    grid-column: 15 / 18;
+    grid-row: 2;
+    width: auto;
+  }
+
+  .compb-table td.compb-actions {
+    grid-column: 18 / 21;
+    grid-row: 2;
+    width: auto;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* The desktop min-widths exist to keep inputs comfortably wide inside a
+     spacious table row -- here the grid column itself is the width
+     constraint, and a leftover 160px floor on .compb-particular alone
+     would force the whole card wider than the viewport. */
+  .compb-table td.compb-particular input,
+  .compb-table td.compb-qty input,
+  .compb-table td.compb-price input,
+  .compb-table td.compb-tax input,
+  .compb-table td.compb-num input {
+    min-width: 0;
+  }
+
+  /* Particulars, Price, Qty, and Tax % all get tighter padding here to
+     match their narrower columns; Warranty keeps the base size since it
+     has a roomy 20% of row 1 to itself. Font-size for Price/Qty/Tax is
+     listed here too but doesn't actually win -- see the Particulars rule
+     below for why, and why Particulars needs its own !important escape
+     hatch instead of just joining this list. */
+  .compb-table td.compb-particular input,
+  .compb-table td.compb-price input,
+  .compb-table td.compb-qty input,
+  .compb-table td.compb-tax input {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  /* index.css forces `input { font-size: 16px !important }` under 640px
+     site-wide, specifically so iOS Safari doesn't auto-zoom the page when
+     a field under 16px gets focused -- that !important beats the 11px
+     above regardless of specificity, so every input in this table
+     actually renders at 16px on a real phone. Particulars is the one
+     field asked to look smaller than that, so it gets its own
+     !important (its selector is more specific than plain `input`, so it
+     wins the !important-vs-!important tie); the :focus rule right below
+     restores 16px the moment it's being typed into, so the zoom bug
+     doesn't come back for this field either. */
+  .compb-table td.compb-particular input {
+    font-size: 8px !important;
+  }
+
+  .compb-table td.compb-particular input:focus {
+    font-size: 16px !important;
+  }
+
+  /* Field labels came from the (now-hidden) <thead> on desktop -- print a
+     small muted label above each input instead, same convention as
+     AmcPlansPage.css's mobile table. */
+  .compb-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--app-text-muted);
+    margin-bottom: 3px;
+  }
+
+  /* Fills the full row-2 cell -- same width as the Tax % input next to it
+     (both occupy an equal 15%-wide column) and now the full cell height too,
+     rather than an auto-sized box that left empty space above/below it.
+     Selector is two classes deep so it beats the general .compb-remove-btn
+     tap-target min-size rule (single class, in the base stylesheet)
+     regardless of source order. */
+  .compb-table .compb-remove-btn {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    padding: 4px 6px;
+    border: 1px solid var(--app-border);
+    border-radius: 6px;
+    background: var(--app-bg);
+  }
+
+  /* The grand-total row has no qty/price/tax/warranty fields to spread
+     across -- keep it a plain label/value line instead of the 2-row item
+     grid above. */
+  .compb-table tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 10px;
+  }
+
+  .compb-table tfoot td {
+    padding: 0;
+    border-bottom: none;
+  }
 }
 
 /* Site design images -- the admin management list (LeadSiteImages.tsx).

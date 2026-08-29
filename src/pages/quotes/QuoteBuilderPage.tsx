@@ -1009,7 +1009,12 @@ export default function QuoteBuilderPage() {
                     <tbody>
                       {form.components.map((row, i) => (
                         <tr key={i}>
-                          <td className="compb-particular">
+                          {/* data-label feeds the mobile ::before rule in QuoteBuilderPage.css --
+                              on narrow screens this row reflows into a 2-line card (particulars +
+                              qty on top, price/tax/warranty below) instead of a horizontally
+                              scrolling table, and the <thead> labels above are hidden then, so
+                              each field needs its own inline label to stay identifiable. */}
+                          <td className="compb-particular" data-label="Particulars">
                             <input
                               type="text"
                               disabled={locked}
@@ -1017,7 +1022,7 @@ export default function QuoteBuilderPage() {
                               onChange={(e) => handleComponentFieldChange(i, "particular", e.target.value)}
                             />
                           </td>
-                          <td className="compb-qty">
+                          <td className="compb-qty" data-label="Qty">
                             <input
                               type="number"
                               min={0}
@@ -1026,7 +1031,7 @@ export default function QuoteBuilderPage() {
                               onChange={(e) => handleComponentFieldChange(i, "qty", e.target.value)}
                             />
                           </td>
-                          <td className="compb-price">
+                          <td className="compb-price" data-label="Price">
                             <input
                               type="number"
                               min={0}
@@ -1035,7 +1040,7 @@ export default function QuoteBuilderPage() {
                               onChange={(e) => handleComponentFieldChange(i, "price", e.target.value)}
                             />
                           </td>
-                          <td className="compb-tax">
+                          <td className="compb-tax" data-label="Tax %">
                             <input
                               type="number"
                               min={0}
@@ -1045,7 +1050,7 @@ export default function QuoteBuilderPage() {
                               onChange={(e) => handleComponentFieldChange(i, "tax_percent", e.target.value)}
                             />
                           </td>
-                          <td className="compb-num">
+                          <td className="compb-num" data-label="Warranty">
                             <input
                               type="number"
                               min={0}
