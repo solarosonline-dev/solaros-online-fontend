@@ -145,6 +145,7 @@ export type PublicQuoteResponse = {
    * get_public_quote. Prefer this over a separate branding fetch so an
    * accepted quote can't be shown a since-edited payment schedule. */
   payment_schedule?: PaymentScheduleRow[];
+  site_images?: { image_id: number; url: string; file_name: string }[];
 };
 
 export function getPublicQuote(token: string) {

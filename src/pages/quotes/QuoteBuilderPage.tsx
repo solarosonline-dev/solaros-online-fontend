@@ -19,6 +19,8 @@ import { ApiError } from "../../api/client";
 import { computeQuote, subsidyForKw } from "../../lib/quoteCalculations";
 import QuoteDocument, { type QuoteDocumentBranding } from "./QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
+import LeadSiteImages from "../leads/LeadSiteImages";
+import { listLeadSiteImages, type LeadSiteImage } from "../../api/leadSiteImages";
 import CopyLinkButton from "../../components/CopyLinkButton";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import "./QuoteBuilderPage.css";
@@ -38,7 +40,8 @@ type SectionKey =
   | "loan"
   | "details"
   | "terms"
-  | "components";
+  | "components"
+  | "siteImages";
 
 /** One collapsible accordion panel. Only one section is ever open across the
  * whole form (see `openSection` state in QuoteBuilderPage) — clicking an
@@ -161,6 +164,17 @@ export default function QuoteBuilderPage() {
   const [existingQuote, setExistingQuote] = useState<QuoteDetail | null>(null);
   const [entity, setEntity] = useState<Entity | null>(null);
   const [preferences, setPreferences] = useState<EntityPreferences | null>(null);
+  const [siteImages, setSiteImages] = useState<LeadSiteImage[]>([]);
+  const [siteImagesLoading, setSiteImagesLoading] = useState(true);
+  const [siteImagesLoadError, setSiteImagesLoadError] = useState<string | null>(null);
+  // In-progress (not yet saved) site-image order/selection, so the preview
+  // updates as the admin drags/adds/removes -- null means "no unsaved
+  // edits, use siteImages as-is". Reset to null whenever the site-images
+  // accordion section closes, since LeadSiteImages unmounts then and
+  // discards any unsaved staging along with it.
+  const [siteImagesPreview, setSiteImagesPreview] = useState<
+    { imageId: number; url: string; fileName: string }[] | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -271,6 +285,20 @@ export default function QuoteBuilderPage() {
       .finally(() => setLoading(false));
   }, [entityId, leadId]);
 
+  // Fetched independently of the main load above (and of which accordion
+  // section happens to be open) -- the live preview needs these regardless,
+  // see LeadSiteImages.tsx's comment on why it's a fully controlled
+  // component rather than fetching its own data on mount.
+  useEffect(() => {
+    if (!leadId) return;
+    setSiteImagesLoading(true);
+    setSiteImagesLoadError(null);
+    listLeadSiteImages(entityId, Number(leadId))
+      .then((res) => setSiteImages(res.items))
+      .catch((err) => setSiteImagesLoadError(err instanceof ApiError ? err.message : "Failed to load site design images"))
+      .finally(() => setSiteImagesLoading(false));
+  }, [entityId, leadId]);
+
   const derivedPanelMake = useMemo(() => findComponentParticular(form.components, ["panel"]), [form.components]);
   const derivedInverterMake = useMemo(
     () => findComponentParticular(form.components, ["inverter"]),
@@ -343,6 +371,7 @@ export default function QuoteBuilderPage() {
     amc?: boolean;
     loan?: boolean;
     components?: boolean;
+    siteImages?: boolean;
   }>({});
 
   // Single-open-at-a-time accordion for the LHS form — see AccordionSection.
@@ -352,7 +381,14 @@ export default function QuoteBuilderPage() {
     setOpenSection((cur) => (cur === id ? null : id));
   }
 
-  function useSectionFlash(section: "pricing" | "metrics" | "amc" | "loan" | "components", deps: unknown[]) {
+  useEffect(() => {
+    if (openSection !== "siteImages") setSiteImagesPreview(null);
+  }, [openSection]);
+
+  function useSectionFlash(
+    section: "pricing" | "metrics" | "amc" | "loan" | "components" | "siteImages",
+    deps: unknown[],
+  ) {
     const mountedRef = useRef(false);
     useEffect(() => {
       if (!mountedRef.current) {
@@ -394,6 +430,10 @@ export default function QuoteBuilderPage() {
   ]);
   useSectionFlash("loan", [form.loanAmount, form.loanRatePercent, form.loanTenureYears]);
   useSectionFlash("components", [form.components, form.componentsEnabled, form.componentsPricingEnabled]);
+  // Depends on siteImagesPreview too (not just the persisted siteImages) so
+  // dragging to reorder -- which only updates the live preview, not
+  // siteImages, until Save -- still flashes/scrolls the right-hand preview.
+  useSectionFlash("siteImages", [siteImages, siteImagesPreview]);
 
   // No standalone enable checkboxes for these two sections — years 6-15 AMC
   // is "on" once at least one plan is picked, and loan financing is "on"
@@ -862,7 +902,7 @@ export default function QuoteBuilderPage() {
             )}
             </AccordionSection>
 
-            <AccordionSection id="details" title="Quote details" open={openSection === "details"} onToggle={toggleSection}>
+            <AccordionSection id="details" title="Quote validity & notes" open={openSection === "details"} onToggle={toggleSection}>
             <div className="quote-field">
               <label htmlFor="qValidityDays">Validity (days)</label>
               <input
@@ -1063,6 +1103,25 @@ export default function QuoteBuilderPage() {
             )}
             </AccordionSection>
 
+            <AccordionSection
+              id="siteImages"
+              title="Site design images"
+              open={openSection === "siteImages"}
+              onToggle={toggleSection}
+            >
+              {leadId && (
+                <LeadSiteImages
+                  entityId={entityId}
+                  leadId={Number(leadId)}
+                  images={siteImages}
+                  loading={siteImagesLoading}
+                  loadError={siteImagesLoadError}
+                  onImagesChange={setSiteImages}
+                  onPreviewChange={setSiteImagesPreview}
+                />
+              )}
+            </AccordionSection>
+
             {!locked && (
               <div className="quote-status-bar">
                 <button type="submit" className="quote-btn primary" disabled={saving}>
@@ -1154,6 +1213,12 @@ export default function QuoteBuilderPage() {
             }
             branding={documentBranding}
             shareUrl={shareUrl}
+            siteImages={
+              siteImagesPreview ??
+              siteImages
+                .filter((img) => img.url != null)
+                .map((img) => ({ imageId: img.image_id, url: img.url as string, fileName: img.file_name }))
+            }
             highlightSections={highlightSections}
           />
         </div>

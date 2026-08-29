@@ -250,6 +250,11 @@ export default function PublicQuotePage() {
           branding={documentBranding}
           shareUrl={typeof window !== "undefined" ? window.location.href : null}
           signatureAction={signatureAction}
+          siteImages={(data.site_images ?? []).map((img) => ({
+            imageId: img.image_id,
+            url: img.url,
+            fileName: img.file_name,
+          }))}
         />
       </div>
 

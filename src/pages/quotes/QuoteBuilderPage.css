@@ -696,3 +696,101 @@
   border-top: 2px solid var(--app-border);
   border-bottom: 0;
 }
+
+/* Site design images -- the admin management list (LeadSiteImages.tsx).
+   Rendered as a vertical list of rows (not a grid) so the drag-to-reorder
+   affordance reads as "reorder a list" -- each row is full-width with a
+   small thumbnail, the file name, and Remove. Rows are draggable to
+   reorder (native HTML5 DnD, not a library) -- .dragging marks the row
+   currently being dragged so it's visually distinct from the drop target
+   underneath the cursor. */
+.site-images-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.site-image-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 8px 12px;
+  cursor: grab;
+}
+
+.site-image-card.dragging {
+  opacity: 0.5;
+}
+
+.site-images-drag-hint {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+.site-image-drag-handle {
+  color: var(--app-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.site-image-thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.site-image-number {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.site-image-thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--app-bg);
+}
+
+.site-image-thumb-placeholder {
+  width: 64px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-size: 10px;
+  color: var(--app-text-muted);
+  text-align: center;
+  word-break: break-word;
+}
+
+.site-image-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--app-text);
+}

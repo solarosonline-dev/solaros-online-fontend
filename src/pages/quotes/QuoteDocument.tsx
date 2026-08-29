@@ -110,6 +110,9 @@ export type QuoteDocumentProps = {
    * foot exactly to the total. */
   paymentSchedule: PaymentScheduleRow[];
   branding: QuoteDocumentBranding;
+  /** Site design/site-condition photos attached to the lead -- rendered as a
+   * max-3-per-row grid. Empty/omitted hides the section entirely. */
+  siteImages?: { imageId: number; url: string; fileName: string }[];
   /** The customer-facing share link for this quote, if one has been generated
    * yet — rendered as a scannable QR code in the footer so a printed copy can
    * be scanned straight through to online acceptance. Omitted/null hides it. */
@@ -129,6 +132,7 @@ export type QuoteDocumentProps = {
     amc?: boolean;
     loan?: boolean;
     components?: boolean;
+    siteImages?: boolean;
   };
 };
 
@@ -137,6 +141,7 @@ export default function QuoteDocument({
   createdAt,
   validityDays,
   capacityKw,
+  siteImages = [],
   panelMake,
   inverterMake,
   panelType,
@@ -188,6 +193,7 @@ export default function QuoteDocument({
   const amcRef = useRef<HTMLElement>(null);
   const loanRef = useRef<HTMLElement>(null);
   const componentsRef = useRef<HTMLElement>(null);
+  const siteImagesRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!highlightSections) return;
     // On mobile the LHS form and RHS preview stack into a single column
@@ -204,6 +210,7 @@ export default function QuoteDocument({
       ["components", componentsRef],
       ["loan", loanRef],
       ["amc", amcRef],
+      ["siteImages", siteImagesRef],
       ["metrics", metricsRef],
       ["pricing", pricingRef],
     ];
@@ -453,6 +460,17 @@ export default function QuoteDocument({
           <em>after recovering investment</em>
         </div>
       </section>
+
+      {siteImages.length > 0 && (
+        <section ref={siteImagesRef} className={`qdoc-section${flashClass("siteImages")}`}>
+          <h2>Site design images</h2>
+          <div className="qdoc-site-images-grid">
+            {siteImages.map((image) => (
+              <img key={image.imageId} src={image.url} alt={image.fileName} className="qdoc-site-image" />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section ref={pricingRef} className={`qdoc-section${flashClass("pricing")}`}>
         <h2>Commercial summary</h2>

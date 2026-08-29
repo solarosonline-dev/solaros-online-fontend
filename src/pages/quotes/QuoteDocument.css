@@ -381,6 +381,27 @@
   }
 }
 
+/* Site design images -- 2 per row, steps down to 1 on narrow screens. */
+.qdoc-site-images-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.qdoc-site-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+}
+
+@media screen and (max-width: 420px) {
+  .qdoc-site-images-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Print-friendly tile palette: every variant is a plain white card with a
    thick, distinctly-colored border — color is used only as an accent (border,
    tag, checkmarks), never as a fill, and body text always stays black. This
@@ -827,6 +848,12 @@
      next page rather than cutting a tile in half. */
   .qdoc-tile-grid,
   .qdoc-tile {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .qdoc-site-images-grid,
+  .qdoc-site-image {
     break-inside: avoid;
     page-break-inside: avoid;
   }
