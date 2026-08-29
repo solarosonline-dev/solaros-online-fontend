@@ -117,7 +117,7 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
               value={newItemFrequency}
               onChange={(e) => setNewItemFrequency(e.target.value as AmcFrequency | "")}
             >
-              <option value="">None</option>
+              <option value="">Choose frequency</option>
               {AMC_FREQUENCY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -132,8 +132,21 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
               onChange={(e) => setNewItemText(e.target.value)}
               onKeyDown={handleNewItemKeyDown}
             />
-            <button type="button" className="amc-btn" onClick={handleAddItem}>
-              + Add
+            <button
+              type="button"
+              className="amc-btn amc-inclusion-add-btn"
+              onClick={handleAddItem}
+              aria-label="Add inclusion"
+              title="Add inclusion"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                <path
+                  d="M12 4v16M4 12h16"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </svg>
             </button>
           </div>
         </div>
