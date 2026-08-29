@@ -63,3 +63,7 @@ export function updateAmcPlan(
 export function deactivateAmcPlan(entityId: number, amcId: number) {
   return apiRequest<void>(`/entities/${entityId}/amc-plans/${amcId}`, { method: "DELETE" });
 }
+
+export function activateAmcPlan(entityId: number, amcId: number) {
+  return apiRequest<AmcPlan>(`/entities/${entityId}/amc-plans/${amcId}/activate`, { method: "POST" });
+}

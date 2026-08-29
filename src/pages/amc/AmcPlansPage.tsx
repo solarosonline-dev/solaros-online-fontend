@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/AuthContext";
-import { listAmcPlans, deactivateAmcPlan, formatAmcInclusion, type AmcPlan } from "../../api/amcPlans";
+import { listAmcPlans, activateAmcPlan, deactivateAmcPlan, formatAmcInclusion, type AmcPlan } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
 import AmcPlanForm from "./AmcPlanForm";
 import "./AmcPlansPage.css";
@@ -20,6 +20,7 @@ export default function AmcPlansPage() {
   const [editingPlan, setEditingPlan] = useState<AmcPlan | null>(null);
 
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
+  const [activatingId, setActivatingId] = useState<number | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   function load() {
@@ -60,6 +61,20 @@ export default function AmcPlansPage() {
       setRowErrors((prev) => ({ ...prev, [plan.amc_id]: message }));
     } finally {
       setDeactivatingId(null);
+    }
+  }
+
+  async function handleActivate(plan: AmcPlan) {
+    setActivatingId(plan.amc_id);
+    setRowErrors((prev) => ({ ...prev, [plan.amc_id]: "" }));
+    try {
+      await activateAmcPlan(entityId, plan.amc_id);
+      load();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Could not activate plan";
+      setRowErrors((prev) => ({ ...prev, [plan.amc_id]: message }));
+    } finally {
+      setActivatingId(null);
     }
   }
 
@@ -140,13 +155,21 @@ export default function AmcPlansPage() {
                       <button className="amc-btn" onClick={() => openEditForm(plan)}>
                         Edit
                       </button>
-                      {plan.is_active && (
+                      {plan.is_active ? (
                         <button
                           className="amc-btn"
                           disabled={deactivatingId === plan.amc_id}
                           onClick={() => handleDeactivate(plan)}
                         >
                           {deactivatingId === plan.amc_id ? "…" : "Deactivate"}
+                        </button>
+                      ) : (
+                        <button
+                          className="amc-btn primary"
+                          disabled={activatingId === plan.amc_id}
+                          onClick={() => handleActivate(plan)}
+                        >
+                          {activatingId === plan.amc_id ? "…" : "Activate"}
                         </button>
                       )}
                     </div>
