@@ -502,6 +502,16 @@
   border-color: var(--app-accent-hover);
 }
 
+.leads-btn.danger {
+  border-color: var(--app-danger);
+  color: var(--app-danger);
+}
+
+.leads-btn.danger:hover:not(:disabled) {
+  background: var(--app-danger-bg);
+  border-color: var(--app-danger);
+}
+
 .leads-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;

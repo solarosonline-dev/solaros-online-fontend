@@ -21,6 +21,8 @@ import "./LeadsPage.css";
 
 function manualTransitions(status: LeadStatus): { label: string; target: ManualLeadStatus; primary: boolean }[] {
   switch (status) {
+    case "NEW":
+      return [{ label: "Reject lead", target: "REJECTED", primary: false }];
     case "QUOTE_GENERATED":
       return [
         { label: "Mark quote accepted", target: "QUOTE_ACCEPTED", primary: true },
@@ -221,7 +223,7 @@ export default function LeadDetailPage() {
           {actions.map((a) => (
             <button
               key={a.target}
-              className={`leads-btn${a.primary ? " primary" : ""}`}
+              className={`leads-btn${a.primary ? " primary" : ""}${a.target === "REJECTED" ? " danger" : ""}`}
               disabled={transitioning}
               onClick={() => handleTransition(a.target)}
             >
