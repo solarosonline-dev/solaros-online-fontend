@@ -9,12 +9,26 @@ import {
 } from "../../api/amcSchedule";
 import { amcFrequencyLabel } from "../../api/amcPlans";
 import { ApiError } from "../../api/client";
+import type { ProjectStatus } from "../../api/projects";
 import CopyLinkButton from "../../components/CopyLinkButton";
 import AmcActionTable, { type AmcActionRow } from "./AmcActionTable";
 import { BUCKET_CLASS, BUCKET_LABEL, dueBucket, nextPendingScheduleIds, startOfDay } from "../../lib/amcDue";
 import "./ProjectsPage.css";
 
-export default function ProjectAmcTab({ entityId, projectId }: { entityId: number; projectId: number }) {
+export default function ProjectAmcTab({
+  entityId,
+  projectId,
+  projectStatus,
+  hasAmc,
+}: {
+  entityId: number;
+  projectId: number;
+  projectStatus: ProjectStatus;
+  /** Whether the project's accepted agreement has an AMC plan/duration
+   * configured -- when false, there's nothing to ever generate a schedule
+   * for, regardless of project status. */
+  hasAmc: boolean;
+}) {
   const [items, setItems] = useState<AmcScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -153,10 +167,18 @@ export default function ProjectAmcTab({ entityId, projectId }: { entityId: numbe
 
       {items.length === 0 ? (
         <div className="projects-empty">
-          <p>No AMC schedule generated yet for this project.</p>
-          <button className="projects-btn primary" disabled={generating} onClick={() => handleGenerate(false)}>
-            {generating ? "Generating…" : "Generate AMC schedule"}
-          </button>
+          {!hasAmc ? (
+            <p>This project has no AMC plan selected -- nothing to generate a schedule for.</p>
+          ) : projectStatus !== "COMPLETED" ? (
+            <p>The project needs to be completed before an AMC schedule can be generated.</p>
+          ) : (
+            <>
+              <p>No AMC schedule generated yet for this project.</p>
+              <button className="projects-btn primary" disabled={generating} onClick={() => handleGenerate(false)}>
+                {generating ? "Generating…" : "Generate AMC schedule"}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <>

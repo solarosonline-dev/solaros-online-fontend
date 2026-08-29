@@ -222,7 +222,12 @@ export default function ProjectDetailPage() {
           </div>
         </>
       ) : (
-        <ProjectAmcTab entityId={entityId} projectId={project.project_id} />
+        <ProjectAmcTab
+          entityId={entityId}
+          projectId={project.project_id}
+          projectStatus={project.status}
+          hasAmc={project.amc_id != null && project.amc_duration_years != null}
+        />
       )}
     </div>
   );

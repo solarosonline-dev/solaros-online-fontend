@@ -119,6 +119,10 @@ export type ProjectDetail = {
   created_at: string;
   status: ProjectStatus;
   completed_at: string | null;
+  /** From the project's accepted agreement -- null if no AMC plan was
+   * configured on it. */
+  amc_id: number | null;
+  amc_duration_years: number | null;
 };
 
 /** Convenience lookup used from Lead detail once an agreement is accepted; 404s until then. */
