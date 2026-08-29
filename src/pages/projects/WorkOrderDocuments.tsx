@@ -10,7 +10,7 @@ import {
 } from "../../api/workOrders";
 import { ApiError } from "../../api/client";
 
-const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp";
+const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

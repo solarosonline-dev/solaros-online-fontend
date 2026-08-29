@@ -18,6 +18,15 @@ export type Assignee = {
   phone: string | null;
 };
 
+export type LeadSummary = {
+  lead_id: number;
+  name: string;
+  mobile: string;
+  email: string | null;
+  address: string | null;
+  status: string;
+};
+
 export type WorkOrderListItem = {
   work_order_id: number;
   type: WorkOrderType;
@@ -25,6 +34,7 @@ export type WorkOrderListItem = {
   opened_at: string;
   closed_at: string | null;
   assignee: Assignee | null;
+  lead: LeadSummary;
 };
 
 export type WorkOrderDetail = WorkOrderListItem & {
@@ -39,14 +49,6 @@ export type CreateWorkOrderInput = {
   notes?: string;
 };
 
-export type LeadSummary = {
-  lead_id: number;
-  name: string;
-  mobile: string;
-  address: string | null;
-  status: string;
-};
-
 export type ProjectSummary = {
   project_id: number;
   status: string;
@@ -54,11 +56,9 @@ export type ProjectSummary = {
 };
 
 // The field-role-facing shape returned by /work-orders/mine and
-// /users/{userId}/work-orders -- embeds the lead (and project, when the
-// work order is project-scoped) so a worker can act on it without a second
-// round trip to a lead/project detail endpoint they don't have access to.
+// /users/{userId}/work-orders -- `lead` is inherited from WorkOrderListItem;
+// `project` is set only when the work order was created through a Project.
 export type AssignedWorkOrderListItem = WorkOrderListItem & {
-  lead: LeadSummary;
   project: ProjectSummary | null;
 };
 
@@ -89,6 +89,23 @@ export function createProjectWorkOrder(entityId: number, projectId: number, data
     // reflects current state either way, not just when it changed.
     project_status: string | null;
   }>(`/entities/${entityId}/projects/${projectId}/work-orders`, { method: "POST", body: data });
+}
+
+// Created directly against a Lead, before a Project exists (e.g. an early
+// site survey ahead of quoting/agreement) -- project_id stays null.
+export function listLeadWorkOrders(entityId: number, leadId: number) {
+  return apiRequest<{ items: WorkOrderListItem[] }>(`/entities/${entityId}/leads/${leadId}/work-orders`);
+}
+
+export function createLeadWorkOrder(entityId: number, leadId: number, data: CreateWorkOrderInput) {
+  return apiRequest<{
+    work_order_id: number;
+    project_id: number | null;
+    lead_id: number;
+    type: WorkOrderType;
+    status: WorkOrderStatus;
+    opened_at: string;
+  }>(`/entities/${entityId}/leads/${leadId}/work-orders`, { method: "POST", body: data });
 }
 
 // Open to any entity-scope role -- self-scoped to the caller's own user_id,

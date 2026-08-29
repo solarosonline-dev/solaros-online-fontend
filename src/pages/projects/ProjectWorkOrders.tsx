@@ -149,6 +149,8 @@ export default function ProjectWorkOrders({
                 <th>Type</th>
                 <th>Status</th>
                 <th>Assignee</th>
+                <th>Customer</th>
+                <th>Address</th>
                 <th>Opened</th>
                 <th>Completed</th>
               </tr>
@@ -176,6 +178,13 @@ export default function ProjectWorkOrders({
                       "Unassigned"
                     )}
                   </td>
+                  <td data-label="Customer">
+                    <div>{wo.lead.name}</div>
+                    <div className="work-order-assignee-contact">
+                      {[wo.lead.mobile, wo.lead.email].filter(Boolean).join(" · ")}
+                    </div>
+                  </td>
+                  <td data-label="Address">{wo.lead.address || "—"}</td>
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}

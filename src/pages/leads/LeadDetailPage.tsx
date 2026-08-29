@@ -13,6 +13,7 @@ import {
 import { ApiError } from "../../api/client";
 import { getProjectForLead, type ProjectForLead } from "../../api/projects";
 import BillUploadWidget from "./BillUploadWidget";
+import LeadWorkOrders from "./LeadWorkOrders";
 import { LeadStatusBadge } from "./leadFunnel";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
@@ -424,6 +425,8 @@ export default function LeadDetailPage() {
           </div>
         </form>
       </div>
+
+      <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
     </div>
   );
 }

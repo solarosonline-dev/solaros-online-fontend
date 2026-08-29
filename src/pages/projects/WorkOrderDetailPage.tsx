@@ -140,7 +140,7 @@ export default function WorkOrderDetailPage() {
     setStatus(null);
     try {
       await deleteWorkOrder(entityId, Number(workOrderId));
-      navigate(wo.project_id ? `/app/projects/${wo.project_id}` : "/app/projects");
+      navigate(wo.project_id ? `/app/projects/${wo.project_id}` : `/app/leads/${wo.lead_id}`);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not delete" });
       setDeleting(false);
@@ -164,7 +164,12 @@ export default function WorkOrderDetailPage() {
   // projects-list pages any more, so send them back to their own queue
   // instead of a link that would just bounce them straight back out.
   const admin = isEntityAdmin(user!.roles);
-  const backLink = admin ? (wo.project_id ? `/app/projects/${wo.project_id}` : "/app/projects") : "/app/my-work-orders";
+  const backLink = admin
+    ? wo.project_id
+      ? `/app/projects/${wo.project_id}`
+      : `/app/leads/${wo.lead_id}`
+    : "/app/my-work-orders";
+  const backLabel = admin ? (wo.project_id ? "← Back to project" : "← Back to lead") : "← Back to my work orders";
   // AMC_SERVICE assignment is backend-gated to entity admins/
   // ENTITY_SERVICE_MANAGER (see require_amc_manager / is_amc_manager);
   // every other work order type is entity-admin only -- WORKER/TECHNICIAN
@@ -174,7 +179,7 @@ export default function WorkOrderDetailPage() {
   return (
     <div className="projects-page">
       <Link to={backLink} className="project-detail-back">
-        {admin ? "← Back to project" : "← Back to my work orders"}
+        {backLabel}
       </Link>
 
       <div className="project-detail-header">
@@ -219,6 +224,19 @@ export default function WorkOrderDetailPage() {
         <div className="project-detail-row">
           <span>Notes</span>
           <span>{wo.notes || "—"}</span>
+        </div>
+        <div className="project-detail-row">
+          <span>Customer</span>
+          <span>
+            {wo.lead.name}
+            <div className="work-order-assignee-contact">
+              {[wo.lead.mobile, wo.lead.email].filter(Boolean).join(" · ")}
+            </div>
+          </span>
+        </div>
+        <div className="project-detail-row">
+          <span>Address</span>
+          <span>{wo.lead.address || "—"}</span>
         </div>
         <div className="project-detail-row">
           <span>Assignee</span>
@@ -272,7 +290,13 @@ export default function WorkOrderDetailPage() {
             )}
             <button
               className="projects-btn primary"
-              disabled={(assigneeType === "USER" ? !selectedUserId : !selectedTeamId) || assigning}
+              disabled={
+                (assigneeType === "USER" ? !selectedUserId : !selectedTeamId) ||
+                assigning ||
+                (wo.assignee != null &&
+                  wo.assignee.assignee_type === assigneeType &&
+                  String(wo.assignee.assignee_id) === (assigneeType === "USER" ? selectedUserId : selectedTeamId))
+              }
               onClick={handleAssign}
             >
               {assigning ? "Assigning…" : wo.assignee ? "Reassign" : "Assign"}
