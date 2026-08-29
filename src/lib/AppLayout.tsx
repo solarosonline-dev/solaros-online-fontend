@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isSystemAdmin } from "./roles";
+import { isSystemAdmin, isEntityAdmin } from "./roles";
 import "./AppLayout.css";
 
 export default function AppLayout() {
@@ -31,6 +31,7 @@ export default function AppLayout() {
   }, [menuOpen]);
 
   const systemAdmin = user ? isSystemAdmin(user.roles) : false;
+  const entityAdmin = user ? isEntityAdmin(user.roles) : false;
 
   return (
     <div className="app-shell">
@@ -54,13 +55,16 @@ export default function AppLayout() {
             {systemAdmin && <NavLink to="/app/admin/dashboard">Dashboard</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
-            {!systemAdmin && user?.entity_id && <NavLink to="/app/dashboard">Dashboard</NavLink>}
-            {!systemAdmin && user?.entity_id && <NavLink to="/app/leads">Leads</NavLink>}
-            {!systemAdmin && user?.entity_id && <NavLink to="/app/quotes">Quotes</NavLink>}
-            {!systemAdmin && user?.entity_id && <NavLink to="/app/agreements">Agreements</NavLink>}
-            {!systemAdmin && user?.entity_id && <NavLink to="/app/projects">Projects</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/leads">Leads</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/quotes">Quotes</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/agreements">Agreements</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/projects">Projects</NavLink>}
+            {!systemAdmin && !entityAdmin && user?.entity_id && (
+              <NavLink to="/app/my-work-orders">My Work Orders</NavLink>
+            )}
           </nav>
-          {!systemAdmin && user?.entity_id && (
+          {!systemAdmin && entityAdmin && (
             <nav className="app-nav app-nav-settings">
               <NavLink to="/app/entity">Entity Settings</NavLink>
               <NavLink to="/app/users">Users</NavLink>

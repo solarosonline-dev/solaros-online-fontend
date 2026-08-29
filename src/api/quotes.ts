@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { LeadDetail } from "./leads";
+import type { LeadDetail, LeadStatus } from "./leads";
 import type { AmcInclusionItem } from "./amcPlans";
 
 export type QuoteStatus = "GENERATED" | "ACCEPTED" | "REJECTED";
@@ -87,6 +87,38 @@ export type QuoteInput = {
 
 export function listQuotes(entityId: number, leadId: number) {
   return apiRequest<{ items: QuoteListItem[] }>(`/entities/${entityId}/leads/${leadId}/quotes`);
+}
+
+export type EntityQuoteListItem = QuoteListItem & {
+  lead_id: number;
+  lead_name: string;
+  lead_mobile: string;
+  /** Lets the frontend show a "Generate agreement"/"View agreement" action
+   * on each row without a second query -- QUOTE_ACCEPTED means eligible to
+   * generate, AGREEMENT_GENERATED/AGREEMENT_ACCEPTED means one already
+   * exists, anything else means no action. */
+  lead_status: LeadStatus;
+  /** Derived server-side, not a real Quote column -- null unless status is
+   * ACCEPTED (see the backend's ApiSpecs.md note on Quote.updated_at). */
+  accepted_at: string | null;
+};
+
+export type EntityQuoteList = {
+  items: EntityQuoteListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+// Every quote across every lead in the entity, one page at a time -- backs
+// the "All quotes" table on QuotesPage, instead of listing every lead and
+// fetching that lead's quotes one request at a time.
+export function listEntityQuotes(entityId: number, params: { page?: number; page_size?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.page_size) qs.set("page_size", String(params.page_size));
+  const query = qs.toString();
+  return apiRequest<EntityQuoteList>(`/entities/${entityId}/quotes${query ? `?${query}` : ""}`);
 }
 
 export function getQuote(entityId: number, leadId: number, quoteId: number) {

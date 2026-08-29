@@ -60,8 +60,21 @@
   cursor: pointer;
 }
 
+.projects-table-action-cell {
+  white-space: nowrap;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
 .projects-table tbody tr:hover {
   background: var(--app-bg);
+}
+
+.projects-contact-email {
+  font-size: 12px;
+  color: var(--app-text-muted);
 }
 
 .projects-table tr:last-child td {
@@ -225,11 +238,23 @@
   color: var(--app-text-muted);
 }
 
+.work-order-assignee-contact {
+  font-size: 12px;
+  color: var(--app-text-muted);
+}
+
 .project-tabs {
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--app-border);
   margin-bottom: 20px;
+}
+
+/* Native dropdown shown only ≤640px in place of .wo-status-tabs below --
+   same swap as .project-funnel-select/.project-funnel-buttons above, used
+   on the worker-facing "My work orders" status filter. */
+.wo-status-select {
+  display: none;
 }
 
 .project-tab {
@@ -322,6 +347,12 @@
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.projects-btn:hover:not(:disabled) {
+  background: var(--app-bg);
+  border-color: var(--app-text-muted);
 }
 
 .projects-btn.primary {
@@ -330,9 +361,19 @@
   color: var(--app-accent-contrast);
 }
 
+.projects-btn.primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  border-color: var(--app-accent-hover);
+}
+
 .projects-btn.danger {
   border-color: var(--app-danger);
   color: var(--app-danger);
+}
+
+.projects-btn.danger:hover:not(:disabled) {
+  background: var(--app-danger-bg);
+  border-color: var(--app-danger);
 }
 
 .projects-btn:disabled {
@@ -392,6 +433,15 @@
   font-size: 12px;
   color: var(--app-text-muted);
   width: 100%;
+}
+
+/* The single work-order type creatable at the project's current phase --
+   e.g. "Site survey" while NEW -- shown in place of the old type dropdown
+   in .work-orders-new-panel now that only one type is ever offered. */
+.work-order-current-type {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text);
 }
 
 /* Tap-target sizing for buttons, action links, and icon-sized controls
@@ -477,6 +527,24 @@
     color: var(--app-text);
   }
 
+  .wo-status-tabs {
+    display: none;
+  }
+
+  .wo-status-select {
+    display: block;
+    width: 100%;
+    min-height: var(--app-tap-target);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 12px;
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    background: var(--app-surface);
+    color: var(--app-text);
+    margin-bottom: 20px;
+  }
+
   .project-detail-header {
     flex-direction: column;
     align-items: stretch;
@@ -555,6 +623,30 @@
     content: attr(data-label);
     font-weight: 600;
     color: var(--app-text-muted);
+  }
+
+  /* Action cells have no data-label (nothing to show but the buttons), so
+     they don't need the label/value flex row above -- stack them full-width
+     instead. `display: flex; flex-direction: column` (not just `block`) is
+     what actually matters here: `.projects-btn` is `display: inline-block`,
+     so two of them side by side each at `width: 100%` overflow the card
+     instead of wrapping -- flex-column forces each onto its own row.
+     (`.projects-table td` outranks a bare class on specificity, so this
+     needs the compound selector to actually override it.) */
+  .projects-table td.projects-table-action-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+    text-align: left;
+    padding: 4px 0;
+  }
+
+  .projects-table-action-cell .projects-btn {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
   }
 }
 

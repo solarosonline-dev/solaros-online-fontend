@@ -2,15 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { canManageAmc } from "../../lib/roles";
-import { listProjects, type ProjectListItem, type ProjectStatus } from "../../api/projects";
+import { listProjects, type ProjectListItem } from "../../api/projects";
 import { listAmcScheduleDue, type AmcScheduleDueItem, type AmcScheduleItem } from "../../api/amcSchedule";
 import { ApiError } from "../../api/client";
-import { ProjectFunnelNav, ProjectStatusBadge } from "./projectFunnel";
+import { ProjectFunnelNav, ProjectStatusBadge, PROJECT_PHASE_GROUPS, type ProjectFunnelSelection } from "./projectFunnel";
 import AmcActionTable, { type AmcActionRow } from "./AmcActionTable";
 import { dueBucket, nextPendingScheduleIds, startOfDay } from "../../lib/amcDue";
+import Pagination from "../../lib/Pagination";
 import "./ProjectsPage.css";
 
 type ProjectsTab = "all" | "amc-due";
+
+const PAGE_SIZE = 20;
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -21,24 +24,50 @@ export default function ProjectsPage() {
   const [tab, setTab] = useState<ProjectsTab>("all");
 
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<ProjectFunnelSelection>("");
+  const [page, setPage] = useState(1);
 
   const [amcDueItems, setAmcDueItems] = useState<AmcScheduleDueItem[]>([]);
   const [amcDueLoading, setAmcDueLoading] = useState(true);
   const [amcDueError, setAmcDueError] = useState<string | null>(null);
 
+  // A funnel-phase selection (e.g. "SITE_SURVEY") resolves to every
+  // underlying status in that phase group; "REJECTED" is a single exact
+  // status; "" means no filter at all.
+  const statusParam =
+    statusFilter === "" || statusFilter === "REJECTED"
+      ? statusFilter || undefined
+      : PROJECT_PHASE_GROUPS.find((g) => g.phase === statusFilter)?.statuses;
+
   function load() {
     setLoading(true);
     setLoadError(null);
-    listProjects(entityId, { status: statusFilter || undefined, all: statusFilter ? undefined : true })
-      .then((res) => setProjects(res.items))
+    listProjects(entityId, {
+      status: statusParam,
+      all: statusFilter ? undefined : true,
+      page,
+      page_size: PAGE_SIZE,
+    })
+      .then((res) => {
+        setProjects(res.items);
+        setTotal(res.total);
+      })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load projects"))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [entityId, statusFilter]);
+  useEffect(load, [entityId, statusFilter, page]);
+
+  // Resetting the page alongside the filter change (rather than in a
+  // separate effect keyed on it) keeps this to one fetch instead of one for
+  // the stale page under the new filter followed by a second for page 1.
+  function handleStatusFilterChange(selection: ProjectFunnelSelection) {
+    setStatusFilter(selection);
+    setPage(1);
+  }
 
   function loadAmcDue() {
     setAmcDueLoading(true);
@@ -138,7 +167,7 @@ export default function ProjectsPage() {
         )
       ) : (
         <>
-          <ProjectFunnelNav value={statusFilter} onSelect={setStatusFilter} />
+          <ProjectFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />
 
           <div className="projects-table-wrap">
             {loading ? (
@@ -152,24 +181,35 @@ export default function ProjectsPage() {
                 <thead>
                   <tr>
                     <th>Customer</th>
+                    <th>Contact</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th>Completed</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projects.map((p) => (
                     <tr key={p.project_id} onClick={() => navigate(`/app/projects/${p.project_id}`)}>
                       <td data-label="Customer">{p.customer_name}</td>
+                      <td data-label="Contact">
+                        <div>{p.customer_mobile}</div>
+                        {p.customer_email && <div className="projects-contact-email">{p.customer_email}</div>}
+                      </td>
                       <td data-label="Status">
                         <ProjectStatusBadge status={p.status} />
                       </td>
                       <td data-label="Created">{new Date(p.created_at).toLocaleDateString()}</td>
+                      <td data-label="Completed">
+                        {p.completed_at ? new Date(p.completed_at).toLocaleDateString() : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </div>
+
+          {!loading && !loadError && <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />}
         </>
       )}
     </div>

@@ -21,7 +21,9 @@ The frontend expects the backend at `http://127.0.0.1:8000/api/v1` (`.env.develo
 
 ## Auth token handling
 
-The API client (`src/api/client.ts`) stores the JWT in `localStorage` under `solaros_token` and attaches it as `Authorization: Bearer <token>` on every authenticated request. `src/lib/AuthContext.tsx` holds the in-memory user object; `ProtectedRoute` redirects unauthenticated users to `/login`.
+The API client (`src/api/client.ts`) stores the session token (an opaque backend-issued string, not a JWT — see the backend's `AGENTS.md`) in `localStorage` under `solaros_token` and attaches it as `Authorization: Bearer <token>` on every authenticated request. `src/lib/AuthContext.tsx` holds the in-memory user object; `ProtectedRoute` redirects unauthenticated users to `/login`.
+
+Login (`POST /auth/login`) accepts either an email address or a phone number in one `identifier` field — see `LoginPage.tsx`/`src/api/auth.ts`.
 
 ## Testing flows locally that require an email/activation token
 
@@ -58,8 +60,10 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/admin/entities/<entityId>/state \
 src/
   api/            Typed API client + per-domain request functions
   lib/            Auth context, ProtectedRoute, shared frontend utilities
-  pages/          One folder per domain area (auth, admin, entity, leads, quotes, agreements, projects, teams)
-  components/     Shared/reusable UI components
+  pages/          One folder per domain area (auth, admin, entity, leads, quotes, agreements,
+                  projects, workorders, teams — teams is still an empty placeholder, no
+                  dedicated Teams management page yet)
+  components/     Shared/reusable UI components (Modal, SignaturePad, CopyLinkButton)
 legacy-reference/ Business-logic files ported from the old solaros-online repo
                   (finance-engine.js, quote/agreement renderers, translations)
                   — reference only, being ported into TS modules incrementally

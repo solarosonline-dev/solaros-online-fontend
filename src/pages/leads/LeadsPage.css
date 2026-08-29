@@ -35,10 +35,6 @@
   color: var(--app-text);
 }
 
-.leads-table tbody tr {
-  cursor: pointer;
-}
-
 .leads-table tbody tr:hover {
   background: var(--app-bg);
 }
@@ -73,6 +69,11 @@
 
 .leads-table tr:last-child td {
   border-bottom: none;
+}
+
+.leads-table-action-cell {
+  white-space: nowrap;
+  text-align: right;
 }
 
 /* Plain lead status pill -- shown inline wherever a single lead's current
@@ -283,6 +284,22 @@
     color: var(--app-text-muted);
   }
 
+  /* Action cells have no data-label (nothing to show but the button), so
+     they don't need the label/value flex row above -- stack them full-width
+     instead, with a bit of breathing room between the two buttons.
+     (`.leads-table td` outranks a bare class on specificity, so this needs
+     the compound selector to actually override it.) */
+  .leads-table td.leads-table-action-cell {
+    display: block;
+    text-align: left;
+    padding: 4px 0;
+  }
+
+  .leads-table-action-cell .leads-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .add-lead-panel,
   .lead-detail-panel {
     max-width: none;
@@ -442,12 +459,23 @@
   background: var(--app-surface);
   color: var(--app-text);
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.leads-btn:hover:not(:disabled) {
+  background: var(--app-bg);
+  border-color: var(--app-text-muted);
 }
 
 .leads-btn.primary {
   background: var(--app-accent);
   border-color: var(--app-accent);
   color: var(--app-accent-contrast);
+}
+
+.leads-btn.primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  border-color: var(--app-accent-hover);
 }
 
 .leads-btn:disabled {

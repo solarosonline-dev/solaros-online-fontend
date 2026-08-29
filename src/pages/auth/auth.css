@@ -117,6 +117,35 @@
   gap: 12px;
 }
 
+.auth-password-wrap {
+  position: relative;
+}
+
+.auth-password-wrap input {
+  padding-right: 52px;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.auth-password-toggle:hover {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
 .auth-error {
   margin: 0 0 16px;
   padding: 10px 12px;

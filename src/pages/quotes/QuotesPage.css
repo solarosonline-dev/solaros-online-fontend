@@ -3,29 +3,7 @@
   margin: 0 0 16px;
 }
 
-.quotes-section-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--app-text);
-  margin: 24px 0 10px;
-}
-
-.quotes-section-label:first-of-type {
-  margin-top: 0;
-}
-
-.quotes-new-panel {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  padding: 20px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.quotes-new-panel select {
+.quotes-search {
   font-family: inherit;
   font-size: 14px;
   padding: 9px 12px;
@@ -34,6 +12,8 @@
   background: var(--app-surface);
   color: var(--app-text);
   min-width: 260px;
+  margin-bottom: 16px;
+  display: block;
 }
 
 .quotes-btn {
@@ -48,12 +28,23 @@
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.quotes-btn:hover:not(:disabled) {
+  background: var(--app-bg);
+  border-color: var(--app-text-muted);
 }
 
 .quotes-btn.primary {
   background: var(--app-accent);
   border-color: var(--app-accent);
   color: var(--app-accent-contrast);
+}
+
+.quotes-btn.primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  border-color: var(--app-accent-hover);
 }
 
 .quotes-btn:disabled {
@@ -88,16 +79,17 @@
   border-bottom: 1px solid var(--app-border);
 }
 
-.quotes-table tbody tr {
-  cursor: pointer;
+.quotes-table tr:last-child td {
+  border-bottom: none;
 }
 
 .quotes-table tbody tr:hover {
   background: var(--app-bg);
 }
 
-.quotes-table tr:last-child td {
-  border-bottom: none;
+.quotes-table-action-cell {
+  white-space: nowrap;
+  text-align: right;
 }
 
 .quotes-status-badge {
@@ -125,19 +117,14 @@
     justify-content: center;
   }
 
-  .quotes-new-panel select {
+  .quotes-search {
     min-height: var(--app-tap-target);
   }
 }
 
-/* Quotes list -> stacked cards; new-quote panel -> single column at phone width */
+/* Quotes list -> stacked cards; search box -> full width at phone width */
 @media (max-width: 640px) {
-  .quotes-new-panel {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .quotes-new-panel select {
+  .quotes-search {
     width: 100%;
     min-width: 0;
   }
@@ -189,14 +176,26 @@
     font-weight: 600;
     color: var(--app-text-muted);
   }
+
+  /* Action cells have no data-label (nothing to show but the button), so
+     they don't need the label/value flex row above -- stack them full-width
+     instead, with a bit of breathing room between the buttons.
+     (`.quotes-table td` outranks a bare class on specificity, so this needs
+     the compound selector to actually override it.) */
+  .quotes-table td.quotes-table-action-cell {
+    display: block;
+    text-align: left;
+    padding: 4px 0;
+  }
+
+  .quotes-table-action-cell .quotes-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 400px) {
   .quotes-page h1 {
     font-size: 18px;
-  }
-
-  .quotes-new-panel {
-    padding: 14px;
   }
 }

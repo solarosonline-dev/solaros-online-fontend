@@ -1,0 +1,52 @@
+.app-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.app-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-pagination-btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.app-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-pagination-page {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .app-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-pagination-controls {
+    justify-content: space-between;
+  }
+
+  .app-pagination-btn {
+    min-height: var(--app-tap-target);
+  }
+}

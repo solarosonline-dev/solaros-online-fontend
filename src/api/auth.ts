@@ -11,10 +11,12 @@ export type LoginResponse = {
   };
 };
 
-export function login(email: string, password: string) {
+// `identifier` accepts either an email address or a phone number -- the
+// backend distinguishes by whether it contains "@".
+export function login(identifier: string, password: string) {
   return apiRequest<LoginResponse>("/auth/login", {
     method: "POST",
-    body: { email, password },
+    body: { identifier, password },
     auth: false,
   });
 }

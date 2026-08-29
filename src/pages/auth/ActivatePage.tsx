@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { activateAccount } from "../../api/auth";
 import { ApiError } from "../../api/client";
+import PasswordInput from "./PasswordInput";
 import "./auth.css";
 
 type Status = "activating" | "needs-password" | "activated" | "error";
@@ -123,23 +124,21 @@ export default function ActivatePage() {
         <form onSubmit={handleSubmit} noValidate>
           <div className="auth-field">
             <label htmlFor="password">Password</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="new-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               required
             />
           </div>
           <div className="auth-field">
             <label htmlFor="confirmPassword">Confirm password</label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={setConfirmPassword}
               required
             />
           </div>

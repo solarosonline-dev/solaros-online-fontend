@@ -218,12 +218,23 @@
   background: var(--app-surface);
   color: var(--app-text);
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.entity-btn:hover:not(:disabled) {
+  background: var(--app-bg);
+  border-color: var(--app-text-muted);
 }
 
 .entity-btn.primary {
   background: var(--app-accent);
   border-color: var(--app-accent);
   color: var(--app-accent-contrast);
+}
+
+.entity-btn.primary:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  border-color: var(--app-accent-hover);
 }
 
 .entity-btn:disabled {

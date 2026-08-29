@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { registerEntity } from "../../api/entityRegistration";
 import { ApiError } from "../../api/client";
 import { validateRegisterForm, type RegisterFieldErrors } from "./registerValidation";
+import PasswordInput from "./PasswordInput";
 import "./auth.css";
 
 const ENTITY_TYPES = ["EPC", "Financier (NBFC/Bank)", "RESCO Investor/Asset Owner", "O&M Vendor"];
@@ -143,23 +144,16 @@ export default function RegisterPage() {
           <div className="auth-field-row">
             <div className="auth-field">
               <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <PasswordInput id="password" autoComplete="new-password" value={password} onChange={setPassword} />
               {fieldErrors.password && <p className="auth-field-error">{fieldErrors.password}</p>}
             </div>
             <div className="auth-field">
               <label htmlFor="confirmPassword">Confirm password</label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={setConfirmPassword}
               />
               {fieldErrors.confirmPassword && <p className="auth-field-error">{fieldErrors.confirmPassword}</p>}
             </div>

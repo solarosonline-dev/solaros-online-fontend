@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
+import RequireEntityAdmin from "./lib/RequireEntityAdmin";
 import AppLayout from "./lib/AppLayout";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -27,6 +28,7 @@ import PublicAmcSchedulePage from "./pages/amc/PublicAmcSchedulePage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import EntityMetricsDrilldownPage from "./pages/admin/EntityMetricsDrilldownPage";
 import EntityDashboardPage from "./pages/admin/EntityDashboardPage";
+import MyWorkOrdersPage from "./pages/workorders/MyWorkOrdersPage";
 
 export default function App() {
   return (
@@ -43,18 +45,21 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/app" element={<HomeRedirect />} />
-              <Route path="/app/dashboard" element={<EntityDashboardPage />} />
-              <Route path="/app/entity" element={<EntityManagementPage />} />
-              <Route path="/app/users" element={<UsersPage />} />
-              <Route path="/app/leads" element={<LeadsPage />} />
-              <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
-              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
-              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
-              <Route path="/app/quotes" element={<QuotesPage />} />
-              <Route path="/app/agreements" element={<AgreementsPage />} />
-              <Route path="/app/projects" element={<ProjectsPage />} />
-              <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+              <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
               <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
+              <Route element={<RequireEntityAdmin />}>
+                <Route path="/app/dashboard" element={<EntityDashboardPage />} />
+                <Route path="/app/entity" element={<EntityManagementPage />} />
+                <Route path="/app/users" element={<UsersPage />} />
+                <Route path="/app/leads" element={<LeadsPage />} />
+                <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
+                <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+                <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
+                <Route path="/app/quotes" element={<QuotesPage />} />
+                <Route path="/app/agreements" element={<AgreementsPage />} />
+                <Route path="/app/projects" element={<ProjectsPage />} />
+                <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+              </Route>
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />
                 <Route path="/app/admin/users" element={<AdminUsersPage />} />

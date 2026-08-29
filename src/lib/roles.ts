@@ -4,6 +4,18 @@ export function isSystemAdmin(roles: string[]): boolean {
   return roles.some((r) => SYSTEM_ROLES.includes(r));
 }
 
+// Mirrors the backend's ENTITY_ADMIN_ROLES / is_entity_admin (app/api/deps.py).
+// Leads, quotes, agreements, projects, entity users, teams, entity
+// details/preferences, and the entity metrics dashboard are all gated to
+// these two roles now -- every other ENTITY-scope role (WORKER, TECHNICIAN,
+// ENTITY_SERVICE_MANAGER) is field-facing only and gets 403 SCOPE_MISMATCH
+// from the backend for those resources.
+export const ENTITY_ADMIN_ROLES = ["ENTITY_ADMIN", "ENTITY_SUPER_ADMIN"];
+
+export function isEntityAdmin(roles: string[]): boolean {
+  return roles.some((r) => ENTITY_ADMIN_ROLES.includes(r));
+}
+
 // Entity-scoped roles that can view the cross-project "AMC visits due" tab
 // and create/assign AMC work orders -- mirrors the backend's
 // AMC_MANAGER_ROLES (app/api/deps.py). ENTITY_ADMIN/ENTITY_SUPER_ADMIN can

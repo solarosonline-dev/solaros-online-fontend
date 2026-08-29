@@ -4,7 +4,6 @@ import { useAuth } from "../../lib/AuthContext";
 import {
   getProject,
   updateProjectStatus,
-  nextProjectStatus,
   canRejectProject,
   type ProjectDetail,
   type ProjectStatus,
@@ -12,28 +11,10 @@ import {
 import { ApiError } from "../../api/client";
 import ProjectWorkOrders from "./ProjectWorkOrders";
 import ProjectAmcTab from "./ProjectAmcTab";
+import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
 import "./ProjectsPage.css";
 
 type ProjectTab = "installations" | "amc";
-
-const STEPS: { status: ProjectStatus; label: string }[] = [
-  { status: "NEW", label: "New" },
-  { status: "SITE_SURVEY_IN_PROGRESS", label: "Site survey" },
-  { status: "INSTALLATION_IN_PROGRESS", label: "Installation" },
-  { status: "INSTALLATION_COMPLETED", label: "Installation done" },
-  { status: "DOCUMENTATION_IN_PROGRESS", label: "Documentation" },
-  { status: "COMPLETED", label: "Completed" },
-];
-
-const NEXT_ACTION_LABEL: Record<ProjectStatus, string | null> = {
-  NEW: "Start site survey",
-  SITE_SURVEY_IN_PROGRESS: "Start installation",
-  INSTALLATION_IN_PROGRESS: "Mark installation completed",
-  INSTALLATION_COMPLETED: "Start documentation",
-  DOCUMENTATION_IN_PROGRESS: "Mark completed",
-  COMPLETED: null,
-  REJECTED: null,
-};
 
 function badgeClass(status: ProjectStatus): string {
   if (status === "REJECTED") return "project-status-badge rejected";
@@ -93,8 +74,14 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const next = nextProjectStatus(project.status);
-  const stepIdx = STEPS.findIndex((s) => s.status === project.status);
+  // Collapsed 3-stage stepper (Site survey / Installation / Documentation)
+  // instead of every individual IN_PROGRESS/COMPLETED status -- the exact
+  // status is still shown in the header badge and the detail panel below.
+  // A project sitting at COMPLETED is fully past the Documentation stage
+  // (folded into it, see PROJECT_PHASE_GROUPS), not merely "current" there.
+  const phase = phaseForStatus(project.status);
+  const phaseIdx = PROJECT_PHASE_GROUPS.findIndex((g) => g.phase === phase);
+  const phaseFullyDone = project.status === "COMPLETED";
 
   return (
     <div className="projects-page">
@@ -110,13 +97,26 @@ export default function ProjectDetailPage() {
           <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
             View lead
           </Link>
-          {next && (
+          {/* A project only exists once the lead's agreement is accepted,
+              which requires an accepted quote first -- so there's always at
+              least one quote by this point. Same route LeadDetailPage links
+              to; QuoteBuilderPage loads the lead's existing quote in view
+              mode rather than starting a blank one. */}
+          <Link to={`/app/leads/${project.lead_id}/quote`} className="projects-btn">
+            View quote
+          </Link>
+          {/* Every other transition is now reached by creating/completing
+              that phase's work order, or by Skip (see ProjectWorkOrders) --
+              a manual advance button for those would just flip the status
+              with no work order behind it. COMPLETED has no work-order type
+              and no skip entry, so it's the one manual step left. */}
+          {project.status === "DOCUMENTATION_COMPLETED" && (
             <button
               className="projects-btn primary"
               disabled={transitioning}
-              onClick={() => handleTransition(next)}
+              onClick={() => handleTransition("COMPLETED")}
             >
-              {NEXT_ACTION_LABEL[project.status] ?? `Advance to ${next}`}
+              Mark completed
             </button>
           )}
           {canRejectProject(project.status) && (
@@ -156,12 +156,14 @@ export default function ProjectDetailPage() {
         <>
           {project.status !== "REJECTED" && (
             <div className="project-detail-stepper">
-              {STEPS.map((s, i) => (
+              {PROJECT_PHASE_GROUPS.map((g, i) => (
                 <span
-                  key={s.status}
-                  className={`project-step${i < stepIdx ? " done" : ""}${i === stepIdx ? " current" : ""}`}
+                  key={g.phase}
+                  className={`project-step${
+                    i < phaseIdx || (i === phaseIdx && phaseFullyDone) ? " done" : ""
+                  }${i === phaseIdx && !phaseFullyDone ? " current" : ""}`}
                 >
-                  {s.label}
+                  {g.label}
                 </span>
               ))}
             </div>
@@ -177,6 +179,14 @@ export default function ProjectDetailPage() {
               <span>{project.customer_name}</span>
             </div>
             <div className="project-detail-row">
+              <span>Mobile</span>
+              <span>{project.customer_mobile}</span>
+            </div>
+            <div className="project-detail-row">
+              <span>Email</span>
+              <span>{project.customer_email || "—"}</span>
+            </div>
+            <div className="project-detail-row">
               <span>Created</span>
               <span>{new Date(project.created_at).toLocaleString()}</span>
             </div>
@@ -184,11 +194,22 @@ export default function ProjectDetailPage() {
               <span>Status</span>
               <span>{project.status}</span>
             </div>
+            {project.completed_at && (
+              <div className="project-detail-row">
+                <span>Completed</span>
+                <span>{new Date(project.completed_at).toLocaleString()}</span>
+              </div>
+            )}
           </div>
 
           {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
 
-          <ProjectWorkOrders entityId={entityId} projectId={project.project_id} />
+          <ProjectWorkOrders
+            entityId={entityId}
+            projectId={project.project_id}
+            projectStatus={project.status}
+            onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
+          />
 
           <div style={{ marginTop: 16 }}>
             <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>

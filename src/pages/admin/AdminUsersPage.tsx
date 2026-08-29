@@ -110,6 +110,7 @@ export default function AdminUsersPage() {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Mobile</th>
                 <th>Role</th>
                 <th>State</th>
                 <th />
@@ -120,6 +121,7 @@ export default function AdminUsersPage() {
                 <tr key={u.user_id}>
                   <td>{u.full_name}</td>
                   <td>{u.email}</td>
+                  <td>{u.phone || "—"}</td>
                   <td>
                     {u.roles.map((r) => (
                       <span className="admin-users-role-badge" key={r}>

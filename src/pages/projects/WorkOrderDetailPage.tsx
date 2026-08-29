@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { canManageAmc } from "../../lib/roles";
+import { canManageAmc, isEntityAdmin } from "../../lib/roles";
 import {
   getWorkOrder,
   updateWorkOrderStatus,
@@ -13,6 +13,7 @@ import {
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { listTeams, type TeamListItem } from "../../api/teams";
 import { ApiError } from "../../api/client";
+import WorkOrderDocuments from "./WorkOrderDocuments";
 import "./ProjectsPage.css";
 
 const NEXT_ACTION_LABEL: Record<string, string> = {
@@ -65,14 +66,19 @@ export default function WorkOrderDetailPage() {
     }
   }, [wo?.assignee]);
 
+  // Both listEntityUsers and listTeams are entity-admin-only endpoints now
+  // (see app/api/v1/router.py on the backend) -- skip the calls entirely for
+  // WORKER/TECHNICIAN, who can never assign work orders anyway.
+  const canManageAssignment = isEntityAdmin(user!.roles) || canManageAmc(user!.roles);
   useEffect(() => {
+    if (!canManageAssignment) return;
     listEntityUsers(entityId)
       .then((res) => setUsers(res.items))
       .catch(() => {});
     listTeams(entityId, { active: true })
       .then((res) => setTeams(res.items))
       .catch(() => {});
-  }, [entityId]);
+  }, [entityId, canManageAssignment]);
 
   async function handleTransition(target: string) {
     if (!workOrderId) return;
@@ -101,12 +107,24 @@ export default function WorkOrderDetailPage() {
     try {
       const wasAssigned = wo?.assignee != null;
       const res = await assignWorkOrder(entityId, Number(workOrderId), assigneeType, Number(selectedId));
+      const matchedUser = assigneeType === "USER" ? users.find((u) => u.user_id === res.assignee_id) : undefined;
       const name =
         assigneeType === "USER"
-          ? users.find((u) => u.user_id === res.assignee_id)?.full_name ?? ""
+          ? matchedUser?.full_name ?? ""
           : teams.find((t) => t.team_id === res.assignee_id)?.name ?? "";
       setWo((prev) =>
-        prev ? { ...prev, assignee: { assignee_type: assigneeType, assignee_id: res.assignee_id, name } } : prev,
+        prev
+          ? {
+              ...prev,
+              assignee: {
+                assignee_type: assigneeType,
+                assignee_id: res.assignee_id,
+                name,
+                email: matchedUser?.email ?? null,
+                phone: matchedUser?.phone ?? null,
+              },
+            }
+          : prev,
       );
       setStatus({ kind: "success", message: wasAssigned ? "Reassigned." : "Assigned." });
     } catch (err) {
@@ -142,16 +160,21 @@ export default function WorkOrderDetailPage() {
   }
 
   const next = nextWorkOrderStatus(wo.status);
-  const backLink = wo.project_id ? `/app/projects/${wo.project_id}` : "/app/projects";
+  // Non-admins (WORKER/TECHNICIAN) can't reach the admin-only project/
+  // projects-list pages any more, so send them back to their own queue
+  // instead of a link that would just bounce them straight back out.
+  const admin = isEntityAdmin(user!.roles);
+  const backLink = admin ? (wo.project_id ? `/app/projects/${wo.project_id}` : "/app/projects") : "/app/my-work-orders";
   // AMC_SERVICE assignment is backend-gated to entity admins/
-  // ENTITY_SERVICE_MANAGER (see require_amc_manager / is_amc_manager) --
-  // other work order types are unrestricted, same as the backend.
-  const canAssign = wo.type !== "AMC_SERVICE" || canManageAmc(user!.roles);
+  // ENTITY_SERVICE_MANAGER (see require_amc_manager / is_amc_manager);
+  // every other work order type is entity-admin only -- WORKER/TECHNICIAN
+  // can never assign, only be assigned.
+  const canAssign = wo.type === "AMC_SERVICE" ? canManageAmc(user!.roles) : admin;
 
   return (
     <div className="projects-page">
       <Link to={backLink} className="project-detail-back">
-        ← Back to project
+        {admin ? "← Back to project" : "← Back to my work orders"}
       </Link>
 
       <div className="project-detail-header">
@@ -164,7 +187,7 @@ export default function WorkOrderDetailPage() {
               {NEXT_ACTION_LABEL[wo.status] ?? `Advance to ${next}`}
             </button>
           )}
-          {wo.status === "NEW" && (
+          {admin && wo.status === "NEW" && (
             <button className="projects-btn danger" disabled={deleting} onClick={handleDelete}>
               {deleting ? "Deleting…" : "Delete"}
             </button>
@@ -190,7 +213,7 @@ export default function WorkOrderDetailPage() {
           <span>{new Date(wo.opened_at).toLocaleString()}</span>
         </div>
         <div className="project-detail-row">
-          <span>Closed</span>
+          <span>Completed</span>
           <span>{wo.closed_at ? new Date(wo.closed_at).toLocaleString() : "—"}</span>
         </div>
         <div className="project-detail-row">
@@ -199,11 +222,28 @@ export default function WorkOrderDetailPage() {
         </div>
         <div className="project-detail-row">
           <span>Assignee</span>
-          <span>{wo.assignee ? `${wo.assignee.name} (${wo.assignee.assignee_type})` : "Unassigned"}</span>
+          <span>
+            {wo.assignee ? (
+              <>
+                {wo.assignee.name} ({wo.assignee.assignee_type})
+                {(wo.assignee.email || wo.assignee.phone) && (
+                  <div className="work-order-assignee-contact">
+                    {[wo.assignee.email, wo.assignee.phone].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+              </>
+            ) : (
+              "Unassigned"
+            )}
+          </span>
         </div>
       </div>
 
-      {canAssign ? (
+      {/* No explanatory hint for the non-permitted case -- a WORKER/
+          TECHNICIAN viewing their own assigned work order can never assign
+          one regardless, so "only entity admins can assign" is just noise
+          for them, not actionable information. */}
+      {canAssign && (
         <>
           <p className="projects-section-label">{wo.assignee ? "Reassign to" : "Assign to"}</p>
           <div className="projects-filters">
@@ -239,11 +279,11 @@ export default function WorkOrderDetailPage() {
             </button>
           </div>
         </>
-      ) : (
-        <p className="work-order-type-hint">Only entity admins or AMC service managers can assign AMC work orders.</p>
       )}
 
       {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
+
+      <WorkOrderDocuments entityId={entityId} workOrderId={Number(workOrderId)} />
     </div>
   );
 }

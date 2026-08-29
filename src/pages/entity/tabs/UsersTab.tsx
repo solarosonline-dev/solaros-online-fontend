@@ -114,6 +114,7 @@ export default function UsersTab({ entityId }: Props) {
             <tr>
               <th>Name</th>
               <th>Email</th>
+              <th>Mobile</th>
               <th>Role</th>
               <th>State</th>
               <th />
@@ -124,6 +125,7 @@ export default function UsersTab({ entityId }: Props) {
               <tr key={u.user_id}>
                 <td data-label="Name">{u.full_name}</td>
                 <td data-label="Email">{u.email}</td>
+                <td data-label="Mobile">{u.phone || "—"}</td>
                 <td data-label="Role">
                   {u.roles.map((r) => (
                     <span className="entity-role-badge" key={r}>

@@ -3,12 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { login } from "../../api/auth";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../lib/AuthContext";
+import PasswordInput from "./PasswordInput";
 import "./auth.css";
 
 export default function LoginPage() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(identifier, password);
       signIn(res);
       navigate("/app");
     } catch (err) {
@@ -39,24 +40,23 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="auth-field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="identifier">Email or mobile number</label>
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
           </div>
           <div className="auth-field">
             <label htmlFor="password">Password</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               required
             />
           </div>

@@ -54,6 +54,36 @@ export function listAgreements(entityId: number, leadId: number) {
   return apiRequest<{ items: AgreementListItem[] }>(`/entities/${entityId}/leads/${leadId}/agreements`);
 }
 
+export type EntityAgreementListItem = AgreementListItem & {
+  lead_id: number;
+  lead_name: string;
+  lead_mobile: string;
+  /** Null until the agreement is ACCEPTED (that's what creates the
+   * Project) -- lets the frontend show a "View project" action on each row
+   * without a second, per-row lookup. */
+  project_id: number | null;
+  /** Null until the agreement is signed/accepted. */
+  signed_at: string | null;
+};
+
+export type EntityAgreementList = {
+  items: EntityAgreementListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+// Every agreement across every lead in the entity, one page at a time --
+// backs the "All agreements" table on AgreementsPage, instead of listing
+// every lead and fetching that lead's agreements one request at a time.
+export function listEntityAgreements(entityId: number, params: { page?: number; page_size?: number } = {}) {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.page_size) qs.set("page_size", String(params.page_size));
+  const query = qs.toString();
+  return apiRequest<EntityAgreementList>(`/entities/${entityId}/agreements${query ? `?${query}` : ""}`);
+}
+
 export function getAgreement(entityId: number, leadId: number, agreementId: number) {
   return apiRequest<AgreementDetail>(`/entities/${entityId}/leads/${leadId}/agreements/${agreementId}`);
 }

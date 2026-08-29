@@ -75,10 +75,15 @@ export type ExtractedLeadData = {
 /** Manual status transitions only — QUOTE_GENERATED/AGREEMENT_GENERATED happen as a side effect of quote/agreement creation, never directly. */
 export type ManualLeadStatus = "REJECTED" | "QUOTE_ACCEPTED" | "AGREEMENT_ACCEPTED";
 
-export function listLeads(entityId: number, params: { status?: LeadStatus; search?: string } = {}) {
+export function listLeads(
+  entityId: number,
+  params: { status?: LeadStatus; search?: string; page?: number; page_size?: number } = {},
+) {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
   if (params.search) qs.set("search", params.search);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.page_size) qs.set("page_size", String(params.page_size));
   const query = qs.toString();
   return apiRequest<LeadList>(`/entities/${entityId}/leads${query ? `?${query}` : ""}`);
 }
