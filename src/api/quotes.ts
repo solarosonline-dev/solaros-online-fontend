@@ -1,6 +1,19 @@
 import { apiRequest } from "./client";
 import type { LeadDetail } from "./leads";
 import type { AmcInclusionItem } from "./amcPlans";
+import type { PaymentScheduleRow } from "./entityPreferences";
+
+type SnapshotAmcPlan = { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] };
+
+/** Frozen at acceptance time (see backend's mark_quote_accepted) -- the AMC
+ * plan(s) + payment schedule that were in effect the moment this quote was
+ * accepted. Null until then; not-yet-accepted quotes keep resolving these
+ * settings live via separate calls (listAmcPlans/getEntityPreferences). */
+export type QuoteSettingsSnapshot = {
+  amc: SnapshotAmcPlan | null;
+  amc_post5_plans: SnapshotAmcPlan[];
+  payment_schedule: PaymentScheduleRow[];
+};
 
 export type QuoteStatus = "GENERATED" | "ACCEPTED" | "REJECTED";
 
@@ -49,11 +62,15 @@ export type QuoteDetail = {
   loan_amount: string | null;
   loan_rate_percent: string | null;
   loan_tenure_years: number | null;
+  self_funding_amount: string | null;
   notes: string | null;
   terms: string[] | null;
   components: QuoteComponentRow[] | null;
   components_enabled: boolean | null;
   components_pricing_enabled: boolean | null;
+  /** Present (non-null) once the quote is ACCEPTED -- see
+   * QuoteSettingsSnapshot. */
+  settings_snapshot: QuoteSettingsSnapshot | null;
 };
 
 export type QuoteInput = {
@@ -78,6 +95,7 @@ export type QuoteInput = {
   loan_amount?: number;
   loan_rate_percent?: number;
   loan_tenure_years?: number;
+  self_funding_amount?: number;
   notes?: string;
   terms?: string[];
   components?: QuoteComponentRow[];
@@ -122,6 +140,11 @@ export type PublicQuoteResponse = {
   entity_name: string;
   amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] } | null;
   amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
+  /** Sourced from the quote's settings_snapshot once ACCEPTED, otherwise
+   * live-resolved from Entity Preferences -- see the backend's
+   * get_public_quote. Prefer this over a separate branding fetch so an
+   * accepted quote can't be shown a since-edited payment schedule. */
+  payment_schedule?: PaymentScheduleRow[];
 };
 
 export function getPublicQuote(token: string) {

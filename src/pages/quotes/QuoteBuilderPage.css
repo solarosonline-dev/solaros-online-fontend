@@ -29,6 +29,27 @@
   font-family: monospace;
 }
 
+/* Shown right under the page header (before the two-column grid) so it's
+   the first thing an admin sees on open -- not buried inside the collapsed
+   AMC accordion further down the form. Same amber palette as
+   .amc-due-badge.yellow (ProjectsPage.css) for a consistent "needs
+   attention" tone across the app. */
+.quote-builder-alert {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.quote-builder-alert a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .quote-builder-grid {
   display: grid;
   /* Left (form) panel is widened to comfortably fit the component-pricing

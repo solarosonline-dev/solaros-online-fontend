@@ -242,7 +242,11 @@ export default function PublicQuotePage() {
             ratePercent: quote.loan_rate_percent != null ? Number(quote.loan_rate_percent) : null,
             tenureYears: quote.loan_tenure_years,
           }}
-          paymentSchedule={branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
+          // Once accepted, the backend returns the payment schedule that was
+          // frozen at acceptance time (see settings_snapshot) directly on
+          // the quote response -- prefer that over the live branding fetch
+          // so an accepted quote can't be shown a since-edited schedule.
+          paymentSchedule={data.payment_schedule ?? branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
           branding={documentBranding}
           shareUrl={typeof window !== "undefined" ? window.location.href : null}
           signatureAction={signatureAction}

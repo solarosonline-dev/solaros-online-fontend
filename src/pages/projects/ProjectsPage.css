@@ -308,6 +308,12 @@
   border-bottom-color: var(--app-accent);
 }
 
+.projects-tab-note {
+  font-size: 13px;
+  color: var(--app-text-muted);
+  margin: -8px 0 16px;
+}
+
 .amc-due-badge {
   display: inline-block;
   padding: 2px 10px;

@@ -146,6 +146,7 @@ export default function ProjectsPage() {
             aria-selected={tab === "amc-due"}
             className={tab === "amc-due" ? "project-tab active" : "project-tab"}
             onClick={() => setTab("amc-due")}
+            title="Shows visits overdue, or due this week or next week"
           >
             AMC visits due
           </button>
@@ -153,18 +154,21 @@ export default function ProjectsPage() {
       )}
 
       {tab === "amc-due" && canSeeAmcDue ? (
-        amcDueLoading ? (
-          <div className="projects-loading">Loading…</div>
-        ) : amcDueError ? (
-          <p className="projects-status error">{amcDueError}</p>
-        ) : (
-          <AmcActionTable
-            entityId={entityId}
-            rows={amcDueRows}
-            emptyMessage="Nothing overdue or due in the next two weeks across any project."
-            onItemChanged={handleAmcItemChanged}
-          />
-        )
+        <>
+          <p className="projects-tab-note">Showing visits overdue, or due this week or next week.</p>
+          {amcDueLoading ? (
+            <div className="projects-loading">Loading…</div>
+          ) : amcDueError ? (
+            <p className="projects-status error">{amcDueError}</p>
+          ) : (
+            <AmcActionTable
+              entityId={entityId}
+              rows={amcDueRows}
+              emptyMessage="Nothing overdue or due in the next two weeks across any project."
+              onItemChanged={handleAmcItemChanged}
+            />
+          )}
+        </>
       ) : (
         <>
           <ProjectFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />

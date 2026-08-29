@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { useTour } from "../../lib/TourContext";
 import { getLead, type LeadDetail } from "../../api/leads";
 import { listAmcPlans, formatAmcInclusion, type AmcPlan } from "../../api/amcPlans";
 import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type EntityPreferences } from "../../api/entityPreferences";
@@ -147,6 +148,7 @@ export default function QuoteBuilderPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const { leadId } = useParams();
+  const { setNeedsAmcSetup } = useTour();
 
   // Wall-clock time spent on this page, from mount to submit — sent as
   // generation_duration_ms (create only, see handleSubmit below) to power
@@ -165,11 +167,24 @@ export default function QuoteBuilderPage() {
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [newTerm, setNewTerm] = useState("");
   const [subsidyTouched, setSubsidyTouched] = useState(false);
+  const [loanAmountTouched, setLoanAmountTouched] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+
+  // Nudge the "Entity Settings" nav link (see AppLayout.tsx/TourContext.tsx)
+  // once we know the entity has zero AMC plans defined -- an admin building a
+  // quote needs to know where to go set one up rather than discovering the
+  // AMC dropdown is empty with no explanation. Cleared on unmount (leaving
+  // this page, or re-running once amcPlans changes) so the highlight never
+  // outlives the condition it was reporting.
+  useEffect(() => {
+    if (loading) return;
+    setNeedsAmcSetup(amcPlans.length === 0);
+    return () => setNeedsAmcSetup(false);
+  }, [loading, amcPlans, setNeedsAmcSetup]);
 
   useEffect(() => {
     if (!leadId) return;
@@ -219,6 +234,10 @@ export default function QuoteBuilderPage() {
             componentsPricingEnabled: quote.components_pricing_enabled ?? true,
           });
           setSubsidyTouched(true);
+          // A saved quote already has an explicit (or explicitly blank)
+          // loan_amount -- treat it as touched so the total-cost auto-default
+          // effect below doesn't clobber it on load.
+          setLoanAmountTouched(true);
         } else {
           const capacity = leadRes.sanctioned_load != null ? leadRes.sanctioned_load : Number(DEFAULT_FORM.capacity);
           setForm({
@@ -245,6 +264,7 @@ export default function QuoteBuilderPage() {
             componentsPricingEnabled: true,
           });
           setSubsidyTouched(false);
+          setLoanAmountTouched(false);
         }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
@@ -269,6 +289,14 @@ export default function QuoteBuilderPage() {
         .filter((p): p is AmcPlan => p != null),
     [amcPlans, form.amcPost5PlanIds],
   );
+
+  // Once a quote is ACCEPTED, the AMC/payment-schedule settings shown in the
+  // preview must be the ones frozen at acceptance time (settings_snapshot),
+  // not whatever's currently live in the AMC catalog/Entity Preferences --
+  // otherwise this admin-side preview would disagree with what the customer
+  // already reviewed/signed. Not-yet-accepted quotes keep the live join
+  // above (selectedAmcPlan/selectedPost5Plans), unchanged.
+  const acceptedSnapshot = existingQuote?.status === "ACCEPTED" ? existingQuote.settings_snapshot : null;
 
   const documentBranding: QuoteDocumentBranding = useMemo(
     () => ({
@@ -389,6 +417,15 @@ export default function QuoteBuilderPage() {
     });
   }, [form, lead, selectedAmcPlan]);
 
+  // Keep the loan amount defaulted to the quote's total cost until the admin
+  // explicitly edits it -- same "suggested until touched" pattern as the
+  // subsidy amount above.
+  useEffect(() => {
+    if (loanAmountTouched) return;
+    const suggested = computed.totalCost || 0;
+    setForm((f) => (f.loanAmount === String(suggested) ? f : { ...f, loanAmount: String(suggested) }));
+  }, [computed.totalCost, loanAmountTouched]);
+
   const locked = existingQuote != null && existingQuote.status !== "GENERATED";
 
   function handleAddTerm() {
@@ -466,6 +503,9 @@ export default function QuoteBuilderPage() {
       loan_amount: form.loanAmount ? Number(form.loanAmount) : undefined,
       loan_rate_percent: form.loanRatePercent ? Number(form.loanRatePercent) : undefined,
       loan_tenure_years: form.loanTenureYears ? Number(form.loanTenureYears) : undefined,
+      self_funding_amount: form.loanAmount
+        ? Math.max(0, computed.totalCost - Number(form.loanAmount))
+        : undefined,
       notes: form.notes.trim() || undefined,
       terms: form.terms,
       components: form.components,
@@ -533,6 +573,13 @@ export default function QuoteBuilderPage() {
           {existingQuote && <p className="quote-builder-reference">{existingQuote.quote_number}</p>}
         </div>
       </div>
+
+      {!loading && amcPlans.length === 0 && (
+        <p className="quote-builder-alert no-print">
+          No AMC plans are defined for this entity yet.{" "}
+          <Link to="/app/entity?tab=amc&tour=1">Add one in Entity Settings</Link> before including AMC in this quote.
+        </p>
+      )}
 
       <div className="quote-builder-grid">
         <div className="quote-form-panel no-print">
@@ -773,7 +820,10 @@ export default function QuoteBuilderPage() {
                   min={0}
                   disabled={locked}
                   value={form.loanAmount}
-                  onChange={(e) => setForm({ ...form, loanAmount: e.target.value })}
+                  onChange={(e) => {
+                    setLoanAmountTouched(true);
+                    setForm({ ...form, loanAmount: e.target.value });
+                  }}
                 />
               </div>
               <div className="quote-field">
@@ -804,10 +854,10 @@ export default function QuoteBuilderPage() {
             {loanEnabled && (
               <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
                 Self-funding: ₹
-                {Math.max(0, (computed.netInvestment || 0) - (Number(form.loanAmount) || 0)).toLocaleString(
+                {Math.max(0, (computed.totalCost || 0) - (Number(form.loanAmount) || 0)).toLocaleString(
                   "en-IN",
                 )}{" "}
-                (net investment minus loan amount)
+                (total cost minus loan amount)
               </p>
             )}
             </AccordionSection>
@@ -1067,19 +1117,27 @@ export default function QuoteBuilderPage() {
             tariff={Number(form.tariff) || 9}
             computed={computed}
             amc={
-              selectedAmcPlan
-                ? {
-                    name: selectedAmcPlan.name,
-                    ratePerKw: selectedAmcPlan.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
-                    inclusion: selectedAmcPlan.inclusion.map(formatAmcInclusion),
-                  }
-                : null
+              acceptedSnapshot
+                ? acceptedSnapshot.amc
+                  ? {
+                      name: acceptedSnapshot.amc.name,
+                      ratePerKw: acceptedSnapshot.amc.rate_per_kw != null ? Number(acceptedSnapshot.amc.rate_per_kw) : null,
+                      inclusion: acceptedSnapshot.amc.inclusion.map(formatAmcInclusion),
+                    }
+                  : null
+                : selectedAmcPlan
+                  ? {
+                      name: selectedAmcPlan.name,
+                      ratePerKw: selectedAmcPlan.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
+                      inclusion: selectedAmcPlan.inclusion.map(formatAmcInclusion),
+                    }
+                  : null
             }
             amcDurationYears={form.amcDurationYears ? Number(form.amcDurationYears) : null}
             amcMode={form.amcMode}
             amcPost5={{
               enabled: amcPost5Enabled,
-              plans: selectedPost5Plans.map((p) => ({
+              plans: (acceptedSnapshot ? acceptedSnapshot.amc_post5_plans : selectedPost5Plans).map((p) => ({
                 name: p.name,
                 ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
                 inclusion: p.inclusion.map(formatAmcInclusion),
@@ -1091,7 +1149,9 @@ export default function QuoteBuilderPage() {
               ratePercent: form.loanRatePercent ? Number(form.loanRatePercent) : null,
               tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,
             }}
-            paymentSchedule={preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+            paymentSchedule={
+              acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE
+            }
             branding={documentBranding}
             shareUrl={shareUrl}
             highlightSections={highlightSections}

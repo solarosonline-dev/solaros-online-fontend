@@ -96,6 +96,50 @@
   border-left: 1px solid var(--app-border);
 }
 
+/* Guided-tour highlight: draws the eye to "Entity Settings" when a page
+   (e.g. QuoteBuilderPage) reports the entity has no AMC plans defined yet --
+   see TourContext.tsx. */
+.app-nav-tour-target {
+  position: relative;
+  display: inline-block;
+}
+
+.app-nav a.app-nav-highlight {
+  color: var(--app-accent);
+  background: rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 rgba(37, 99, 235, 0.5);
+  animation: app-nav-tour-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes app-nav-tour-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+.app-nav-tour-tip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  width: 220px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--app-text);
+  color: var(--app-surface);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: var(--app-shadow);
+  z-index: 30;
+}
+
 .app-topbar-right {
   display: flex;
   align-items: center;
@@ -177,6 +221,16 @@
     padding-top: 8px;
     border-left: none;
     border-top: 1px solid var(--app-border);
+  }
+
+  .app-mobile-panel .app-nav-tour-target {
+    display: block;
+  }
+
+  .app-mobile-panel .app-nav-tour-tip {
+    position: static;
+    width: auto;
+    margin: 4px 0 8px;
   }
 
   .app-mobile-panel .app-topbar-right {

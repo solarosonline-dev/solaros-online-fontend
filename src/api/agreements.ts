@@ -2,6 +2,20 @@ import { apiRequest } from "./client";
 import type { LeadDetail } from "./leads";
 import type { QuoteDetail } from "./quotes";
 import type { AmcInclusionItem } from "./amcPlans";
+import type { PaymentScheduleRow } from "./entityPreferences";
+
+type SnapshotAmcPlan = { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] };
+
+/** Frozen at signing time (see backend's mark_agreement_accepted) -- the AMC
+ * plan(s) + payment schedule that were in effect the moment this agreement
+ * was signed. Null until then; not-yet-signed agreements keep resolving
+ * these settings live via separate calls (listAmcPlans/getEntityPreferences). */
+export type AgreementSettingsSnapshot = {
+  amc: SnapshotAmcPlan | null;
+  amc_plans: SnapshotAmcPlan[];
+  amc_post5_plans: SnapshotAmcPlan[];
+  payment_schedule: PaymentScheduleRow[];
+};
 
 export type AgreementStatus = "NEW" | "ACCEPTED" | "REJECTED";
 
@@ -38,6 +52,9 @@ export type AgreementDetail = {
   /** Raw S3 key, not a URL — presence means a signed PDF snapshot exists;
    * fetch a short-lived viewing URL via getAgreementPdfUrl. */
   pdf_key: string | null;
+  /** Present (non-null) once the agreement is ACCEPTED -- see
+   * AgreementSettingsSnapshot. */
+  settings_snapshot: AgreementSettingsSnapshot | null;
 };
 
 export type AgreementInput = {
@@ -99,6 +116,11 @@ export type PublicAgreementResponse = {
   amc?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] } | null;
   amc_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
   amc_post5_plans?: { amc_id: number; name: string; rate_per_kw: string | null; inclusion: AmcInclusionItem[] }[];
+  /** Sourced from the agreement's settings_snapshot once ACCEPTED, otherwise
+   * live-resolved from Entity Preferences -- see the backend's
+   * get_public_agreement. Prefer this over a separate branding fetch so a
+   * signed agreement can't be shown a since-edited payment schedule. */
+  payment_schedule?: PaymentScheduleRow[];
 };
 
 export function getPublicAgreement(token: string) {

@@ -45,6 +45,25 @@
   border-bottom-color: var(--app-accent);
 }
 
+/* Guided-tour highlight: pulses the target tab (e.g. AMC Plans) when arrived
+   at via a `?tab=amc&tour=1` deep link -- see EntityManagementPage.tsx. */
+.entity-tabs button.tour-pulse {
+  border-radius: 6px;
+  animation: entity-tab-tour-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes entity-tab-tour-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
 .entity-panel {
   background: var(--app-surface);
   border: 1px solid var(--app-border);

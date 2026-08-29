@@ -306,7 +306,7 @@ export default function QuoteDocument({
   const loanRate = loan.ratePercent ?? 0;
   const loanTenure = loan.tenureYears ?? 0;
   const loanInclude = loan.enabled && loanAmount > 0 && loanTenure > 0;
-  const loanSelfFunding = Math.max(0, c.netInvestment - loanAmount);
+  const loanSelfFunding = Math.max(0, c.totalCost - loanAmount);
   const loanEmi = loanInclude ? emiMonthly(loanAmount, loanRate, loanTenure) : 0;
   const loanNetMonthlyPosition = c.monthlySaving - loanEmi;
   const loanPaybackYrs = loanInclude
@@ -747,7 +747,7 @@ export default function QuoteDocument({
               <tr className="qdoc-row-accent">
                 <td>Self-funding</td>
                 <td>
-                  <small>Net investment (post-subsidy) − loan amount</small>
+                  <small>Total cost − loan amount</small>
                 </td>
                 <td className="qdoc-ta-r">{formatINR(loanSelfFunding)}</td>
               </tr>

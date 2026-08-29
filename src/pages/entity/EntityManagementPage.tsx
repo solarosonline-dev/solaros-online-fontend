@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getEntity, updateEntity, type Entity } from "../../api/entity";
 import {
@@ -55,11 +56,25 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   payment_schedule: "payment_schedule",
 };
 
+function isTabKey(value: string | null): value is Tab {
+  return TABS.some((t) => t.key === value);
+}
+
 export default function EntityManagementPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
 
-  const [tab, setTab] = useState<Tab>("business");
+  // Supports deep-linking straight to a tab (e.g. `?tab=amc`) -- used by the
+  // "no AMC plans defined" guided-tour prompt (see QuoteBuilderPage.tsx /
+  // AppLayout.tsx) to land the admin directly on AMC Plans. `?tour=1`
+  // alongside it additionally pulses that tab button once, so it's obvious
+  // which one the tour meant, without leaving a highlight lingering forever.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<Tab>(isTabKey(initialTab) ? initialTab : "business");
+  const [tourPulseTab, setTourPulseTab] = useState<Tab | null>(
+    searchParams.get("tour") === "1" && isTabKey(initialTab) ? initialTab : null,
+  );
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [entity, setEntity] = useState<Entity | null>(null);
   const [prefs, setPrefs] = useState<EntityPreferences | null>(null);
@@ -74,6 +89,15 @@ export default function EntityManagementPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+
+  // Auto-clear the tour pulse after a few seconds even if the admin never
+  // clicks a tab (e.g. they just start reading the already-selected AMC
+  // panel) -- a highlight that never goes away stops meaning anything.
+  useEffect(() => {
+    if (!tourPulseTab) return;
+    const t = setTimeout(() => setTourPulseTab(null), 4000);
+    return () => clearTimeout(t);
+  }, [tourPulseTab]);
 
   function load() {
     setLoading(true);
@@ -180,10 +204,13 @@ export default function EntityManagementPage() {
           {TABS.map((t) => (
             <button
               key={t.key}
-              className={tab === t.key ? "active" : ""}
+              className={[tab === t.key ? "active" : "", tourPulseTab === t.key ? "tour-pulse" : ""]
+                .filter(Boolean)
+                .join(" ")}
               onClick={() => {
                 setTab(t.key);
                 setTabMenuOpen(false);
+                setTourPulseTab(null);
               }}
             >
               {t.label}

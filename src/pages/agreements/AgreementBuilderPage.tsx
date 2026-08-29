@@ -14,6 +14,7 @@ import {
   shareAgreement,
   getAgreementPdfUrl,
   type AgreementDetail,
+  type AgreementSettingsSnapshot,
 } from "../../api/agreements";
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
@@ -155,7 +156,10 @@ export default function AgreementBuilderPage() {
   // the quote already agreed to (see quoteAmcPlan/quotePost5Plans below).
   const quoteHasAmc = quote?.amc_id != null;
 
-  const mapAmcPlan = (p: AmcPlan) => ({
+  // Accepts either a live AmcPlan or a frozen SnapshotAmcPlan (from
+  // settings_snapshot) -- both share this same shape, just typed
+  // differently by their respective API modules.
+  const mapAmcPlan = (p: { name: string; rate_per_kw: string | null; inclusion: AmcPlan["inclusion"] }) => ({
     name: p.name,
     ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
     inclusion: p.inclusion,
@@ -194,6 +198,15 @@ export default function AgreementBuilderPage() {
         .filter((p): p is AmcPlan => p != null),
     [amcPlans, form.amcPost5PlanIds],
   );
+
+  // Once an agreement is ACCEPTED (signed), the AMC/payment-schedule
+  // settings shown in the preview must be the ones frozen at signing time
+  // (settings_snapshot), not whatever's currently live in the AMC
+  // catalog/Entity Preferences -- otherwise this admin-side preview would
+  // disagree with what the customer already reviewed/signed. Not-yet-signed
+  // agreements keep the live joins above, unchanged.
+  const acceptedSnapshot: AgreementSettingsSnapshot | null =
+    existingAgreement?.status === "ACCEPTED" ? existingAgreement.settings_snapshot : null;
 
   const computed = useMemo(() => {
     if (!quote) return null;
@@ -681,24 +694,36 @@ export default function AgreementBuilderPage() {
               computed={computed}
               amcFromQuote={quoteHasAmc}
               amc={
-                quoteHasAmc
-                  ? quoteAmcPlan
-                    ? mapAmcPlan(quoteAmcPlan)
+                acceptedSnapshot
+                  ? acceptedSnapshot.amc
+                    ? mapAmcPlan(acceptedSnapshot.amc)
                     : null
-                  : selectedAmcPlan
-                    ? mapAmcPlan(selectedAmcPlan)
-                    : null
+                  : quoteHasAmc
+                    ? quoteAmcPlan
+                      ? mapAmcPlan(quoteAmcPlan)
+                      : null
+                    : selectedAmcPlan
+                      ? mapAmcPlan(selectedAmcPlan)
+                      : null
               }
-              amcPlans={quoteHasAmc ? [] : selectedAmcPlans.map(mapAmcPlan)}
+              amcPlans={
+                acceptedSnapshot
+                  ? acceptedSnapshot.amc_plans.map(mapAmcPlan)
+                  : quoteHasAmc
+                    ? []
+                    : selectedAmcPlans.map(mapAmcPlan)
+              }
               amcDurationYears={
                 quoteHasAmc ? (quote.amc_duration_years ?? null) : form.amcDurationYears ? Number(form.amcDurationYears) : null
               }
               amcMode={quoteHasAmc ? (quote.amc_mode ?? "chargeable") : form.amcMode}
               amcPost5={{
                 enabled: quoteHasAmc ? (quote.amc_post5_enabled ?? false) : form.amcPost5Enabled,
-                plans: (quoteHasAmc ? quotePost5Plans : selectedPost5Plans).map(mapAmcPlan),
+                plans: (acceptedSnapshot ? acceptedSnapshot.amc_post5_plans : quoteHasAmc ? quotePost5Plans : selectedPost5Plans).map(
+                  mapAmcPlan,
+                ),
               }}
-              paymentSchedule={preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+              paymentSchedule={acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
               terms={form.terms}
               branding={documentBranding}
               shareUrl={shareUrl}

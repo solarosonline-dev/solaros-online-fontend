@@ -217,7 +217,12 @@ export default function PublicAgreementPage() {
                 inclusion: p.inclusion,
               })),
             }}
-            paymentSchedule={branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
+            // Once signed, the backend returns the payment schedule that
+            // was frozen at signing time (see settings_snapshot) directly
+            // on the agreement response -- prefer that over the live
+            // branding fetch so a signed agreement can't be shown a
+            // since-edited schedule.
+            paymentSchedule={data.payment_schedule ?? branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
             terms={agreement.terms ?? []}
             branding={documentBranding}
             shareUrl={typeof window !== "undefined" ? window.location.href : null}
