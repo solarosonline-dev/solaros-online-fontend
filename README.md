@@ -19,6 +19,14 @@ The dev server is pinned to **port 3000** (`vite.config.ts`) because the backend
 
 The frontend expects the backend at `http://127.0.0.1:8000/api/v1` (`.env.development`, `VITE_API_BASE_URL`). If your backend runs on a different port, update that file.
 
+## Typecheck / build
+
+```bash
+npm run build
+```
+
+runs `tsc -b && vite build`. Use this (or `npx tsc -b`) to verify types — **not** bare `npx tsc --noEmit`, which silently checks nothing from this repo's root: `tsconfig.json` is solution-style (`"files": []`, just references to `tsconfig.app.json`/`tsconfig.node.json`), so without `-b` there's nothing for plain `tsc` to check and it exits clean even with real type errors present.
+
 ## Auth token handling
 
 The API client (`src/api/client.ts`) stores the session token (an opaque backend-issued string, not a JWT — see the backend's `AGENTS.md`) in `localStorage` under `solaros_token` and attaches it as `Authorization: Bearer <token>` on every authenticated request. `src/lib/AuthContext.tsx` holds the in-memory user object; `ProtectedRoute` redirects unauthenticated users to `/login`.
@@ -62,7 +70,9 @@ src/
   lib/            Auth context, ProtectedRoute, shared frontend utilities
   pages/          One folder per domain area (auth, admin, entity, leads, quotes, agreements,
                   projects, workorders, teams — teams is still an empty placeholder, no
-                  dedicated Teams management page yet)
+                  dedicated Teams management page yet). Work orders can belong to a Lead
+                  directly (before a Project exists, e.g. an early site survey) or to a
+                  Project — see LeadWorkOrders.tsx / ProjectWorkOrders.tsx.
   components/     Shared/reusable UI components (Modal, SignaturePad, CopyLinkButton)
 legacy-reference/ Business-logic files ported from the old solaros-online repo
                   (finance-engine.js, quote/agreement renderers, translations)
