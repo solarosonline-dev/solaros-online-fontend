@@ -225,6 +225,7 @@
 .project-detail-row {
   display: flex;
   justify-content: space-between;
+  gap: 16px;
   padding: 10px 0;
   border-bottom: 1px solid var(--app-border);
   font-size: 14px;
@@ -236,6 +237,13 @@
 
 .project-detail-row span:first-child {
   color: var(--app-text-muted);
+  flex-shrink: 0;
+}
+
+.project-detail-row span:last-child {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: break-word;
 }
 
 .work-order-assignee-contact {
@@ -569,6 +577,10 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+
+  .project-detail-row span:last-child {
+    text-align: left;
   }
 
   .project-detail-stepper {
