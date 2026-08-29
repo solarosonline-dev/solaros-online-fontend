@@ -461,6 +461,11 @@
   background: var(--app-surface);
   color: var(--app-text);
   cursor: pointer;
+  text-align: center;
+  /* Sized to fit the longest action label used across leads/quotes rows
+     ("Generate agreement") so "View lead"/"View quote"/"Generate quote"
+     buttons render the same width instead of shrink-wrapping their text. */
+  min-width: 180px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 

@@ -28,6 +28,11 @@
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
+  text-align: center;
+  /* Same fixed min-width as .leads-btn (LeadsPage.css) so "View
+     quote"/"Generate agreement"/"View agreement" all render the same size,
+     matching the leads page's action buttons. */
+  min-width: 180px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
