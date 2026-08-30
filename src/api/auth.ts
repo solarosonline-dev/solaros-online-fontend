@@ -21,10 +21,35 @@ export function login(identifier: string, password: string) {
   });
 }
 
+export type ActivateAccountResponse = {
+  message: string;
+  // Present once the account's entity is known; "PENDING_APPROVAL" means the
+  // email is now verified but the entity still needs GST-certificate
+  // verification (or manual admin approval) before it's fully active.
+  entity_state: string | null;
+};
+
 export function activateAccount(token: string, password?: string) {
-  return apiRequest<{ message: string }>("/auth/activate", {
+  return apiRequest<ActivateAccountResponse>("/auth/activate", {
     method: "POST",
     body: { token, password },
+    auth: false,
+  });
+}
+
+export type GstCertificateVerificationResponse = {
+  status: "MATCHED" | "NO_MATCH" | "ALREADY_ACTIVE";
+  entity_state: string | null;
+  message: string;
+};
+
+export function verifyGstCertificate(token: string, file: File) {
+  const formData = new FormData();
+  formData.append("token", token);
+  formData.append("file", file);
+  return apiRequest<GstCertificateVerificationResponse>("/auth/gst-certificate", {
+    method: "POST",
+    body: formData,
     auth: false,
   });
 }
