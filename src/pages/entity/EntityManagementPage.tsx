@@ -17,6 +17,7 @@ import PricingLanguageTab from "./tabs/PricingLanguageTab";
 import ComponentsTab from "./tabs/ComponentsTab";
 import PaymentScheduleTab from "./tabs/PaymentScheduleTab";
 import AmcPlansPage from "../amc/AmcPlansPage";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "./EntityManagementPage.css";
 
 type Tab =
@@ -88,6 +89,7 @@ export default function EntityManagementPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Auto-clear the tour pulse after a few seconds even if the admin never
   // clicks a tab (e.g. they just start reading the already-selected AMC
@@ -159,6 +161,7 @@ export default function EntityManagementPage() {
   async function handleReset() {
     const category = RESETTABLE_CATEGORY[tab];
     if (!category) return;
+    setResetConfirmOpen(false);
     setSaving(true);
     setStatus(null);
     try {
@@ -279,13 +282,24 @@ export default function EntityManagementPage() {
             {saving ? "Saving…" : "Save"}
           </button>
           {RESETTABLE_CATEGORY[tab] && (
-            <button className="entity-btn" onClick={handleReset} disabled={saving}>
+            <button className="entity-btn" onClick={() => setResetConfirmOpen(true)} disabled={saving}>
               Reset to defaults
             </button>
           )}
           {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
         </div>
       )}
+
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="Reset to defaults?"
+        message="This will discard your customizations for this section and restore the default values. This can't be undone."
+        confirmLabel="Reset to defaults"
+        confirming={saving}
+        confirmingLabel="Resetting…"
+        onConfirm={handleReset}
+        onCancel={() => setResetConfirmOpen(false)}
+      />
     </div>
   );
 }

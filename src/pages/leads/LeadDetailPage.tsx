@@ -17,6 +17,7 @@ import LeadWorkOrders from "./LeadWorkOrders";
 import { LeadStatusBadge } from "./leadFunnel";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "./LeadsPage.css";
 
 function manualTransitions(status: LeadStatus): { label: string; target: ManualLeadStatus; primary: boolean }[] {
@@ -71,6 +72,7 @@ export default function LeadDetailPage() {
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [project, setProject] = useState<ProjectForLead | null>(null);
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
 
   function load() {
     if (!leadId) return;
@@ -225,13 +227,27 @@ export default function LeadDetailPage() {
               key={a.target}
               className={`leads-btn${a.primary ? " primary" : ""}${a.target === "REJECTED" ? " danger" : ""}`}
               disabled={transitioning}
-              onClick={() => handleTransition(a.target)}
+              onClick={() => (a.target === "REJECTED" ? setRejectConfirmOpen(true) : handleTransition(a.target))}
             >
               {a.label}
             </button>
           ))}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={rejectConfirmOpen}
+        title="Reject this lead?"
+        message="This marks the lead as rejected. This can't be undone."
+        confirmLabel="Reject lead"
+        confirming={transitioning}
+        confirmingLabel="Rejecting…"
+        onConfirm={() => {
+          setRejectConfirmOpen(false);
+          handleTransition("REJECTED");
+        }}
+        onCancel={() => setRejectConfirmOpen(false)}
+      />
 
       <div className="lead-detail-layout">
       <div className="lead-detail-main">

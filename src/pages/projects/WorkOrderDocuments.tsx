@@ -9,6 +9,7 @@ import {
   type WorkOrderDocument,
 } from "../../api/workOrders";
 import { ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx";
 
@@ -34,6 +35,7 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<WorkOrderDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
@@ -110,6 +112,7 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
   }
 
   async function handleDelete(documentId: number) {
+    setPendingDelete(null);
     setDeletingId(documentId);
     setUploadError(null);
     try {
@@ -184,7 +187,7 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
                 <button
                   className="projects-btn danger"
                   disabled={deletingId === doc.document_id}
-                  onClick={() => handleDelete(doc.document_id)}
+                  onClick={() => setPendingDelete(doc)}
                 >
                   {deletingId === doc.document_id ? "Deleting…" : "Delete"}
                 </button>
@@ -193,6 +196,17 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete != null}
+        title="Delete this document?"
+        message={`This permanently deletes "${pendingDelete?.file_name}". This can't be undone.`}
+        confirmLabel="Delete"
+        confirming={deletingId === pendingDelete?.document_id}
+        confirmingLabel="Deleting…"
+        onConfirm={() => pendingDelete && handleDelete(pendingDelete.document_id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }

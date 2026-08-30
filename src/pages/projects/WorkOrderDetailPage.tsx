@@ -14,6 +14,7 @@ import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { listTeams, type TeamListItem } from "../../api/teams";
 import { ApiError } from "../../api/client";
 import WorkOrderDocuments from "./WorkOrderDocuments";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
 const NEXT_ACTION_LABEL: Record<string, string> = {
@@ -40,6 +41,7 @@ export default function WorkOrderDetailPage() {
   const [assigning, setAssigning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   function load() {
     if (!workOrderId) return;
@@ -136,6 +138,7 @@ export default function WorkOrderDetailPage() {
 
   async function handleDelete() {
     if (!workOrderId || !wo) return;
+    setDeleteConfirmOpen(false);
     setDeleting(true);
     setStatus(null);
     try {
@@ -193,12 +196,23 @@ export default function WorkOrderDetailPage() {
             </button>
           )}
           {admin && wo.status === "NEW" && (
-            <button className="projects-btn danger" disabled={deleting} onClick={handleDelete}>
+            <button className="projects-btn danger" disabled={deleting} onClick={() => setDeleteConfirmOpen(true)}>
               {deleting ? "Deleting…" : "Delete"}
             </button>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete this work order?"
+        message="This permanently deletes the work order. This can't be undone."
+        confirmLabel="Delete"
+        confirming={deleting}
+        confirmingLabel="Deleting…"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
+      />
 
       <div className="project-detail-layout">
       <div className="project-detail-main">

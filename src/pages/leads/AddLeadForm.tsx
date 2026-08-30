@@ -5,6 +5,7 @@ import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
 
@@ -38,6 +39,32 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const getElapsedMs = useElapsedMs();
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+
+  const isDirty = [
+    name,
+    mobile,
+    address,
+    type,
+    email,
+    sanctionedLoad,
+    metertype,
+    state,
+    discom,
+    roofArea,
+    caNumber,
+    avgBill,
+    avgUnits,
+    requirement,
+  ].some((v) => v.trim() !== "");
+
+  function handleCancelClick() {
+    if (isDirty) {
+      setCancelConfirmOpen(true);
+    } else {
+      onCancel();
+    }
+  }
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -294,11 +321,21 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           <button type="submit" className="leads-btn primary" disabled={submitting}>
             {submitting ? "Adding…" : "Add lead"}
           </button>
-          <button type="button" className="leads-btn" onClick={onCancel}>
+          <button type="button" className="leads-btn" onClick={handleCancelClick}>
             Cancel
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="Discard this lead?"
+        message="You'll lose everything entered on this form. This can't be undone."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={onCancel}
+        onCancel={() => setCancelConfirmOpen(false)}
+      />
     </div>
   );
 }

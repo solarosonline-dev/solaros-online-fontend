@@ -6,6 +6,7 @@ import {
   type EntityUser,
 } from "../../../api/entityUsers";
 import { ApiError } from "../../../api/client";
+import ConfirmDialog from "../../../components/ConfirmDialog";
 
 const ROLES = ["ENTITY_ADMIN", "ENTITY_SERVICE_MANAGER", "WORKER", "TECHNICIAN"];
 
@@ -27,6 +28,7 @@ export default function UsersTab({ entityId }: Props) {
 
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [pendingRemove, setPendingRemove] = useState<EntityUser | null>(null);
 
   function loadUsers() {
     setLoading(true);
@@ -58,6 +60,7 @@ export default function UsersTab({ entityId }: Props) {
   }
 
   async function handleRemove(userId: number) {
+    setPendingRemove(null);
     setRemovingId(userId);
     setRowErrors((prev) => ({ ...prev, [userId]: "" }));
     try {
@@ -139,7 +142,7 @@ export default function UsersTab({ entityId }: Props) {
                     type="button"
                     className="entity-btn"
                     disabled={removingId === u.user_id}
-                    onClick={() => handleRemove(u.user_id)}
+                    onClick={() => setPendingRemove(u)}
                   >
                     {removingId === u.user_id ? "…" : "Remove"}
                   </button>
@@ -150,6 +153,17 @@ export default function UsersTab({ entityId }: Props) {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={pendingRemove != null}
+        title="Remove this user?"
+        message={`This permanently removes ${pendingRemove?.full_name} from this entity. This can't be undone.`}
+        confirmLabel="Remove"
+        confirming={removingId === pendingRemove?.user_id}
+        confirmingLabel="Removing…"
+        onConfirm={() => pendingRemove && handleRemove(pendingRemove.user_id)}
+        onCancel={() => setPendingRemove(null)}
+      />
     </div>
   );
 }

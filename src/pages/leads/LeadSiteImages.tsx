@@ -6,6 +6,7 @@ import {
   type LeadSiteImage,
 } from "../../api/leadSiteImages";
 import { ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "../projects/ProjectsPage.css";
 import "../quotes/QuoteBuilderPage.css";
 
@@ -73,6 +74,7 @@ export default function LeadSiteImages({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selectError, setSelectError] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<StagedItem | null>(null);
 
   // Resync from the saved state whenever it changes (initial load, or right
   // after a successful Save round-trips through the parent) -- discards any
@@ -135,6 +137,7 @@ export default function LeadSiteImages({
   }
 
   function handleRemove(item: StagedItem) {
+    setPendingRemove(null);
     if (item.kind === "pending") URL.revokeObjectURL(item.previewUrl);
     setStagedItems((prev) => prev.filter((i) => stagedKey(i) !== stagedKey(item)));
   }
@@ -263,7 +266,7 @@ export default function LeadSiteImages({
                       ▼
                     </button>
                   </span>
-                  <button type="button" className="projects-btn danger" onClick={() => handleRemove(item)}>
+                  <button type="button" className="projects-btn danger" onClick={() => setPendingRemove(item)}>
                     Remove
                   </button>
                 </div>
@@ -283,6 +286,15 @@ export default function LeadSiteImages({
           {saving ? "Saving…" : "Save images"}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={pendingRemove != null}
+        title="Remove this image?"
+        message="It will be removed from the staged list. Nothing is deleted until you click Save images, but you'll need to re-select the file to add it back."
+        confirmLabel="Remove"
+        onConfirm={() => pendingRemove && handleRemove(pendingRemove)}
+        onCancel={() => setPendingRemove(null)}
+      />
     </>
   );
 }

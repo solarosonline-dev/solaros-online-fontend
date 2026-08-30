@@ -12,6 +12,7 @@ import { ApiError } from "../../api/client";
 import ProjectWorkOrders from "./ProjectWorkOrders";
 import ProjectAmcTab from "./ProjectAmcTab";
 import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
 type ProjectTab = "installations" | "amc";
@@ -34,6 +35,7 @@ export default function ProjectDetailPage() {
   const [transitioning, setTransitioning] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [tab, setTab] = useState<ProjectTab>("installations");
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
 
   function load() {
     if (!projectId) return;
@@ -123,13 +125,27 @@ export default function ProjectDetailPage() {
             <button
               className="projects-btn danger"
               disabled={transitioning}
-              onClick={() => handleTransition("REJECTED")}
+              onClick={() => setRejectConfirmOpen(true)}
             >
               Reject project
             </button>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={rejectConfirmOpen}
+        title="Reject this project?"
+        message="This marks the project as rejected. This can't be undone."
+        confirmLabel="Reject project"
+        confirming={transitioning}
+        confirmingLabel="Rejecting…"
+        onConfirm={() => {
+          setRejectConfirmOpen(false);
+          handleTransition("REJECTED");
+        }}
+        onCancel={() => setRejectConfirmOpen(false)}
+      />
 
       <div className="project-tabs" role="tablist">
         <button

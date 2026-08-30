@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { listAdminUsers, inviteAdminUser, removeAdminUser, type AdminUser } from "../../api/adminUsers";
 import { ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import "./EntitiesPage.css";
 import "./AdminUsersPage.css";
 
@@ -20,6 +21,7 @@ export default function AdminUsersPage() {
 
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  const [pendingRemove, setPendingRemove] = useState<AdminUser | null>(null);
 
   function loadUsers() {
     setLoading(true);
@@ -51,6 +53,7 @@ export default function AdminUsersPage() {
   }
 
   async function handleRemove(userId: number) {
+    setPendingRemove(null);
     setRemovingId(userId);
     setRowErrors((prev) => ({ ...prev, [userId]: "" }));
     try {
@@ -134,7 +137,7 @@ export default function AdminUsersPage() {
                     <button
                       className="entities-action-btn"
                       disabled={removingId === u.user_id}
-                      onClick={() => handleRemove(u.user_id)}
+                      onClick={() => setPendingRemove(u)}
                     >
                       {removingId === u.user_id ? "…" : "Remove"}
                     </button>
@@ -146,6 +149,17 @@ export default function AdminUsersPage() {
           </table>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingRemove != null}
+        title="Remove this system admin?"
+        message={`This permanently revokes ${pendingRemove?.full_name}'s admin access. This can't be undone.`}
+        confirmLabel="Remove"
+        confirming={removingId === pendingRemove?.user_id}
+        confirmingLabel="Removing…"
+        onConfirm={() => pendingRemove && handleRemove(pendingRemove.user_id)}
+        onCancel={() => setPendingRemove(null)}
+      />
     </div>
   );
 }
