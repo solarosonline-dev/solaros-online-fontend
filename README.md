@@ -68,6 +68,7 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/admin/entities/<entityId>/state \
 src/
   api/            Typed API client + per-domain request functions
   lib/            Auth context, ProtectedRoute, shared frontend utilities
+  hooks/          Reusable hooks not tied to one page (useElapsedMs, useDraftAutosave)
   pages/          One folder per domain area (auth, admin, entity, leads, quotes, agreements,
                   projects, workorders, teams — teams is still an empty placeholder, no
                   dedicated Teams management page yet). Work orders can belong to a Lead
