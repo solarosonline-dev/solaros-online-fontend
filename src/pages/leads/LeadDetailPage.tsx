@@ -322,33 +322,23 @@ export default function LeadDetailPage() {
           </div>
 
           <div className="add-lead-field">
-            <label htmlFor="detailMobile">Mobile</label>
+            <label htmlFor="detailEmail">Email</label>
             <input
-              id="detailMobile"
-              type="tel"
-              value={draft.mobile}
-              onChange={(e) => setDraft({ ...draft, mobile: e.target.value })}
-            />
-          </div>
-
-          <div className="add-lead-field">
-            <label htmlFor="detailAddress">Address</label>
-            <textarea
-              id="detailAddress"
-              rows={2}
-              value={draft.address}
-              onChange={(e) => setDraft({ ...draft, address: e.target.value })}
+              id="detailEmail"
+              type="email"
+              value={draft.email}
+              onChange={(e) => setDraft({ ...draft, email: e.target.value })}
             />
           </div>
 
           <div className="add-lead-field-row">
             <div className="add-lead-field">
-              <label htmlFor="detailEmail">Email</label>
+              <label htmlFor="detailMobile">Mobile</label>
               <input
-                id="detailEmail"
-                type="email"
-                value={draft.email}
-                onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                id="detailMobile"
+                type="tel"
+                value={draft.mobile}
+                onChange={(e) => setDraft({ ...draft, mobile: e.target.value })}
               />
             </div>
             <div className="add-lead-field">
@@ -366,6 +356,16 @@ export default function LeadDetailPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="add-lead-field">
+            <label htmlFor="detailAddress">Address</label>
+            <textarea
+              id="detailAddress"
+              rows={2}
+              value={draft.address}
+              onChange={(e) => setDraft({ ...draft, address: e.target.value })}
+            />
           </div>
 
           <div className="add-lead-field-row">

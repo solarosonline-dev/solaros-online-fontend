@@ -267,21 +267,16 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         </div>
 
         <div className="add-lead-field">
-          <label htmlFor="leadMobile">Mobile</label>
-          <input id="leadMobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-          {fieldErrors.mobile && <p className="add-lead-field-error">{fieldErrors.mobile}</p>}
-        </div>
-
-        <div className="add-lead-field">
-          <label htmlFor="leadAddress">Address</label>
-          <textarea id="leadAddress" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+          <label htmlFor="leadEmail">Email</label>
+          <input id="leadEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          {fieldErrors.email && <p className="add-lead-field-error">{fieldErrors.email}</p>}
         </div>
 
         <div className="add-lead-field-row">
           <div className="add-lead-field">
-            <label htmlFor="leadEmail">Email</label>
-            <input id="leadEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            {fieldErrors.email && <p className="add-lead-field-error">{fieldErrors.email}</p>}
+            <label htmlFor="leadMobile">Mobile</label>
+            <input id="leadMobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+            {fieldErrors.mobile && <p className="add-lead-field-error">{fieldErrors.mobile}</p>}
           </div>
           <div className="add-lead-field">
             <label htmlFor="leadType">Type</label>
@@ -294,6 +289,11 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="add-lead-field">
+          <label htmlFor="leadAddress">Address</label>
+          <textarea id="leadAddress" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
 
         <div className="add-lead-field-row">
