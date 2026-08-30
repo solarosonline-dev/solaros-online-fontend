@@ -102,8 +102,8 @@ export default function UsersTab({ entityId }: Props) {
         <button type="submit" className="entity-btn primary" disabled={inviting}>
           {inviting ? "Inviting…" : "Invite"}
         </button>
+        {inviteError && <p className="entity-status error entity-invite-error">{inviteError}</p>}
       </form>
-      {inviteError && <p className="entity-status error">{inviteError}</p>}
 
       {loading ? (
         <div className="entity-loading">Loading…</div>

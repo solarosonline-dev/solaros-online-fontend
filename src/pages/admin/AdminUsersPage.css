@@ -20,6 +20,15 @@
   max-width: 200px;
 }
 
+/* Flex-wraps onto its own full-width line below the fields/button instead
+   of squeezing in as another flex item -- previously this rendered outside
+   the form entirely, after its border-bottom divider, so the error looked
+   disconnected from the fields it was actually about. */
+.admin-users-invite-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .admin-users-field label {
   font-size: 13px;
   font-weight: 500;

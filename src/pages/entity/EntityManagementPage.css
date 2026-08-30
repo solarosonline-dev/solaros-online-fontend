@@ -488,6 +488,15 @@
   max-width: 180px;
 }
 
+/* Flex-wraps onto its own full-width line below the fields/button instead
+   of squeezing in as another flex item -- previously this rendered outside
+   the form entirely, after its border-bottom divider, so the error looked
+   disconnected from the fields it was actually about. */
+.entity-invite-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .entity-role-badge {
   display: inline-block;
   padding: 2px 8px;

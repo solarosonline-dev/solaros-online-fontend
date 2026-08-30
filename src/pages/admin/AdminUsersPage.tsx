@@ -97,8 +97,8 @@ export default function AdminUsersPage() {
         <button type="submit" className="entities-action-btn primary" disabled={inviting}>
           {inviting ? "Inviting…" : "Invite"}
         </button>
+        {inviteError && <p className="entities-row-error admin-users-invite-error">{inviteError}</p>}
       </form>
-      {inviteError && <p className="entities-row-error">{inviteError}</p>}
 
       <div className="entities-table-wrap">
         {loading ? (
