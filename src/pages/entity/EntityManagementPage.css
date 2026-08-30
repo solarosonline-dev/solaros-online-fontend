@@ -425,11 +425,13 @@
   min-width: 200px;
 }
 
-.compb-table td.compb-num {
+.compb-table td.compb-tax,
+.compb-table td.compb-warranty {
   width: 90px;
 }
 
-.compb-table td.compb-num input {
+.compb-table td.compb-tax input,
+.compb-table td.compb-warranty input {
   max-width: 72px;
   text-align: right;
 }
@@ -662,6 +664,94 @@
     width: 100%;
   }
 
+  /* Default-components table -> stacked cards. This table's columns
+     (Particulars/Tax/Warranty/Specification/remove) don't match
+     QuoteBuilderPage's quote-row table (Particulars/Qty/Price/Tax/
+     Warranty/remove) even though both share the .compb-table/.compb-*
+     class names and both pages' CSS end up in the same production
+     bundle -- relying on QuoteBuilderPage.css's card-grid rules here is
+     what made Tax and Warranty (previously both class "compb-num")
+     collide into the exact same grid cell, and the unclassed remove
+     button fall wherever CSS grid auto-placement happened to put it
+     ("cross icon takes half the width in second row"). The
+     .compb-table--catalog modifier scopes this table's own mobile layout
+     so the two tables can no longer cross-contaminate each other. */
+  .compb-table--catalog thead {
+    display: none;
+  }
+
+  .compb-table--catalog,
+  .compb-table--catalog tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .compb-table.compb-table--catalog tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-areas:
+      "particular particular particular"
+      "tax warranty remove"
+      "spec spec spec";
+    column-gap: 8px;
+    row-gap: 8px;
+    padding: 10px 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+  }
+
+  .compb-table--catalog td {
+    padding: 0;
+    border-bottom: none;
+    width: auto;
+  }
+
+  .compb-table.compb-table--catalog td.compb-particular {
+    grid-area: particular;
+  }
+
+  .compb-table.compb-table--catalog td.compb-tax {
+    grid-area: tax;
+  }
+
+  .compb-table.compb-table--catalog td.compb-warranty {
+    grid-area: warranty;
+  }
+
+  .compb-table.compb-table--catalog td.compb-spec {
+    grid-area: spec;
+  }
+
+  .compb-table.compb-table--catalog td.compb-actions {
+    grid-area: remove;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* The desktop max-width: 72px on Tax/Warranty exists to keep those inputs
+     from ballooning inside a spacious table row -- here each already has a
+     sized grid column to itself, so let them fill it instead of sitting
+     cramped in a corner of a much wider mobile card. */
+  .compb-table--catalog td.compb-particular input,
+  .compb-table--catalog td.compb-tax input,
+  .compb-table--catalog td.compb-warranty input,
+  .compb-table--catalog td.compb-spec input {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .compb-table--catalog td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--app-text-muted);
+    margin-bottom: 3px;
+  }
+
   /* Users table -> stacked cards */
   .entity-users-table,
   .entity-users-table thead,
@@ -703,10 +793,5 @@
 @media (max-width: 400px) {
   .entity-panel {
     padding: 12px;
-  }
-
-  .compb-table td.compb-particular input,
-  .compb-table td.compb-spec input {
-    min-width: 120px;
   }
 }

@@ -58,7 +58,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
       </label>
 
       <div className="compb-table-wrap">
-        <table className="compb-table">
+        <table className="compb-table compb-table--catalog">
           <thead>
             <tr>
               <th>Particulars</th>
@@ -71,7 +71,12 @@ export default function ComponentsTab({ draft, onChange }: Props) {
           <tbody>
             {items.map((item, i) => (
               <tr key={i}>
-                <td className="compb-particular">
+                {/* data-label feeds the mobile ::before rule in EntityManagementPage.css --
+                    on narrow screens this row reflows into a bordered card (particulars on
+                    top, tax/warranty/remove in a row, specification below) instead of a
+                    horizontally-scrolling table, and the <thead> labels above are hidden
+                    then, so each field needs its own inline label to stay identifiable. */}
+                <td className="compb-particular" data-label="Particulars">
                   <input
                     type="text"
                     placeholder="e.g. Solar Panels"
@@ -79,7 +84,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     onChange={(e) => handleParticularChange(i, e.target.value)}
                   />
                 </td>
-                <td className="compb-num">
+                <td className="compb-tax" data-label="Tax %">
                   <input
                     type="number"
                     min={0}
@@ -89,7 +94,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     onChange={(e) => handleTaxChange(i, e.target.value)}
                   />
                 </td>
-                <td className="compb-num">
+                <td className="compb-warranty" data-label="Warranty (yrs)">
                   <input
                     type="number"
                     min={0}
@@ -98,7 +103,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     onChange={(e) => handleWarrantyChange(i, e.target.value)}
                   />
                 </td>
-                <td className="compb-spec">
+                <td className="compb-spec" data-label="Specification">
                   <input
                     type="text"
                     placeholder="e.g. IP65 · WiFi monitoring built-in"
@@ -106,7 +111,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
                     onChange={(e) => handleSpecificationChange(i, e.target.value)}
                   />
                 </td>
-                <td>
+                <td className="compb-actions">
                   <button type="button" className="compb-remove-btn" onClick={() => handleRemove(i)}>
                     ×
                   </button>
