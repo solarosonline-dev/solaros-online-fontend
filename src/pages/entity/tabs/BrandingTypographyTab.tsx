@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { Entity } from "../../../api/entity";
 import type {
   Branding,
@@ -23,6 +23,12 @@ type Props = {
   componentDefaults: ComponentDefault[];
   defaultPricePerWatt: number;
   defaultTaxRate: number;
+  /** The shared Save/Reset bar, rendered at the end of the form column
+   * rather than after the whole tab -- the live preview below can be much
+   * taller than the form, and below the 1080px breakpoint (see
+   * EntityManagementPage.css) the two columns stack, so appending it after
+   * the preview instead would bury Save under the entire sample document. */
+  formFooter: ReactNode;
 };
 
 // A fixed, made-up 5 kW residential scenario -- purely illustrative, never
@@ -49,6 +55,7 @@ export default function BrandingTypographyTab({
   componentDefaults,
   defaultPricePerWatt,
   defaultTaxRate,
+  formFooter,
 }: Props) {
   const pricePerWatt = defaultPricePerWatt || 45;
   const taxRate = defaultTaxRate || 13.8;
@@ -120,6 +127,8 @@ export default function BrandingTypographyTab({
 
         <h3 className="entity-bt-heading">Typography</h3>
         <TypographyTab draft={typographyDraft} onChange={onChangeTypography} />
+
+        {formFooter}
       </div>
 
       <div className="entity-bt-preview">

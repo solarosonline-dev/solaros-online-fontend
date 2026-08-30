@@ -45,43 +45,16 @@ export default function BrandingTab({ entityId, draft, onChange }: Props) {
 
   return (
     <div>
-      <div className="entity-field-row">
-        <div className="entity-field">
-          <label htmlFor="primary_color">Primary color</label>
-          <div className="entity-color-field">
-            <input
-              id="primary_color"
-              type="color"
-              value={draft.primary_color}
-              onChange={(e) => onChange({ ...draft, primary_color: e.target.value })}
-            />
-            <span className="entity-color-swatch">{draft.primary_color}</span>
-          </div>
-        </div>
-        <div className="entity-field">
-          <label htmlFor="secondary_color">Secondary color</label>
-          <div className="entity-color-field">
-            <input
-              id="secondary_color"
-              type="color"
-              value={draft.secondary_color}
-              onChange={(e) => onChange({ ...draft, secondary_color: e.target.value })}
-            />
-            <span className="entity-color-swatch">{draft.secondary_color}</span>
-          </div>
-        </div>
-      </div>
-
       <div className="entity-field">
-        <label htmlFor="accent_color">Accent color</label>
+        <label htmlFor="primary_color">Primary color</label>
         <div className="entity-color-field">
           <input
-            id="accent_color"
+            id="primary_color"
             type="color"
-            value={draft.accent_color}
-            onChange={(e) => onChange({ ...draft, accent_color: e.target.value })}
+            value={draft.primary_color}
+            onChange={(e) => onChange({ ...draft, primary_color: e.target.value })}
           />
-          <span className="entity-color-swatch">{draft.accent_color}</span>
+          <span className="entity-color-swatch">{draft.primary_color}</span>
         </div>
       </div>
 

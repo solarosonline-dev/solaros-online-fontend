@@ -230,10 +230,7 @@ export default function QuoteBuilderPage() {
             subsidyAmount: String(subsidyForKw(capacity, leadRes.type)),
             // Quote notes are folded into terms (not kept as separate free text) so they're
             // individually addable/removable the same way as the rest of the terms list.
-            terms: [
-              ...prefsRes.document_customization.custom_terms_and_conditions,
-              ...prefsRes.document_customization.quote_notes,
-            ],
+            terms: [...prefsRes.document_customization.quote_notes],
             components: prefsRes.components.items.map((item) => ({
               particular: item.particular,
               qty: null,

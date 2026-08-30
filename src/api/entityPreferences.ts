@@ -21,6 +21,10 @@ export type DocumentCustomization = {
   quote_notes: string[];
   agreement_notes: string[];
   custom_terms_and_conditions: string[];
+  /** EPC-admin escape hatch: when true, the public quote-acceptance modal
+   * skips the emailed-OTP step and accepts on consent alone — e.g. while
+   * the transactional email provider is down. */
+  skip_quote_otp: boolean;
 };
 
 export type Pricing = {
@@ -66,10 +70,6 @@ export type EntityPreferences = {
   components: Components;
   payment_schedule: PaymentSchedule;
   language: string;
-  /** EPC-admin escape hatch: when true, the public quote-acceptance modal
-   * skips the emailed-OTP step and accepts on consent alone — e.g. while
-   * the transactional email provider is down. */
-  skip_quote_otp: boolean;
   updated_at: string | null;
 };
 

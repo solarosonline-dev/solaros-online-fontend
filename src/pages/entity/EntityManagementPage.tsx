@@ -90,6 +90,23 @@ export default function EntityManagementPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  // Save flips to a disabled "Saved" for whichever tab was just saved (or
+  // reset, since that also persists immediately), until that tab's own
+  // draft is edited again -- see markTabDirty. Replaces the inline "Saved."
+  // text that used to sit next to the button, which was easy to miss and
+  // didn't read well on mobile as a toast either. Tracked per-tab, not as
+  // one flag, so switching tabs doesn't misreport an untouched tab as
+  // needing a re-save.
+  const [savedTabs, setSavedTabs] = useState<Set<Tab>>(new Set());
+
+  function markTabDirty(t: Tab) {
+    setSavedTabs((prev) => {
+      if (!prev.has(t)) return prev;
+      const next = new Set(prev);
+      next.delete(t);
+      return next;
+    });
+  }
 
   // Auto-clear the tour pulse after a few seconds even if the admin never
   // clicks a tab (e.g. they just start reading the already-selected AMC
@@ -120,6 +137,11 @@ export default function EntityManagementPage() {
 
   useEffect(load, [entityId]);
 
+  function handleBusinessDraftChange(draft: BusinessInfoDraft) {
+    setBusinessDraft(draft);
+    markTabDirty("business");
+  }
+
   async function handleSave() {
     setSaving(true);
     setStatus(null);
@@ -128,16 +150,8 @@ export default function EntityManagementPage() {
         const updated = await updateEntity(entityId, businessDraft);
         setEntity(updated);
       } else if (prefs) {
-        const {
-          branding,
-          typography,
-          document_customization,
-          pricing,
-          components,
-          payment_schedule,
-          language,
-          skip_quote_otp,
-        } = prefs;
+        const { branding, typography, document_customization, pricing, components, payment_schedule, language } =
+          prefs;
         const updated = await updateEntityPreferences(entityId, {
           branding,
           typography,
@@ -146,11 +160,10 @@ export default function EntityManagementPage() {
           components,
           payment_schedule,
           language,
-          skip_quote_otp,
         });
         setPrefs(updated);
       }
-      setStatus({ kind: "success", message: "Saved." });
+      setSavedTabs((prev) => new Set(prev).add(tab));
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -174,6 +187,11 @@ export default function EntityManagementPage() {
       }
       setPrefs(updated);
       setStatus({ kind: "success", message: "Reset to defaults." });
+      // The reset already persisted server-side, so Save has nothing left
+      // to do until this tab is edited again -- reflect that immediately
+      // instead of leaving an enabled "Save" that would just resend the
+      // same data it now shows.
+      setSavedTabs((prev) => new Set(prev).add(tab));
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Reset failed" });
     } finally {
@@ -188,6 +206,20 @@ export default function EntityManagementPage() {
   if (loadError || !entity || !prefs) {
     return <p className="entity-status error">{loadError ?? "Failed to load entity."}</p>;
   }
+
+  const saveBar = (
+    <div className="entity-save-bar">
+      <button className="entity-btn primary" onClick={handleSave} disabled={saving || savedTabs.has(tab)}>
+        {saving ? "Saving…" : savedTabs.has(tab) ? "Saved" : "Save"}
+      </button>
+      {RESETTABLE_CATEGORY[tab] && (
+        <button className="entity-btn" onClick={() => setResetConfirmOpen(true)} disabled={saving}>
+          Reset to defaults
+        </button>
+      )}
+      {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
+    </div>
+  );
 
   return (
     <div className="entity-mgmt">
@@ -229,7 +261,7 @@ export default function EntityManagementPage() {
 
       <div className="entity-panel">
         {tab === "business" && (
-          <BusinessInfoTab entity={entity} draft={businessDraft} onChange={setBusinessDraft} />
+          <BusinessInfoTab entity={entity} draft={businessDraft} onChange={handleBusinessDraftChange} />
         )}
         {tab === "branding" && (
           <BrandingTypographyTab
@@ -237,58 +269,69 @@ export default function EntityManagementPage() {
             entity={entity}
             brandingDraft={prefs.branding}
             typographyDraft={prefs.typography}
-            onChangeBranding={(branding) => setPrefs({ ...prefs, branding })}
-            onChangeTypography={(typography) => setPrefs({ ...prefs, typography })}
+            onChangeBranding={(branding) => {
+              setPrefs({ ...prefs, branding });
+              markTabDirty("branding");
+            }}
+            onChangeTypography={(typography) => {
+              setPrefs({ ...prefs, typography });
+              markTabDirty("branding");
+            }}
             paymentScheduleRows={prefs.payment_schedule.rows}
             componentDefaults={prefs.components.items}
             defaultPricePerWatt={prefs.pricing.default_price_per_watt}
             defaultTaxRate={prefs.pricing.default_tax_rate}
+            formFooter={saveBar}
           />
         )}
         {tab === "documents" && (
           <DocumentsTab
             draft={prefs.document_customization}
-            onChange={(document_customization) => setPrefs({ ...prefs, document_customization })}
+            onChange={(document_customization) => {
+              setPrefs({ ...prefs, document_customization });
+              markTabDirty("documents");
+            }}
           />
         )}
         {tab === "pricing" && (
           <PricingLanguageTab
             pricing={prefs.pricing}
             language={prefs.language}
-            skipQuoteOtp={prefs.skip_quote_otp}
-            onChangePricing={(pricing) => setPrefs({ ...prefs, pricing })}
-            onChangeLanguage={(language) => setPrefs({ ...prefs, language })}
-            onChangeSkipQuoteOtp={(skip_quote_otp) => setPrefs({ ...prefs, skip_quote_otp })}
+            onChangePricing={(pricing) => {
+              setPrefs({ ...prefs, pricing });
+              markTabDirty("pricing");
+            }}
+            onChangeLanguage={(language) => {
+              setPrefs({ ...prefs, language });
+              markTabDirty("pricing");
+            }}
           />
         )}
         {tab === "components" && (
           <ComponentsTab
             draft={prefs.components}
-            onChange={(components) => setPrefs({ ...prefs, components })}
+            onChange={(components) => {
+              setPrefs({ ...prefs, components });
+              markTabDirty("components");
+            }}
           />
         )}
         {tab === "payment_schedule" && (
           <PaymentScheduleTab
             draft={prefs.payment_schedule}
-            onChange={(payment_schedule) => setPrefs({ ...prefs, payment_schedule })}
+            onChange={(payment_schedule) => {
+              setPrefs({ ...prefs, payment_schedule });
+              markTabDirty("payment_schedule");
+            }}
           />
         )}
         {tab === "amc" && <AmcPlansPage />}
       </div>
 
-      {!SELF_MANAGED_TABS.includes(tab) && (
-        <div className="entity-save-bar">
-          <button className="entity-btn primary" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </button>
-          {RESETTABLE_CATEGORY[tab] && (
-            <button className="entity-btn" onClick={() => setResetConfirmOpen(true)} disabled={saving}>
-              Reset to defaults
-            </button>
-          )}
-          {status && <span className={`entity-status ${status.kind}`}>{status.message}</span>}
-        </div>
-      )}
+      {/* Branding & Typography renders this same bar itself, before its live
+          preview instead of after -- see BrandingTypographyTab's
+          formFooter. */}
+      {!SELF_MANAGED_TABS.includes(tab) && tab !== "branding" && saveBar}
 
       <ConfirmDialog
         open={resetConfirmOpen}

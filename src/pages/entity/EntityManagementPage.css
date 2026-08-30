@@ -170,6 +170,39 @@
   font-weight: 600;
 }
 
+/* Explicit flex row + a fixed checkbox size, rather than relying on the
+   default inline flow of <label><input/> text</label> -- the global iOS
+   input-zoom fix (src/index.css) sets `input { font-size: 16px !important }`
+   below 640px, and an unsized checkbox's default UA rendering scales with
+   font-size on some mobile browsers, which was blowing the checkbox up to
+   the point that it and the label text each wrapped onto their own
+   (visually centered-looking) line instead of sitting side by side. */
+.entity-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.entity-checkbox-label input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+}
+
+/* The shared quote-accordion-* classes (see AccordionSection.tsx) style
+   .quote-section-label as a small uppercase eyebrow, sized for the dense
+   Quote/Agreement builder forms -- these three sections are the only
+   content on this tab, so the heading can afford to read as an actual
+   section title instead. */
+.entity-documents-accordion .quote-section-label {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .entity-field input,
 .entity-field select,
 .entity-field textarea {

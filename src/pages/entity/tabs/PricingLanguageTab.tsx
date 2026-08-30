@@ -15,20 +15,11 @@ const LANGUAGES: { value: string; label: string }[] = [
 type Props = {
   pricing: Pricing;
   language: string;
-  skipQuoteOtp: boolean;
   onChangePricing: (draft: Pricing) => void;
   onChangeLanguage: (language: string) => void;
-  onChangeSkipQuoteOtp: (skipQuoteOtp: boolean) => void;
 };
 
-export default function PricingLanguageTab({
-  pricing,
-  language,
-  skipQuoteOtp,
-  onChangePricing,
-  onChangeLanguage,
-  onChangeSkipQuoteOtp,
-}: Props) {
+export default function PricingLanguageTab({ pricing, language, onChangePricing, onChangeLanguage }: Props) {
   return (
     <div>
       <div className="entity-field">
@@ -45,8 +36,8 @@ export default function PricingLanguageTab({
 
       <div className="entity-field">
         {/* Not wired to entity data (this component only receives `pricing`/
-            `language`/`skipQuoteOtp` props, no `entity`/`tax_label`) —
-            left as the literal "GST" rather than guessing a dynamic value. */}
+            `language` props, no `entity`/`tax_label`) — left as the literal
+            "GST" rather than guessing a dynamic value. */}
         <label htmlFor="default_tax_rate">Default GST rate (%)</label>
         <input
           id="default_tax_rate"
@@ -70,23 +61,6 @@ export default function PricingLanguageTab({
           ))}
         </select>
         <span className="entity-field-help">All new quotes and agreements will be generated in this language.</span>
-      </div>
-
-      <div className="entity-field">
-        <label htmlFor="skip_quote_otp">
-          <input
-            id="skip_quote_otp"
-            type="checkbox"
-            checked={skipQuoteOtp}
-            onChange={(e) => onChangeSkipQuoteOtp(e.target.checked)}
-          />{" "}
-          Skip email OTP for quote acceptance
-        </label>
-        <span className="entity-field-help">
-          When enabled, customers accepting a quote only need to check the terms/AMC consent box — no code is
-          emailed. Turn this on temporarily if your email delivery is down; otherwise leave it off, since OTP
-          verification protects against a forwarded quote link being accepted by someone other than the customer.
-        </span>
       </div>
     </div>
   );

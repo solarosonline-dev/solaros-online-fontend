@@ -173,10 +173,7 @@ export default function AgreementBuilderPage() {
             ...DEFAULT_FORM,
             // Same pattern as quotes: entity's document defaults are folded into
             // the editable terms list, not kept as separate free text.
-            terms: [
-              ...prefs.document_customization.custom_terms_and_conditions,
-              ...prefs.document_customization.agreement_notes,
-            ],
+            terms: [...prefs.document_customization.agreement_notes],
           });
         }
       })
