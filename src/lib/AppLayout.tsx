@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import { isSystemAdmin, isEntityAdmin } from "./roles";
 import { TourProvider, useTour } from "./TourContext";
 import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
+import { sweepExpiredDrafts } from "./drafts";
 import "./AppLayout.css";
 
 function onboardingTourSeenKey(userId: number) {
@@ -32,6 +33,12 @@ function AppLayoutInner() {
 
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+
+  // One-time cleanup of expired local draft-autosave entries (Lead/Quote/
+  // Agreement forms) per app session -- see lib/drafts.ts.
+  useEffect(() => {
+    sweepExpiredDrafts();
+  }, []);
 
   // Auto-show the guided tour the first time this user reaches the app --
   // "seen" is tracked per user id in localStorage (simplest option, no

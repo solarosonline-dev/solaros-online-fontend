@@ -24,7 +24,10 @@ import { getDiscomName } from "../leads/discomOptions";
 import { EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import CopyLinkButton from "../../components/CopyLinkButton";
 import AccordionSection from "../../components/AccordionSection";
+import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
+import { useDraftAutosave } from "../../hooks/useDraftAutosave";
+import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import "../quotes/QuoteBuilderPage.css";
 
 /** LHS form sections, in display order -- collapsed into a single-open-at-
@@ -127,12 +130,18 @@ export default function AgreementBuilderPage() {
   // disabled "Saved" and back without wiring an onChange handler onto
   // every one of this form's many fields individually.
   const [savedSnapshot, setSavedSnapshot] = useState<FormState | null>(null);
+  const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
+  // The form value as fetched/defaulted, before any local draft was applied
+  // on top of it -- lets "Reset" on the draft-restored banner discard the
+  // draft and fall back to this instead of re-fetching.
+  const fetchedFormRef = useRef<FormState | null>(null);
 
   useEffect(() => {
     if (!leadId) return;
     setLoading(true);
     setLoadError(null);
     setSavedSnapshot(null);
+    setDraftRestoredAt(null);
 
     Promise.all([
       getLead(entityId, Number(leadId)),
@@ -159,7 +168,7 @@ export default function AgreementBuilderPage() {
         if (agreementsRes.items.length > 0) {
           const agreement = await getAgreement(entityId, Number(leadId), agreementsRes.items[0].agreement_id);
           setExistingAgreement(agreement);
-          setForm({
+          const fetchedForm: FormState = {
             validityDays: agreement.validity_days != null ? String(agreement.validity_days) : "15",
             notes: agreement.notes ?? "",
             amcId: agreement.amc_id != null ? String(agreement.amc_id) : "",
@@ -170,17 +179,39 @@ export default function AgreementBuilderPage() {
             amcPost5PlanIds: (agreement.amc_post5_plan_ids ?? []).map(String),
             equipment: equipmentFormFromSaved(agreement.equipment_details),
             terms: agreement.terms ?? [],
-          });
+          };
+          fetchedFormRef.current = fetchedForm;
+          // Only offer a draft restore while the agreement is still editable
+          // -- a locked (non-NEW) agreement can't be autosaved into either,
+          // so any leftover draft for it is moot.
+          const stored =
+            agreement.status === "NEW"
+              ? readDraft<FormState>(draftKeys.agreementEdit(agreement.agreement_id))
+              : null;
+          if (stored) {
+            setForm(stored.data);
+            setDraftRestoredAt(stored.timestamp);
+          } else {
+            setForm(fetchedForm);
+          }
         } else {
           // AMC is only offered from the agreement when the quote didn't
           // already carry one (see quoteHasAmc below) — nothing to default
           // it from in that case, so it starts blank either way.
-          setForm({
+          const fetchedForm: FormState = {
             ...DEFAULT_FORM,
             // Same pattern as quotes: entity's document defaults are folded into
             // the editable terms list, not kept as separate free text.
             terms: [...prefs.document_customization.agreement_notes],
-          });
+          };
+          fetchedFormRef.current = fetchedForm;
+          const stored = readDraft<FormState>(draftKeys.agreementNew(leadId));
+          if (stored) {
+            setForm(stored.data);
+            setDraftRestoredAt(stored.timestamp);
+          } else {
+            setForm(fetchedForm);
+          }
         }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load"))
@@ -289,6 +320,25 @@ export default function AgreementBuilderPage() {
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
   const isDirtySinceSave = savedSnapshot != null && JSON.stringify(form) !== JSON.stringify(savedSnapshot);
   const showSaved = savedSnapshot != null && !isDirtySinceSave;
+
+  const draftKey = leadId
+    ? existingAgreement
+      ? draftKeys.agreementEdit(existingAgreement.agreement_id)
+      : draftKeys.agreementNew(leadId)
+    : null;
+  // Only autosave once `form` has actually diverged from what was
+  // fetched/defaulted -- otherwise merely opening this page would seed an
+  // unchanged draft that gets spuriously "restored" on the next visit, with
+  // nothing the user actually needs to recover.
+  const isDirtySinceLoad =
+    fetchedFormRef.current != null && JSON.stringify(form) !== JSON.stringify(fetchedFormRef.current);
+  useDraftAutosave(draftKey, form, !loading && !locked && isDirtySinceLoad);
+
+  function handleResetDraft() {
+    if (draftKey) clearDraft(draftKey);
+    setDraftRestoredAt(null);
+    if (fetchedFormRef.current) setForm(fetchedFormRef.current);
+  }
 
   // Single-open-at-a-time accordion for the LHS form -- see AccordionSection.
   const [openSection, setOpenSection] = useState<SectionKey | null>("fromQuote");
@@ -400,6 +450,12 @@ export default function AgreementBuilderPage() {
       terms: form.terms,
     };
 
+    // Captured before the API call, since existingAgreement (and therefore
+    // draftKey) flips from the "new" key to the "edit" key once this save
+    // succeeds -- the draft that needs clearing is the one under the key
+    // that was active while the user was typing, not the new one.
+    const keyBeforeSave = draftKey;
+
     try {
       if (existingAgreement) {
         const updated = await updateAgreement(entityId, Number(leadId), existingAgreement.agreement_id, payload);
@@ -413,6 +469,9 @@ export default function AgreementBuilderPage() {
         setExistingAgreement(full);
       }
       setSavedSnapshot(form);
+      fetchedFormRef.current = form;
+      if (keyBeforeSave) clearDraft(keyBeforeSave);
+      setDraftRestoredAt(null);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -447,6 +506,10 @@ export default function AgreementBuilderPage() {
           {existingAgreement && <p className="quote-builder-reference">{existingAgreement.agreement_number}</p>}
         </div>
       </div>
+
+      {draftRestoredAt != null && (
+        <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+      )}
 
       <div className="quote-builder-grid">
         <div className="quote-form-panel no-print">
@@ -782,7 +845,9 @@ export default function AgreementBuilderPage() {
                         ? "Save changes"
                         : "Generate agreement"}
                 </button>
-                {existingAgreement?.share_url && <CopyLinkButton url={existingAgreement.share_url} />}
+                {existingAgreement?.share_url && (
+                  <CopyLinkButton url={existingAgreement.share_url} disabled={isDirtySinceLoad} />
+                )}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
               </div>
             )}

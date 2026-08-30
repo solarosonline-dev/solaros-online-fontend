@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createLead, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
@@ -6,6 +6,26 @@ import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import DraftRestoredBanner from "../../components/DraftRestoredBanner";
+import { useDraftAutosave } from "../../hooks/useDraftAutosave";
+import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
+
+type DraftFields = {
+  name: string;
+  mobile: string;
+  address: string;
+  type: string;
+  email: string;
+  sanctionedLoad: string;
+  metertype: string;
+  state: string;
+  discom: string;
+  roofArea: string;
+  caNumber: string;
+  avgBill: string;
+  avgUnits: string;
+  requirement: string;
+};
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
 
@@ -30,6 +50,53 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [avgBill, setAvgBill] = useState("");
   const [avgUnits, setAvgUnits] = useState("");
   const [requirement, setRequirement] = useState("");
+
+  const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
+
+  // Restore any draft left over from a previous, never-submitted "Add lead"
+  // attempt (accidental tab close, slipped tap, etc.) -- runs once on mount
+  // since this component is fully remounted each time the panel opens (see
+  // the entry_duration_ms comment on getElapsedMs below).
+  useEffect(() => {
+    const draft = readDraft<DraftFields>(draftKeys.leadNew());
+    if (!draft) return;
+    const f = draft.data;
+    setName(f.name);
+    setMobile(f.mobile);
+    setAddress(f.address);
+    setType(f.type);
+    setEmail(f.email);
+    setSanctionedLoad(f.sanctionedLoad);
+    setMetertype(f.metertype);
+    setState(f.state);
+    setDiscom(f.discom);
+    setRoofArea(f.roofArea);
+    setCaNumber(f.caNumber);
+    setAvgBill(f.avgBill);
+    setAvgUnits(f.avgUnits);
+    setRequirement(f.requirement);
+    setDraftRestoredAt(draft.timestamp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleResetDraft() {
+    clearDraft(draftKeys.leadNew());
+    setDraftRestoredAt(null);
+    setName("");
+    setMobile("");
+    setAddress("");
+    setType("");
+    setEmail("");
+    setSanctionedLoad("");
+    setMetertype("");
+    setState("");
+    setDiscom("");
+    setRoofArea("");
+    setCaNumber("");
+    setAvgBill("");
+    setAvgUnits("");
+    setRequirement("");
+  }
 
   // Wall-clock time spent on this form, from mount to submit — sent as
   // entry_duration_ms to power the admin "p50/p95 time to enter a lead"
@@ -58,12 +125,45 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     requirement,
   ].some((v) => v.trim() !== "");
 
+  // Only autosave once the user has actually typed something -- otherwise
+  // simply opening (and closing) the "Add lead" panel would seed an
+  // unchanged blank draft that gets silently "restored" the next time it's
+  // opened, with nothing for the user to actually recover.
+  useDraftAutosave(
+    draftKeys.leadNew(),
+    {
+      name,
+      mobile,
+      address,
+      type,
+      email,
+      sanctionedLoad,
+      metertype,
+      state,
+      discom,
+      roofArea,
+      caNumber,
+      avgBill,
+      avgUnits,
+      requirement,
+    },
+    isDirty,
+  );
+
   function handleCancelClick() {
     if (isDirty) {
       setCancelConfirmOpen(true);
     } else {
-      onCancel();
+      handleDiscard();
     }
+  }
+
+  // Wraps the onCancel prop so a discarded lead's local draft doesn't
+  // outlive it -- otherwise the next "Add lead" open would restore data the
+  // admin explicitly chose to throw away.
+  function handleDiscard() {
+    clearDraft(draftKeys.leadNew());
+    onCancel();
   }
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -141,6 +241,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         requirement: requirement.trim() || undefined,
         entry_duration_ms: getElapsedMs(),
       });
+      clearDraft(draftKeys.leadNew());
+      setDraftRestoredAt(null);
       onCreated();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : "Could not create lead");
@@ -151,6 +253,10 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
   return (
     <div className="add-lead-panel">
+      {draftRestoredAt != null && (
+        <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+      )}
+
       <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
 
       <form onSubmit={handleSubmit} noValidate>
@@ -333,7 +439,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         message="You'll lose everything entered on this form. This can't be undone."
         confirmLabel="Discard"
         cancelLabel="Keep editing"
-        onConfirm={onCancel}
+        onConfirm={handleDiscard}
         onCancel={() => setCancelConfirmOpen(false)}
       />
     </div>

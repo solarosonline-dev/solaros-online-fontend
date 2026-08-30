@@ -1,0 +1,25 @@
+.copy-link-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.copy-link-btn--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.copy-link-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--app-text, #1f2937);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 20;
+}

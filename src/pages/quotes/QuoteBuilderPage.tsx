@@ -22,7 +22,10 @@ import LeadSiteImages from "../leads/LeadSiteImages";
 import { listLeadSiteImages, type LeadSiteImage } from "../../api/leadSiteImages";
 import CopyLinkButton from "../../components/CopyLinkButton";
 import AccordionSection from "../../components/AccordionSection";
+import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
+import { useDraftAutosave } from "../../hooks/useDraftAutosave";
+import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import "./QuoteBuilderPage.css";
 
 const PANEL_TYPES = ["DCR", "Non-DCR"];
@@ -160,6 +163,11 @@ export default function QuoteBuilderPage() {
   // disabled "Saved" and back without wiring an onChange handler onto
   // every one of this form's many fields individually.
   const [savedSnapshot, setSavedSnapshot] = useState<FormState | null>(null);
+  const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
+  // The form value as fetched/defaulted, before any local draft was applied
+  // on top of it -- lets "Reset" on the draft-restored banner discard the
+  // draft and fall back to this instead of re-fetching.
+  const fetchedFormRef = useRef<FormState | null>(null);
 
   // Nudge the "Entity Settings" nav link (see AppLayout.tsx/TourContext.tsx)
   // once we know the entity has zero AMC plans defined -- an admin building a
@@ -178,6 +186,7 @@ export default function QuoteBuilderPage() {
     setLoading(true);
     setLoadError(null);
     setSavedSnapshot(null);
+    setDraftRestoredAt(null);
 
     Promise.all([
       getLead(entityId, Number(leadId)),
@@ -195,7 +204,7 @@ export default function QuoteBuilderPage() {
         if (quotesRes.items.length > 0) {
           const quote = await getQuote(entityId, Number(leadId), quotesRes.items[0].quote_id);
           setExistingQuote(quote);
-          setForm({
+          const fetchedForm: FormState = {
             capacity: quote.capacity != null ? String(quote.capacity) : "",
             panelType: quote.panel_type ?? "DCR",
             validityDays: quote.validity_days != null ? String(quote.validity_days) : "15",
@@ -220,7 +229,19 @@ export default function QuoteBuilderPage() {
             components: quote.components ?? [],
             componentsEnabled: quote.components_enabled ?? false,
             componentsPricingEnabled: quote.components_pricing_enabled ?? true,
-          });
+          };
+          fetchedFormRef.current = fetchedForm;
+          // Only offer a draft restore while the quote is still editable --
+          // a locked (non-GENERATED) quote can't be autosaved into either,
+          // so any leftover draft for it is moot.
+          const stored =
+            quote.status === "GENERATED" ? readDraft<FormState>(draftKeys.quoteEdit(quote.quote_id)) : null;
+          if (stored) {
+            setForm(stored.data);
+            setDraftRestoredAt(stored.timestamp);
+          } else {
+            setForm(fetchedForm);
+          }
           setSubsidyTouched(true);
           // A saved quote already has an explicit (or explicitly blank)
           // loan_amount -- treat it as touched so the total-cost auto-default
@@ -228,7 +249,7 @@ export default function QuoteBuilderPage() {
           setLoanAmountTouched(true);
         } else {
           const capacity = leadRes.sanctioned_load != null ? leadRes.sanctioned_load : Number(DEFAULT_FORM.capacity);
-          setForm({
+          const fetchedForm: FormState = {
             ...DEFAULT_FORM,
             capacity: String(capacity),
             pricePerWatt: String(prefsRes.pricing.default_price_per_watt ?? DEFAULT_FORM.pricePerWatt),
@@ -247,7 +268,15 @@ export default function QuoteBuilderPage() {
             })),
             componentsEnabled: false,
             componentsPricingEnabled: true,
-          });
+          };
+          fetchedFormRef.current = fetchedForm;
+          const stored = readDraft<FormState>(draftKeys.quoteNew(leadId));
+          if (stored) {
+            setForm(stored.data);
+            setDraftRestoredAt(stored.timestamp);
+          } else {
+            setForm(fetchedForm);
+          }
           setSubsidyTouched(false);
           setLoanAmountTouched(false);
         }
@@ -457,6 +486,25 @@ export default function QuoteBuilderPage() {
   const isDirtySinceSave = savedSnapshot != null && JSON.stringify(form) !== JSON.stringify(savedSnapshot);
   const showSaved = savedSnapshot != null && !isDirtySinceSave;
 
+  const draftKey = leadId
+    ? existingQuote
+      ? draftKeys.quoteEdit(existingQuote.quote_id)
+      : draftKeys.quoteNew(leadId)
+    : null;
+  // Only autosave once `form` has actually diverged from what was
+  // fetched/defaulted -- otherwise merely opening this page would seed an
+  // unchanged draft that gets spuriously "restored" on the next visit, with
+  // nothing the user actually needs to recover.
+  const isDirtySinceLoad =
+    fetchedFormRef.current != null && JSON.stringify(form) !== JSON.stringify(fetchedFormRef.current);
+  useDraftAutosave(draftKey, form, !loading && !locked && isDirtySinceLoad);
+
+  function handleResetDraft() {
+    if (draftKey) clearDraft(draftKey);
+    setDraftRestoredAt(null);
+    if (fetchedFormRef.current) setForm(fetchedFormRef.current);
+  }
+
   function handleAddTerm() {
     const trimmed = newTerm.trim();
     if (!trimmed) return;
@@ -542,6 +590,12 @@ export default function QuoteBuilderPage() {
       components_pricing_enabled: form.componentsPricingEnabled,
     };
 
+    // Captured before the API call, since existingQuote (and therefore
+    // draftKey) flips from the "new" key to the "edit" key once this save
+    // succeeds -- the draft that needs clearing is the one under the key
+    // that was active while the user was typing, not the new one.
+    const keyBeforeSave = draftKey;
+
     try {
       if (existingQuote) {
         const updated = await updateQuote(entityId, Number(leadId), existingQuote.quote_id, payload);
@@ -555,6 +609,9 @@ export default function QuoteBuilderPage() {
         setExistingQuote(full);
       }
       setSavedSnapshot(form);
+      fetchedFormRef.current = form;
+      if (keyBeforeSave) clearDraft(keyBeforeSave);
+      setDraftRestoredAt(null);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -589,6 +646,10 @@ export default function QuoteBuilderPage() {
           {existingQuote && <p className="quote-builder-reference">{existingQuote.quote_number}</p>}
         </div>
       </div>
+
+      {draftRestoredAt != null && (
+        <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+      )}
 
       {!loading && amcPlans.every((p) => !p.is_active) && (
         <p className="quote-builder-alert no-print">
@@ -1112,7 +1173,9 @@ export default function QuoteBuilderPage() {
                 <button type="submit" className="quote-btn primary" disabled={saving || showSaved}>
                   {saving ? "Saving…" : showSaved ? "Saved" : existingQuote ? "Save changes" : "Generate quote"}
                 </button>
-                {existingQuote?.share_url && <CopyLinkButton url={existingQuote.share_url} />}
+                {existingQuote?.share_url && (
+                  <CopyLinkButton url={existingQuote.share_url} disabled={isDirtySinceLoad} />
+                )}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
               </div>
             )}

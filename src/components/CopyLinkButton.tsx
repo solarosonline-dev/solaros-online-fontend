@@ -1,15 +1,28 @@
 import { useState } from "react";
+import "./CopyLinkButton.css";
 
 type CopyLinkButtonProps = {
   url: string;
   className?: string;
+  /** When true, clicking copies nothing and instead flashes `disabledMessage`
+   * as a tooltip -- used to stop admins sharing a link to stale (unsaved)
+   * quote/agreement content. Kept clickable rather than a native `disabled`
+   * button so the tooltip can actually fire on click. */
+  disabled?: boolean;
+  disabledMessage?: string;
 };
 
 /** Small "Copy" button for share-link rows (quote/agreement/AMC schedule
  * share boxes) — copies `url` to the clipboard and flashes a "Copied!"
  * confirmation for a couple seconds before reverting. */
-export default function CopyLinkButton({ url, className }: CopyLinkButtonProps) {
+export default function CopyLinkButton({
+  url,
+  className,
+  disabled = false,
+  disabledMessage = "Save your changes before copying the link",
+}: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
+  const [showDisabledTip, setShowDisabledTip] = useState(false);
 
   async function handleCopy() {
     try {
@@ -34,9 +47,26 @@ export default function CopyLinkButton({ url, className }: CopyLinkButtonProps) 
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleClick() {
+    if (disabled) {
+      setShowDisabledTip(true);
+      setTimeout(() => setShowDisabledTip(false), 2000);
+      return;
+    }
+    handleCopy();
+  }
+
   return (
-    <button type="button" className={className ?? "quote-btn"} onClick={handleCopy}>
-      {copied ? "Copied!" : "Copy link"}
-    </button>
+    <span className="copy-link-wrap">
+      <button
+        type="button"
+        className={`${className ?? "quote-btn"}${disabled ? " copy-link-btn--disabled" : ""}`}
+        aria-disabled={disabled}
+        onClick={handleClick}
+      >
+        {copied ? "Copied!" : "Copy link"}
+      </button>
+      {showDisabledTip && <span className="copy-link-tooltip">{disabledMessage}</span>}
+    </span>
   );
 }

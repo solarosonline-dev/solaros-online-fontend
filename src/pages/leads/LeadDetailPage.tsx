@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import {
@@ -18,7 +18,46 @@ import { LeadStatusBadge } from "./leadFunnel";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState } from "./discomOptions";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import DraftRestoredBanner from "../../components/DraftRestoredBanner";
+import { useDraftAutosave } from "../../hooks/useDraftAutosave";
+import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import "./LeadsPage.css";
+
+type LeadDraftFields = {
+  name: string;
+  mobile: string;
+  address: string;
+  type: string;
+  email: string;
+  sanctioned_load: string;
+  metertype: string;
+  state: string;
+  discom: string;
+  roof_area_sqft: string;
+  ca_number: string;
+  avg_monthly_bill: string;
+  avg_monthly_units: string;
+  requirement: string;
+};
+
+function draftFieldsFromLead(res: LeadDetail): LeadDraftFields {
+  return {
+    name: res.name,
+    mobile: res.mobile,
+    address: res.address ?? "",
+    type: res.type ?? "",
+    email: res.email ?? "",
+    sanctioned_load: res.sanctioned_load != null ? String(res.sanctioned_load) : "",
+    metertype: res.metertype ?? "",
+    state: res.state ?? "",
+    discom: res.discom ?? "",
+    roof_area_sqft: res.roof_area_sqft != null ? String(res.roof_area_sqft) : "",
+    ca_number: res.ca_number ?? "",
+    avg_monthly_bill: res.avg_monthly_bill ?? "",
+    avg_monthly_units: res.avg_monthly_units != null ? String(res.avg_monthly_units) : "",
+    requirement: res.requirement ?? "",
+  };
+}
 
 function manualTransitions(status: LeadStatus): { label: string; target: ManualLeadStatus; primary: boolean }[] {
   switch (status) {
@@ -51,22 +90,17 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [draft, setDraft] = useState<{
-    name: string;
-    mobile: string;
-    address: string;
-    type: string;
-    email: string;
-    sanctioned_load: string;
-    metertype: string;
-    state: string;
-    discom: string;
-    roof_area_sqft: string;
-    ca_number: string;
-    avg_monthly_bill: string;
-    avg_monthly_units: string;
-    requirement: string;
-  } | null>(null);
+  const [draft, setDraft] = useState<LeadDraftFields | null>(null);
+  const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
+  // The draft fields as fetched from the server, before any local
+  // draft-autosave data was applied on top -- the baseline autosave is
+  // compared against so an unmodified form doesn't get "autosaved" (and
+  // then spuriously offered back as a "restore" on the next visit).
+  // Updated to the just-saved values on a successful save too, so save
+  // doesn't leave this stale and re-trigger autosave from formatting
+  // differences (e.g. server-side trimming) between what was submitted and
+  // what's re-fetched.
+  const fetchedDraftRef = useRef<LeadDraftFields | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
@@ -84,31 +118,38 @@ export default function LeadDetailPage() {
     setLoading(true);
     setLoadError(null);
     setSavedSnapshot(null);
+    setDraftRestoredAt(null);
     getLead(entityId, Number(leadId))
       .then((res) => {
         setLead(res);
-        setDraft({
-          name: res.name,
-          mobile: res.mobile,
-          address: res.address ?? "",
-          type: res.type ?? "",
-          email: res.email ?? "",
-          sanctioned_load: res.sanctioned_load != null ? String(res.sanctioned_load) : "",
-          metertype: res.metertype ?? "",
-          state: res.state ?? "",
-          discom: res.discom ?? "",
-          roof_area_sqft: res.roof_area_sqft != null ? String(res.roof_area_sqft) : "",
-          ca_number: res.ca_number ?? "",
-          avg_monthly_bill: res.avg_monthly_bill ?? "",
-          avg_monthly_units: res.avg_monthly_units != null ? String(res.avg_monthly_units) : "",
-          requirement: res.requirement ?? "",
-        });
+        const fetched = draftFieldsFromLead(res);
+        fetchedDraftRef.current = fetched;
+        const stored = readDraft<LeadDraftFields>(draftKeys.leadEdit(leadId));
+        if (stored) {
+          setDraft(stored.data);
+          setDraftRestoredAt(stored.timestamp);
+        } else {
+          setDraft(fetched);
+        }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load lead"))
       .finally(() => setLoading(false));
   }
 
   useEffect(load, [entityId, leadId]);
+
+  const isDirtySinceLoad =
+    draft != null &&
+    fetchedDraftRef.current != null &&
+    JSON.stringify(draft) !== JSON.stringify(fetchedDraftRef.current);
+  useDraftAutosave(leadId ? draftKeys.leadEdit(leadId) : null, draft, isDirtySinceLoad);
+
+  function handleResetDraft() {
+    if (!leadId) return;
+    clearDraft(draftKeys.leadEdit(leadId));
+    setDraftRestoredAt(null);
+    if (fetchedDraftRef.current) setDraft(fetchedDraftRef.current);
+  }
 
   useEffect(() => {
     if (!leadId || lead?.status !== "AGREEMENT_ACCEPTED") return;
@@ -166,6 +207,9 @@ export default function LeadDetailPage() {
       });
       setLead(updated);
       setSavedSnapshot(draft);
+      fetchedDraftRef.current = draft;
+      clearDraft(draftKeys.leadEdit(leadId));
+      setDraftRestoredAt(null);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -209,6 +253,10 @@ export default function LeadDetailPage() {
       <Link to="/app/leads" className="lead-detail-back">
         ← Back to leads
       </Link>
+
+      {draftRestoredAt != null && (
+        <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+      )}
 
       <div className="lead-detail-header">
         <h1 style={{ margin: 0 }}>
