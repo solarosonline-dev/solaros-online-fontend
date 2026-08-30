@@ -73,11 +73,17 @@ export default function LeadDetailPage() {
   const [transitioning, setTransitioning] = useState(false);
   const [project, setProject] = useState<ProjectForLead | null>(null);
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+  // Snapshot of `draft` as of the last successful save -- compared against
+  // the live draft (see isDirtySinceSave) so the Save button can flip to a
+  // disabled "Saved" and back without wiring an onChange handler onto every
+  // one of the form's dozen-plus fields individually.
+  const [savedSnapshot, setSavedSnapshot] = useState<typeof draft>(null);
 
   function load() {
     if (!leadId) return;
     setLoading(true);
     setLoadError(null);
+    setSavedSnapshot(null);
     getLead(entityId, Number(leadId))
       .then((res) => {
         setLead(res);
@@ -159,7 +165,7 @@ export default function LeadDetailPage() {
         requirement: draft.requirement.trim() || undefined,
       });
       setLead(updated);
-      setStatus({ kind: "success", message: "Saved." });
+      setSavedSnapshot(draft);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -195,6 +201,8 @@ export default function LeadDetailPage() {
   }
 
   const actions = manualTransitions(lead.status);
+  const isDirtySinceSave = savedSnapshot != null && JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
+  const showSaved = savedSnapshot != null && !isDirtySinceSave;
 
   return (
     <div className="leads-page">
@@ -434,8 +442,8 @@ export default function LeadDetailPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button type="submit" className="leads-btn primary" disabled={saving}>
-              {saving ? "Saving…" : "Save"}
+            <button type="submit" className="leads-btn primary" disabled={saving || showSaved}>
+              {saving ? "Saving…" : showSaved ? "Saved" : "Save"}
             </button>
             <button type="button" className="leads-btn" onClick={() => navigate("/app/leads")}>
               Back to leads

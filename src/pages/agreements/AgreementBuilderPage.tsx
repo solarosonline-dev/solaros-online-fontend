@@ -122,11 +122,17 @@ export default function AgreementBuilderPage() {
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  // Snapshot of `form` as of the last successful save -- compared against
+  // the live form (see isDirtySinceSave below) so Save can flip to a
+  // disabled "Saved" and back without wiring an onChange handler onto
+  // every one of this form's many fields individually.
+  const [savedSnapshot, setSavedSnapshot] = useState<FormState | null>(null);
 
   useEffect(() => {
     if (!leadId) return;
     setLoading(true);
     setLoadError(null);
+    setSavedSnapshot(null);
 
     Promise.all([
       getLead(entityId, Number(leadId)),
@@ -281,6 +287,8 @@ export default function AgreementBuilderPage() {
   );
 
   const locked = existingAgreement != null && existingAgreement.status !== "NEW";
+  const isDirtySinceSave = savedSnapshot != null && JSON.stringify(form) !== JSON.stringify(savedSnapshot);
+  const showSaved = savedSnapshot != null && !isDirtySinceSave;
 
   // Single-open-at-a-time accordion for the LHS form -- see AccordionSection.
   const [openSection, setOpenSection] = useState<SectionKey | null>("fromQuote");
@@ -347,20 +355,20 @@ export default function AgreementBuilderPage() {
 
   // Fetched on demand rather than eagerly (like the share link) — presigned
   // URLs expire, so there's no reason to mint one before the admin actually
-  // wants to view the PDF. Opens the tab synchronously on click (before the
-  // await) and only then points it at the fetched URL — some browsers'
-  // popup blockers reject window.open once it's past the click's own
-  // synchronous call stack.
+  // wants to view the PDF. Opens the tab directly at the fetched URL (same
+  // pattern as WorkOrderDocuments.tsx's "View" button) rather than opening
+  // a blank tab first and pointing it at the URL once the fetch resolves —
+  // that trick left the tab stuck on about:blank in some browsers, which
+  // silently drop a `.location.href` assignment made after enough of an
+  // async gap from the original click.
   async function handleViewPdf() {
     if (!leadId || !existingAgreement) return;
     setPdfError(null);
     setLoadingPdf(true);
-    const tab = window.open("", "_blank", "noreferrer");
     try {
       const { pdf_url } = await getAgreementPdfUrl(entityId, Number(leadId), existingAgreement.agreement_id);
-      if (tab) tab.location.href = pdf_url;
+      window.open(pdf_url, "_blank", "noopener,noreferrer");
     } catch (err) {
-      tab?.close();
       setPdfError(err instanceof ApiError ? err.message : "Could not load the signed PDF");
     } finally {
       setLoadingPdf(false);
@@ -404,7 +412,7 @@ export default function AgreementBuilderPage() {
         const full = await getAgreement(entityId, Number(leadId), created.agreement_id);
         setExistingAgreement(full);
       }
-      setStatus({ kind: "success", message: "Saved." });
+      setSavedSnapshot(form);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -765,8 +773,14 @@ export default function AgreementBuilderPage() {
 
             {!locked && (
               <div className="quote-status-bar">
-                <button type="submit" className="quote-btn primary" disabled={saving}>
-                  {saving ? "Saving…" : existingAgreement ? "Save changes" : "Generate agreement"}
+                <button type="submit" className="quote-btn primary" disabled={saving || showSaved}>
+                  {saving
+                    ? "Saving…"
+                    : showSaved
+                      ? "Saved"
+                      : existingAgreement
+                        ? "Save changes"
+                        : "Generate agreement"}
                 </button>
                 {existingAgreement?.share_url && <CopyLinkButton url={existingAgreement.share_url} />}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}

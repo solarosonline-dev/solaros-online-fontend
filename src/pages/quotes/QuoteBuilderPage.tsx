@@ -155,6 +155,11 @@ export default function QuoteBuilderPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  // Snapshot of `form` as of the last successful save -- compared against
+  // the live form (see isDirtySinceSave below) so Save can flip to a
+  // disabled "Saved" and back without wiring an onChange handler onto
+  // every one of this form's many fields individually.
+  const [savedSnapshot, setSavedSnapshot] = useState<FormState | null>(null);
 
   // Nudge the "Entity Settings" nav link (see AppLayout.tsx/TourContext.tsx)
   // once we know the entity has zero AMC plans defined -- an admin building a
@@ -172,6 +177,7 @@ export default function QuoteBuilderPage() {
     if (!leadId) return;
     setLoading(true);
     setLoadError(null);
+    setSavedSnapshot(null);
 
     Promise.all([
       getLead(entityId, Number(leadId)),
@@ -448,6 +454,8 @@ export default function QuoteBuilderPage() {
   }, [computed.totalCost, loanAmountTouched]);
 
   const locked = existingQuote != null && existingQuote.status !== "GENERATED";
+  const isDirtySinceSave = savedSnapshot != null && JSON.stringify(form) !== JSON.stringify(savedSnapshot);
+  const showSaved = savedSnapshot != null && !isDirtySinceSave;
 
   function handleAddTerm() {
     const trimmed = newTerm.trim();
@@ -546,7 +554,7 @@ export default function QuoteBuilderPage() {
         const full = await getQuote(entityId, Number(leadId), created.quote_id);
         setExistingQuote(full);
       }
-      setStatus({ kind: "success", message: "Saved." });
+      setSavedSnapshot(form);
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
     } finally {
@@ -1101,8 +1109,8 @@ export default function QuoteBuilderPage() {
 
             {!locked && (
               <div className="quote-status-bar">
-                <button type="submit" className="quote-btn primary" disabled={saving}>
-                  {saving ? "Saving…" : existingQuote ? "Save changes" : "Generate quote"}
+                <button type="submit" className="quote-btn primary" disabled={saving || showSaved}>
+                  {saving ? "Saving…" : showSaved ? "Saved" : existingQuote ? "Save changes" : "Generate quote"}
                 </button>
                 {existingQuote?.share_url && <CopyLinkButton url={existingQuote.share_url} />}
                 {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
