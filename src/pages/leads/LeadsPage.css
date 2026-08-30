@@ -190,6 +190,7 @@
     flex-direction: column;
   }
 
+  .lead-detail-main,
   .lead-detail-side {
     width: 100%;
   }
@@ -293,12 +294,32 @@
     gap: 8px;
     padding: 6px 0;
     border-bottom: none;
+    /* Most cells hold one label + one short value, which always fits on
+       one line. The work-orders "Assignee" cell is the exception -- it
+       renders a name plus a separate email/phone line, and an unbroken
+       address like "person@example.com" can't shrink below its own
+       width. Without wrap, that forced the row (and the whole page,
+       since nothing upstream clips horizontal overflow) wider than the
+       viewport -- the "top menu shifts left" report on the lead detail
+       page. min-width: 0 lets the flex item actually shrink instead of
+       defaulting to its content-based intrinsic minimum. */
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
   .leads-table td::before {
     content: attr(data-label);
     font-weight: 600;
     color: var(--app-text-muted);
+  }
+
+  /* Stack the Assignee cell's name + contact line under the label
+     instead of cramming label/name/contact into one non-wrapping row --
+     see the comment on .leads-table td above. */
+  .leads-table td[data-label="Assignee"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 
   /* Action cells have no data-label (nothing to show but the button), so
@@ -454,6 +475,12 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  /* Grid children default to min-width: auto (their content-based
+     intrinsic minimum), not 0, even with width: 100% set -- without this
+     a field can refuse to shrink below that minimum in the two-column
+     .add-lead-field-row layout (641-899px, before it collapses to one
+     column at 640px) and force the row wider than its track. */
+  min-width: 0;
 }
 
 .add-lead-field-row {
