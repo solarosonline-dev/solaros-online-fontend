@@ -1,25 +1,26 @@
+/* Leftover from the Vite starter template -- `light dark` tells the browser
+   this app supports both themes, but nothing here actually has dark
+   styling. On a system in dark mode that made every native form control
+   render with the browser's own dark UI chrome instead of this app's light
+   one: unchecked checkboxes/radios showed as solid black boxes, and
+   Chrome's autofill highlight on text inputs (e.g. the invite-user fields
+   in Entity Settings > Users) painted a dark slate background with barely-
+   legible placeholder-colored text, regardless of the `background`/`color`
+   already set on `.entity-field input` etc. Declaring just `light` fixes
+   every native control at once instead of patching each one as it's
+   noticed. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 body {
   margin: 0;
 }
 
-/* :root declares color-scheme: light dark above so the app doesn't look
-   actively broken if a browser insists on dark UI chrome somewhere, but no
-   page here actually has dark styling. Some browsers (e.g. Chrome) render
-   native checkboxes/radios per color-scheme, so on a system in dark mode
-   every unchecked checkbox across the app rendered as a solid black box
-   against this light UI. Global (this file loads on every route, same as
-   the iOS zoom-fix rule below) so no page needs its own copy: scope
-   color-scheme back to light for just these two controls, and give them a
-   branded checked color instead of each browser's own default tick color.
-   A more specific selector (e.g. the landing page's own `.ff-check input`)
-   still wins over this if a page wants a different accent. */
+/* Branded checked color instead of each browser's own default tick color
+   -- unrelated to the color-scheme fix above, just a visual preference. */
 input[type="checkbox"],
 input[type="radio"] {
-  color-scheme: light;
   accent-color: var(--app-accent);
 }
 
