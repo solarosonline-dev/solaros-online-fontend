@@ -687,6 +687,18 @@
    field just spans the right number of 1fr tracks, and grid-row pins it to
    row 1 or row 2 regardless of DOM/source order (unchanged from desktop). */
 @media (max-width: 640px) {
+  /* .compb-table-wrap's overflow-x: auto exists for the desktop table (wide
+     enough to need horizontal scrolling). On mobile the table reflows into
+     stacked, non-scrolling cards below, so the wrapper has nothing left to
+     scroll -- but staying a horizontal scroll container still makes it a
+     touch-pan target, which can steal the drag gesture a user makes to
+     scroll the *text inside* a focused Particulars input (most noticeable
+     right after it jumps 8px -> 16px on focus and the value no longer fits).
+     Dropping it here lets that drag reach the input itself instead. */
+  .compb-table-wrap {
+    overflow-x: visible;
+  }
+
   .compb-table thead {
     display: none;
   }
