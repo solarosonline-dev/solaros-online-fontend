@@ -13,11 +13,10 @@ import { ApiError } from "../../api/client";
 type Props = {
   entityId: number;
   plan: AmcPlan | null;
-  onSaved: () => void;
   onCancel: () => void;
 };
 
-export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props) {
+export default function AmcPlanForm({ entityId, plan, onCancel }: Props) {
   const [name, setName] = useState(plan?.name ?? "");
   const [ratePerKw, setRatePerKw] = useState(plan?.rate_per_kw ?? "");
   const [inclusions, setInclusions] = useState<AmcInclusionItem[]>(plan?.inclusion ?? []);
@@ -26,6 +25,29 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Tracks the plan being edited -- starts as `plan?.amc_id` (editing an
+  // existing plan) or null (adding a new one), and flips from null to the
+  // newly created id after the first successful save so a second save
+  // while still on this screen updates that same plan instead of creating
+  // a duplicate. `savedSnapshot` is the {name, ratePerKw, inclusions} as of
+  // the last successful save -- comparing the live fields against it (see
+  // isDirtySinceSave below) is what lets the Save button flip back from
+  // "Saved" the moment anything changes, without wiring an onChange
+  // handler onto every field.
+  const [savedPlanId, setSavedPlanId] = useState<number | null>(plan?.amc_id ?? null);
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    name: string;
+    ratePerKw: string;
+    inclusions: AmcInclusionItem[];
+  } | null>(null);
+
+  const isDirtySinceSave =
+    savedSnapshot != null &&
+    (name !== savedSnapshot.name ||
+      ratePerKw !== savedSnapshot.ratePerKw ||
+      JSON.stringify(inclusions) !== JSON.stringify(savedSnapshot.inclusions));
+  const showSaved = savedSnapshot != null && !isDirtySinceSave;
 
   function handleAddItem() {
     const trimmed = newItemText.trim();
@@ -60,12 +82,14 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
 
     setSubmitting(true);
     try {
-      if (plan) {
-        await updateAmcPlan(entityId, plan.amc_id, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
+      if (savedPlanId != null) {
+        await updateAmcPlan(entityId, savedPlanId, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
       } else {
-        await createAmcPlan(entityId, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
+        const created = await createAmcPlan(entityId, { name: name.trim(), rate_per_kw: rate, inclusion: inclusions });
+        setSavedPlanId(created.amc_id);
       }
-      onSaved();
+      setName(name.trim());
+      setSavedSnapshot({ name: name.trim(), ratePerKw, inclusions });
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : "Could not save plan");
     } finally {
@@ -168,11 +192,11 @@ export default function AmcPlanForm({ entityId, plan, onSaved, onCancel }: Props
         )}
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button type="submit" className="amc-btn primary" disabled={submitting}>
-            {submitting ? "Saving…" : plan ? "Save changes" : "Add plan"}
+          <button type="submit" className="amc-btn primary" disabled={submitting || showSaved}>
+            {submitting ? "Saving…" : showSaved ? "Saved" : savedPlanId != null ? "Save changes" : "Add plan"}
           </button>
           <button type="button" className="amc-btn" onClick={onCancel}>
-            Cancel
+            {showSaved ? "Done" : "Cancel"}
           </button>
         </div>
       </form>
