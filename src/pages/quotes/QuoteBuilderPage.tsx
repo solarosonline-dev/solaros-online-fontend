@@ -164,7 +164,7 @@ export default function QuoteBuilderPage() {
   // outlives the condition it was reporting.
   useEffect(() => {
     if (loading) return;
-    setNeedsAmcSetup(amcPlans.length === 0);
+    setNeedsAmcSetup(amcPlans.every((p) => !p.is_active));
     return () => setNeedsAmcSetup(false);
   }, [loading, amcPlans, setNeedsAmcSetup]);
 
@@ -175,7 +175,7 @@ export default function QuoteBuilderPage() {
 
     Promise.all([
       getLead(entityId, Number(leadId)),
-      listAmcPlans(entityId, { is_active: true }),
+      listAmcPlans(entityId, {}),
       listQuotes(entityId, Number(leadId)),
       getEntity(entityId),
       getEntityPreferences(entityId),
@@ -283,6 +283,22 @@ export default function QuoteBuilderPage() {
       form.amcPost5PlanIds
         .map((id) => amcPlans.find((p) => String(p.amc_id) === id) ?? null)
         .filter((p): p is AmcPlan => p != null),
+    [amcPlans, form.amcPost5PlanIds],
+  );
+
+  // `amcPlans` includes deactivated plans so an already-selected one (e.g. on
+  // a saved quote) still resolves above instead of silently disappearing --
+  // see selectedAmcPlan/selectedPost5Plans. But the pickers below shouldn't
+  // let anyone select a *new* deactivated plan, so they list only active
+  // plans plus whichever ones are already selected on this quote (so the
+  // current selection still shows up as a labeled option instead of going
+  // blank).
+  const amcYear1to5Options = useMemo(
+    () => amcPlans.filter((p) => p.is_active || String(p.amc_id) === form.amcId),
+    [amcPlans, form.amcId],
+  );
+  const amcPost5Options = useMemo(
+    () => amcPlans.filter((p) => p.is_active || form.amcPost5PlanIds.includes(String(p.amc_id))),
     [amcPlans, form.amcPost5PlanIds],
   );
 
@@ -569,9 +585,9 @@ export default function QuoteBuilderPage() {
         </div>
       </div>
 
-      {!loading && amcPlans.length === 0 && (
+      {!loading && amcPlans.every((p) => !p.is_active) && (
         <p className="quote-builder-alert no-print">
-          No AMC plans are defined for this entity yet.{" "}
+          No active AMC plans are defined for this entity yet.{" "}
           <Link to="/app/entity?tab=amc&tour=1">Add one in Entity Settings</Link> before including AMC in this quote.
         </p>
       )}
@@ -718,9 +734,10 @@ export default function QuoteBuilderPage() {
                   }}
                 >
                   <option value="">None</option>
-                  {amcPlans.map((p) => (
+                  {amcYear1to5Options.map((p) => (
                     <option key={p.amc_id} value={p.amc_id}>
                       {p.name}
+                      {!p.is_active ? " (Deactivated)" : ""}
                     </option>
                   ))}
                 </select>
@@ -762,7 +779,7 @@ export default function QuoteBuilderPage() {
             <div className="quote-field">
               <label>Select up to 3 plans from the AMC catalog</label>
               <div className="quote-checkbox-list">
-                {amcPlans.map((p) => {
+                {amcPost5Options.map((p) => {
                   const idStr = String(p.amc_id);
                   const checked = form.amcPost5PlanIds.includes(idStr);
                   const atLimit = form.amcPost5PlanIds.length >= 3;
@@ -785,7 +802,10 @@ export default function QuoteBuilderPage() {
                           });
                         }}
                       />
-                      <label htmlFor={`qAmcPost5Plan-${p.amc_id}`}>{p.name}</label>
+                      <label htmlFor={`qAmcPost5Plan-${p.amc_id}`}>
+                        {p.name}
+                        {!p.is_active ? " (Deactivated)" : ""}
+                      </label>
                     </div>
                   );
                 })}
