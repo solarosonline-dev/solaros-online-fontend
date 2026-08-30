@@ -781,34 +781,30 @@
 
   /* Particulars, Price, Qty, and Tax % all get tighter padding here to
      match their narrower columns; Warranty keeps the base size since it
-     has a roomy 20% of row 1 to itself. Font-size for Price/Qty/Tax is
-     listed here too but doesn't actually win -- see the Particulars rule
-     below for why, and why Particulars needs its own !important escape
-     hatch instead of just joining this list. */
+     has a roomy 20% of row 1 to itself. Font-size is listed here too but
+     doesn't actually win for any of them -- index.css forces
+     `input { font-size: 16px !important }` under 640px site-wide,
+     specifically so iOS Safari doesn't auto-zoom the page when a field
+     under 16px gets focused, and !important always beats a non-!important
+     declaration regardless of specificity, so every input in this table
+     renders at 16px on a real phone no matter what's written here.
+
+     Particulars previously fought that with its own !important 8px
+     (unfocused) / 16px (focused) pair, so it would show more of a long
+     value at rest and only "enlarge" to 16px once you tapped in. In
+     practice that focus-time jump reflowed the field while the user was
+     mid-tap/mid-scroll, which is exactly what made it feel like the text
+     couldn't be scrolled or read while typing. Letting it render at a
+     constant 16px like every other field in this table removes that jump
+     entirely -- less of a long value is visible at a glance, but it's
+     always fully editable and legible instead of shifting under your
+     finger the moment you touch it. */
   .compb-table td.compb-particular input,
   .compb-table td.compb-price input,
   .compb-table td.compb-qty input,
   .compb-table td.compb-tax input {
     font-size: 11px;
     padding: 4px 6px;
-  }
-
-  /* index.css forces `input { font-size: 16px !important }` under 640px
-     site-wide, specifically so iOS Safari doesn't auto-zoom the page when
-     a field under 16px gets focused -- that !important beats the 11px
-     above regardless of specificity, so every input in this table
-     actually renders at 16px on a real phone. Particulars is the one
-     field asked to look smaller than that, so it gets its own
-     !important (its selector is more specific than plain `input`, so it
-     wins the !important-vs-!important tie); the :focus rule right below
-     restores 16px the moment it's being typed into, so the zoom bug
-     doesn't come back for this field either. */
-  .compb-table td.compb-particular input {
-    font-size: 8px !important;
-  }
-
-  .compb-table td.compb-particular input:focus {
-    font-size: 16px !important;
   }
 
   /* Field labels came from the (now-hidden) <thead> on desktop -- print a
