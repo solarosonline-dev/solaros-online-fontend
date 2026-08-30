@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { listLeads, type Lead, type LeadStatus } from "../../api/leads";
 import { ApiError } from "../../api/client";
-import AddLeadForm from "./AddLeadForm";
 import { LeadFunnelNav, LeadStatusBadge } from "./leadFunnel";
 import Pagination from "../../lib/Pagination";
 import "./LeadsPage.css";
@@ -19,7 +18,6 @@ export default function LeadsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -59,39 +57,24 @@ export default function LeadsPage() {
     setPage(1);
   }
 
-  function handleCreated() {
-    setShowAddForm(false);
-    load();
-  }
-
   return (
     <div className="leads-page">
       <h1>
         Leads
-        {!showAddForm && (
-          <button className="leads-btn primary" onClick={() => setShowAddForm(true)}>
-            + Add lead
-          </button>
-        )}
+        <button className="leads-btn primary" onClick={() => navigate("/app/leads/new")}>
+          + Add lead
+        </button>
       </h1>
 
-      {showAddForm && (
-        <AddLeadForm entityId={entityId} onCreated={handleCreated} onCancel={() => setShowAddForm(false)} />
-      )}
-
-      {!showAddForm && (
-        <>
-          <LeadFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />
-          <form className="leads-filters" onSubmit={handleSearchSubmit}>
-            <input
-              type="search"
-              placeholder="Search name or mobile…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-          </form>
-        </>
-      )}
+      <LeadFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />
+      <form className="leads-filters" onSubmit={handleSearchSubmit}>
+        <input
+          type="search"
+          placeholder="Search name or mobile…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+      </form>
 
       <div className="leads-table-wrap">
         {loading ? (
@@ -192,7 +175,7 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {!showAddForm && !loading && !loadError && (
+      {!loading && !loadError && (
         <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
       )}
     </div>

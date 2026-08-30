@@ -13,6 +13,7 @@ import EntitiesPage from "./pages/admin/EntitiesPage";
 import EntityManagementPage from "./pages/entity/EntityManagementPage";
 import UsersPage from "./pages/entity/UsersPage";
 import LeadsPage from "./pages/leads/LeadsPage";
+import AddLeadPage from "./pages/leads/AddLeadPage";
 import LeadDetailPage from "./pages/leads/LeadDetailPage";
 import QuoteBuilderPage from "./pages/quotes/QuoteBuilderPage";
 import PublicQuotePage from "./pages/quotes/PublicQuotePage";
@@ -50,6 +51,7 @@ export default function App() {
                 <Route path="/app/entity" element={<EntityManagementPage />} />
                 <Route path="/app/users" element={<UsersPage />} />
                 <Route path="/app/leads" element={<LeadsPage />} />
+                <Route path="/app/leads/new" element={<AddLeadPage />} />
                 <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
                 <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
                 <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
