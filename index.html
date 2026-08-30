@@ -2,7 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- maximum-scale=1 stops iOS Safari from auto-zooming the whole page
+         when a focused input's font-size is under 16px -- that auto-zoom
+         is exactly what "destroys" the layout on tap described in bug
+         reports on the Quote Builder / Entity Settings mobile tables.
+         Font-size alone can't fix this: those tables intentionally render
+         some inputs at 12px (smaller than the 16px iOS normally requires
+         to skip zooming), so the zoom has to be capped at the viewport
+         level instead, app-wide, rather than per input. Pinch-to-zoom
+         elsewhere in the app is left available (no user-scalable=no) --
+         only the automatic zoom-on-focus is disabled. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>SolarOS — The Operating System for Solar EPCs | Survey to Asset Management</title>
     <meta name="description" content="SolarOS is the B2B operating system for EPCs, financiers (NBFCs/banks), RESCO investors & asset owners, and O&M providers — unifying Site Survey, Design, Pricing, Financing, PPA, EPC, Monitoring, O&M, Billing and Asset Management in one platform. We never install — we power the businesses that do." />
     <!-- Default share-link preview for every route -- worker/index.ts rewrites
