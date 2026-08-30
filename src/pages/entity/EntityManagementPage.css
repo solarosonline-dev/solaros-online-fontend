@@ -688,11 +688,18 @@
 
   .compb-table.compb-table--catalog tr {
     display: grid;
-    grid-template-columns: 1fr 1fr auto;
+    /* Equal thirds rather than "1fr 1fr auto" -- an auto track sizes to
+       the max-content width of what's inside it, and the remove button's
+       own width: 100% is a percentage (circular against an auto-sized
+       track), which collapsed that column near 0 and made the button
+       disappear. Three even fr tracks removes that ambiguity so Tax,
+       Warranty and the remove button always divide row 3 evenly, no
+       matter how narrow the card gets. */
+    grid-template-columns: 1fr 1fr 1fr;
     grid-template-areas:
       "particular particular particular"
-      "tax warranty remove"
-      "spec spec spec";
+      "spec spec spec"
+      "tax warranty remove";
     column-gap: 8px;
     row-gap: 8px;
     padding: 10px 8px;
@@ -704,6 +711,20 @@
   .compb-table--catalog td {
     padding: 0;
     border-bottom: none;
+    width: auto;
+  }
+
+  /* The desktop rule .compb-table td.compb-tax/.compb-warranty { width: 90px }
+     (further up, not scoped to any media query) has higher specificity
+     than .compb-table--catalog td { width: auto } above, so it was winning
+     even on mobile and pinning both cells to a fixed 90px instead of
+     letting them fill their grid column -- fixed-width siblings sitting
+     inside flexible 1fr tracks is what read as Tax/Warranty "overlapping"
+     once the card got narrow. This selector adds the .compb-table--catalog
+     class a second time to out-rank the desktop rule and actually apply
+     width: auto here. */
+  .compb-table.compb-table--catalog td.compb-tax,
+  .compb-table.compb-table--catalog td.compb-warranty {
     width: auto;
   }
 
@@ -726,14 +747,29 @@
   .compb-table.compb-table--catalog td.compb-actions {
     grid-area: remove;
     display: flex;
-    align-items: center;
+    /* Tax/Warranty's cells are taller than this one -- each carries a
+       data-label caption above its input, this cell has no caption above
+       the button -- so with align-self: stretch (below) making all three
+       row-3 cells the same height, centering the button vertically left
+       it floating above the bottom edge of the Tax/Warranty inputs
+       instead of lining up with them. flex-end pins it to the bottom of
+       its cell so it bottom-aligns with its neighbors' inputs. */
+    align-items: flex-end;
     justify-content: center;
   }
 
   /* The desktop max-width: 72px on Tax/Warranty exists to keep those inputs
      from ballooning inside a spacious table row -- here each already has a
      sized grid column to itself, so let them fill it instead of sitting
-     cramped in a corner of a much wider mobile card. */
+     cramped in a corner of a much wider mobile card. Height is pinned
+     explicitly (matching --app-tap-target, the min-height the remove
+     button next to Tax/Warranty is already held to below) so the
+     font-size bump on :focus below (16px, up from the 12px resting size)
+     doesn't resize the box and reflow the card out from under the user's
+     finger the moment they tap in -- the exact jumpy "enlarge on click"
+     behavior already tracked down and removed from the Quote Builder's
+     own mobile table -- and so row 3's inputs line up evenly with the
+     button instead of looking shorter than it. */
   .compb-table--catalog td.compb-particular input,
   .compb-table--catalog td.compb-tax input,
   .compb-table--catalog td.compb-warranty input,
@@ -741,6 +777,27 @@
     min-width: 0;
     max-width: none;
     width: 100%;
+    height: var(--app-tap-target);
+    box-sizing: border-box;
+  }
+
+  /* Requested size for these fields' text, at rest AND on focus -- kept at
+     12px in both states per explicit request (no enlarging on tap).
+     index.css's site-wide `input { font-size: 16px !important }` (under
+     640px, normally there to stop iOS Safari auto-zooming the page on
+     focus) would otherwise win over a plain 12px here regardless of
+     specificity, so !important on a selector specific enough to beat it is
+     required to hold 12px in both states; there is intentionally no
+     :focus override reverting to 16px anymore. */
+  .compb-table--catalog td.compb-particular input,
+  .compb-table--catalog td.compb-tax input,
+  .compb-table--catalog td.compb-warranty input,
+  .compb-table--catalog td.compb-spec input,
+  .compb-table--catalog td.compb-particular input:focus,
+  .compb-table--catalog td.compb-tax input:focus,
+  .compb-table--catalog td.compb-warranty input:focus,
+  .compb-table--catalog td.compb-spec input:focus {
+    font-size: 12px !important;
   }
 
   .compb-table--catalog td[data-label]::before {
@@ -750,6 +807,32 @@
     font-weight: 600;
     color: var(--app-text-muted);
     margin-bottom: 3px;
+  }
+
+  /* Remove button: plain "×" text reads as decoration, not something
+     tappable, once it's sitting in its own grid cell next to Tax/Warranty
+     instead of trailing off the end of a table row -- give it visible
+     button chrome (border, tinted fill, rounded corners) so it looks and
+     feels like a real, deliberately-placed action. Height matches the
+     Tax/Warranty inputs beside it (--app-tap-target, set on those inputs
+     above) rather than a smaller value, because the pre-existing
+     accessibility rule at the 860px breakpoint below already forces this
+     button's min-height to --app-tap-target -- min-height always wins over
+     a smaller explicit height, so a mismatched value here would be
+     silently ignored and the button would end up taller than its
+     siblings. Setting the same value up front keeps both rules in
+     agreement instead of one overriding the other. */
+  .compb-table--catalog td.compb-actions {
+    align-self: stretch;
+  }
+
+  .compb-table--catalog .compb-remove-btn {
+    width: 100%;
+    height: var(--app-tap-target);
+    border: 1px solid var(--app-danger-border);
+    border-radius: 6px;
+    background: var(--app-danger-bg);
+    font-size: 15px;
   }
 
   /* Users table -> stacked cards */

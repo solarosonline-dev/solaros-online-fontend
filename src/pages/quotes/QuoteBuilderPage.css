@@ -781,30 +781,43 @@
 
   /* Particulars, Price, Qty, and Tax % all get tighter padding here to
      match their narrower columns; Warranty keeps the base size since it
-     has a roomy 20% of row 1 to itself. Font-size is listed here too but
-     doesn't actually win for any of them -- index.css forces
-     `input { font-size: 16px !important }` under 640px site-wide,
-     specifically so iOS Safari doesn't auto-zoom the page when a field
-     under 16px gets focused, and !important always beats a non-!important
-     declaration regardless of specificity, so every input in this table
-     renders at 16px on a real phone no matter what's written here.
+     has a roomy 20% of row 1 to itself.
 
-     Particulars previously fought that with its own !important 8px
-     (unfocused) / 16px (focused) pair, so it would show more of a long
-     value at rest and only "enlarge" to 16px once you tapped in. In
-     practice that focus-time jump reflowed the field while the user was
+     Font-size is pinned to a constant 12px, at rest AND on focus (same
+     setting applied to the Default-components table in
+     EntityManagementPage.css) -- no enlarging on tap. index.css's
+     site-wide `input { font-size: 16px !important }` (under 640px,
+     normally there to stop iOS Safari auto-zooming the page on focus)
+     would otherwise win over a plain 12px regardless of specificity, so
+     !important on a selector specific enough to beat it is required here
+     too, on both the base and :focus state.
+
+     Particulars previously fought that same global rule with its own
+     !important 8px (unfocused) / 16px (focused) pair, so it would show
+     more of a long value at rest and only "enlarge" to 16px once you
+     tapped in. That focus-time jump reflowed the field while the user was
      mid-tap/mid-scroll, which is exactly what made it feel like the text
-     couldn't be scrolled or read while typing. Letting it render at a
-     constant 16px like every other field in this table removes that jump
-     entirely -- less of a long value is visible at a glance, but it's
-     always fully editable and legible instead of shifting under your
-     finger the moment you touch it. */
+     couldn't be scrolled or read while typing -- so this constant-size
+     rule intentionally has no separate :focus override reverting to a
+     different size, to avoid reintroducing that same jump. */
   .compb-table td.compb-particular input,
   .compb-table td.compb-price input,
   .compb-table td.compb-qty input,
-  .compb-table td.compb-tax input {
-    font-size: 11px;
+  .compb-table td.compb-tax input,
+  .compb-table td.compb-particular input:focus,
+  .compb-table td.compb-price input:focus,
+  .compb-table td.compb-qty input:focus,
+  .compb-table td.compb-tax input:focus {
+    font-size: 12px !important;
     padding: 4px 6px;
+  }
+
+  /* Warranty (compb-num, row 1) kept the base padding since it has a roomy
+     20% column to itself, but gets the same constant 12px treatment as
+     every other field in this table for consistency. */
+  .compb-table td.compb-num input,
+  .compb-table td.compb-num input:focus {
+    font-size: 12px !important;
   }
 
   /* Field labels came from the (now-hidden) <thead> on desktop -- print a
