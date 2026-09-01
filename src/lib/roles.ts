@@ -26,3 +26,15 @@ export const AMC_MANAGER_ROLES = ["ENTITY_ADMIN", "ENTITY_SUPER_ADMIN", "ENTITY_
 export function canManageAmc(roles: string[]): boolean {
   return roles.some((r) => AMC_MANAGER_ROLES.includes(r));
 }
+
+// Mirrors the backend's require_system_super_admin (app/api/deps.py) --
+// deliberately stricter than isSystemAdmin above: the Email module sends
+// real mail from connect@solaros.online to an arbitrary external recipient
+// list, so it's gated to SYSTEM_SUPER_ADMIN only, not SYSTEM_ADMIN too. This
+// is a UX-only check (hiding the nav link / redirecting) -- the backend is
+// the real gate either way.
+export const SYSTEM_SUPER_ADMIN_ROLES = ["SYSTEM_SUPER_ADMIN"];
+
+export function isSystemSuperAdmin(roles: string[]): boolean {
+  return roles.some((r) => SYSTEM_SUPER_ADMIN_ROLES.includes(r));
+}

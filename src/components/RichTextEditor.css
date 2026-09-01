@@ -1,0 +1,83 @@
+.rte {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-bg);
+}
+
+.rte-toolbar button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.rte-toolbar button:hover {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+}
+
+.rte-toolbar button.active {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-accent-contrast);
+}
+
+.rte-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid var(--app-border);
+}
+
+.rte-token-btn {
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--app-danger-bg);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-text);
+}
+
+.rte-token-btn:hover {
+  background: var(--app-surface);
+}
+
+.rte-content {
+  min-height: 160px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--app-text);
+  outline: none;
+}
+
+.rte-content p {
+  margin: 0 0 10px;
+}
+
+.rte-content ul,
+.rte-content ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.rte-content a {
+  color: var(--app-accent);
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isSystemAdmin, isEntityAdmin } from "./roles";
+import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin } from "./roles";
 import { TourProvider, useTour } from "./TourContext";
 import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
 import { sweepExpiredDrafts } from "./drafts";
@@ -101,6 +101,10 @@ function AppLayoutInner() {
 
   const systemAdmin = user ? isSystemAdmin(user.roles) : false;
   const entityAdmin = user ? isEntityAdmin(user.roles) : false;
+  // Nav visibility only -- the backend (require_system_super_admin) is the
+  // real gate. Stricter than systemAdmin: SYSTEM_ADMIN must not see this
+  // link, only SYSTEM_SUPER_ADMIN.
+  const superAdmin = user ? isSystemSuperAdmin(user.roles) : false;
   const onboardingRole: OnboardingRole = systemAdmin ? "system_admin" : entityAdmin ? "entity_admin" : "worker";
 
   // Only pulse the nav link while the user hasn't already arrived at Entity
@@ -131,6 +135,7 @@ function AppLayoutInner() {
             {systemAdmin && <NavLink to="/app/admin/dashboard">Dashboard</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
+            {superAdmin && <NavLink to="/app/admin/email">Email</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/leads">Leads</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/projects">Projects</NavLink>}

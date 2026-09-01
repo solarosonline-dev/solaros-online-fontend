@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
+import RequireSystemSuperAdmin from "./lib/RequireSystemSuperAdmin";
 import RequireEntityAdmin from "./lib/RequireEntityAdmin";
 import AppLayout from "./lib/AppLayout";
 import LoginPage from "./pages/auth/LoginPage";
@@ -28,6 +29,8 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import EntityMetricsDrilldownPage from "./pages/admin/EntityMetricsDrilldownPage";
 import EntityDashboardPage from "./pages/admin/EntityDashboardPage";
 import MyWorkOrdersPage from "./pages/workorders/MyWorkOrdersPage";
+import EmailPage from "./pages/admin/EmailPage";
+import EmailCampaignDetailPage from "./pages/admin/EmailCampaignDetailPage";
 
 export default function App() {
   return (
@@ -63,6 +66,13 @@ export default function App() {
                 <Route path="/app/admin/users" element={<AdminUsersPage />} />
                 <Route path="/app/admin/dashboard" element={<AdminDashboardPage />} />
                 <Route path="/app/admin/entities/:entityId/metrics" element={<EntityMetricsDrilldownPage />} />
+                {/* SYSTEM_SUPER_ADMIN only -- stricter than the rest of this
+                    block, which also admits SYSTEM_ADMIN. See
+                    RequireSystemSuperAdmin.tsx. */}
+                <Route element={<RequireSystemSuperAdmin />}>
+                  <Route path="/app/admin/email" element={<EmailPage />} />
+                  <Route path="/app/admin/email/campaigns/:campaignId" element={<EmailCampaignDetailPage />} />
+                </Route>
               </Route>
             </Route>
           </Route>
