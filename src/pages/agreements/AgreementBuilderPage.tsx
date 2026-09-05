@@ -12,6 +12,7 @@ import {
   createAgreement,
   updateAgreement,
   getAgreementPdfUrl,
+  signAgreementAsVendor,
   type AgreementDetail,
   type AgreementSettingsSnapshot,
   type AgreementEquipmentRow,
@@ -19,12 +20,14 @@ import {
 import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import AgreementDocument from "./AgreementDocument";
+import PmSuryaGharAgreementDocument from "./PmSuryaGharAgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { getDiscomName } from "../leads/discomOptions";
 import { EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import CopyLinkButton from "../../components/CopyLinkButton";
 import AccordionSection from "../../components/AccordionSection";
 import DraftRestoredBanner from "../../components/DraftRestoredBanner";
+import SignatureCapture, { type SignatureCaptureHandle } from "../../components/SignatureCapture";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
@@ -82,6 +85,10 @@ type FormState = {
   amcPost5PlanIds: string[];
   equipment: EquipmentFormRow[];
   terms: string[];
+  /** Which document wording/layout this agreement renders with -- see
+   * AgreementDetail.document_format. Defaults from the linked quote's
+   * `apply_subsidy` for brand-new agreements (see the load effect below). */
+  format: "standard" | "pm_surya_ghar";
 };
 
 const DEFAULT_FORM: FormState = {
@@ -95,6 +102,7 @@ const DEFAULT_FORM: FormState = {
   amcPost5PlanIds: [],
   equipment: defaultEquipmentRows(),
   terms: [],
+  format: "standard",
 };
 
 export default function AgreementBuilderPage() {
@@ -125,6 +133,15 @@ export default function AgreementBuilderPage() {
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+
+  // Vendor / EPC own e-signature -- only shown for "pm_surya_ghar"
+  // agreements once one has been saved (signAgreementAsVendor needs an
+  // agreement_id). Independent of the consumer's acceptance flow.
+  const [vendorSignerName, setVendorSignerName] = useState("");
+  const [vendorHasDrawnSignature, setVendorHasDrawnSignature] = useState(false);
+  const [vendorSigning, setVendorSigning] = useState(false);
+  const [vendorSignError, setVendorSignError] = useState<string | null>(null);
+  const vendorSigPadRef = useRef<SignatureCaptureHandle>(null);
   // Snapshot of `form` as of the last successful save -- compared against
   // the live form (see isDirtySinceSave below) so Save can flip to a
   // disabled "Saved" and back without wiring an onChange handler onto
@@ -179,6 +196,7 @@ export default function AgreementBuilderPage() {
             amcPost5PlanIds: (agreement.amc_post5_plan_ids ?? []).map(String),
             equipment: equipmentFormFromSaved(agreement.equipment_details),
             terms: agreement.terms ?? [],
+            format: agreement.document_format ?? "standard",
           };
           fetchedFormRef.current = fetchedForm;
           // Only offer a draft restore while the agreement is still editable
@@ -203,6 +221,10 @@ export default function AgreementBuilderPage() {
             // Same pattern as quotes: entity's document defaults are folded into
             // the editable terms list, not kept as separate free text.
             terms: [...prefs.document_customization.agreement_notes],
+            // No existing agreement to seed from yet -- default off the
+            // linked quote's own subsidy flag, since a subsidy case is
+            // exactly when the govt-prescribed PM Surya Ghar wording applies.
+            format: quoteRes.apply_subsidy ? "pm_surya_ghar" : "standard",
           };
           fetchedFormRef.current = fetchedForm;
           const stored = readDraft<FormState>(draftKeys.agreementNew(leadId));
@@ -425,6 +447,25 @@ export default function AgreementBuilderPage() {
     }
   }
 
+  async function handleVendorSign() {
+    if (!leadId || !existingAgreement) return;
+    const dataUrl = vendorSigPadRef.current?.toDataUrl();
+    if (!vendorSignerName.trim() || !dataUrl) return;
+    setVendorSigning(true);
+    setVendorSignError(null);
+    try {
+      const updated = await signAgreementAsVendor(entityId, Number(leadId), existingAgreement.agreement_id, {
+        signerName: vendorSignerName.trim(),
+        signatureImage: dataUrl,
+      });
+      setExistingAgreement(updated);
+    } catch (err) {
+      setVendorSignError(err instanceof ApiError ? err.message : "Could not record the vendor signature — try again");
+    } finally {
+      setVendorSigning(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!leadId) return;
@@ -448,6 +489,7 @@ export default function AgreementBuilderPage() {
         warranty_years: row.warrantyYears ? Number(row.warrantyYears) : null,
       })),
       terms: form.terms,
+      document_format: form.format,
     };
 
     // Captured before the API call, since existingAgreement (and therefore
@@ -504,6 +546,18 @@ export default function AgreementBuilderPage() {
             {existingAgreement && <span className="quote-status-badge">{existingAgreement.status}</span>}
           </h1>
           {existingAgreement && <p className="quote-builder-reference">{existingAgreement.agreement_number}</p>}
+        </div>
+        <div className="quote-field">
+          <label htmlFor="aDocFormat">Document format</label>
+          <select
+            id="aDocFormat"
+            disabled={locked}
+            value={form.format}
+            onChange={(e) => setForm({ ...form, format: e.target.value as "standard" | "pm_surya_ghar" })}
+          >
+            <option value="standard">Standard agreement</option>
+            <option value="pm_surya_ghar">PM Surya Ghar (Govt. prescribed)</option>
+          </select>
         </div>
       </div>
 
@@ -870,11 +924,83 @@ export default function AgreementBuilderPage() {
               )}
             </div>
           )}
+
+          {form.format === "pm_surya_ghar" && existingAgreement && (
+            <div className="quote-form-section" style={{ marginTop: 16 }}>
+              <p className="quote-section-label">Vendor / EPC signature</p>
+              {existingAgreement.vendor_signature_image ? (
+                <p className="quote-status-msg" style={{ color: "var(--app-text-muted)" }}>
+                  Signed by {existingAgreement.vendor_signer_name} on{" "}
+                  {existingAgreement.vendor_signed_at ? new Date(existingAgreement.vendor_signed_at).toLocaleDateString("en-IN") : "—"}.
+                </p>
+              ) : (
+                <>
+                  <p className="quote-field-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+                    Optional — it's fine to leave this blank if the vendor will sign the printed copy by hand instead.
+                  </p>
+                  <div className="quote-field">
+                    <label htmlFor="aVendorSignerName">Signer name</label>
+                    <input
+                      id="aVendorSignerName"
+                      type="text"
+                      value={vendorSignerName}
+                      onChange={(e) => setVendorSignerName(e.target.value)}
+                      disabled={vendorSigning}
+                    />
+                  </div>
+                  <SignatureCapture ref={vendorSigPadRef} onChange={setVendorHasDrawnSignature} disabled={vendorSigning} />
+                  {vendorSignError && (
+                    <p className="quote-status-msg error" style={{ marginTop: 6 }}>
+                      {vendorSignError}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="quote-btn"
+                    style={{ marginTop: 10 }}
+                    onClick={handleVendorSign}
+                    disabled={vendorSigning || !vendorSignerName.trim() || !vendorHasDrawnSignature}
+                  >
+                    {vendorSigning ? "Signing…" : "Sign as vendor"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="quote-preview-panel">
           {!computed || !quote ? (
             <p className="quote-status-msg">No quote data available.</p>
+          ) : form.format === "pm_surya_ghar" ? (
+            <PmSuryaGharAgreementDocument
+              agreementNumber={existingAgreement?.agreement_number ?? null}
+              createdAt={existingAgreement?.created_at ?? null}
+              consumerName={lead.name}
+              consumerAddress={lead.address}
+              vendorName={entity?.name ?? "SolarOS"}
+              vendorAddress={entity?.address ?? null}
+              vendorGstin={entity?.gstno ?? null}
+              capacityKw={quote.capacity ?? 0}
+              computed={computed}
+              pricePerWatt={quote.price_per_watt ?? 0}
+              taxRate={quote.tax_rate ?? 0}
+              paymentSchedule={acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+              branding={documentBranding}
+              signature={{
+                signed: existingAgreement?.status === "ACCEPTED",
+                signerName: existingAgreement?.signer_name,
+                signatureImage: existingAgreement?.signature_image,
+                signedAt: existingAgreement?.signed_at,
+                signedIp: existingAgreement?.signed_ip,
+              }}
+              vendorSignature={{
+                signed: existingAgreement?.vendor_signature_image != null,
+                signerName: existingAgreement?.vendor_signer_name,
+                signatureImage: existingAgreement?.vendor_signature_image,
+                signedAt: existingAgreement?.vendor_signed_at,
+              }}
+            />
           ) : (
             <AgreementDocument
               agreementNumber={existingAgreement?.agreement_number ?? null}

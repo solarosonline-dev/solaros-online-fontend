@@ -76,6 +76,19 @@ export type AgreementDetail = {
    * the backend's create_agreement), so null here specifically means the
    * link has expired, not "never shared". */
   share_url: string | null;
+  /** Which document wording/layout this agreement renders with -- defaults
+   * from the linked quote's `apply_subsidy` on create. "pm_surya_ghar" uses
+   * the govt-prescribed PM Surya Ghar Annexure 2 wording
+   * (PmSuryaGharAgreementDocument), "standard" the existing marketing-style
+   * template (AgreementDocument). */
+  document_format: "standard" | "pm_surya_ghar";
+  /** The vendor/EPC's own e-signature -- recorded via signAgreementAsVendor,
+   * independent of the consumer's acceptance status. Only meaningful for
+   * "pm_surya_ghar" agreements, which need both parties' signatures. */
+  vendor_signer_name: string | null;
+  /** A `data:image/png;base64,...` data URL, same shape as `signature_image`. */
+  vendor_signature_image: string | null;
+  vendor_signed_at: string | null;
 };
 
 export type AgreementInput = {
@@ -89,6 +102,9 @@ export type AgreementInput = {
   amc_post5_enabled?: boolean;
   amc_post5_plan_ids?: number[];
   equipment_details?: AgreementEquipmentRow[];
+  /** Which document wording/layout to render this agreement with -- see
+   * AgreementDetail.document_format. */
+  document_format?: "standard" | "pm_surya_ghar";
   /** Only meaningful on create — see createAgreement. Never sent on update. */
   generation_duration_ms?: number;
 };
@@ -116,6 +132,22 @@ export function updateAgreement(entityId: number, leadId: number, agreementId: n
   return apiRequest<AgreementDetail>(`/entities/${entityId}/leads/${leadId}/agreements/${agreementId}`, {
     method: "PATCH",
     body: data,
+  });
+}
+
+/** Records the vendor/EPC's own e-signature on an agreement -- independent
+ * of the consumer's acceptance status. Used by the admin builder's
+ * "Vendor / EPC signature" section on "pm_surya_ghar" agreements, which need
+ * both parties' signatures. */
+export function signAgreementAsVendor(
+  entityId: number,
+  leadId: number,
+  agreementId: number,
+  data: { signerName: string; signatureImage: string },
+) {
+  return apiRequest<AgreementDetail>(`/entities/${entityId}/leads/${leadId}/agreements/${agreementId}/vendor-sign`, {
+    method: "POST",
+    body: { signer_name: data.signerName, signature_image: data.signatureImage },
   });
 }
 

@@ -11,8 +11,9 @@ import { ApiError } from "../../api/client";
 import { computeQuote } from "../../lib/quoteCalculations";
 import { captureElementAsPdf } from "../../lib/capturePdf";
 import AgreementDocument from "./AgreementDocument";
+import PmSuryaGharAgreementDocument from "./PmSuryaGharAgreementDocument";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
-import SignaturePad, { type SignaturePadHandle } from "../../components/SignaturePad";
+import SignatureCapture, { type SignatureCaptureHandle } from "../../components/SignatureCapture";
 import { getDiscomName } from "../leads/discomOptions";
 import { EQUIPMENT_ROWS } from "../../lib/agreementDocumentCopy";
 import "../quotes/PublicQuotePage.css";
@@ -29,7 +30,7 @@ export default function PublicAgreementPage() {
   const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signError, setSignError] = useState<string | null>(null);
-  const sigPadRef = useRef<SignaturePadHandle>(null);
+  const sigPadRef = useRef<SignatureCaptureHandle>(null);
 
   // Set right after a successful sign to trigger the PDF-capture effect
   // below, once the DOM has actually re-rendered in the signed state
@@ -175,7 +176,7 @@ export default function PublicAgreementPage() {
         onChange={(e) => setSignerName(e.target.value)}
         disabled={signing}
       />
-      <SignaturePad ref={sigPadRef} onChange={setHasDrawnSignature} disabled={signing} />
+      <SignatureCapture ref={sigPadRef} onChange={setHasDrawnSignature} disabled={signing} />
       {signError && <p className="quote-accept-modal-error">{signError}</p>}
       <button
         className="public-quote-btn public-quote-btn--sign"
@@ -198,6 +199,37 @@ export default function PublicAgreementPage() {
       )}
       <div className="public-quote-wrap" ref={docRef}>
         {computed && quote ? (
+          agreement.document_format === "pm_surya_ghar" ? (
+            <PmSuryaGharAgreementDocument
+              agreementNumber={agreement.agreement_number}
+              createdAt={agreement.created_at}
+              consumerName={lead.name}
+              consumerAddress={lead.address}
+              vendorName={documentBranding.entityName}
+              vendorAddress={branding?.address ?? null}
+              vendorGstin={branding?.gstno ?? null}
+              capacityKw={quote.capacity ?? 0}
+              computed={computed}
+              pricePerWatt={quote.price_per_watt ?? 0}
+              taxRate={quote.tax_rate ?? 0}
+              paymentSchedule={data.payment_schedule ?? branding?.payment_schedule ?? DEFAULT_PAYMENT_SCHEDULE}
+              branding={documentBranding}
+              signature={{
+                signed,
+                signerName: agreement.signer_name,
+                signatureImage: agreement.signature_image,
+                signedAt: agreement.signed_at,
+                signedIp: agreement.signed_ip,
+              }}
+              vendorSignature={{
+                signed: agreement.vendor_signature_image != null,
+                signerName: agreement.vendor_signer_name,
+                signatureImage: agreement.vendor_signature_image,
+                signedAt: agreement.vendor_signed_at,
+              }}
+              signatureAction={signatureAction}
+            />
+          ) : (
           <AgreementDocument
             agreementNumber={agreement.agreement_number}
             createdAt={agreement.created_at}
@@ -250,6 +282,7 @@ export default function PublicAgreementPage() {
             }}
             signatureAction={signatureAction}
           />
+          )
         ) : (
           <div className="public-quote-status">This agreement has no linked quote to display.</div>
         )}

@@ -1,0 +1,161 @@
+/* PM Surya Ghar prescribed-template additions -- layered on top of
+   QuoteDocument.css's shared .qdoc A4/print-page system (reused wholesale
+   for page sizing, the .no-print print button, and .qdoc-table styling),
+   but otherwise a plain numbered legal document rather than the marketing
+   tile layout AgreementDocument.css adds. Kept understated on purpose. */
+
+.pmsg {
+  font-family: "Times New Roman", Georgia, serif;
+  line-height: 1.55;
+}
+
+.pmsg-letterhead {
+  margin-bottom: 16px;
+}
+
+.pmsg-letterhead img {
+  max-height: 40px;
+  max-width: 160px;
+}
+
+.pmsg-header {
+  text-align: center;
+  border-bottom: 1px solid var(--app-border);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.pmsg-header h1 {
+  font-size: var(--qdoc-h1, 20px);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.pmsg-meta {
+  font-size: var(--qdoc-small, 12px);
+  color: var(--app-text-muted);
+  margin: 0;
+}
+
+.pmsg-parties p {
+  margin: 0 0 8px;
+}
+
+.pmsg-section {
+  margin-bottom: 20px;
+}
+
+.pmsg-section > p {
+  margin: 0 0 10px;
+}
+
+.pmsg-section h2 {
+  font-size: var(--qdoc-h2, 16px);
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.pmsg-numbered {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.pmsg-numbered li {
+  margin-bottom: 12px;
+  text-align: justify;
+}
+
+.pmsg-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 10px 0;
+}
+
+.pmsg-table {
+  font-size: var(--qdoc-small, 12px);
+}
+
+.pmsg-disclaimer {
+  font-style: italic;
+  font-size: var(--qdoc-small, 12px);
+  color: var(--app-text-muted);
+  border-top: 1px solid var(--app-border);
+  padding-top: 12px;
+}
+
+.pmsg-signblock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--app-border);
+}
+
+@media screen and (max-width: 640px) {
+  .pmsg-signblock {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pmsg-signcol h3 {
+  font-size: var(--qdoc-h3, 14px);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pmsg-blank-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.pmsg-blank-label {
+  font-size: var(--qdoc-small, 12px);
+  color: var(--app-text-muted);
+  min-width: 56px;
+}
+
+.pmsg-blank-line {
+  flex: 1;
+  border-bottom: 1px solid var(--app-text-muted);
+  height: 1px;
+}
+
+.pmsg-signed p {
+  margin: 0 0 8px;
+  font-size: var(--qdoc-body, 14px);
+}
+
+.pmsg-signed-label {
+  color: var(--app-text-muted);
+  font-size: var(--qdoc-small, 12px);
+  margin-right: 4px;
+}
+
+.pmsg-signed-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pmsg-signed-img {
+  max-width: 200px;
+  max-height: 70px;
+  display: block;
+}
+
+.pmsg-sign-action {
+  margin-bottom: 14px;
+}
+
+@media print {
+  .pmsg-numbered li,
+  .pmsg-signblock {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,101 @@
+.sigcap {
+  width: 100%;
+  max-width: 420px;
+}
+
+.sigcap-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sigcap-tab {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.sigcap-tab--active {
+  color: var(--app-text);
+  background: var(--app-bg-hover, rgba(0, 0, 0, 0.04));
+  border-color: var(--app-text-muted);
+}
+
+.sigcap-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sigcap-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  height: 160px;
+  border: 1.5px dashed var(--app-border);
+  border-radius: var(--app-radius);
+  background: #fff;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.sigcap-drop--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sigcap-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.sigcap-preview {
+  position: relative;
+  width: 100%;
+}
+
+.sigcap-preview-img {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: contain;
+  background: #fff;
+  border: 1.5px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.sigcap-clear {
+  margin-top: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.sigcap-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sigcap-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--app-danger, #c62828);
+}
