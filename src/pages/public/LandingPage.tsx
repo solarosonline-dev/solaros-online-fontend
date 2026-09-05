@@ -6,7 +6,7 @@ import { ApiError } from "../../api/client";
 
 const SALES_PHONE = "+918383810048";
 const SALES_PHONE_DISPLAY = "+91 83838 10048";
-const SALES_EMAIL = "solaros.online@gmail.com";
+const SALES_EMAIL = "connect@solaros.online";
 const WA_DEMO_LINK = `https://wa.me/${SALES_PHONE.replace("+", "")}?text=Hi%20SolarOS%2C%20I%27d%20like%20to%20book%20a%20demo%20of%20the%20platform`;
 
 type ServiceTabKey = "epc" | "financier" | "owner" | "om";
@@ -29,6 +29,7 @@ export default function LandingPage() {
       <Ticker />
       <Nav />
       <Hero />
+      <Ai />
       <Brands />
       <Why />
       <Platform />
@@ -73,6 +74,7 @@ function TopBar() {
 function Ticker() {
   const items = [
     "★ One OS. Every stage of solar. ★",
+    "🤖 AI-powered electricity-bill extraction — live today 🤖",
     "🧭 Site Survey → Design → Pricing → Financing → Investor → PPA → EPC → Monitoring → O&M → Billing → Asset Management 🧭",
     "★ 100% B2B — we never install a single panel ★",
     "🤝 Built for EPCs, financiers, RESCO investors & asset owners 🤝",
@@ -124,6 +126,7 @@ function Nav() {
       </a>
       <div className={`nav-mobile-panel ${menuOpen ? "open" : ""}`}>
         <nav className="nav-links">
+          <a href="#ai" onClick={(e) => scrollToId(e, "ai")}>AI</a>
           <a href="#platform" onClick={(e) => scrollToId(e, "platform")}>Platform</a>
           <a href="#pipeline" onClick={(e) => scrollToId(e, "pipeline")}>How it works</a>
           <a href="#faq" onClick={(e) => scrollToId(e, "faq")}>FAQ</a>
@@ -163,7 +166,7 @@ function Hero() {
       <div className="hero-inner">
         <div className="hero-eyebrow">
           <span className="dot-pulse" />
-          Built for EPCs, financiers, RESCO investors &amp; asset owners · Not an installer
+          AI-powered Operating System · Built for EPCs, financiers, RESCO investors &amp; asset owners
         </div>
 
         <h1 className="hero-h1">
@@ -173,7 +176,7 @@ function Hero() {
         </h1>
 
         <p className="hero-sub">
-          SolarOS is the command centre <strong>EPCs, financiers, RESCO investors and asset owners</strong> use
+          SolarOS is the AI-powered command centre <strong>EPCs, financiers, RESCO investors and asset owners</strong> use
           to win customers, run every project stage, and stay connected — end to end, without SolarOS
           ever installing a single panel. We build the software; you run the business.
         </p>
@@ -199,6 +202,60 @@ function Hero() {
       <a href="#platform" className="scroll-hint" aria-label="Scroll down">
         <span />
       </a>
+    </section>
+  );
+}
+
+const AI_CARDS = [
+  {
+    n: "01",
+    title: "AI electricity-bill extraction",
+    body: "Upload a customer's electricity bill and SolarOS reads the DISCOM, tariff, sanctioned load and consumption straight off the image — no manual data entry before you can quote.",
+    status: "Live now",
+    live: true,
+    highlight: true,
+  },
+  {
+    n: "02",
+    title: "Conversational assistant",
+    body: "Ask SolarOS questions about a lead, project or your whole portfolio in plain language, and get answers pulled straight from your own data.",
+    status: "In pipeline",
+  },
+  {
+    n: "03",
+    title: "Documentation assistant",
+    body: "AI-drafted, review-ready paperwork — proposals, compliance filings, reports — assembled from your project record instead of typed from scratch.",
+    status: "In pipeline",
+  },
+  {
+    n: "04",
+    title: "Material purchase",
+    body: "AI-assisted procurement that matches your BOQ to vendor inventory and pricing, so ordering panels, inverters and BOS components takes minutes, not a dozen calls.",
+    status: "In pipeline",
+  },
+];
+
+function Ai() {
+  return (
+    <section className="why ai-section" id="ai">
+      <div className="section-head">
+        <span className="kicker">AI-native platform</span>
+        <h2>SolarOS is an <em>AI-powered Operating System</em> — not just workflow software.</h2>
+        <p className="section-sub">
+          AI isn't a bolt-on here — it's how SolarOS removes manual work at every stage, starting with the
+          paperwork your team already dreads.
+        </p>
+      </div>
+      <div className="why-grid">
+        {AI_CARDS.map((c) => (
+          <article className={`why-card${c.highlight ? " highlight" : ""}`} key={c.n}>
+            <div className="why-num">{c.n}</div>
+            <span className={`ai-status${c.live ? " ai-status--live" : ""}`}>{c.status}</span>
+            <h3>{c.title}</h3>
+            <p>{c.body}</p>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
@@ -389,7 +446,7 @@ function Compliance() {
       <div className="subs-grid">
         <div className="subs-card">
           <h4>PM Surya Ghar</h4>
-          <p>Residential rooftop CFA filing</p>
+          <p>Residential rooftop CFA filing, plus the government-format Vendor–Consumer Agreement — e-signable by both the customer and the vendor</p>
           <div className="subs-amount">Auto-filed<sub>tracked to disbursement</sub></div>
         </div>
         <div className="subs-card highlight">
@@ -762,6 +819,7 @@ function Footer() {
             for the world.
           </p>
           <div className="badges">
+            <span>AI-powered</span>
             <span>100% B2B</span>
             <span>India-first</span>
             <span>11 Modules</span>
@@ -772,6 +830,7 @@ function Footer() {
         <div className="footer-cols">
           <div>
             <h5>Platform</h5>
+            <a href="#ai">AI-powered tools</a>
             <a href="#platform">Site Survey &amp; Design</a>
             <a href="#platform">Pricing &amp; Financing</a>
             <a href="#platform">Investor &amp; PPA</a>
