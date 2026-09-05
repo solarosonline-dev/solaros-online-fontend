@@ -3,7 +3,7 @@ import { createLead, type CreateLeadInput, type ExtractedLeadData } from "../../
 import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
-import { STATES, getDiscomsForState } from "./discomOptions";
+import { STATES, getDiscomsForState, resolveStateCode, resolveDiscomCode } from "./discomOptions";
 import { useElapsedMs } from "../../hooks/useElapsedMs";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import DraftRestoredBanner from "../../components/DraftRestoredBanner";
@@ -79,9 +79,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleResetDraft() {
-    clearDraft(draftKeys.leadNew());
-    setDraftRestoredAt(null);
+  function resetFields() {
     setName("");
     setMobile("");
     setAddress("");
@@ -96,6 +94,12 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     setAvgBill("");
     setAvgUnits("");
     setRequirement("");
+  }
+
+  function handleResetDraft() {
+    clearDraft(draftKeys.leadNew());
+    setDraftRestoredAt(null);
+    resetFields();
   }
 
   // Wall-clock time spent on this form, from mount to submit — sent as
@@ -185,8 +189,13 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     if (data.email) setEmail(data.email);
     if (data.sanctioned_load != null) setSanctionedLoad(String(data.sanctioned_load));
     if (data.metertype) setMetertype(data.metertype);
-    if (data.state) setState(data.state);
-    if (data.discom) setDiscom(data.discom);
+    // Extraction is AI-derived and returns the state/discom as either a
+    // short code or a full name inconsistently -- resolve to the code the
+    // <select> options actually use, or the dropdown silently shows nothing
+    // selected even though the underlying value is set to something real.
+    const resolvedState = data.state ? resolveStateCode(data.state) || state : state;
+    if (data.state) setState(resolvedState);
+    if (data.discom) setDiscom(resolveDiscomCode(resolvedState, data.discom) || discom);
     if (data.ca_number) setCaNumber(data.ca_number);
     if (data.avg_monthly_bill) setAvgBill(data.avg_monthly_bill);
     if (data.avg_monthly_units != null) setAvgUnits(String(data.avg_monthly_units));
@@ -257,7 +266,12 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
       )}
 
-      <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
+      <BillUploadWidget
+        entityId={entityId}
+        onExtracted={handleExtracted}
+        hasExistingDetails={isDirty}
+        onResetDetails={resetFields}
+      />
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="add-lead-field">

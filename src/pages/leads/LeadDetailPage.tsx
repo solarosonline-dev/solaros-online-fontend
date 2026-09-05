@@ -16,7 +16,7 @@ import BillUploadWidget from "./BillUploadWidget";
 import LeadWorkOrders from "./LeadWorkOrders";
 import { LeadStatusBadge } from "./leadFunnel";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
-import { STATES, getDiscomsForState } from "./discomOptions";
+import { STATES, getDiscomsForState, resolveStateCode, resolveDiscomCode } from "./discomOptions";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useDraftAutosave } from "../../hooks/useDraftAutosave";
@@ -169,14 +169,19 @@ export default function LeadDetailPage() {
     if (!draft) return;
     // Deliberately not autofilling name/mobile here — those identify an
     // existing lead and shouldn't be overwritten by a re-uploaded bill.
+    // Extraction is AI-derived and returns the state/discom as either a
+    // short code or a full name inconsistently -- resolve to the code the
+    // <select> options actually use, or the dropdown silently shows nothing
+    // selected even though the underlying value is set to something real.
+    const resolvedState = data.state ? resolveStateCode(data.state) || draft.state : draft.state;
     setDraft({
       ...draft,
       address: data.address ?? draft.address,
       email: data.email ?? draft.email,
       sanctioned_load: data.sanctioned_load != null ? String(data.sanctioned_load) : draft.sanctioned_load,
       metertype: data.metertype ?? draft.metertype,
-      state: data.state ?? draft.state,
-      discom: data.discom ?? draft.discom,
+      state: resolvedState,
+      discom: data.discom ? resolveDiscomCode(resolvedState, data.discom) || draft.discom : draft.discom,
       ca_number: data.ca_number ?? draft.ca_number,
       avg_monthly_bill: data.avg_monthly_bill ?? draft.avg_monthly_bill,
       avg_monthly_units: data.avg_monthly_units != null ? String(data.avg_monthly_units) : draft.avg_monthly_units,
@@ -247,6 +252,35 @@ export default function LeadDetailPage() {
   const actions = manualTransitions(lead.status);
   const isDirtySinceSave = savedSnapshot != null && JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
   const showSaved = savedSnapshot != null && !isDirtySinceSave;
+  const hasExistingDetails = Object.values(draft).some((v) => v.trim() !== "");
+
+  // Reset before a re-uploaded bill's extraction is applied -- unlike
+  // AddLeadForm's equivalent, name/mobile are deliberately left untouched:
+  // they identify an existing lead, and handleExtracted above already never
+  // overwrites them from a bill for the same reason, so clearing them here
+  // would wipe an existing customer's identity with no way for the
+  // extraction that follows to restore it.
+  function handleResetDetailsBeforeExtract() {
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            address: "",
+            type: "",
+            email: "",
+            sanctioned_load: "",
+            metertype: "",
+            state: "",
+            discom: "",
+            roof_area_sqft: "",
+            ca_number: "",
+            avg_monthly_bill: "",
+            avg_monthly_units: "",
+            requirement: "",
+          }
+        : d,
+    );
+  }
 
   return (
     <div className="leads-page">
@@ -308,7 +342,12 @@ export default function LeadDetailPage() {
       <div className="lead-detail-layout">
       <div className="lead-detail-main">
       <div className="lead-detail-panel">
-        <BillUploadWidget entityId={entityId} onExtracted={handleExtracted} />
+        <BillUploadWidget
+          entityId={entityId}
+          onExtracted={handleExtracted}
+          hasExistingDetails={hasExistingDetails}
+          onResetDetails={handleResetDetailsBeforeExtract}
+        />
 
         <form onSubmit={handleSave} noValidate>
           <div className="add-lead-field">

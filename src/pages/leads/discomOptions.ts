@@ -82,13 +82,36 @@ export const DISCOMS_BY_STATE: Record<string, Discom[]> = {
   PB: [{ code: "PSPCL", name: "Punjab State Power Corporation Limited" }],
   RJ: [{ code: "AVVNL", name: "Ajmer Vidyut Vitran Nigam Limited" }, { code: "JVVNL", name: "Jaipur Vidyut Vitran Nigam Limited" }, { code: "JDVVNL", name: "Jodhpur Vidyut Vitran Nigam Limited" }],
   SK: [{ code: "PD-SK", name: "Power Department, Government of Sikkim" }],
-  TN: [{ code: "TNPDCL", name: "Tamil Nadu Power Distribution Corporation Limited" }],
+  TN: [{ code: "TANGEDCO", name: "Tamil Nadu Generation and Distribution Corporation Limited" }],
   TS: [{ code: "TGNPDCL", name: "Northern Power Distribution Company of Telangana Limited" }, { code: "TGSPDCL", name: "Southern Power Distribution Company of Telangana Limited" }],
   TR: [{ code: "TSECL", name: "Tripura State Electricity Corporation Limited" }],
   UP: [{ code: "DVVNL", name: "Dakshinanchal Vidyut Vitran Nigam Limited" }, { code: "KESCO", name: "Kanpur Electricity Supply Company Limited" }, { code: "MVVNL", name: "Madhyanchal Vidyut Vitran Nigam Limited" }, { code: "PVVNL", name: "Pashchimanchal Vidyut Vitran Nigam Limited" }, { code: "PUVVNL", name: "Purvanchal Vidyut Vitran Nigam Limited" }],
   UK: [{ code: "UPCL", name: "Uttarakhand Power Corporation Limited" }],
   WB: [{ code: "CESC", name: "CESC Limited" }, { code: "WBSEDCL", name: "West Bengal State Electricity Distribution Company Limited" }],
 };
+
+/** Resolves a state value from bill extraction -- which may come back as
+ * either a short code ("DL") or the full name ("Delhi"), inconsistently,
+ * since it's AI-derived -- to the matching STATES entry's code, so it lines
+ * up with the <select>'s option values. Returns "" if nothing matches. */
+export function resolveStateCode(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim().toLowerCase();
+  const match = STATES.find((s) => s.code.toLowerCase() === trimmed || s.name.toLowerCase() === trimmed);
+  return match?.code ?? "";
+}
+
+/** Same idea as resolveStateCode, for a DISCOM value scoped to a given
+ * (already-resolved) state code. Returns "" if `stateCode` is empty or
+ * nothing in that state's DISCOM list matches. */
+export function resolveDiscomCode(stateCode: string, value: string | null | undefined): string {
+  if (!stateCode || !value) return "";
+  const trimmed = value.trim().toLowerCase();
+  const match = getDiscomsForState(stateCode).find(
+    (d) => d.code.toLowerCase() === trimmed || d.name.toLowerCase() === trimmed,
+  );
+  return match?.code ?? "";
+}
 
 /** Discoms for a given state code. Empty/unrecognized state -> []. Callers
  * should still offer a free-text "Other" escape hatch alongside this list
