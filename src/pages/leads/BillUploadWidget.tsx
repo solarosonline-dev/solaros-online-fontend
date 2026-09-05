@@ -77,11 +77,19 @@ export default function BillUploadWidget({ entityId, onExtracted, hasExistingDet
         onChange={handleFileSelect}
       />
       <button type="button" className="leads-btn" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
+        {extracting && <span className="add-lead-upload-spinner" aria-hidden="true" />}
         {extracting ? "Reading bill…" : "📄 Autofill from electricity bill (PDF or photo)"}
       </button>
       <span className="add-lead-upload-status">optional — fills in the fields below</span>
       {extractError && <p className="add-lead-upload-status error">{extractError}</p>}
-      {extractSummary && <div className="add-lead-summary">{extractSummary}</div>}
+      {extractSummary && (
+        <div className="add-lead-summary">
+          {extractSummary}
+          <p className="add-lead-ai-notice">
+            These details were extracted with AI — please review them for accuracy before saving.
+          </p>
+        </div>
+      )}
 
       <ConfirmDialog
         open={pendingFile != null}
