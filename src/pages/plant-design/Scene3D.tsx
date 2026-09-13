@@ -450,7 +450,7 @@ function LightningArrestor({ obstacle, baseHeight }) {
   );
 }
 
-function Obstacle({ obstacle, baseHeight, selected, onSelect }) {
+function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
   const h = obstacle.height;
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
   const centerY = baseHeight + h / 2;
@@ -512,7 +512,7 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect }) {
       : Math.max(obstacle.width, obstacle.depth) / 2;
 
   return (
-    <group onClick={(e) => { e.stopPropagation(); onSelect(obstacle.id); }}>
+    <group onClick={(e) => { if (isDragClick?.(e)) return; e.stopPropagation(); onSelect(obstacle.id); }}>
       {body}
       {selected && (
         <mesh position={[tx, baseHeight + 0.01, tz]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -618,6 +618,21 @@ function compassAngleDeg(camera, target) {
 export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
+  // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
+  // canvas OrbitControls uses - but R3F's own click dispatch has no built-in
+  // drag-vs-click distinction of its own: whatever mesh the pointer happens
+  // to be over at pointerup gets a click, even after a long drag elsewhere
+  // in between. Without this, ending an orbit drag over the roof/ground/an
+  // obstacle silently selected (or deselected) it - the right-side
+  // properties rail would vanish mid-rotate for no reason the user did on
+  // purpose. Tracked here (not per-mesh) since every click handler in this
+  // file needs the same check.
+  const pointerDownRef = useRef<{ x: number; y: number } | null>(null);
+  function isDragClick(e) {
+    const down = pointerDownRef.current;
+    if (!down) return false;
+    return Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6;
+  }
   // Coalesces onChange (which can fire on every pointermove while dragging)
   // down to one update per tick, so orbiting doesn't flood the parent with
   // a setState call per mouse-move event. Deliberately setTimeout, not
@@ -714,6 +729,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
       onPlaceObstacle(e.point.x, -e.point.z);
       return;
     }
+    if (isDragClick(e)) return;
     e.stopPropagation();
     onSelectObstacle?.(null);
     // Roofs aren't click-selectable in 3D (unlike the 2D plan) - clicking
@@ -726,7 +742,10 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', cursor: placingShape ? 'crosshair' : 'default' }}>
+    <div
+      style={{ width: '100%', height: '100%', cursor: placingShape ? 'crosshair' : 'default' }}
+      onPointerDown={(e) => { pointerDownRef.current = { x: e.clientX, y: e.clientY }; }}
+    >
       <Canvas shadows camera={{ position: [extent * 0.7, extent * 0.6 + maxBuildingHeight, extent * 0.7], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
         <color attach="background" args={['#eef3ea']} />
         <SunLight elevation={sunElevation} azimuth={sunAzimuth} />
@@ -844,6 +863,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             baseHeight={obstacleBaseHeight(o, roofs)}
             selected={selectedObstacleId === o.id}
             onSelect={onSelectObstacle}
+            isDragClick={isDragClick}
           />
         ))}
 
