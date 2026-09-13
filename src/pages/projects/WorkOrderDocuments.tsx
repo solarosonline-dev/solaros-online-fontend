@@ -41,6 +41,7 @@ export default function WorkOrderDocuments({
   entityId,
   workOrderId,
   onDocumentsChange,
+  onAnyDocumentChange,
 }: {
   entityId: number;
   workOrderId: number;
@@ -49,6 +50,11 @@ export default function WorkOrderDocuments({
    * informational for the parent page's completion-hint; this component's
    * own load/upload/delete flow is unaffected either way. */
   onDocumentsChange?: (hasPhoto: boolean) => void;
+  /** Same idea, but true for *any* document regardless of content type --
+   * used for the SLD_GENERATION completion-hint, since the backend's
+   * SLD_DOCUMENT_REQUIRED check accepts any attached document (the
+   * generated PDF), not specifically an image. */
+  onAnyDocumentChange?: (hasAny: boolean) => void;
 }) {
   const [documents, setDocuments] = useState<WorkOrderDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,9 +90,11 @@ export default function WorkOrderDocuments({
 
   useEffect(() => {
     onDocumentsChange?.(documents.some((d) => d.content_type.startsWith("image/")));
-    // onDocumentsChange is a fresh setState-wrapping closure from the parent
-    // on every render -- depending on it too would re-fire this needlessly;
-    // documents is the only thing that actually determines the result.
+    onAnyDocumentChange?.(documents.length > 0);
+    // onDocumentsChange/onAnyDocumentChange are fresh setState-wrapping
+    // closures from the parent on every render -- depending on them too
+    // would re-fire this needlessly; documents is the only thing that
+    // actually determines the result.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
 

@@ -10,6 +10,7 @@ import {
 } from "../../api/projects";
 import { ApiError } from "../../api/client";
 import ProjectWorkOrders from "./ProjectWorkOrders";
+import GenerateSldPanel from "./GenerateSldPanel";
 import ProjectAmcTab from "./ProjectAmcTab";
 import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -230,6 +231,12 @@ export default function ProjectDetailPage() {
             projectStatus={project.status}
             onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
           />
+
+          {/* Not phase-gated like ProjectWorkOrders' own panel above -- SLD
+              generation can happen at any point in the project's life, so
+              it's offered here unconditionally, same idea as AMC being its
+              own tab rather than a funnel phase. */}
+          <GenerateSldPanel entityId={entityId} projectId={project.project_id} />
 
           <div style={{ marginTop: 16 }}>
             <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>

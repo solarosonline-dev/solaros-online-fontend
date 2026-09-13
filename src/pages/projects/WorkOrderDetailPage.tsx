@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { canManageAmc, isEntityAdmin } from "../../lib/roles";
@@ -8,13 +8,16 @@ import {
   assignWorkOrder,
   deleteWorkOrder,
   nextWorkOrderStatus,
+  uploadWorkOrderDocument,
   type WorkOrderDetail,
 } from "../../api/workOrders";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { listTeams, type TeamListItem } from "../../api/teams";
 import { getEntityPreferences } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
+import { captureElementAsPdf } from "../../lib/capturePdf";
 import WorkOrderDocuments from "./WorkOrderDocuments";
+import SldDiagram from "../../components/SldDiagram";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
@@ -45,6 +48,11 @@ export default function WorkOrderDetailPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [photoRequired, setPhotoRequired] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(false);
+  const [hasAnyDocument, setHasAnyDocument] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
+  const sldDiagramRef = useRef<HTMLDivElement>(null);
 
   function load() {
     if (!workOrderId) return;
@@ -163,6 +171,28 @@ export default function WorkOrderDetailPage() {
     }
   }
 
+  // SLD_GENERATION only -- snapshots the rendered <SldDiagram> (via the same
+  // captureElementAsPdf DOM-to-PDF pipeline PublicAgreementPage already uses
+  // for signed agreements) and uploads it as a normal work order document.
+  // That upload is what satisfies the backend's 409 SLD_DOCUMENT_REQUIRED
+  // completion gate -- see handleTransition's error surfacing above.
+  async function handleGeneratePdf() {
+    if (!workOrderId || !sldDiagramRef.current) return;
+    setGeneratingPdf(true);
+    setPdfError(null);
+    try {
+      const blob = await captureElementAsPdf(sldDiagramRef.current);
+      const file = new File([blob], `SLD_${workOrderId}.pdf`, { type: "application/pdf" });
+      await uploadWorkOrderDocument(entityId, Number(workOrderId), file);
+      setDocumentsRefreshKey((k) => k + 1);
+      setStatus({ kind: "success", message: "SLD PDF generated and attached." });
+    } catch (err) {
+      setPdfError(err instanceof ApiError ? err.message : "Could not generate/upload the SLD PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   if (loading) return <div className="projects-loading">Loading…</div>;
   if (loadError || !wo) {
     return (
@@ -191,6 +221,7 @@ export default function WorkOrderDetailPage() {
   // every other work order type is entity-admin only -- WORKER/TECHNICIAN
   // can never assign, only be assigned.
   const canAssign = wo.type === "AMC_SERVICE" ? canManageAmc(user!.roles) : admin;
+  const isSld = wo.type === "SLD_GENERATION";
 
   return (
     <div className="projects-page">
@@ -215,6 +246,16 @@ export default function WorkOrderDetailPage() {
           {next === "COMPLETED" && photoRequired && !hasPhoto && (
             <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
               A photo is required before this work order can be completed.
+            </span>
+          )}
+          {/* Same advisory idea as the photo hint above, but unconditional
+              for this type (no EPC toggle) -- the backend's own 409
+              SLD_DOCUMENT_REQUIRED is the actual gate. hasAnyDocument covers
+              any content type, not just images, since the generated PDF is
+              what satisfies it. */}
+          {next === "COMPLETED" && isSld && !hasAnyDocument && (
+            <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
+              Generate and attach the SLD PDF before this work order can be completed.
             </span>
           )}
           {admin && wo.status === "NEW" && (
@@ -263,6 +304,24 @@ export default function WorkOrderDetailPage() {
           <span>Notes</span>
           <span>{wo.notes || "—"}</span>
         </div>
+        {isSld && (
+          <>
+            <div className="project-detail-row">
+              <span>Panels</span>
+              <span>
+                {wo.panel_count} × {wo.panel_wattage_w} W ({wo.string_count} string
+                {wo.string_count === 1 ? "" : "s"})
+              </span>
+            </div>
+            <div className="project-detail-row">
+              <span>Inverters</span>
+              <span>
+                {wo.inverter_capacity_kw} kW total
+                {wo.sld_layout ? ` across ${wo.sld_layout.length} inverter${wo.sld_layout.length === 1 ? "" : "s"}` : ""}
+              </span>
+            </div>
+          </>
+        )}
         <div className="project-detail-row">
           <span>Customer</span>
           <span>
@@ -294,6 +353,30 @@ export default function WorkOrderDetailPage() {
           </span>
         </div>
       </div>
+
+      {isSld && wo.panel_wattage_w != null && wo.sld_layout != null && (
+        <>
+          <p className="projects-section-label">Single line diagram</p>
+          <div ref={sldDiagramRef}>
+            <SldDiagram
+              specs={{
+                panelWattageW: wo.panel_wattage_w,
+                inverters: wo.sld_layout,
+              }}
+            />
+          </div>
+          <div className="work-orders-new-panel">
+            <button className="projects-btn primary" disabled={generatingPdf} onClick={handleGeneratePdf}>
+              {generatingPdf ? "Generating…" : hasAnyDocument ? "Regenerate PDF" : "Generate PDF"}
+            </button>
+            {pdfError && (
+              <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
+                {pdfError}
+              </span>
+            )}
+          </div>
+        </>
+      )}
 
       {/* No explanatory hint for the non-permitted case -- a WORKER/
           TECHNICIAN viewing their own assigned work order can never assign
@@ -348,9 +431,11 @@ export default function WorkOrderDetailPage() {
 
       <div className="project-detail-side">
         <WorkOrderDocuments
+          key={documentsRefreshKey}
           entityId={entityId}
           workOrderId={Number(workOrderId)}
           onDocumentsChange={setHasPhoto}
+          onAnyDocumentChange={setHasAnyDocument}
         />
       </div>
       </div>

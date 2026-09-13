@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "DOCUMENTATION" | "AMC_SERVICE";
+export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "DOCUMENTATION" | "AMC_SERVICE" | "SLD_GENERATION";
 export type WorkOrderStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
 export function nextWorkOrderStatus(status: WorkOrderStatus): WorkOrderStatus | null {
@@ -37,16 +37,39 @@ export type WorkOrderListItem = {
   lead: LeadSummary;
 };
 
+// One inverter's worth of an SLD_GENERATION work order's layout -- its
+// capacity plus the panel count of every DC string wired into it (e.g.
+// strings: [10, 10, 12] = 3 strings with 10/10/12 panels each). Mirrors the
+// backend's SldInverterInput (app/schemas/work_order.py).
+export type SldInverterLayout = {
+  capacity_kw: number;
+  strings: number[];
+};
+
 export type WorkOrderDetail = WorkOrderListItem & {
   lead_id: number;
   project_id: number | null;
   external_ticket_id: string | null;
   notes: string | null;
+  // SLD_GENERATION only -- as-built electrical specs entered at creation to
+  // generate the Single Line Diagram; null for every other type.
+  // panel_count/string_count/inverter_capacity_kw are aggregates the backend
+  // derives from sld_layout (sum of string panel counts / count of strings /
+  // sum of inverter capacities) -- sld_layout is the source of truth for the
+  // actual per-inverter/per-string breakdown the diagram draws.
+  panel_count: number | null;
+  panel_wattage_w: number | null;
+  string_count: number | null;
+  inverter_capacity_kw: number | null;
+  sld_layout: SldInverterLayout[] | null;
 };
 
 export type CreateWorkOrderInput = {
   type: WorkOrderType;
   notes?: string;
+  // Required (both) when type === "SLD_GENERATION"; ignored otherwise.
+  panel_wattage_w?: number;
+  sld_layout?: SldInverterLayout[];
 };
 
 export type ProjectSummary = {
@@ -88,6 +111,11 @@ export function createProjectWorkOrder(entityId: number, projectId: number, data
     // status (see PROJECT_ADVANCE_ON_WORK_ORDER_CREATION on the backend) --
     // reflects current state either way, not just when it changed.
     project_status: string | null;
+    panel_count: number | null;
+    panel_wattage_w: number | null;
+    string_count: number | null;
+    inverter_capacity_kw: number | null;
+    sld_layout: SldInverterLayout[] | null;
   }>(`/entities/${entityId}/projects/${projectId}/work-orders`, { method: "POST", body: data });
 }
 
