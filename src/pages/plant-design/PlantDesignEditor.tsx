@@ -370,6 +370,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   const [hoveredMarginEdge, setHoveredMarginEdge] = useState<any>(null);
   const [selectedMarginEdges, setSelectedMarginEdges] = useState<Set<any>>(new Set());
   const [viewMode, setViewMode] = useState('plan');
+  // How far the 3D compass needle should currently be rotated to keep
+  // pointing at true north (see Scene3D.jsx's compassAngleDeg) - the 2D
+  // plan view needs no equivalent state since north is always screen-up
+  // there (a fixed reference, not tracked).
+  const [compass3DAngleDeg, setCompass3DAngleDeg] = useState(0);
   const [planZoom, setPlanZoom] = useState(1);
   // Screen-space pan offset (in viewBox pixels) for the 2D plan — without
   // this, zooming in always keeps the same center point in view with no
@@ -2901,6 +2906,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 showPanels={showPanels}
                 mapImagePlacement={backdropPlacement}
                 mapImageWidePlacement={backdropWidePlacement}
+                onCompassAngleChange={setCompass3DAngleDeg}
               />
               </React.Suspense>
 
@@ -3653,28 +3659,34 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
 
             return (
               <div className="tooltip-left" style={{ position: 'absolute', top: 12, right: 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                {/* Orientation legend for the 2D plan - north is always up
+                {/* Orientation legend - in the 2D plan, north is always up
                     (toScreen never rotates, see geoConvert.js's x=east/
-                    y=north convention), so this is a static reference, not
-                    a live-rotating compass. Doesn't apply to the 3D view,
-                    which orbits freely. */}
-                {viewMode === 'plan' && (
-                  <div
-                    data-tooltip="Plan view: north is up"
-                    aria-label="Compass: north is up"
-                    style={{ width: 40, height: 40, borderRadius: 8, background: '#fff', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                  >
-                    <svg width={32} height={32} viewBox="0 0 36 36">
+                    y=north convention), so the whole dial stays fixed. The
+                    3D view's camera orbits freely, so there north isn't a
+                    fixed screen direction any more: the dial instead
+                    rotates live to keep its "N" pointing at true north,
+                    driven by compass3DAngleDeg (see Scene3D.jsx's
+                    compassAngleDeg, reported through onCompassAngleChange).
+                    Sized up from the original 40px box - illegible at that
+                    size once it had to double as a real reference in 3D,
+                    not just a static corner icon. */}
+                <div
+                  data-tooltip={viewMode === 'plan' ? 'Plan view: north is up' : 'Compass: needle points true north'}
+                  aria-label={viewMode === 'plan' ? 'Compass: north is up' : 'Compass: needle points true north'}
+                  style={{ width: 60, height: 60, borderRadius: 10, background: '#fff', border: '1px solid #ccc', boxShadow: 'var(--app-shadow, 0 1px 3px rgba(16,24,40,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                >
+                  <svg width={46} height={46} viewBox="0 0 36 36">
+                    <g transform={viewMode === '3d' && compass3DAngleDeg ? `rotate(${compass3DAngleDeg} 18 18)` : undefined}>
                       <circle cx="18" cy="18" r="13" fill="#fafafa" stroke="#ddd" strokeWidth="1" />
                       <line x1="18" y1="18" x2="18" y2="11" stroke="#e0873c" strokeWidth="2" />
                       <polygon points="18,7 15,12 21,12" fill="#e0873c" />
-                      <text x="18" y="6" fontSize="6" fontWeight="700" textAnchor="middle" fill="#e0873c">N</text>
-                      <text x="18" y="33" fontSize="6" textAnchor="middle" fill="#888">S</text>
-                      <text x="4" y="20" fontSize="6" textAnchor="middle" fill="#888">W</text>
-                      <text x="32" y="20" fontSize="6" textAnchor="middle" fill="#888">E</text>
-                    </svg>
-                  </div>
-                )}
+                      <text x="18" y="6" fontSize="6.5" fontWeight="700" textAnchor="middle" fill="#e0873c">N</text>
+                      <text x="18" y="33" fontSize="6.5" textAnchor="middle" fill="#888">S</text>
+                      <text x="4" y="20" fontSize="6.5" textAnchor="middle" fill="#888">W</text>
+                      <text x="32" y="20" fontSize="6.5" textAnchor="middle" fill="#888">E</text>
+                    </g>
+                  </svg>
+                </div>
 
                 {selectedRoof && (() => {
                   const roofIdx = roofs.findIndex((r) => r.id === selectedRoof.id);

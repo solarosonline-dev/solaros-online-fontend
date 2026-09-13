@@ -598,9 +598,60 @@ function obstacleBaseHeight(obstacle, roofs) {
   return onRoof ? onRoof.buildingHeight + DECK_THICKNESS : 0;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, mapImagePlacement = null as any, mapImageWidePlacement = null as any }: any) {
+// How far (in degrees, clockwise on screen) the compass needle should turn
+// to keep pointing at true north as the camera orbits - unlike the 2D plan
+// view (north is always screen-up, a fixed reference), the 3D camera orbits
+// freely, so "which way is north" on screen changes with it. Projects
+// world north (-Z, see toThree's own comment) and the orbit target through
+// the camera the same way the renderer does, rather than reasoning about
+// OrbitControls' internal azimuthal-angle convention by hand - robust to
+// whatever the current polar angle/zoom happens to be, at the cost of only
+// being exact for camera roll=0 (true here; OrbitControls never rolls).
+function compassAngleDeg(camera, target) {
+  const targetNdc = target.clone().project(camera);
+  const northNdc = target.clone().add(new THREE.Vector3(0, 0, -1)).project(camera);
+  const dx = northNdc.x - targetNdc.x;
+  const dy = northNdc.y - targetNdc.y; // NDC +y is up, same sense a "rotate clockwise from up" angle wants
+  return Math.atan2(dx, dy) / DEG;
+}
+
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
+  // Coalesces onChange (which can fire on every pointermove while dragging)
+  // down to one update per tick, so orbiting doesn't flood the parent with
+  // a setState call per mouse-move event. Deliberately setTimeout, not
+  // requestAnimationFrame - rAF is throttled/never fires while the tab
+  // (or an embedded preview pane) is backgrounded, which would silently
+  // stall the compass instead of just catching up late.
+  const compassTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportCompassAngle = () => {
+    if (!onCompassAngleChange || compassTimerRef.current != null) return;
+    compassTimerRef.current = setTimeout(() => {
+      compassTimerRef.current = null;
+      const controls = orbitControlsRef.current;
+      if (!controls) return;
+      onCompassAngleChange(compassAngleDeg(controls.object, controls.target));
+    }, 0);
+  };
+  // Report the starting angle too, not just after the first orbit - camera
+  // position starts off-axis (see the Canvas camera prop below), so the
+  // compass would otherwise show a stale 0deg until the user first drags.
+  useEffect(() => {
+    reportCompassAngle();
+    // Also reset the ref, not just cancel the timer - React 18 StrictMode
+    // double-invokes this effect in development (mount, cleanup, mount
+    // again), and reportCompassAngle's own "already scheduled" guard reads
+    // this ref; leaving it non-null after cancelling would make the second,
+    // real mount's call silently no-op forever with no timer left running
+    // to ever null it back out.
+    return () => {
+      if (compassTimerRef.current == null) return;
+      clearTimeout(compassTimerRef.current);
+      compassTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Holding Shift swaps the left button from orbit to pan for as long as
   // it's held, on top of the right button always panning - a common
@@ -807,6 +858,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           // ROTATE and PAN live).
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+          onChange={reportCompassAngle}
         />
       </Canvas>
     </div>
