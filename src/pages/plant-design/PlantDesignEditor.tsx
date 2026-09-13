@@ -6,6 +6,7 @@ import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from './geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from './staticMap.js';
 import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
+import { OBSTACLE_ICONS, Plan2DIcon, Cube3DIcon } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
   OBSTACLE_PRESETS,
@@ -2631,14 +2632,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, pointerEvents: 'none' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
             {/* One toggle instead of two separate buttons - always shown
-                "pressed" since its label is whichever mode is actually
-                current; click flips to the other. */}
+                "pressed" since its icon is whichever mode is actually
+                current (a flat square for the plan, an isometric cube for
+                3D - see icons.jsx); click flips to the other. Icon-only, so
+                data-tooltip (instant hover, see PlantDesignEditor.css)
+                rather than a plain `title` now that there's no visible text
+                to already convey it. */}
             <button
-              className={btn(true)}
+              className={iconBtn(true)}
               onClick={() => setViewMode((m) => (m === 'plan' ? '3d' : 'plan'))}
-              title={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
+              data-tooltip={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
+              aria-label={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
             >
-              {viewMode === 'plan' ? '2D' : '3D'}
+              {viewMode === 'plan' ? <Plan2DIcon /> : <Cube3DIcon />}
             </button>
             {/* The 2D plan's own zoom/pan (planZoom/panOffset, scroll to
                 zoom + drag to pan - see onPlanWheel) has no bounds on
@@ -2766,20 +2772,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 {obstaclePickerOpen && (
                   <div style={{ position: 'absolute', left: 48, top: 0, background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 8, boxShadow: '0 4px 18px rgba(0,0,0,0.18)', width: 220, zIndex: 5 }}>
                     <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 6 }}>Add obstacle</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {Object.entries(OBSTACLE_PRESETS).map(([k, p]) => (
-                        <button
-                          key={k} className={btn(placingShape === k)}
-                          onClick={() => {
-                            resetClickSuppression();
-                            setPlacingShape(placingShape === k ? null : k);
-                            setObstacleDrawPoints([]);
-                            setObstaclePickerOpen(false);
-                          }}
-                        >
-                          + {p.label}
-                        </button>
-                      ))}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', width: 204 }}>
+                      {Object.entries(OBSTACLE_PRESETS).map(([k, p]) => {
+                        const ObstacleIcon = OBSTACLE_ICONS[k];
+                        return (
+                          <button
+                            key={k} className={iconBtn(placingShape === k)}
+                            data-tooltip={p.label} aria-label={p.label}
+                            onClick={() => {
+                              resetClickSuppression();
+                              setPlacingShape(placingShape === k ? null : k);
+                              setObstacleDrawPoints([]);
+                              setObstaclePickerOpen(false);
+                            }}
+                          >
+                            {ObstacleIcon ? <ObstacleIcon /> : p.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
