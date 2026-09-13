@@ -301,3 +301,143 @@ export const DELETE_MODE_ICONS: Record<string, (props: IconProps) => React.JSX.E
   column: DeleteColumnIcon,
   panel: DeletePanelIcon,
 };
+
+// General-purpose glyphs (PlantDesignEditor.tsx's icon rail) - replacing
+// plain unicode/emoji symbols (✕, +, 🗑, ⚙, 📐, ⇄, ▦, ⬚, ⬍, ⬌, ⧉, →) so
+// every icon in the editor renders from the same stroke-based visual
+// language instead of mixing in emoji, which vary in weight/style/color
+// across OS and browser.
+export function CloseIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="6" y1="6" x2="18" y2="18" />
+      <line {...base} x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="12" y1="5" x2="12" y2="19" />
+      <line {...base} x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="5" y1="7" x2="19" y2="7" />
+      <path {...base} d="M9 7 V4 H15 V7" />
+      <path {...base} d="M7 7 L8 20 H16 L17 7" />
+    </svg>
+  );
+}
+
+export function GearIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle {...base} cx="12" cy="12" r="3.2" />
+      <path {...base} d="M12 3 V6 M12 18 V21 M3 12 H6 M18 12 H21 M5.6 5.6 L7.8 7.8 M16.2 16.2 L18.4 18.4 M18.4 5.6 L16.2 7.8 M7.8 16.2 L5.6 18.4" />
+    </svg>
+  );
+}
+
+export function RulerIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M3 7 V17 H21" />
+      <line {...base} x1="3" y1="7" x2="7" y2="7" />
+      <line {...base} x1="3" y1="11" x2="6" y2="11" />
+      <line {...base} x1="3" y1="14" x2="6" y2="14" />
+      <line {...base} x1="17" y1="17" x2="17" y2="13" />
+      <line {...base} x1="13" y1="17" x2="13" y2="14" />
+      <line {...base} x1="10" y1="17" x2="10" y2="14" />
+    </svg>
+  );
+}
+
+export function MirrorIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="12" y1="3" x2="12" y2="21" strokeDasharray="2 2" />
+      <path {...base} d="M7 8 L4 12 L7 16" />
+      <path {...base} d="M17 8 L20 12 L17 16" />
+    </svg>
+  );
+}
+
+export function FillGridIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="3" y="3" width="5" height="5" />
+      <rect {...base} x="9.5" y="3" width="5" height="5" />
+      <rect {...base} x="16" y="3" width="5" height="5" />
+      <rect {...base} x="3" y="9.5" width="5" height="5" />
+      <rect {...base} x="9.5" y="9.5" width="5" height="5" />
+      <rect {...base} x="16" y="9.5" width="5" height="5" />
+      <rect {...base} x="3" y="16" width="5" height="5" />
+      <rect {...base} x="9.5" y="16" width="5" height="5" />
+      <rect {...base} x="16" y="16" width="5" height="5" />
+    </svg>
+  );
+}
+
+export function MarginIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="5" y="5" width="14" height="14" rx="1" />
+      <line {...base} x1="12" y1="1" x2="12" y2="4" />
+      <line {...base} x1="12" y1="20" x2="12" y2="23" />
+      <line {...base} x1="1" y1="12" x2="4" y2="12" />
+      <line {...base} x1="20" y1="12" x2="23" y2="12" />
+    </svg>
+  );
+}
+
+export function DrawAreaIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="4" y="4" width="16" height="16" rx="1.5" strokeDasharray="3 3" />
+    </svg>
+  );
+}
+
+export function AddRowIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="12" y1="4" x2="12" y2="20" />
+      <path {...base} d="M8 8 L12 4 L16 8" />
+      <path {...base} d="M8 16 L12 20 L16 16" />
+    </svg>
+  );
+}
+
+export function AddColumnIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="4" y1="12" x2="20" y2="12" />
+      <path {...base} d="M8 8 L4 12 L8 16" />
+      <path {...base} d="M16 8 L20 12 L16 16" />
+    </svg>
+  );
+}
+
+export function DuplicateIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="8" y="8" width="12" height="12" rx="1.5" />
+      <path {...base} d="M4 15 V5 A1 1 0 0 1 5 4 H15" />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="4" y1="12" x2="20" y2="12" />
+      <path {...base} d="M14 6 L20 12 L14 18" />
+    </svg>
+  );
+}

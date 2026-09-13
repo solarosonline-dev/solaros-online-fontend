@@ -9,6 +9,9 @@ import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
 import {
   OBSTACLE_ICONS, Plan2DIcon, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
+  CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
+  FillGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
+  DuplicateIcon, ArrowRightIcon, TreeIcon, TrussIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -2761,7 +2764,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 className={iconBtn(drawingRoof)}
                 onClick={drawingRoof ? cancelRoofDraw : startRoofDraw}
               >
-                {drawingRoof ? '✕' : '⌂'}
+                {drawingRoof ? <CloseIcon /> : <PitchedRoofIcon />}
               </button>
               <div style={{ position: 'relative' }}>
                 <button
@@ -2770,7 +2773,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   className={iconBtn(obstaclePickerOpen || !!placingShape)}
                   onClick={() => setObstaclePickerOpen((v) => !v)}
                 >
-                  +
+                  <PlusIcon />
                 </button>
                 {obstaclePickerOpen && (
                   <div style={{ position: 'absolute', left: 48, top: 0, background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 8, boxShadow: '0 4px 18px rgba(0,0,0,0.18)', width: 220, zIndex: 5 }}>
@@ -2811,7 +2814,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={() => advanceToStep(4)} disabled={roofs.length === 0}
                 className={`${iconBtn(false)} pde-primary`}
               >
-                →
+                <ArrowRightIcon />
               </button>
             </>
             )}
@@ -2824,7 +2827,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={handleGenerate} disabled={roofs.length === 0}
                 className={iconBtn(false, roofs.length === 0)}
               >
-                ▦
+                <FillGridIcon />
               </button>
               <button
                 data-tooltip={placingGrid ? 'Cancel placing this grid' : 'Draw a custom panel area'}
@@ -2832,7 +2835,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={placingGrid ? cancelGridPlacement : startGridPlacement} disabled={roofs.length === 0}
                 className={iconBtn(placingGrid, roofs.length === 0)}
               >
-                {placingGrid ? '✕' : '⬚'}
+                {placingGrid ? <CloseIcon /> : <DrawAreaIcon />}
               </button>
               {placingGrid && (
                 <div style={{ fontSize: 10, color: '#2f6fed', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>{gridDrawPoints.length} pts</div>
@@ -2846,7 +2849,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={() => advanceToStep(5)} disabled={totalPanelCount === 0}
                 className={`${iconBtn(false)} pde-primary`}
               >
-                →
+                <ArrowRightIcon />
               </button>
             </>
             )}
@@ -2858,7 +2861,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={() => advanceToStep(6)}
                 className={`${iconBtn(false)} pde-primary`}
               >
-                →
+                <ArrowRightIcon />
               </button>
             )}
             {currentStep === 6 && (
@@ -2868,7 +2871,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 onClick={() => advanceToStep(7)}
                 className={`${iconBtn(false)} pde-primary`}
               >
-                →
+                <ArrowRightIcon />
               </button>
             )}
           </div>
@@ -3725,7 +3728,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       />
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}>📐</button>
+                        <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}><RulerIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'}>
                             <div style={labelStyle}><span>width ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => updateRoof(selectedRoof.id, 'width', v)} /></div>
                             <div style={labelStyle}><span>length ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => updateRoof(selectedRoof.id, 'length', v)} /></div>
@@ -3738,7 +3741,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Panel margin" aria-label="Panel margin" className={iconBtn(rightPanelOpenGroup === 'roofMargin')} onClick={() => toggleGroup('roofMargin')}>▦</button>
+                        <button data-tooltip="Panel margin" aria-label="Panel margin" className={iconBtn(rightPanelOpenGroup === 'roofMargin')} onClick={() => toggleGroup('roofMargin')}><MarginIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofMargin'}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
                               Panel margin{marginEditRoofId === selectedRoof.id ? ' — click edges on the plan to override just those' : ''}
@@ -3785,7 +3788,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Roof type" aria-label="Roof type" className={iconBtn(rightPanelOpenGroup === 'roofType')} onClick={() => toggleGroup('roofType')}>⌂</button>
+                        <button data-tooltip="Roof type" aria-label="Roof type" className={iconBtn(rightPanelOpenGroup === 'roofType')} onClick={() => toggleGroup('roofType')}><PitchedRoofIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofType'}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#555' }}>Type</span>
@@ -3843,9 +3846,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         aria-label="Mirror this roof"
                         className={iconBtn(mirrorRoofId === selectedRoof.id)}
                         onClick={() => setMirrorRoofId((id) => (id === selectedRoof.id ? null : selectedRoof.id))}
-                      >⇄</button>
-                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={iconBtn(false)} onClick={() => removeRoof(selectedRoof.id)}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedRoofId(null)}>✕</button>
+                      ><MirrorIcon /></button>
+                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={iconBtn(false)} onClick={() => removeRoof(selectedRoof.id)}><TrashIcon /></button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedRoofId(null)}><CloseIcon /></button>
                     </>
                   );
                 })()}
@@ -3857,7 +3860,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}>⚙</button>
+                        <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}><GearIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'obstacleProps'}>
                             <div style={{ display: 'grid', gridTemplateColumns: isCutout ? '1fr 1fr' : selectedObstacle.shape === 'polygon' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
                               <label style={{ fontSize: 12, color: '#555' }}>x<br /><input style={{ ...inputStyle, width: '100%' }} type="number" disabled={selectedObstacle.shape === 'polygon'} value={selectedObstacle.x} onChange={(e) => updateObstacle(selectedObstacle.id, 'x', +e.target.value)} /></label>
@@ -3888,7 +3891,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
 
                       {selectedObstacle.label === 'Tree' && (
                         <div style={{ position: 'relative' }}>
-                          <button data-tooltip="Canopy" aria-label="Canopy" className={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}>🌳</button>
+                          <button data-tooltip="Canopy" aria-label="Canopy" className={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}><TreeIcon /></button>
                           <RailPopover open={rightPanelOpenGroup === 'obstacleCanopy'} width={200}>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {TREE_CANOPIES.map((c) => {
@@ -3904,8 +3907,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         </div>
                       )}
 
-                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={iconBtn(false)} onClick={() => removeObstacle(selectedObstacle.id)}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}>✕</button>
+                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={iconBtn(false)} onClick={() => removeObstacle(selectedObstacle.id)}><TrashIcon /></button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}><CloseIcon /></button>
                     </>
                   );
                 })()}
@@ -3934,16 +3937,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </button>
 
                       {addSideMode && addSideMode.gridId === selectedGrid.id ? (
-                        <button data-tooltip={`Click a ${addSideMode.axis === 'row' ? 'front/back' : 'left/right'} edge… (click to cancel)`} aria-label="Cancel add row/column" className={iconBtn(true)} onClick={cancelAddSideMode}>✕</button>
+                        <button data-tooltip={`Click a ${addSideMode.axis === 'row' ? 'front/back' : 'left/right'} edge… (click to cancel)`} aria-label="Cancel add row/column" className={iconBtn(true)} onClick={cancelAddSideMode}><CloseIcon /></button>
                       ) : (
                         <>
-                          <button data-tooltip="Add row" aria-label="Add row" className={iconBtn(false)} onClick={() => startAddRowMode(gridOwnerRoof.id, selectedGrid.id)}>⬍</button>
-                          <button data-tooltip="Add column" aria-label="Add column" className={iconBtn(false)} onClick={() => startAddColumnMode(gridOwnerRoof.id, selectedGrid.id)}>⬌</button>
+                          <button data-tooltip="Add row" aria-label="Add row" className={iconBtn(false)} onClick={() => startAddRowMode(gridOwnerRoof.id, selectedGrid.id)}><AddRowIcon /></button>
+                          <button data-tooltip="Add column" aria-label="Add column" className={iconBtn(false)} onClick={() => startAddColumnMode(gridOwnerRoof.id, selectedGrid.id)}><AddColumnIcon /></button>
                         </>
                       )}
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} onClick={() => toggleGroup('gridDelete')}>🗑</button>
+                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
@@ -3975,7 +3978,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}>⚙</button>
+                        <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}><GearIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridRack'}>
                             <div style={labelStyle}>
                               <span>Panels per row (depth)</span>
@@ -4039,7 +4042,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}>🏗</button>
+                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><TrussIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridStructure'}>
                             <div style={labelStyle}>
                               <span>Mounting</span>
@@ -4070,9 +4073,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         </RailPopover>
                       </div>
 
-                      <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" className={iconBtn(false)} onClick={duplicateSelectedGrids}>⧉</button>
-                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={iconBtn(false)} onClick={deleteSelectedGrids}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}>✕</button>
+                      <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" className={iconBtn(false)} onClick={duplicateSelectedGrids}><DuplicateIcon /></button>
+                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={iconBtn(false)} onClick={deleteSelectedGrids}><TrashIcon /></button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}><CloseIcon /></button>
                     </>
                   );
                 })()}
