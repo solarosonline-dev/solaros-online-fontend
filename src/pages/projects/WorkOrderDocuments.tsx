@@ -10,7 +10,7 @@ import {
 } from "../../api/workOrders";
 import { ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { stampAndPreparePhoto, type GeotagSkippedReason } from "../../lib/geotagPhoto";
+import { stampAndPreparePhoto, withTimeout, type GeotagResult, type GeotagSkippedReason } from "../../lib/geotagPhoto";
 
 /** Human-readable explanation for each way a photo can end up without a
  * location stamp -- shown so a silently-skipped geotag (by design, since it
@@ -61,6 +61,13 @@ export default function WorkOrderDocuments({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<WorkOrderDocument | null>(null);
+  // Keyed by document_id -- populated two ways: instantly from a local
+  // object URL right after this session uploads a photo (so the stamp is
+  // visible immediately, without waiting on a round trip), or lazily via a
+  // presigned download URL for documents that were already on the work
+  // order when this component mounted. Either way, this is what makes the
+  // geotag stamp visible in-page instead of only after tapping "View".
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<number, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,6 +89,46 @@ export default function WorkOrderDocuments({
     // documents is the only thing that actually determines the result.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
+
+  // Lazily backfills a thumbnail for any image document that doesn't have
+  // one yet -- covers documents loaded from the server (page load/reload),
+  // as opposed to ones just uploaded in this session, which already got an
+  // instant local-object-URL thumbnail at upload time (see uploadFiles).
+  useEffect(() => {
+    const missing = documents.filter((d) => d.content_type.startsWith("image/") && !thumbnailUrls[d.document_id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    missing.forEach((doc) => {
+      getWorkOrderDocumentDownloadUrl(entityId, workOrderId, doc.document_id)
+        .then((res) => {
+          if (cancelled) return;
+          setThumbnailUrls((prev) => (prev[doc.document_id] ? prev : { ...prev, [doc.document_id]: res.download_url }));
+        })
+        .catch(() => {
+          // Thumbnail is a nice-to-have -- silently skip on failure, "View"
+          // still works independently.
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately excludes thumbnailUrls -- it's only read to decide what's
+    // already covered, and including it would re-run this every time a
+    // thumbnail is set, which is exactly the update this effect itself makes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents, entityId, workOrderId]);
+
+  // Object URLs (the instant local previews) hold onto memory until
+  // revoked -- release them when this component unmounts. Presigned S3
+  // URLs backfilled above are plain https:// links and don't need this.
+  useEffect(() => {
+    return () => {
+      Object.values(thumbnailUrls).forEach((url) => {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const atLimit = documents.length >= MAX_WORK_ORDER_DOCUMENTS;
 
@@ -131,7 +178,18 @@ export default function WorkOrderDocuments({
           let toSend = original;
           let geotag: { latitude: number; longitude: number; capturedAt: string } | undefined;
           if (original.type.startsWith("image/")) {
-            const stamped = await stampAndPreparePhoto(original);
+            // Outer safety net on top of stampAndPreparePhoto's own internal
+            // timeouts -- geotagging must never be able to stall an upload
+            // indefinitely, no matter what goes wrong inside it. 20s is
+            // generous (geolocation alone can take up to 8s) but still
+            // bounded.
+            const stamped = await withTimeout<GeotagResult>(stampAndPreparePhoto(original), 20000, {
+              file: original,
+              latitude: null,
+              longitude: null,
+              capturedAt: new Date().toISOString(),
+              skippedReason: "timeout",
+            });
             toSend = stamped.file;
             if (stamped.latitude != null && stamped.longitude != null) {
               geotag = { latitude: stamped.latitude, longitude: stamped.longitude, capturedAt: stamped.capturedAt };
@@ -142,6 +200,14 @@ export default function WorkOrderDocuments({
           }
           const doc = await uploadWorkOrderDocument(entityId, workOrderId, toSend, geotag);
           setDocuments((prev) => [doc, ...prev]);
+          // Instant thumbnail straight from the file we just sent (already
+          // stamped, if a location was available) -- shows the technician
+          // right away, in-page, that the geotag was actually applied,
+          // rather than making them tap "View" to find out.
+          if (toSend.type.startsWith("image/")) {
+            const previewUrl = URL.createObjectURL(toSend);
+            setThumbnailUrls((prev) => ({ ...prev, [doc.document_id]: previewUrl }));
+          }
         } catch (err) {
           errors.push(`${original.name} — ${err instanceof ApiError ? err.message : "could not upload"}.`);
         }
@@ -192,6 +258,11 @@ export default function WorkOrderDocuments({
     try {
       await deleteWorkOrderDocument(entityId, workOrderId, documentId);
       setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
+      setThumbnailUrls((prev) => {
+        const { [documentId]: removedUrl, ...rest } = prev;
+        if (removedUrl?.startsWith("blob:")) URL.revokeObjectURL(removedUrl);
+        return rest;
+      });
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : "Could not delete document");
     } finally {
@@ -273,10 +344,39 @@ export default function WorkOrderDocuments({
         <div className="work-order-documents-list">
           {documents.map((doc) => (
             <div key={doc.document_id} className="work-order-document-card">
+              {doc.content_type.startsWith("image/") && (
+                // Shows the actual uploaded image -- including its baked-in
+                // geotag watermark, if one was applied -- right in the list,
+                // so seeing the stamp doesn't require tapping "View" first.
+                <button
+                  type="button"
+                  className="work-order-document-thumb-btn"
+                  onClick={() => handleView(doc)}
+                  disabled={openingId === doc.document_id}
+                  aria-label={`Open ${doc.file_name}`}
+                >
+                  {thumbnailUrls[doc.document_id] ? (
+                    <img
+                      src={thumbnailUrls[doc.document_id]}
+                      alt={doc.file_name}
+                      className="work-order-document-thumb"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="work-order-document-thumb work-order-document-thumb-loading" />
+                  )}
+                </button>
+              )}
               <div className="work-order-document-name">{doc.file_name}</div>
               <div className="work-order-assignee-contact">
                 {formatSize(doc.size_bytes)} · {doc.uploaded_by_name} ·{" "}
                 {new Date(doc.created_at).toLocaleDateString()}
+                {doc.latitude != null && doc.longitude != null && (
+                  <>
+                    {" "}
+                    · 📍 {doc.latitude.toFixed(5)}, {doc.longitude.toFixed(5)}
+                  </>
+                )}
               </div>
               <div className="work-order-document-actions">
                 <button

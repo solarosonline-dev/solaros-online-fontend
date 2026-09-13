@@ -554,6 +554,33 @@
   margin-bottom: 4px;
 }
 
+/* Wraps the thumbnail <img> in a <button> (rather than a plain div) so it's
+   keyboard/screen-reader accessible as the same "open the document" action
+   as the "View" button below it -- border/background reset since this is
+   visually just an image, not a button. */
+.work-order-document-thumb-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.work-order-document-thumb {
+  width: 100%;
+  max-width: 220px;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  display: block;
+}
+
+.work-order-document-thumb-loading {
+  background: var(--app-bg);
+}
+
 .work-order-document-actions {
   display: flex;
   gap: 8px;

@@ -62,6 +62,37 @@ function formatCoordinate(value: number): string {
   return value.toFixed(6);
 }
 
+/** Races `promise` against a timer -- resolves to `fallback` instead of
+ * hanging forever if `promise` never settles within `ms`. Needed because
+ * `createImageBitmap`/`canvas.toBlob` have no built-in timeout: on a very
+ * high-resolution modern phone photo (e.g. 48 MP), decoding/encoding a
+ * full-size canvas can stall for a long time -- or, on some WebKit builds,
+ * never call back at all -- which without this would leave the upload
+ * spinner stuck indefinitely instead of falling back to the original file. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
+/** Longest edge a photo is downscaled to before stamping/encoding. Phone
+ * cameras routinely produce 12-48 MP images -- compositing those at full
+ * resolution onto a canvas is slow, memory-heavy, and on some mobile
+ * browsers simply never finishes. 2000px is comfortably legible for the
+ * watermark and for viewing on-screen, and keeps every upload well under
+ * MAX_WORK_ORDER_DOCUMENT_SIZE_BYTES as a side effect. */
+const MAX_STAMPED_DIMENSION = 2000;
+
 /** Draws a semi-opaque banner across the bottom of the canvas with the
  * lat/long + a human-readable timestamp -- sized relative to the image so it
  * stays legible on both a small phone photo and a large one. */
@@ -105,18 +136,41 @@ export async function stampAndPreparePhoto(file: File): Promise<GeotagResult> {
   const { latitude, longitude } = position.coords;
 
   try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
+    // Bounded to 8s -- on some mobile WebKit builds, decoding a very large
+    // (e.g. 48 MP) camera photo via createImageBitmap can stall well past
+    // any reasonable wait, so this must resolve to `null` rather than hang
+    // the whole upload indefinitely.
+    const bitmap = await withTimeout<ImageBitmap | null>(
+      createImageBitmap(file, { imageOrientation: "from-image" }),
+      8000,
+      null,
+    );
+    if (!bitmap) {
       return { file, latitude, longitude, capturedAt, skippedReason: "canvas_unavailable" };
     }
-    ctx.drawImage(bitmap, 0, 0);
+
+    // Downscale before drawing -- compositing a full-resolution modern phone
+    // photo (routinely 12-48 MP) is slow and memory-heavy, and is the
+    // dominant cause of the pipeline stalling in the first place. 2000px is
+    // plenty for a legible watermark and for on-screen viewing.
+    const scale = Math.min(1, MAX_STAMPED_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return { file, latitude, longitude, capturedAt, skippedReason: "canvas_unavailable" };
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
     drawGeotagBanner(ctx, canvas.width, canvas.height, latitude, longitude, capturedAt);
 
-    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    const blob = await withTimeout<Blob | null>(
+      new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9)),
+      8000,
+      null,
+    );
     if (!blob) {
       return { file, latitude, longitude, capturedAt, skippedReason: "canvas_unavailable" };
     }
