@@ -10,7 +10,18 @@ import {
 } from "../../api/workOrders";
 import { ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { stampAndPreparePhoto } from "../../lib/geotagPhoto";
+import { stampAndPreparePhoto, type GeotagSkippedReason } from "../../lib/geotagPhoto";
+
+/** Human-readable explanation for each way a photo can end up without a
+ * location stamp -- shown so a silently-skipped geotag (by design, since it
+ * must never block the upload) doesn't look like an unexplained bug. */
+const GEOTAG_SKIPPED_MESSAGES: Record<GeotagSkippedReason, string> = {
+  unsupported: "location isn't supported in this browser.",
+  permission_denied: "location access was denied for this site.",
+  position_unavailable: "your device couldn't get a location fix (check that Location/GPS is turned on).",
+  timeout: "getting your location took too long.",
+  canvas_unavailable: "your location was captured, but the photo couldn't be stamped.",
+};
 
 const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx";
 
@@ -46,6 +57,7 @@ export default function WorkOrderDocuments({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [geotagNotice, setGeotagNotice] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<WorkOrderDocument | null>(null);
@@ -84,6 +96,8 @@ export default function WorkOrderDocuments({
     if (selected.length === 0) return;
 
     setUploadError(null);
+    setGeotagNotice(null);
+    const skippedReasons = new Set<GeotagSkippedReason>();
 
     // Only take as many as there's room for -- the rest are reported as
     // skipped rather than attempted and rejected one by one by the backend's
@@ -122,6 +136,9 @@ export default function WorkOrderDocuments({
             if (stamped.latitude != null && stamped.longitude != null) {
               geotag = { latitude: stamped.latitude, longitude: stamped.longitude, capturedAt: stamped.capturedAt };
             }
+            if (stamped.skippedReason) {
+              skippedReasons.add(stamped.skippedReason);
+            }
           }
           const doc = await uploadWorkOrderDocument(entityId, workOrderId, toSend, geotag);
           setDocuments((prev) => [doc, ...prev]);
@@ -134,6 +151,11 @@ export default function WorkOrderDocuments({
     }
 
     if (errors.length > 0) setUploadError(errors.join(" "));
+    if (skippedReasons.size > 0) {
+      setGeotagNotice(
+        `Uploaded without a location stamp: ${[...skippedReasons].map((r) => GEOTAG_SKIPPED_MESSAGES[r]).join(" ")}`,
+      );
+    }
   }
 
   function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -235,6 +257,11 @@ export default function WorkOrderDocuments({
           {uploadError}
         </p>
       )}
+      {/* Informational, not an error -- the upload itself succeeded. Shown
+          so a denied/unavailable location permission (which must never
+          block the photo) is at least visible, rather than a mysteriously
+          missing watermark with no explanation. */}
+      {geotagNotice && <p className="work-order-type-hint work-order-documents-hint">{geotagNotice}</p>}
 
       {loading ? (
         <div className="projects-loading">Loading…</div>
