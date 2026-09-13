@@ -2325,19 +2325,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   const inputStyle = { width: 62, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11, color: '#222', background: '#fff' };
   const sectionStyle = { background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10, marginBottom: 8 };
   const labelStyle = { fontSize: 11, color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, gap: 6 };
-  const btn = (active) => ({ padding: '4px 8px', borderRadius: 6, border: active ? '1px solid #2f6fed' : '1px solid #ccc', background: active ? '#e8f0ff' : '#fff', color: '#222', fontSize: 11, cursor: 'pointer' });
+  // These three return className strings (styled by PlantDesignEditor.css's
+  // .pde-btn/.pde-icon-btn/.pde-compass-btn rules, which pull from the host
+  // app's own tokens.css) rather than inline style objects, so hover/active/
+  // transition states are possible at all - inline styles can't express
+  // :hover. `disabled` styling comes for free from each button's own real
+  // `disabled` attribute (always set alongside these at the call site) via
+  // CSS's :disabled pseudo-class, so iconBtn's second param is unused now;
+  // kept so no call site needs to change.
+  const btn = (active) => `pde-btn${active ? ' pde-active' : ''}`;
   // Icon rail buttons (steps 3-6's left-edge shortcuts, replacing the old
   // sidebar's full text sections) - square, symbol-only, `title` gives the
   // hover tooltip per the design brief ("user sees what it does on hover").
-  const iconBtn = (active, disabled = false) => ({
-    width: 40, height: 40, borderRadius: 8, flexShrink: 0,
-    border: active ? '1px solid #2f6fed' : '1px solid #ccc',
-    background: disabled ? '#f2f2f2' : active ? '#e8f0ff' : '#fff',
-    color: disabled ? '#bbb' : '#333', fontSize: 17,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
-  const compassBtn = (active) => ({ width: 22, height: 22, padding: 0, borderRadius: '50%', border: active ? '1px solid #2f6fed' : '1px solid #ccc', background: active ? '#2f6fed' : '#fff', color: active ? '#fff' : '#555', fontSize: 10, fontWeight: 600, cursor: 'pointer', lineHeight: '20px' });
+  const iconBtn = (active, _disabled = false) => `pde-icon-btn${active ? ' pde-active' : ''}`;
+  const compassBtn = (active) => `pde-compass-btn${active ? ' pde-active' : ''}`;
 
   return (
     <div className="plant-design-editor" style={{ display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#222', height: '100vh', boxSizing: 'border-box' }}>
@@ -2404,8 +2405,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             <div style={labelStyle}>
               <span>Units</span>
               <span>
-                <button style={btn(units === 'm')} onClick={() => setUnits('m')}>Meters</button>{' '}
-                <button style={btn(units === 'ft')} onClick={() => setUnits('ft')}>Feet</button>
+                <button className={btn(units === 'm')} onClick={() => setUnits('m')}>Meters</button>{' '}
+                <button className={btn(units === 'ft')} onClick={() => setUnits('ft')}>Feet</button>
               </span>
             </div>
             <div style={{ fontSize: 11, color: '#888' }}>Display only - every value stays stored in meters underneath.</div>
@@ -2420,7 +2421,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           <div style={labelStyle}><span>Longitude</span><input style={inputStyle} type="number" value={location.lon} onChange={(e) => setLocation({ ...location, lon: +e.target.value })} /></div>
           <div style={labelStyle}><span>Timezone (UTC+)</span><input style={inputStyle} type="number" value={location.tz} onChange={(e) => setLocation({ ...location, tz: +e.target.value })} /></div>
           <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>Default: Bengaluru, IN</div>
-          <button style={btn(false)} onClick={() => setMapMode('location')}>Set location on map…</button>
+          <button className={btn(false)} onClick={() => setMapMode('location')}>Set location on map…</button>
         </CollapsibleSection>
         )}
         {currentStep === 1 && (
@@ -2628,7 +2629,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 "pressed" since its label is whichever mode is actually
                 current; click flips to the other. */}
             <button
-              style={btn(true)}
+              className={btn(true)}
               onClick={() => setViewMode((m) => (m === 'plan' ? '3d' : 'plan'))}
               title={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
             >
@@ -2646,7 +2647,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 useful to show disabled, so it's just absent instead. */}
             {viewMode === 'plan' && (planZoom !== 1 || panOffset.x !== 0 || panOffset.y !== 0) && (
               <button
-                style={btn(false)}
+                className={btn(false)}
                 onClick={() => { setPlanZoom(1); setPanOffset({ x: 0, y: 0 }); }}
                 title="Reset zoom and pan back to the default fit-to-content view"
               >
@@ -2654,14 +2655,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               </button>
             )}
             <button
-              style={{ ...btn(false), opacity: historyRef.current.past.length === 0 ? 0.4 : 1, cursor: historyRef.current.past.length === 0 ? 'default' : 'pointer' }}
+              className={btn(false)}
               onClick={undo} disabled={historyRef.current.past.length === 0}
               title="Undo (Ctrl/Cmd+Z)"
             >
               ↶ Undo
             </button>
             <button
-              style={{ ...btn(false), opacity: historyRef.current.future.length === 0 ? 0.4 : 1, cursor: historyRef.current.future.length === 0 ? 'default' : 'pointer' }}
+              className={btn(false)}
               onClick={redo} disabled={historyRef.current.future.length === 0}
               title="Redo (Ctrl/Cmd+Shift+Z)"
             >
@@ -2674,14 +2675,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 of it. */}
             {viewMode === 'plan' && roofs.length > 0 && (
               <button
-                style={btn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
+                className={btn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
                 title="Heatmap of each part of the roof's own annual sun exposure - red gets the most, blue the least"
               >
                 Shadow analysis
               </button>
             )}
             {viewMode === '3d' && (
-              <button style={btn(!showPanels)} onClick={() => setShowPanels((v) => !v)}>
+              <button className={btn(!showPanels)} onClick={() => setShowPanels((v) => !v)}>
                 {showPanels ? 'Hide panels' : 'Show panels'}
               </button>
             )}
@@ -2694,7 +2695,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 the compass/properties rail, which also docks there. */}
             {totalPanelCount > 0 && (
               <button
-                style={btn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
+                className={btn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
                 title="Color each panel by its own annual output as a % of the best panel on site"
               >
                 Efficiency view{efficiencyView ? ` · ${totalPanelCount} panel${totalPanelCount === 1 ? '' : 's'}` : ''}
@@ -2743,7 +2744,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               <button
                 data-tooltip={drawingRoof ? 'Cancel drawing this roof' : 'Draw a new roof outline'}
                 aria-label={drawingRoof ? 'Cancel drawing this roof' : 'Draw a new roof outline'}
-                style={iconBtn(drawingRoof)}
+                className={iconBtn(drawingRoof)}
                 onClick={drawingRoof ? cancelRoofDraw : startRoofDraw}
               >
                 {drawingRoof ? '✕' : '⌂'}
@@ -2752,7 +2753,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 <button
                   data-tooltip="Add an obstacle (tree, AC unit, chimney, ...)"
                   aria-label="Add an obstacle"
-                  style={iconBtn(obstaclePickerOpen || !!placingShape)}
+                  className={iconBtn(obstaclePickerOpen || !!placingShape)}
                   onClick={() => setObstaclePickerOpen((v) => !v)}
                 >
                   +
@@ -2763,7 +2764,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {Object.entries(OBSTACLE_PRESETS).map(([k, p]) => (
                         <button
-                          key={k} style={btn(placingShape === k)}
+                          key={k} className={btn(placingShape === k)}
                           onClick={() => {
                             resetClickSuppression();
                             setPlacingShape(placingShape === k ? null : k);
@@ -2790,7 +2791,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip={roofs.length === 0 ? 'Draw at least one roof first' : 'Continue to Panel/Grid setup'}
                 aria-label="Continue to Panel/Grid setup"
                 onClick={() => advanceToStep(4)} disabled={roofs.length === 0}
-                style={{ ...iconBtn(false, roofs.length === 0), background: roofs.length ? '#1c2b4a' : '#f2f2f2', color: roofs.length ? '#fff' : '#bbb', border: 'none' }}
+                className={`${iconBtn(false)} pde-primary`}
               >
                 →
               </button>
@@ -2803,7 +2804,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip="Fill the whole roof with panels"
                 aria-label="Fill the whole roof with panels"
                 onClick={handleGenerate} disabled={roofs.length === 0}
-                style={iconBtn(false, roofs.length === 0)}
+                className={iconBtn(false, roofs.length === 0)}
               >
                 ▦
               </button>
@@ -2811,7 +2812,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip={placingGrid ? 'Cancel placing this grid' : 'Draw a custom panel area'}
                 aria-label={placingGrid ? 'Cancel placing this grid' : 'Draw a custom panel area'}
                 onClick={placingGrid ? cancelGridPlacement : startGridPlacement} disabled={roofs.length === 0}
-                style={iconBtn(placingGrid, roofs.length === 0)}
+                className={iconBtn(placingGrid, roofs.length === 0)}
               >
                 {placingGrid ? '✕' : '⬚'}
               </button>
@@ -2825,7 +2826,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip={totalPanelCount === 0 ? 'Place at least one grid first' : 'Continue to Output estimate'}
                 aria-label="Continue to Output estimate"
                 onClick={() => advanceToStep(5)} disabled={totalPanelCount === 0}
-                style={{ ...iconBtn(false, totalPanelCount === 0), background: totalPanelCount ? '#1c2b4a' : '#f2f2f2', color: totalPanelCount ? '#fff' : '#bbb', border: 'none' }}
+                className={`${iconBtn(false)} pde-primary`}
               >
                 →
               </button>
@@ -2837,7 +2838,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip="Continue to Cost estimate"
                 aria-label="Continue to Cost estimate"
                 onClick={() => advanceToStep(6)}
-                style={{ ...iconBtn(false), background: '#1c2b4a', color: '#fff', border: 'none' }}
+                className={`${iconBtn(false)} pde-primary`}
               >
                 →
               </button>
@@ -2847,7 +2848,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 data-tooltip="Continue to Electrical Design (SLD)"
                 aria-label="Continue to Electrical Design (SLD)"
                 onClick={() => advanceToStep(7)}
-                style={{ ...iconBtn(false), background: '#1c2b4a', color: '#fff', border: 'none' }}
+                className={`${iconBtn(false)} pde-primary`}
               >
                 →
               </button>
@@ -3699,7 +3700,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       />
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Dimensions" aria-label="Dimensions" style={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}>📐</button>
+                        <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}>📐</button>
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'}>
                             <div style={labelStyle}><span>width ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => updateRoof(selectedRoof.id, 'width', v)} /></div>
                             <div style={labelStyle}><span>length ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => updateRoof(selectedRoof.id, 'length', v)} /></div>
@@ -3712,7 +3713,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Panel margin" aria-label="Panel margin" style={iconBtn(rightPanelOpenGroup === 'roofMargin')} onClick={() => toggleGroup('roofMargin')}>▦</button>
+                        <button data-tooltip="Panel margin" aria-label="Panel margin" className={iconBtn(rightPanelOpenGroup === 'roofMargin')} onClick={() => toggleGroup('roofMargin')}>▦</button>
                         <RailPopover open={rightPanelOpenGroup === 'roofMargin'}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
                               Panel margin{marginEditRoofId === selectedRoof.id ? ' — click edges on the plan to override just those' : ''}
@@ -3759,13 +3760,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Roof type" aria-label="Roof type" style={iconBtn(rightPanelOpenGroup === 'roofType')} onClick={() => toggleGroup('roofType')}>⌂</button>
+                        <button data-tooltip="Roof type" aria-label="Roof type" className={iconBtn(rightPanelOpenGroup === 'roofType')} onClick={() => toggleGroup('roofType')}>⌂</button>
                         <RailPopover open={rightPanelOpenGroup === 'roofType'}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#555' }}>Type</span>
                               <span>
-                                <button style={btn(selectedRoof.type === 'flat')} onClick={() => updateRoof(selectedRoof.id, 'type', 'flat')}>Flat</button>{' '}
-                                <button style={btn(selectedRoof.type === 'pitched')} onClick={() => updateRoof(selectedRoof.id, 'type', 'pitched')}>Pitched</button>
+                                <button className={btn(selectedRoof.type === 'flat')} onClick={() => updateRoof(selectedRoof.id, 'type', 'flat')}>Flat</button>{' '}
+                                <button className={btn(selectedRoof.type === 'pitched')} onClick={() => updateRoof(selectedRoof.id, 'type', 'pitched')}>Pitched</button>
                               </span>
                             </div>
                             {selectedRoof.type === 'pitched' && (
@@ -3777,25 +3778,29 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 22px)', gridTemplateRows: 'repeat(3, 22px)', gap: 2 }}>
                                       <span />
                                       <button
-                                        style={{ ...compassBtn(selectedRoof.slopeDirection === 'N'), gridColumn: 2, gridRow: 1 }}
+                                        className={compassBtn(selectedRoof.slopeDirection === 'N')}
+                                        style={{ gridColumn: 2, gridRow: 1 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'N')}
                                         title="Ridge to the south, eave to the north"
                                       >N</button>
                                       <span />
                                       <button
-                                        style={{ ...compassBtn(selectedRoof.slopeDirection === 'W'), gridColumn: 1, gridRow: 2 }}
+                                        className={compassBtn(selectedRoof.slopeDirection === 'W')}
+                                        style={{ gridColumn: 1, gridRow: 2 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'W')}
                                         title="Ridge to the east, eave to the west"
                                       >W</button>
                                       <span style={{ gridColumn: 2, gridRow: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#bbb' }}>⌂</span>
                                       <button
-                                        style={{ ...compassBtn(selectedRoof.slopeDirection === 'E'), gridColumn: 3, gridRow: 2 }}
+                                        className={compassBtn(selectedRoof.slopeDirection === 'E')}
+                                        style={{ gridColumn: 3, gridRow: 2 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'E')}
                                         title="Ridge to the west, eave to the east"
                                       >E</button>
                                       <span />
                                       <button
-                                        style={{ ...compassBtn(selectedRoof.slopeDirection === 'S'), gridColumn: 2, gridRow: 3 }}
+                                        className={compassBtn(selectedRoof.slopeDirection === 'S')}
+                                        style={{ gridColumn: 2, gridRow: 3 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'S')}
                                         title="Ridge to the north, eave to the south"
                                       >S</button>
@@ -3811,11 +3816,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       <button
                         data-tooltip={mirrorRoofId === selectedRoof.id ? 'Click an edge on the plan to mirror across it (click again to cancel)' : 'Mirror this roof across an edge'}
                         aria-label="Mirror this roof"
-                        style={iconBtn(mirrorRoofId === selectedRoof.id)}
+                        className={iconBtn(mirrorRoofId === selectedRoof.id)}
                         onClick={() => setMirrorRoofId((id) => (id === selectedRoof.id ? null : selectedRoof.id))}
                       >⇄</button>
-                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" style={iconBtn(false)} onClick={() => removeRoof(selectedRoof.id)}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" style={iconBtn(false)} onClick={() => setSelectedRoofId(null)}>✕</button>
+                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={iconBtn(false)} onClick={() => removeRoof(selectedRoof.id)}>🗑</button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedRoofId(null)}>✕</button>
                     </>
                   );
                 })()}
@@ -3827,7 +3832,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Properties" aria-label="Properties" style={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}>⚙</button>
+                        <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}>⚙</button>
                         <RailPopover open={rightPanelOpenGroup === 'obstacleProps'}>
                             <div style={{ display: 'grid', gridTemplateColumns: isCutout ? '1fr 1fr' : selectedObstacle.shape === 'polygon' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
                               <label style={{ fontSize: 12, color: '#555' }}>x<br /><input style={{ ...inputStyle, width: '100%' }} type="number" disabled={selectedObstacle.shape === 'polygon'} value={selectedObstacle.x} onChange={(e) => updateObstacle(selectedObstacle.id, 'x', +e.target.value)} /></label>
@@ -3858,19 +3863,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
 
                       {selectedObstacle.label === 'Tree' && (
                         <div style={{ position: 'relative' }}>
-                          <button data-tooltip="Canopy" aria-label="Canopy" style={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}>🌳</button>
+                          <button data-tooltip="Canopy" aria-label="Canopy" className={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}>🌳</button>
                           <RailPopover open={rightPanelOpenGroup === 'obstacleCanopy'} width={200}>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {TREE_CANOPIES.map((c) => (
-                                  <button key={c} style={{ ...btn(selectedObstacle.canopy === c), textTransform: 'capitalize' }} onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}>{c}</button>
+                                  <button key={c} className={btn(selectedObstacle.canopy === c)} style={{ textTransform: 'capitalize' }} onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}>{c}</button>
                                 ))}
                               </div>
                           </RailPopover>
                         </div>
                       )}
 
-                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" style={iconBtn(false)} onClick={() => removeObstacle(selectedObstacle.id)}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" style={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}>✕</button>
+                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={iconBtn(false)} onClick={() => removeObstacle(selectedObstacle.id)}>🗑</button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}>✕</button>
                     </>
                   );
                 })()}
@@ -3892,23 +3897,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       <button
                         data-tooltip={(selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'Portrait - click for Landscape' : 'Landscape - click for Portrait'}
                         aria-label="Toggle panel orientation"
-                        style={iconBtn(true)}
+                        className={iconBtn(true)}
                         onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { orientation: (selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'landscape' : 'portrait' })}
                       >
                         {(selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'P' : 'L'}
                       </button>
 
                       {addSideMode && addSideMode.gridId === selectedGrid.id ? (
-                        <button data-tooltip={`Click a ${addSideMode.axis === 'row' ? 'front/back' : 'left/right'} edge… (click to cancel)`} aria-label="Cancel add row/column" style={iconBtn(true)} onClick={cancelAddSideMode}>✕</button>
+                        <button data-tooltip={`Click a ${addSideMode.axis === 'row' ? 'front/back' : 'left/right'} edge… (click to cancel)`} aria-label="Cancel add row/column" className={iconBtn(true)} onClick={cancelAddSideMode}>✕</button>
                       ) : (
                         <>
-                          <button data-tooltip="Add row" aria-label="Add row" style={iconBtn(false)} onClick={() => startAddRowMode(gridOwnerRoof.id, selectedGrid.id)}>⬍</button>
-                          <button data-tooltip="Add column" aria-label="Add column" style={iconBtn(false)} onClick={() => startAddColumnMode(gridOwnerRoof.id, selectedGrid.id)}>⬌</button>
+                          <button data-tooltip="Add row" aria-label="Add row" className={iconBtn(false)} onClick={() => startAddRowMode(gridOwnerRoof.id, selectedGrid.id)}>⬍</button>
+                          <button data-tooltip="Add column" aria-label="Add column" className={iconBtn(false)} onClick={() => startAddColumnMode(gridOwnerRoof.id, selectedGrid.id)}>⬌</button>
                         </>
                       )}
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" style={iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} onClick={() => toggleGroup('gridDelete')}>🗑</button>
+                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} onClick={() => toggleGroup('gridDelete')}>🗑</button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
@@ -3919,7 +3924,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                                     setGridDeleteMode((m) => (m === mode ? null : mode));
                                     setGridDeleteSelection(null);
                                   }}
-                                  style={{ ...btn(gridDeleteMode === mode), textTransform: 'capitalize' }}
+                                  className={btn(gridDeleteMode === mode)}
+                                  style={{ textTransform: 'capitalize' }}
                                 >
                                   {mode}
                                 </button>
@@ -3936,7 +3942,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Rack settings" aria-label="Rack settings" style={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}>⚙</button>
+                        <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}>⚙</button>
                         <RailPopover open={rightPanelOpenGroup === 'gridRack'}>
                             <div style={labelStyle}>
                               <span>Panels per row (depth)</span>
@@ -4000,7 +4006,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Structure" aria-label="Structure" style={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}>🏗</button>
+                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}>🏗</button>
                         <RailPopover open={rightPanelOpenGroup === 'gridStructure'}>
                             <div style={labelStyle}>
                               <span>Mounting</span>
@@ -4008,7 +4014,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                                 {Object.entries(STRUCTURE_STRATEGIES).map(([key, s]) => (
                                   <button
                                     key={key}
-                                    style={btn(selectedGrid.structureStrategy === key)}
+                                    className={btn(selectedGrid.structureStrategy === key)}
                                     onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { structureStrategy: key })}
                                   >
                                     {s.label}
@@ -4027,9 +4033,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         </RailPopover>
                       </div>
 
-                      <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" style={iconBtn(false)} onClick={duplicateSelectedGrids}>⧉</button>
-                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" style={iconBtn(false)} onClick={deleteSelectedGrids}>🗑</button>
-                      <button data-tooltip="Deselect" aria-label="Deselect" style={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}>✕</button>
+                      <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" className={iconBtn(false)} onClick={duplicateSelectedGrids}>⧉</button>
+                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={iconBtn(false)} onClick={deleteSelectedGrids}>🗑</button>
+                      <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}>✕</button>
                     </>
                   );
                 })()}
@@ -4065,9 +4071,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           {currentStep === 5 && (
             <CollapsibleSection title="Output analysis" defaultOpen>
               <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-                <button style={btn(mode === 'day')} onClick={() => setMode('day')}>Day</button>
-                <button style={btn(mode === 'month')} onClick={() => setMode('month')}>Month</button>
-                <button style={btn(mode === 'year')} onClick={() => setMode('year')}>Year</button>
+                <button className={btn(mode === 'day')} onClick={() => setMode('day')}>Day</button>
+                <button className={btn(mode === 'month')} onClick={() => setMode('month')}>Month</button>
+                <button className={btn(mode === 'year')} onClick={() => setMode('year')}>Year</button>
               </div>
               <button
                 onClick={handleCalculate} disabled={totalPanelCount === 0}

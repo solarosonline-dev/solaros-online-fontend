@@ -46,3 +46,117 @@
   left: auto;
   right: calc(100% + 8px);
 }
+
+/* Shared button looks (pde-btn/pde-icon-btn/pde-compass-btn), replacing
+   the flat ad-hoc inline styles (`#2f6fed`/`#ccc`, no shadow, no
+   hover/transition) that came over from the standalone prototype - these
+   pull from the host app's own tokens.css (--app-accent/--app-shadow/
+   --app-radius/--app-font) instead, so the module reads as part of the
+   app rather than a bolted-on tool. `active`/small per-instance overrides
+   (grid position, the two filled dark "primary action" icon buttons) stay
+   as inline `style`, which still wins over these classes where it's set -
+   see PlantDesignEditor.tsx's btn/iconBtn/compassBtn functions. */
+.plant-design-editor .pde-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  font-size: 11px;
+  font-family: var(--app-font, inherit);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.plant-design-editor .pde-btn:hover:not(:disabled) {
+  border-color: var(--app-accent, #2563eb);
+}
+.plant-design-editor .pde-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.plant-design-editor .pde-btn.pde-active {
+  border-color: var(--app-accent, #2563eb);
+  background: #e8f0ff;
+  color: var(--app-accent, #2563eb);
+  font-weight: 600;
+}
+.plant-design-editor .pde-btn:disabled {
+  background: #f2f2f2;
+  color: #bbb;
+  cursor: not-allowed;
+}
+
+.plant-design-editor .pde-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  background: var(--app-surface, #fff);
+  color: #333;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(16, 24, 40, 0.08));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, background 0.15s ease, color 0.15s ease;
+}
+.plant-design-editor .pde-icon-btn:hover:not(:disabled) {
+  border-color: var(--app-accent, #2563eb);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
+  transform: translateY(-1px);
+}
+.plant-design-editor .pde-icon-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(16, 24, 40, 0.08));
+}
+.plant-design-editor .pde-icon-btn.pde-active {
+  border-color: var(--app-accent, #2563eb);
+  background: #e8f0ff;
+  color: var(--app-accent, #2563eb);
+}
+.plant-design-editor .pde-icon-btn:disabled {
+  background: #f2f2f2;
+  color: #bbb;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* "Continue to next step" - a filled, higher-contrast variant of the same
+   icon button rather than the usual outlined one, since it's the wizard's
+   one primary action per step. Grey/disabled still comes from the real
+   `disabled` attribute via :disabled above (which this doesn't override),
+   not a JS-computed color. */
+.plant-design-editor .pde-icon-btn.pde-primary {
+  background: #1c2b4a;
+  color: #fff;
+  border-color: #1c2b4a;
+}
+.plant-design-editor .pde-icon-btn.pde-primary:hover:not(:disabled) {
+  background: #16223b;
+  border-color: #16223b;
+}
+
+.plant-design-editor .pde-compass-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--app-border, #e2e5ea);
+  background: var(--app-surface, #fff);
+  color: #555;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.plant-design-editor .pde-compass-btn:hover {
+  transform: scale(1.1);
+}
+.plant-design-editor .pde-compass-btn.pde-active {
+  border-color: var(--app-accent, #2563eb);
+  background: var(--app-accent, #2563eb);
+  color: #fff;
+}
