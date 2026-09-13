@@ -28,6 +28,7 @@ import {
   deleteGridRow,
   deleteGridColumn,
   deleteGridPanel,
+  columnIndexMatch,
   bestRoofForGrid,
   reparentGridToRoof,
 } from './layoutEngine.js';
@@ -440,7 +441,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // what clicking a panel in that grid does (select a row/column/panel
   // for deletion, instead of the usual whole-grid select/move).
   const [gridDeleteMode, setGridDeleteMode] = useState<any>(null); // 'row' | 'column' | 'panel' | null
-  const [gridDeleteSelection, setGridDeleteSelection] = useState<any>(null); // { rackY } | { rackX } | { panelId } | null
+  const [gridDeleteSelection, setGridDeleteSelection] = useState<any>(null); // { rackY } | { panelId } | { panelIds } | null
 
   function findGrid(roofId, gridId) {
     const roof = roofs.find((r) => r.id === roofId);
@@ -586,14 +587,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // gridDeleteSelection (see the panel rendering below, where a click is
   // intercepted differently while a delete mode is active for that grid);
   // Delete/Backspace applies it here, same shortcut whole-grid delete
-  // already uses.
+  // already uses. Panel mode collects a whole array of ids (Cmd/Ctrl+click
+  // multi-select - see the click handler below), applied by folding
+  // deleteGridPanel over each one in turn.
   function applyGridDeleteSelection() {
     if (!gridDeleteSelection || !selectedGrid || !gridOwnerRoof) return;
+    if (gridDeleteMode === 'panel' && !gridDeleteSelection.panelIds?.length) return;
     updateRoofGrids(gridOwnerRoof.id, (grids) => grids.flatMap((g) => {
       if (g.id !== selectedGrid.id) return [g];
       if (gridDeleteMode === 'row') return withFreshIdsForSplit(deleteGridRow(g, gridDeleteSelection.rackY, gridOwnerRoof));
-      if (gridDeleteMode === 'column') return withFreshIdsForSplit(deleteGridColumn(g, gridDeleteSelection.rackX, gridOwnerRoof));
-      return [deleteGridPanel(g, gridDeleteSelection.panelId, gridOwnerRoof)];
+      if (gridDeleteMode === 'column') return withFreshIdsForSplit(deleteGridColumn(g, gridDeleteSelection.panelId, gridOwnerRoof));
+      return [gridDeleteSelection.panelIds.reduce((acc, id) => deleteGridPanel(acc, id, gridOwnerRoof), g)];
     }));
     setGridDeleteSelection(null);
     setOutputResult(null);
@@ -3299,6 +3303,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               // state comment) - every other grid's panels behave exactly
               // as normal (whole-grid select/move) regardless.
               const deleteModeActive = gridDeleteMode && selectedGrid?.id === g.id && gridOwnerRoof?.id === roof.id;
+              // "Select column" matches by position within each row (see
+              // layoutEngine.js's columnIndexMatch) rather than by rackX -
+              // rows can have different panel counts on a grid stepped by a
+              // tapered/rotated roof edge, so there's no single rackX every
+              // row's "column" panel actually shares. Computed once per grid
+              // render (not per panel) so every panel's own deletePicked
+              // check below is just a Set lookup.
+              const columnMatchIds = (deleteModeActive && gridDeleteMode === 'column' && gridDeleteSelection?.panelId != null)
+                ? new Set(columnIndexMatch(g, gridDeleteSelection.panelId).matches.map((p) => p.id))
+                : null;
               // resolvedGridPanels applies the grid's own `rotation` to each
               // panel's position (a presentation-only transform - see
               // layoutEngine.js's comment above gridPivot); the same
@@ -3313,8 +3327,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 const w = p.w * scale, h = p.d * scale;
                 const deletePicked = deleteModeActive && gridDeleteSelection && (
                   (gridDeleteMode === 'row' && gridDeleteSelection.rackY === p.rackY)
-                  || (gridDeleteMode === 'column' && Math.abs(gridDeleteSelection.rackX - p.rackX) < 0.05)
-                  || (gridDeleteMode === 'panel' && gridDeleteSelection.panelId === p.id)
+                  || (gridDeleteMode === 'column' && columnMatchIds?.has(p.id))
+                  || (gridDeleteMode === 'panel' && gridDeleteSelection.panelIds?.includes(p.id))
                 );
                 return (
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${-rotation} ${center.sx} ${center.sy})` : undefined}>
@@ -3327,8 +3341,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         if (deleteModeActive) {
                           e.stopPropagation();
                           if (gridDeleteMode === 'row') setGridDeleteSelection({ rackY: p.rackY });
-                          else if (gridDeleteMode === 'column') setGridDeleteSelection({ rackX: p.rackX });
-                          else setGridDeleteSelection({ panelId: p.id });
+                          else if (gridDeleteMode === 'column') setGridDeleteSelection({ panelId: p.id });
+                          else {
+                            // Panel mode: Cmd(Mac)/Ctrl(Win)+click toggles
+                            // the clicked panel in/out of a multi-selection;
+                            // a plain click replaces it with just this one,
+                            // same as row/column mode's single-pick.
+                            const isMulti = e.metaKey || e.ctrlKey;
+                            setGridDeleteSelection((prev) => {
+                              if (!isMulti) return { panelIds: [p.id] };
+                              const existing: any[] = prev?.panelIds || [];
+                              return existing.includes(p.id)
+                                ? { panelIds: existing.filter((id) => id !== p.id) }
+                                : { panelIds: [...existing, p.id] };
+                            });
+                          }
                           return;
                         }
                         // A panel usually starts a grid drag - but when its
@@ -3888,7 +3915,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                               {['row', 'column', 'panel'].map((mode) => (
                                 <button
                                   key={mode}
-                                  onClick={() => setGridDeleteMode((m) => (m === mode ? null : mode))}
+                                  onClick={() => {
+                                    setGridDeleteMode((m) => (m === mode ? null : mode));
+                                    setGridDeleteSelection(null);
+                                  }}
                                   style={{ ...btn(gridDeleteMode === mode), textTransform: 'capitalize' }}
                                 >
                                   {mode}
@@ -3897,7 +3927,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                             </div>
                             {gridDeleteMode && (
                               <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 6 }}>
-                                Click a panel to pick its {gridDeleteMode}, then press Delete/Backspace to remove it. Esc to exit.
+                                {gridDeleteMode === 'panel'
+                                  ? 'Click a panel to pick it (Cmd/Ctrl+click to pick more than one), then press Delete/Backspace to remove it. Esc to exit.'
+                                  : `Click a panel to pick its ${gridDeleteMode}, then press Delete/Backspace to remove it. Esc to exit.`}
                               </div>
                             )}
                         </RailPopover>
