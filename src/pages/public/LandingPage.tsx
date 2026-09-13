@@ -281,6 +281,7 @@ const WHY_CARDS = [
   { n: "04", title: "Your brand, our engine", body: "White-labelled customer portals mean your customers experience your brand end to end. SolarOS runs underneath — quietly, and never customer-facing as an installer." },
   { n: "05", title: "O&M and billing that don't drop the ball", body: "SLA timers, ticketing, generation-health alerts and automated billing — running for the full 25-year life of every asset your customers own." },
   { n: "06", title: "Built for the whole deal team", body: "EPCs, financiers, RESCO investors and O&M vendors collaborate on the same live record. No forwarded spreadsheets, no stale PDFs, no \"let me check and get back to you.\"" },
+  { n: "07", title: "Geotagged photo proof, no separate app", body: "Field crews tap \"Take Photo\" right inside SolarOS on any phone browser — no GPS-camera app to download. Every shot is stamped with the exact latitude, longitude and timestamp, and attached straight to the work order." },
 ];
 
 function Why() {
@@ -322,10 +323,11 @@ const SERVICE_PANELS: Record<ServiceTabKey, ServicePanelContent> = {
       { term: "Design", desc: "Single-line diagrams and layouts generated from survey data — no separate CAD hand-off required." },
       { term: "Pricing", desc: "Itemised, branded BOQs and proposals your team can send in minutes, not days." },
       { term: "EPC", desc: "Crew scheduling, commissioning checklists and site-progress tracking against the original BOQ." },
+      { term: "Field Photos", desc: "Geotagged photo capture built right into the browser — techs tap \"Take Photo\" on any phone, no separate app, and can require one before a work order is marked complete." },
     ],
     cardTitle: "Built for EPCs",
     cardHeading: "Win the deal, deliver the project, one login",
-    cardList: ["Digital site survey app + shadow/roof analysis", "Auto-generated single-line diagrams", "Branded, itemised BOQ builder", "Crew scheduling & commissioning checklists", "Full audit trail from first contact to handover"],
+    cardList: ["Digital site survey app + shadow/roof analysis", "Auto-generated single-line diagrams", "Branded, itemised BOQ builder", "Crew scheduling & commissioning checklists", "In-browser geotagged photo capture — no app to install", "Full audit trail from first contact to handover"],
     ctaLabel: "See the EPC workspace",
   },
   financier: {
@@ -364,10 +366,11 @@ const SERVICE_PANELS: Record<ServiceTabKey, ServicePanelContent> = {
       { term: "Monitoring", desc: "Automatic flags when generation drifts from design — before the customer notices." },
       { term: "Billing", desc: "Automated invoicing tied to AMC contracts, so the paperwork keeps pace with the visits." },
       { term: "Handover", desc: "Structured commissioning-to-service handover so nothing gets missed at go-live." },
+      { term: "Visit Proof", desc: "Every service visit can require a geotagged photo before it's closed out — captured natively in the browser, no separate GPS-camera app for your technicians to install." },
     ],
     cardTitle: "Built for O&M Vendors",
     cardHeading: "25 years of service, fully tracked",
-    cardList: ["SLA-timed ticketing & escalation rules", "Generation-vs-design drift alerts", "Technician dispatch scheduling", "Automated AMC billing & invoicing", "Structured commissioning-to-service handover"],
+    cardList: ["SLA-timed ticketing & escalation rules", "Generation-vs-design drift alerts", "Technician dispatch scheduling", "Geotagged visit photos, built into the browser", "Automated AMC billing & invoicing", "Structured commissioning-to-service handover"],
     ctaLabel: "See the AMC / O&M workspace",
   },
 };
