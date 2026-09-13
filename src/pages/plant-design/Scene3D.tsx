@@ -716,7 +716,13 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     }
     e.stopPropagation();
     onSelectObstacle?.(null);
-    onSelectRoof?.(roofId);
+    // Roofs aren't click-selectable in 3D (unlike the 2D plan) - clicking
+    // one still clears any selected obstacle, same as clicking empty
+    // ground, but doesn't select the roof itself. A roof already selected
+    // from the 2D plan still renders highlighted here (`selected` below),
+    // this only disables *starting* a selection by clicking in this view.
+    if (roofId) return;
+    onSelectRoof?.(null);
   }
 
   return (
