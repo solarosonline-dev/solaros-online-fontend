@@ -2800,12 +2800,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   </div>
                 )}
               </div>
-              {drawingRoof && (
-                <div style={{ fontSize: 10, color: '#2f6fed', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>{roofDrawPoints.length} pts</div>
-              )}
-              {placingShape && (
+              {/* Point counts for roof/obstacle outlines being drawn now
+                  show on the canvas itself, next to the last point placed
+                  (see the SVG's own pointCountBadge) - this single-click
+                  placement hint stays here since it's not a running count
+                  that would need to track a moving point. */}
+              {placingShape && !OBSTACLE_PRESETS[placingShape]?.drawable && (
                 <div style={{ fontSize: 10, color: '#2f6fed', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>
-                  {OBSTACLE_PRESETS[placingShape]?.drawable ? `${obstacleDrawPoints.length} pts` : 'click plan'}
+                  click plan
                 </div>
               )}
               <button
@@ -2837,9 +2839,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               >
                 {placingGrid ? <CloseIcon /> : <DrawAreaIcon />}
               </button>
-              {placingGrid && (
-                <div style={{ fontSize: 10, color: '#2f6fed', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>{gridDrawPoints.length} pts</div>
-              )}
               {gridPlacementError && (
                 <div style={{ fontSize: 10, color: '#c0392b', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>{gridPlacementError}</div>
               )}
@@ -3268,44 +3267,73 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               });
             })()}
 
-            {drawingRoof && roofDrawPoints.length > 0 && (
-              <>
-                <polyline
-                  points={roofDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
-                  fill="none" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
-                />
-                {roofDrawPoints.map((p, i) => {
-                  const s = toScreen(p.x, p.y);
-                  return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
-                })}
-              </>
-            )}
+            {/* The in-progress point count used to float in the left icon
+                rail as its own text badge - it shifted every button below
+                it up/down each time a point was added (or the badge itself
+                appeared/disappeared), and sat far from the actual drawing.
+                Anchored on the canvas next to the last placed point
+                instead: it moves with the drawing and never touches the
+                rail's own layout. */}
+            {(() => {
+              function pointCountBadge(points) {
+                if (points.length === 0) return null;
+                const last = points[points.length - 1];
+                const s = toScreen(last.x, last.y);
+                const label = `${points.length} pt${points.length === 1 ? '' : 's'}`;
+                const w = 16 + label.length * 6;
+                return (
+                  <g transform={`translate(${s.sx + 10}, ${s.sy - 26})`} style={{ pointerEvents: 'none' }}>
+                    <rect x={0} y={0} width={w} height={17} rx={4} fill="#fff" stroke="#2f6fed" strokeWidth={1} />
+                    <text x={w / 2} y={12} fontSize={10} fontWeight={600} fill="#2f6fed" textAnchor="middle">{label}</text>
+                  </g>
+                );
+              }
+              return (
+                <>
+                  {drawingRoof && roofDrawPoints.length > 0 && (
+                    <>
+                      <polyline
+                        points={roofDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
+                        fill="none" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
+                      />
+                      {roofDrawPoints.map((p, i) => {
+                        const s = toScreen(p.x, p.y);
+                        return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
+                      })}
+                      {pointCountBadge(roofDrawPoints)}
+                    </>
+                  )}
 
-            {placingShape && OBSTACLE_PRESETS[placingShape]?.drawable && obstacleDrawPoints.length > 0 && (
-              <>
-                <polyline
-                  points={obstacleDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
-                  fill="rgba(47,111,237,0.15)" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
-                />
-                {obstacleDrawPoints.map((p, i) => {
-                  const s = toScreen(p.x, p.y);
-                  return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
-                })}
-              </>
-            )}
+                  {placingShape && OBSTACLE_PRESETS[placingShape]?.drawable && obstacleDrawPoints.length > 0 && (
+                    <>
+                      <polyline
+                        points={obstacleDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
+                        fill="rgba(47,111,237,0.15)" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
+                      />
+                      {obstacleDrawPoints.map((p, i) => {
+                        const s = toScreen(p.x, p.y);
+                        return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
+                      })}
+                      {pointCountBadge(obstacleDrawPoints)}
+                    </>
+                  )}
 
-            {placingGrid && gridDrawPoints.length > 0 && (
-              <>
-                <polyline
-                  points={gridDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
-                  fill="rgba(47,111,237,0.15)" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
-                />
-                {gridDrawPoints.map((p, i) => {
-                  const s = toScreen(p.x, p.y);
-                  return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
-                })}
-              </>
-            )}
+                  {placingGrid && gridDrawPoints.length > 0 && (
+                    <>
+                      <polyline
+                        points={gridDrawPoints.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
+                        fill="rgba(47,111,237,0.15)" stroke="#2f6fed" strokeWidth={2} strokeDasharray="4 3"
+                      />
+                      {gridDrawPoints.map((p, i) => {
+                        const s = toScreen(p.x, p.y);
+                        return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
+                      })}
+                      {pointCountBadge(gridDrawPoints)}
+                    </>
+                  )}
+                </>
+              );
+            })()}
 
             {roofs.flatMap((roof) => roof.grids.flatMap((g) =>
               (instantByGrid[gridKey(roof.id, g.id)]?.shadowPolys || []).map((poly, i) => (
