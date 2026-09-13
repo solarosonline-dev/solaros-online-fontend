@@ -38,12 +38,32 @@ export type WorkOrderListItem = {
 };
 
 // One inverter's worth of an SLD_GENERATION work order's layout -- its
-// capacity plus the panel count of every DC string wired into it (e.g.
-// strings: [10, 10, 12] = 3 strings with 10/10/12 panels each). Mirrors the
-// backend's SldInverterInput (app/schemas/work_order.py).
+// capacity, make/model, AC-side cable/breaker spec, plus the panel count of
+// every DC string wired into it (e.g. strings: [10, 10, 12] = 3 strings with
+// 10/10/12 panels each). make/model/ac_cable/ac_breaker vary inverter to
+// inverter (unlike SldSystemSpecs below, entered once for the whole system).
+// Mirrors the backend's SldInverterInput (app/schemas/work_order.py).
 export type SldInverterLayout = {
   capacity_kw: number;
+  make: string;
+  model: string;
+  ac_cable: string;
+  ac_breaker: string;
   strings: number[];
+};
+
+// System-level cable/protection/rating specs for an SLD_GENERATION work
+// order, entered once -- these repeat identically across arrays/strings on
+// real DISCOM SLDs, unlike the per-inverter fields on SldInverterLayout.
+// Mirrors the backend's SldSystemSpecs (app/schemas/work_order.py).
+export type SldSystemSpecs = {
+  dc_string_cable: string;
+  dc_combiner_protection: string;
+  dc_earthing_cable: string;
+  lightning_arrestor: boolean;
+  busbar_rating_a: number;
+  main_incomer_protection: string;
+  meter_cable: string;
 };
 
 export type WorkOrderDetail = WorkOrderListItem & {
@@ -59,17 +79,23 @@ export type WorkOrderDetail = WorkOrderListItem & {
   // actual per-inverter/per-string breakdown the diagram draws.
   panel_count: number | null;
   panel_wattage_w: number | null;
+  panel_make: string | null;
+  panel_model: string | null;
   string_count: number | null;
   inverter_capacity_kw: number | null;
   sld_layout: SldInverterLayout[] | null;
+  sld_specs: SldSystemSpecs | null;
 };
 
 export type CreateWorkOrderInput = {
   type: WorkOrderType;
   notes?: string;
-  // Required (both) when type === "SLD_GENERATION"; ignored otherwise.
+  // Required (all) when type === "SLD_GENERATION"; ignored otherwise.
   panel_wattage_w?: number;
+  panel_make?: string;
+  panel_model?: string;
   sld_layout?: SldInverterLayout[];
+  sld_specs?: SldSystemSpecs;
 };
 
 export type ProjectSummary = {
@@ -113,9 +139,12 @@ export function createProjectWorkOrder(entityId: number, projectId: number, data
     project_status: string | null;
     panel_count: number | null;
     panel_wattage_w: number | null;
+    panel_make: string | null;
+    panel_model: string | null;
     string_count: number | null;
     inverter_capacity_kw: number | null;
     sld_layout: SldInverterLayout[] | null;
+    sld_specs: SldSystemSpecs | null;
   }>(`/entities/${entityId}/projects/${projectId}/work-orders`, { method: "POST", body: data });
 }
 
@@ -228,6 +257,18 @@ export function uploadWorkOrderDocument(entityId: number, workOrderId: number, f
   return apiRequest<WorkOrderDocument>(`/entities/${entityId}/work-orders/${workOrderId}/documents`, {
     method: "POST",
     body: form,
+  });
+}
+
+// SLD_GENERATION only -- server-renders the work order's sld_layout/
+// sld_specs into a PDF (real electrical symbols via schemdraw, see
+// app/services/sld_diagram.py on the backend) and attaches it as a normal
+// WorkOrderDocument in one call -- no client-side capture/upload needed.
+// Same response shape as uploadWorkOrderDocument, so callers can refresh the
+// documents list the same way.
+export function generateSldPdf(entityId: number, workOrderId: number) {
+  return apiRequest<WorkOrderDocument>(`/entities/${entityId}/work-orders/${workOrderId}/sld-pdf`, {
+    method: "POST",
   });
 }
 

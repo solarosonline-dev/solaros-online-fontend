@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { canManageAmc, isEntityAdmin } from "../../lib/roles";
@@ -8,16 +8,14 @@ import {
   assignWorkOrder,
   deleteWorkOrder,
   nextWorkOrderStatus,
-  uploadWorkOrderDocument,
+  generateSldPdf,
   type WorkOrderDetail,
 } from "../../api/workOrders";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { listTeams, type TeamListItem } from "../../api/teams";
 import { getEntityPreferences } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
-import { captureElementAsPdf } from "../../lib/capturePdf";
 import WorkOrderDocuments from "./WorkOrderDocuments";
-import SldDiagram from "../../components/SldDiagram";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
@@ -52,7 +50,6 @@ export default function WorkOrderDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
-  const sldDiagramRef = useRef<HTMLDivElement>(null);
 
   function load() {
     if (!workOrderId) return;
@@ -171,23 +168,22 @@ export default function WorkOrderDetailPage() {
     }
   }
 
-  // SLD_GENERATION only -- snapshots the rendered <SldDiagram> (via the same
-  // captureElementAsPdf DOM-to-PDF pipeline PublicAgreementPage already uses
-  // for signed agreements) and uploads it as a normal work order document.
-  // That upload is what satisfies the backend's 409 SLD_DOCUMENT_REQUIRED
-  // completion gate -- see handleTransition's error surfacing above.
+  // SLD_GENERATION only -- asks the backend to render sld_layout/sld_specs
+  // into a PDF (real electrical symbols via schemdraw, see
+  // app/services/sld_diagram.py) and attach it as a work order document in
+  // one call. That attached document is what satisfies the backend's 409
+  // SLD_DOCUMENT_REQUIRED completion gate -- see handleTransition's error
+  // surfacing above.
   async function handleGeneratePdf() {
-    if (!workOrderId || !sldDiagramRef.current) return;
+    if (!workOrderId) return;
     setGeneratingPdf(true);
     setPdfError(null);
     try {
-      const blob = await captureElementAsPdf(sldDiagramRef.current);
-      const file = new File([blob], `SLD_${workOrderId}.pdf`, { type: "application/pdf" });
-      await uploadWorkOrderDocument(entityId, Number(workOrderId), file);
+      await generateSldPdf(entityId, Number(workOrderId));
       setDocumentsRefreshKey((k) => k + 1);
       setStatus({ kind: "success", message: "SLD PDF generated and attached." });
     } catch (err) {
-      setPdfError(err instanceof ApiError ? err.message : "Could not generate/upload the SLD PDF");
+      setPdfError(err instanceof ApiError ? err.message : "Could not generate the SLD PDF");
     } finally {
       setGeneratingPdf(false);
     }
@@ -242,8 +238,11 @@ export default function WorkOrderDetailPage() {
           {/* Advisory only -- clicking through anyway is fine, the backend's
               409 PHOTO_REQUIRED is the actual gate. hasPhoto is derived from
               WorkOrderDocuments' own already-loaded list, so this can lag
-              slightly (e.g. right after a delete) without being unsafe. */}
-          {next === "COMPLETED" && photoRequired && !hasPhoto && (
+              slightly (e.g. right after a delete) without being unsafe.
+              Excluded for SLD_GENERATION: the backend skips this gate for
+              that type entirely (the generated SLD PDF is itself the proof
+              of completion), so showing this hint there would be misleading. */}
+          {next === "COMPLETED" && !isSld && photoRequired && !hasPhoto && (
             <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
               A photo is required before this work order can be completed.
             </span>
@@ -311,6 +310,7 @@ export default function WorkOrderDetailPage() {
               <span>
                 {wo.panel_count} × {wo.panel_wattage_w} W ({wo.string_count} string
                 {wo.string_count === 1 ? "" : "s"})
+                {(wo.panel_make || wo.panel_model) && ` — ${[wo.panel_make, wo.panel_model].filter(Boolean).join(" ")}`}
               </span>
             </div>
             <div className="project-detail-row">
@@ -320,6 +320,35 @@ export default function WorkOrderDetailPage() {
                 {wo.sld_layout ? ` across ${wo.sld_layout.length} inverter${wo.sld_layout.length === 1 ? "" : "s"}` : ""}
               </span>
             </div>
+            {wo.sld_layout && (
+              <div className="project-detail-row">
+                <span></span>
+                <span className="sld-inverter-summary-list">
+                  {wo.sld_layout.map((inv, idx) => (
+                    <span key={idx} className="sld-inverter-summary-item">
+                      Inv {idx + 1}: {inv.make} {inv.model} · {inv.capacity_kw} kW · {inv.strings.length} string
+                      {inv.strings.length === 1 ? "" : "s"} · AC cable {inv.ac_cable} · AC breaker {inv.ac_breaker}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            )}
+            {wo.sld_specs && (
+              <div className="project-detail-row">
+                <span>System specs</span>
+                <span className="sld-inverter-summary-list">
+                  <span className="sld-inverter-summary-item">DC string cable: {wo.sld_specs.dc_string_cable}</span>
+                  <span className="sld-inverter-summary-item">DC combiner protection: {wo.sld_specs.dc_combiner_protection}</span>
+                  <span className="sld-inverter-summary-item">DC earthing cable: {wo.sld_specs.dc_earthing_cable}</span>
+                  <span className="sld-inverter-summary-item">
+                    Lightning arrestor: {wo.sld_specs.lightning_arrestor ? "Fitted" : "Not fitted"}
+                  </span>
+                  <span className="sld-inverter-summary-item">Busbar rating: {wo.sld_specs.busbar_rating_a} A</span>
+                  <span className="sld-inverter-summary-item">Main incomer protection: {wo.sld_specs.main_incomer_protection}</span>
+                  <span className="sld-inverter-summary-item">Meter cable: {wo.sld_specs.meter_cable}</span>
+                </span>
+              </div>
+            )}
           </>
         )}
         <div className="project-detail-row">
@@ -357,14 +386,11 @@ export default function WorkOrderDetailPage() {
       {isSld && wo.panel_wattage_w != null && wo.sld_layout != null && (
         <>
           <p className="projects-section-label">Single line diagram</p>
-          <div ref={sldDiagramRef}>
-            <SldDiagram
-              specs={{
-                panelWattageW: wo.panel_wattage_w,
-                inverters: wo.sld_layout,
-              }}
-            />
-          </div>
+          <p className="work-order-type-hint">
+            The PDF is rendered server-side from the specs above (real electrical symbols, cable/protection
+            labels, and a title block) -- there's no separate live preview to keep in sync; generate it below,
+            then view/download it from the documents list.
+          </p>
           <div className="work-orders-new-panel">
             <button className="projects-btn primary" disabled={generatingPdf} onClick={handleGeneratePdf}>
               {generatingPdf ? "Generating…" : hasAnyDocument ? "Regenerate PDF" : "Generate PDF"}

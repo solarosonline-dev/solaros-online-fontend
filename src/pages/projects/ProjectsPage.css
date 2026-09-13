@@ -836,73 +836,6 @@
   }
 }
 
-/* SldDiagram (src/components/SldDiagram.tsx) -- rendered inline as a preview
-   on the SLD_GENERATION work order detail page, and also the exact element
-   captureElementAsPdf snapshots into the generated PDF. Capped max-width so
-   it stays legible instead of stretching edge-to-edge on wide screens; the
-   inner <svg> itself is fluid (width: 100%) and scales down cleanly on
-   narrow ones. */
-.sld-diagram {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  padding: 16px;
-  max-width: 1240px;
-  margin-bottom: 16px;
-}
-
-.sld-diagram .sld-title {
-  font-size: 13px;
-  font-weight: 600;
-  fill: var(--app-text);
-}
-
-.sld-diagram .sld-subtitle {
-  font-size: 10px;
-  fill: var(--app-text-muted);
-}
-
-.sld-diagram .sld-box {
-  fill: var(--app-surface);
-  stroke: var(--app-text);
-  stroke-width: 1.5;
-}
-
-.sld-diagram .sld-box-label {
-  font-size: 11px;
-  fill: var(--app-text);
-}
-
-.sld-diagram .sld-box-label-small {
-  font-size: 9.5px;
-  fill: var(--app-text);
-}
-
-.sld-diagram .sld-line-label {
-  font-size: 9.5px;
-  fill: var(--app-text-muted);
-}
-
-.sld-diagram .sld-wire {
-  stroke: var(--app-text);
-  stroke-width: 1.5;
-  fill: none;
-}
-
-.sld-diagram .sld-arrowhead {
-  fill: var(--app-text);
-}
-
-.sld-diagram .sld-note {
-  font-size: 11px;
-  fill: var(--app-text);
-}
-
-.sld-diagram .sld-disclaimer {
-  font-size: 10px;
-  fill: var(--app-text-muted);
-}
-
 /* GenerateSldPanel's specs form -- a block-stacked card (unlike the single-
    row .work-orders-new-panel) since it holds a variable number of nested
    inverter/string rows, not a fixed set of fields. */
@@ -967,4 +900,40 @@
 
 .sld-string-row input[type="number"] {
   flex: 1;
+}
+
+/* System-level cable/protection/rating specs fieldset in GenerateSldPanel --
+   reuses .sld-inverter-card's block-card look since it's the same shape
+   (a labeled group of fields), just for system-wide rather than per-
+   inverter values. */
+.sld-system-specs-card {
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sld-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--app-text);
+}
+
+/* Read-only per-inverter/system-spec breakdown on WorkOrderDetailPage --
+   stacked lines under the "Inverters"/"System specs" summary rows. */
+.sld-inverter-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sld-inverter-summary-item {
+  font-size: 13px;
+  color: var(--app-text-muted);
 }
