@@ -11,7 +11,7 @@ import {
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
   FillGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
-  DuplicateIcon, ArrowRightIcon, TreeIcon, TrussIcon,
+  DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -4121,7 +4121,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><TrussIcon /></button>
+                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><GroundMountIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridStructure'}>
                             <div style={labelStyle}>
                               <span>Mounting</span>

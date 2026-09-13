@@ -1577,7 +1577,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
 }
 
 export const STRUCTURE_STRATEGIES = {
-  truss: { label: 'Truss', compute: computeTrussStructure },
+  truss: { label: 'Roof mount', compute: computeTrussStructure },
   groundMount: { label: 'Ground mount (min. pillars)', compute: computeGroundMountStructure },
   // Independent per-row packing + a matching stepped structure - see the
   // comment above computeSteppedTrussStructure. Opt-in only: picking any

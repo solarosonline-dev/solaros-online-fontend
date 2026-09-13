@@ -208,24 +208,32 @@ export function CanopyBushyIcon({ size = 18, className }: IconProps) {
 // popover / STRUCTURE_STRATEGIES) - each icon sketches the actual rack
 // shape that strategy builds, rather than its (sometimes multi-word)
 // label.
-export function TrussIcon({ size = 18, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <line {...base} x1="3" y1="9" x2="21" y2="9" />
-      <line {...base} x1="3" y1="16" x2="21" y2="16" />
-      <line {...base} x1="6.5" y1="9" x2="6.5" y2="16" />
-      <line {...base} x1="12" y1="9" x2="12" y2="16" />
-      <line {...base} x1="17.5" y1="9" x2="17.5" y2="16" />
-    </svg>
-  );
-}
-
 export function GroundMountIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
       <line {...base} x1="5" y1="8" x2="19" y2="12" />
       <line {...base} x1="7" y1="9" x2="7" y2="21" />
       <line {...base} x1="17" y1="11" x2="17" y2="21" />
+      <line {...base} x1="3" y1="21" x2="21" y2="21" />
+    </svg>
+  );
+}
+
+// A single central post carrying the panel rail through a braced A-frame
+// (diagonal legs plus cross-bracing under the rail) - the actual side-view
+// shape a "ground mount (min. pillars)" rack builds (one pillar per bay
+// rather than a leg under each end), not just a generic tilted panel on
+// two legs (GroundMountIcon above, now reused for the "Roof mount"/truss
+// strategy instead - see STRUCTURE_ICONS).
+export function SinglePillarMountIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="4" y1="7" x2="20" y2="7" />
+      <line {...base} x1="12" y1="7" x2="12" y2="21" />
+      <line {...base} x1="12" y1="10" x2="5" y2="7" />
+      <line {...base} x1="12" y1="10" x2="19" y2="7" />
+      <line {...base} x1="12" y1="14" x2="8" y2="11" />
+      <line {...base} x1="12" y1="14" x2="16" y2="11" />
       <line {...base} x1="3" y1="21" x2="21" y2="21" />
     </svg>
   );
@@ -280,8 +288,8 @@ export const CANOPY_ICONS: Record<string, (props: IconProps) => React.JSX.Elemen
 // STRUCTURE_STRATEGIES key -> icon (PlantDesignEditor.tsx's "Structure"
 // popover / layoutEngine.ts's STRUCTURE_STRATEGIES).
 export const STRUCTURE_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
-  truss: TrussIcon,
-  groundMount: GroundMountIcon,
+  truss: GroundMountIcon,
+  groundMount: SinglePillarMountIcon,
   steppedTruss: SteppedTrussIcon,
 };
 
