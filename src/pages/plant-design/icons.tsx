@@ -163,3 +163,141 @@ export function Cube3DIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+// Roof type (see PlantDesignEditor.tsx's "Roof type" popover) - a flat top
+// vs a gable silhouette, rather than the words 'Flat'/'Pitched'.
+export function FlatRoofIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="3" y1="8" x2="21" y2="8" />
+      <path {...base} d="M5 8 V20 H19 V8" />
+    </svg>
+  );
+}
+
+export function PitchedRoofIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M3 10 L12 3 L21 10" />
+      <path {...base} d="M5 10 V20 H19 V10" />
+    </svg>
+  );
+}
+
+// Tree canopy shape (see PlantDesignEditor.tsx's "Canopy" popover /
+// TREE_CANOPIES) - each icon is literally that shape, rather than the
+// words 'cone'/'round'/'bushy'.
+export function CanopyConeIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M12 4 L18 18 H6 Z" />
+    </svg>
+  );
+}
+
+export function CanopyRoundIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle {...base} cx="12" cy="12" r="8" />
+    </svg>
+  );
+}
+
+export function CanopyBushyIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle {...base} cx="8" cy="14" r="4.3" />
+      <circle {...base} cx="14.5" cy="9.5" r="4.8" />
+      <circle {...base} cx="16" cy="15" r="4" />
+    </svg>
+  );
+}
+
+// Mounting/structure strategy (see PlantDesignEditor.tsx's "Structure"
+// popover / STRUCTURE_STRATEGIES) - each icon sketches the actual rack
+// shape that strategy builds, rather than its (sometimes multi-word)
+// label.
+export function TrussIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="3" y1="9" x2="21" y2="9" />
+      <line {...base} x1="3" y1="16" x2="21" y2="16" />
+      <line {...base} x1="6.5" y1="9" x2="6.5" y2="16" />
+      <line {...base} x1="12" y1="9" x2="12" y2="16" />
+      <line {...base} x1="17.5" y1="9" x2="17.5" y2="16" />
+    </svg>
+  );
+}
+
+export function GroundMountIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="5" y1="8" x2="19" y2="12" />
+      <line {...base} x1="7" y1="9" x2="7" y2="21" />
+      <line {...base} x1="17" y1="11" x2="17" y2="21" />
+      <line {...base} x1="3" y1="21" x2="21" y2="21" />
+    </svg>
+  );
+}
+
+export function SteppedTrussIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M3 20 H8 V15 H13 V10 H18 V5" />
+    </svg>
+  );
+}
+
+// Delete mode (see PlantDesignEditor.tsx's "Delete row / column / panel"
+// popover) - a row, a column, or a single cell of the same small grid of
+// squares, rather than the words 'row'/'column'/'panel'.
+export function DeleteRowIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="2" y="9" width="5" height="6" rx="1" />
+      <rect {...base} x="9.5" y="9" width="5" height="6" rx="1" />
+      <rect {...base} x="17" y="9" width="5" height="6" rx="1" />
+    </svg>
+  );
+}
+
+export function DeleteColumnIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="9" y="2" width="6" height="5" rx="1" />
+      <rect {...base} x="9" y="9.5" width="6" height="5" rx="1" />
+      <rect {...base} x="9" y="17" width="6" height="5" rx="1" />
+    </svg>
+  );
+}
+
+export function DeletePanelIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="6" y="6" width="12" height="12" rx="1.5" />
+    </svg>
+  );
+}
+
+// TREE_CANOPIES key -> icon (PlantDesignEditor.tsx's "Canopy" popover).
+export const CANOPY_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
+  cone: CanopyConeIcon,
+  round: CanopyRoundIcon,
+  bushy: CanopyBushyIcon,
+};
+
+// STRUCTURE_STRATEGIES key -> icon (PlantDesignEditor.tsx's "Structure"
+// popover / layoutEngine.ts's STRUCTURE_STRATEGIES).
+export const STRUCTURE_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
+  truss: TrussIcon,
+  groundMount: GroundMountIcon,
+  steppedTruss: SteppedTrussIcon,
+};
+
+// gridDeleteMode value -> icon (PlantDesignEditor.tsx's
+// "Delete row / column / panel" popover).
+export const DELETE_MODE_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
+  row: DeleteRowIcon,
+  column: DeleteColumnIcon,
+  panel: DeletePanelIcon,
+};

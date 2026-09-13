@@ -6,7 +6,10 @@ import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from './geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from './staticMap.js';
 import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
-import { OBSTACLE_ICONS, Plan2DIcon, Cube3DIcon } from './icons.js';
+import {
+  OBSTACLE_ICONS, Plan2DIcon, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
+  CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
+} from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
   OBSTACLE_PRESETS,
@@ -2658,26 +2661,26 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 useful to show disabled, so it's just absent instead. */}
             {viewMode === 'plan' && (planZoom !== 1 || panOffset.x !== 0 || panOffset.y !== 0) && (
               <button
-                className={btn(false)}
+                className={iconBtn(false)}
                 onClick={() => { setPlanZoom(1); setPanOffset({ x: 0, y: 0 }); }}
-                title="Reset zoom and pan back to the default fit-to-content view"
+                data-tooltip="Reset zoom and pan back to the default fit-to-content view" aria-label="Reset view"
               >
-                ⊙ Reset view
+                ⊙
               </button>
             )}
             <button
-              className={btn(false)}
+              className={iconBtn(false)}
               onClick={undo} disabled={historyRef.current.past.length === 0}
-              title="Undo (Ctrl/Cmd+Z)"
+              data-tooltip="Undo (Ctrl/Cmd+Z)" aria-label="Undo"
             >
-              ↶ Undo
+              ↶
             </button>
             <button
-              className={btn(false)}
+              className={iconBtn(false)}
               onClick={redo} disabled={historyRef.current.future.length === 0}
-              title="Redo (Ctrl/Cmd+Shift+Z)"
+              data-tooltip="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo"
             >
-              ↷ Redo
+              ↷
             </button>
             {/* Roof-wide annual sun exposure heatmap (see roofSunSamples/
                 sunExposureColor) - usable as soon as a roof exists, well
@@ -3786,9 +3789,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         <RailPopover open={rightPanelOpenGroup === 'roofType'}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 12, color: '#555' }}>Type</span>
-                              <span>
-                                <button className={btn(selectedRoof.type === 'flat')} onClick={() => updateRoof(selectedRoof.id, 'type', 'flat')}>Flat</button>{' '}
-                                <button className={btn(selectedRoof.type === 'pitched')} onClick={() => updateRoof(selectedRoof.id, 'type', 'pitched')}>Pitched</button>
+                              <span style={{ display: 'flex', gap: 6 }}>
+                                <button data-tooltip="Flat" aria-label="Flat" className={iconBtn(selectedRoof.type === 'flat')} onClick={() => updateRoof(selectedRoof.id, 'type', 'flat')}><FlatRoofIcon /></button>
+                                <button data-tooltip="Pitched" aria-label="Pitched" className={iconBtn(selectedRoof.type === 'pitched')} onClick={() => updateRoof(selectedRoof.id, 'type', 'pitched')}><PitchedRoofIcon /></button>
                               </span>
                             </div>
                             {selectedRoof.type === 'pitched' && (
@@ -3888,9 +3891,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                           <button data-tooltip="Canopy" aria-label="Canopy" className={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}>🌳</button>
                           <RailPopover open={rightPanelOpenGroup === 'obstacleCanopy'} width={200}>
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {TREE_CANOPIES.map((c) => (
-                                  <button key={c} className={btn(selectedObstacle.canopy === c)} style={{ textTransform: 'capitalize' }} onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}>{c}</button>
-                                ))}
+                                {TREE_CANOPIES.map((c) => {
+                                  const CanopyIcon = CANOPY_ICONS[c];
+                                  return (
+                                    <button key={c} data-tooltip={c[0].toUpperCase() + c.slice(1)} aria-label={c} className={iconBtn(selectedObstacle.canopy === c)} onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}>
+                                      {CanopyIcon ? <CanopyIcon /> : c}
+                                    </button>
+                                  );
+                                })}
                               </div>
                           </RailPopover>
                         </div>
@@ -3939,19 +3947,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
-                              {['row', 'column', 'panel'].map((mode) => (
-                                <button
-                                  key={mode}
-                                  onClick={() => {
-                                    setGridDeleteMode((m) => (m === mode ? null : mode));
-                                    setGridDeleteSelection(null);
-                                  }}
-                                  className={btn(gridDeleteMode === mode)}
-                                  style={{ textTransform: 'capitalize' }}
-                                >
-                                  {mode}
-                                </button>
-                              ))}
+                              {['row', 'column', 'panel'].map((mode) => {
+                                const ModeIcon = DELETE_MODE_ICONS[mode];
+                                return (
+                                  <button
+                                    key={mode}
+                                    data-tooltip={mode[0].toUpperCase() + mode.slice(1)} aria-label={mode}
+                                    onClick={() => {
+                                      setGridDeleteMode((m) => (m === mode ? null : mode));
+                                      setGridDeleteSelection(null);
+                                    }}
+                                    className={iconBtn(gridDeleteMode === mode)}
+                                  >
+                                    {ModeIcon ? <ModeIcon /> : mode}
+                                  </button>
+                                );
+                              })}
                             </div>
                             {gridDeleteMode && (
                               <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 6 }}>
@@ -4032,16 +4043,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         <RailPopover open={rightPanelOpenGroup === 'gridStructure'}>
                             <div style={labelStyle}>
                               <span>Mounting</span>
-                              <span>
-                                {Object.entries(STRUCTURE_STRATEGIES).map(([key, s]) => (
-                                  <button
-                                    key={key}
-                                    className={btn(selectedGrid.structureStrategy === key)}
-                                    onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { structureStrategy: key })}
-                                  >
-                                    {s.label}
-                                  </button>
-                                ))}
+                              <span style={{ display: 'flex', gap: 6 }}>
+                                {Object.entries(STRUCTURE_STRATEGIES).map(([key, s]) => {
+                                  const StrategyIcon = STRUCTURE_ICONS[key];
+                                  return (
+                                    <button
+                                      key={key}
+                                      data-tooltip={(s as any).label} aria-label={(s as any).label}
+                                      className={iconBtn(selectedGrid.structureStrategy === key)}
+                                      onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { structureStrategy: key })}
+                                    >
+                                      {StrategyIcon ? <StrategyIcon /> : (s as any).label}
+                                    </button>
+                                  );
+                                })}
                               </span>
                             </div>
                             <div style={labelStyle}>
