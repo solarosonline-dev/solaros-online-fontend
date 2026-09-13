@@ -236,10 +236,22 @@ export function SinglePillarMountIcon({ size = 18, className }: IconProps) {
   );
 }
 
+// Two of the same "Roof mount" motif (legs + tilted panel) sitting at
+// different heights on a stepped baseline, rather than an unrelated plain
+// staircase - "Roof mount (stepped)" is that same strategy with
+// independent per-row packing, so its icon should read as a variant of
+// GroundMountIcon (now labeled "Roof mount", see STRUCTURE_ICONS), not a
+// disconnected third shape.
 export function SteppedTrussIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <path {...base} d="M3 20 H8 V15 H13 V10 H18 V5" />
+      <path {...base} d="M1 14 H10 V21 H23" />
+      <line {...base} x1="2" y1="7" x2="9" y2="9" />
+      <line {...base} x1="3" y1="8" x2="3" y2="14" />
+      <line {...base} x1="8" y1="9" x2="8" y2="14" />
+      <line {...base} x1="13" y1="14" x2="20" y2="16" />
+      <line {...base} x1="14" y1="15" x2="14" y2="21" />
+      <line {...base} x1="19" y1="16" x2="19" y2="21" />
     </svg>
   );
 }
