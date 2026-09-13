@@ -596,6 +596,83 @@
   color: var(--app-text);
 }
 
+/* "All documents" tab -- a grid of cards (Quote/Agreement/WorkOrderDocument
+   normalized into one shape server-side, see ProjectDocumentItem) rather
+   than the flex-column list .work-order-document-card uses, since this view
+   is the project-wide overview and benefits from filling the full page
+   width. Same card visual language as .work-order-document-card /
+   .entity-card elsewhere, just laid out with auto-fit columns. */
+.documents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.document-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  padding: 14px 16px;
+}
+
+.document-card-thumb-link {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.document-card-thumb {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  display: block;
+}
+
+/* Non-image sources (Quote/Agreement, or a PDF/other WorkOrderDocument) get
+   a plain label badge here instead of a broken/absent <img>. */
+.document-card-thumb-placeholder {
+  align-items: center;
+  justify-content: center;
+  display: flex;
+  background: var(--app-bg);
+  color: var(--app-text-muted, #6b7280);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.document-card-body {
+  flex: 1;
+}
+
+.document-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: break-word;
+}
+
+.document-card-subtitle {
+  font-size: 12px;
+  color: var(--app-text-muted, #6b7280);
+  text-transform: capitalize;
+  margin-top: 2px;
+}
+
+.document-card-meta {
+  font-size: 12px;
+  color: var(--app-text-muted, #6b7280);
+  margin-top: 6px;
+}
+
+.document-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 @media (max-width: 900px) {
   .project-detail-layout {
     flex-direction: column;

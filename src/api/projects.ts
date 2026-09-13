@@ -161,3 +161,31 @@ export function updateProjectStatus(entityId: number, projectId: number, status:
 export function getProjectForLead(entityId: number, leadId: number) {
   return apiRequest<ProjectForLead>(`/entities/${entityId}/leads/${leadId}/project`);
 }
+
+// --- All documents tab -----------------------------------------------------
+
+/** One row of the "All documents" grid -- normalizes the Lead's Quote(s),
+ * Agreement(s), and every WorkOrderDocument across the project's work
+ * orders into one shape. Exactly one of (download_url, view_path) is
+ * populated for any item worth showing: download_url for a real file
+ * (presigned, short-lived -- same convention as work order document
+ * downloads), view_path for an in-app route (a Quote has no standalone
+ * file, and an Agreement has none until signed). */
+export type ProjectDocumentItem = {
+  key: string;
+  source: "QUOTE" | "AGREEMENT" | "WORK_ORDER";
+  title: string;
+  /** Quote/Agreement status, or the owning work order's type. */
+  subtitle: string | null;
+  content_type: string | null;
+  file_name: string | null;
+  size_bytes: number | null;
+  uploaded_by_name: string | null;
+  created_at: string;
+  download_url: string | null;
+  view_path: string | null;
+};
+
+export function listProjectDocuments(entityId: number, projectId: number) {
+  return apiRequest<{ items: ProjectDocumentItem[] }>(`/entities/${entityId}/projects/${projectId}/documents`);
+}

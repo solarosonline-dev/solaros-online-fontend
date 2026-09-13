@@ -12,11 +12,12 @@ import { ApiError } from "../../api/client";
 import ProjectWorkOrders from "./ProjectWorkOrders";
 import GenerateSldPanel from "./GenerateSldPanel";
 import ProjectAmcTab from "./ProjectAmcTab";
+import ProjectDocumentsTab from "./ProjectDocumentsTab";
 import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
-type ProjectTab = "installations" | "amc";
+type ProjectTab = "installations" | "amc" | "sld" | "documents";
 
 function badgeClass(status: ProjectStatus): string {
   if (status === "REJECTED") return "project-status-badge rejected";
@@ -167,6 +168,32 @@ export default function ProjectDetailPage() {
         >
           AMC
         </button>
+        {/* Its own tab rather than a funnel phase -- SLD generation can
+            happen at any point in the project's life, same idea as AMC
+            above, so it doesn't belong inside the phase-gated
+            Installations tab alongside ProjectWorkOrders. */}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "sld"}
+          className={`project-tab${tab === "sld" ? " active" : ""}`}
+          onClick={() => setTab("sld")}
+        >
+          SLD
+        </button>
+        {/* Aggregates Quote/Agreement/every WorkOrderDocument (site photos,
+            the generated SLD PDF, etc) into one grid -- see
+            ProjectDocumentsTab -- rather than living inside Installations,
+            since it spans every phase and every tab above, not just one. */}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "documents"}
+          className={`project-tab${tab === "documents" ? " active" : ""}`}
+          onClick={() => setTab("documents")}
+        >
+          All documents
+        </button>
       </div>
 
       {tab === "installations" ? (
@@ -186,23 +213,12 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
+          {/* Project ID/customer name/mobile/email are deliberately left out
+              here -- customer name is already in the header above, and every
+              other bit of contact info is already on each row of the work
+              orders table below (see ProjectWorkOrders' "Customer" column),
+              so repeating them in this tile would just be noise. */}
           <div className="project-detail-panel">
-            <div className="project-detail-row">
-              <span>Project ID</span>
-              <span>{project.project_id}</span>
-            </div>
-            <div className="project-detail-row">
-              <span>Customer</span>
-              <span>{project.customer_name}</span>
-            </div>
-            <div className="project-detail-row">
-              <span>Mobile</span>
-              <span>{project.customer_mobile}</span>
-            </div>
-            <div className="project-detail-row">
-              <span>Email</span>
-              <span>{project.customer_email || "—"}</span>
-            </div>
             <div className="project-detail-row">
               <span>Address</span>
               <span>{project.customer_address || "—"}</span>
@@ -232,25 +248,23 @@ export default function ProjectDetailPage() {
             onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
           />
 
-          {/* Not phase-gated like ProjectWorkOrders' own panel above -- SLD
-              generation can happen at any point in the project's life, so
-              it's offered here unconditionally, same idea as AMC being its
-              own tab rather than a funnel phase. */}
-          <GenerateSldPanel entityId={entityId} projectId={project.project_id} />
-
           <div style={{ marginTop: 16 }}>
             <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>
               Back to projects
             </button>
           </div>
         </>
-      ) : (
+      ) : tab === "amc" ? (
         <ProjectAmcTab
           entityId={entityId}
           projectId={project.project_id}
           projectStatus={project.status}
           hasAmc={project.amc_id != null && project.amc_duration_years != null}
         />
+      ) : tab === "sld" ? (
+        <GenerateSldPanel entityId={entityId} projectId={project.project_id} />
+      ) : (
+        <ProjectDocumentsTab entityId={entityId} projectId={project.project_id} />
       )}
     </div>
   );
