@@ -262,6 +262,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // own obstacleDrawPoints, just building a grid instead.
   const [placingGrid, setPlacingGrid] = useState(false);
   const [gridDrawPoints, setGridDrawPoints] = useState<any[]>([]);
+  // The pointer's current world position while any of the three point-by-
+  // point tools above is active - drives the dotted "rubber band" preview
+  // segment from the last placed point to wherever the pointer is now (see
+  // the svg's own pointCountBadge/drawCursorWorld usage), so the user can
+  // see where the next click will actually land - including whether it
+  // lines up straight or at a clean angle with the segment before it -
+  // before committing to it. null whenever no draw tool is active.
+  const [drawCursorWorld, setDrawCursorWorld] = useState<any>(null);
   // Set when a just-closed grid polygon didn't land on any roof (see
   // addGridFromPolygon) - shown inline near the "+ Place grid" button so
   // that failure isn't silent, cleared on the next attempt.
@@ -1570,6 +1578,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
       }
     }
     setSunHoverInfo(null);
+  }
+
+  // Feeds drawCursorWorld while any point-by-point draw tool is active (see
+  // its own comment) - one combined handler for the svg's onMouseMove since
+  // only one can run at a time and both need the pointer's world position.
+  function onSvgDrawMouseMove(e) {
+    onSunHeatmapMouseMove(e);
+    const drawingObstacle = placingShape && OBSTACLE_PRESETS[placingShape]?.drawable;
+    if (!drawingRoof && !drawingObstacle && !placingGrid) {
+      if (drawCursorWorld) setDrawCursorWorld(null);
+      return;
+    }
+    const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+    setDrawCursorWorld({ x: worldX, y: worldY });
   }
 
   // A plain click on the plan starts a potential pan (see the mousemove/up
@@ -2994,8 +3016,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             onDoubleClick={onSvgDoubleClick}
             onWheel={onPlanWheel}
             onMouseDown={onSvgMouseDown}
-            onMouseMove={shadowAnalysis ? onSunHeatmapMouseMove : undefined}
-            onMouseLeave={shadowAnalysis ? () => setSunHoverInfo(null) : undefined}
+            onMouseMove={onSvgDrawMouseMove}
+            onMouseLeave={() => { if (shadowAnalysis) setSunHoverInfo(null); if (drawCursorWorld) setDrawCursorWorld(null); }}
           >
             {backdropPlacement && (() => {
               const topLeft = toScreen(
@@ -3288,6 +3310,33 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   </g>
                 );
               }
+              // The "next" segment, from the last placed point to wherever
+              // the pointer is right now - finer-dotted than the already-
+              // placed segments (which use a wider dash) so it reads as
+              // "not committed yet", with the angle it'd land at (0/90/180/
+              // 270 = perfectly horizontal/vertical on screen) labeled at
+              // its midpoint so a straight or clean-angle edge is easy to
+              // line up by eye before clicking.
+              function previewSegment(points) {
+                if (points.length === 0 || !drawCursorWorld) return null;
+                const last = points[points.length - 1];
+                const a = toScreen(last.x, last.y);
+                const b = toScreen(drawCursorWorld.x, drawCursorWorld.y);
+                const dx = b.sx - a.sx, dy = b.sy - a.sy;
+                if (Math.hypot(dx, dy) < 1) return null;
+                const angleDeg = Math.round((((Math.atan2(-dy, dx) * 180) / Math.PI) + 360) % 360);
+                const midX = (a.sx + b.sx) / 2, midY = (a.sy + b.sy) / 2;
+                return (
+                  <g style={{ pointerEvents: 'none' }}>
+                    <line x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy} stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="1.5 3" opacity={0.8} />
+                    <circle cx={b.sx} cy={b.sy} r={4} fill="none" stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="1.5 1.5" />
+                    <g transform={`translate(${midX + 8}, ${midY - 8})`}>
+                      <rect x={0} y={-11} width={30} height={15} rx={3} fill="#fff" stroke="#2f6fed" strokeWidth={1} />
+                      <text x={15} y={0} fontSize={9} fontWeight={600} fill="#2f6fed" textAnchor="middle">{angleDeg}°</text>
+                    </g>
+                  </g>
+                );
+              }
               return (
                 <>
                   {drawingRoof && roofDrawPoints.length > 0 && (
@@ -3300,6 +3349,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         const s = toScreen(p.x, p.y);
                         return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
                       })}
+                      {previewSegment(roofDrawPoints)}
                       {pointCountBadge(roofDrawPoints)}
                     </>
                   )}
@@ -3314,6 +3364,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         const s = toScreen(p.x, p.y);
                         return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
                       })}
+                      {previewSegment(obstacleDrawPoints)}
                       {pointCountBadge(obstacleDrawPoints)}
                     </>
                   )}
@@ -3328,6 +3379,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         const s = toScreen(p.x, p.y);
                         return <circle key={i} cx={s.sx} cy={s.sy} r={i === 0 ? 6 : 4} fill={i === 0 ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2} />;
                       })}
+                      {previewSegment(gridDrawPoints)}
                       {pointCountBadge(gridDrawPoints)}
                     </>
                   )}
@@ -3875,7 +3927,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         className={iconBtn(mirrorRoofId === selectedRoof.id)}
                         onClick={() => setMirrorRoofId((id) => (id === selectedRoof.id ? null : selectedRoof.id))}
                       ><MirrorIcon /></button>
-                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={iconBtn(false)} onClick={() => removeRoof(selectedRoof.id)}><TrashIcon /></button>
+                      <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={`${iconBtn(false)} pde-danger`} onClick={() => removeRoof(selectedRoof.id)}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedRoofId(null)}><CloseIcon /></button>
                     </>
                   );
@@ -3935,7 +3987,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         </div>
                       )}
 
-                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={iconBtn(false)} onClick={() => removeObstacle(selectedObstacle.id)}><TrashIcon /></button>
+                      <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={`${iconBtn(false)} pde-danger`} onClick={() => removeObstacle(selectedObstacle.id)}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}><CloseIcon /></button>
                     </>
                   );
@@ -3974,7 +4026,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       )}
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
+                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
@@ -4102,7 +4154,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" className={iconBtn(false)} onClick={duplicateSelectedGrids}><DuplicateIcon /></button>
-                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={iconBtn(false)} onClick={deleteSelectedGrids}><TrashIcon /></button>
+                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={`${iconBtn(false)} pde-danger`} onClick={deleteSelectedGrids}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}><CloseIcon /></button>
                     </>
                   );

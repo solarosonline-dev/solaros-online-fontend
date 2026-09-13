@@ -136,6 +136,22 @@
   transform: none;
 }
 
+/* Delete/remove actions (TrashIcon) - red instead of the usual neutral
+   outline, using the host app's own danger tokens, so a destructive
+   button reads as one before it's even clicked. After .pde-active in
+   source order so it still reads as red even while its own popover is
+   open (rightPanelOpenGroup's blue .pde-active would otherwise win on
+   the properties shared between them). */
+.plant-design-editor .pde-icon-btn.pde-danger {
+  color: var(--app-danger, #dc2626);
+  border-color: var(--app-danger-border, #fecaca);
+}
+.plant-design-editor .pde-icon-btn.pde-danger:hover:not(:disabled) {
+  background: var(--app-danger-bg, #fef2f2);
+  border-color: var(--app-danger, #dc2626);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.18);
+}
+
 /* "Continue to next step" - a filled, higher-contrast variant of the same
    icon button rather than the usual outlined one, since it's the wizard's
    one primary action per step. Grey/disabled still comes from the real
