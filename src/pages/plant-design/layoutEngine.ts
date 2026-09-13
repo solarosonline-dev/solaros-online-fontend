@@ -308,8 +308,8 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     });
   }
 
-  // The "Truss (stepped)" strategy (see STRUCTURE_STRATEGIES below) is the
-  // only thing that changes packing here - every other strategy keeps
+  // The "Roof mount (stepped)" strategy (see STRUCTURE_STRATEGIES below) is
+  // the only thing that changes packing here - every other strategy keeps
   // exactly the shared-width-per-cluster behavior below, untouched.
   const stepped = structureStrategy === 'steppedTruss';
 
@@ -335,7 +335,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     let rowsHere = Math.min(panelsPerRow, maxRowsThatFit);
 
     if (stepped) {
-      // "Truss (stepped)": each row packs to its own available width
+      // "Roof mount (stepped)": each row packs to its own available width
       // instead of every row in the cluster sharing one intersected
       // width - see the comment on STRUCTURE_STRATEGIES.steppedTruss
       // below for why this needs its own structure algorithm to match.
@@ -1192,7 +1192,7 @@ function computePanelHeights({ roof, layout, minPillarHeight }) {
   return heightsForPanelGroups(groups, { roof, layout, minPillarHeight });
 }
 
-// The Truss (stepped) strategy's own panel-height calc - NOT just
+// The Roof mount (stepped) strategy's own panel-height calc - NOT just
 // computePanelHeights reused, because its `rackTop` baseline means
 // something different here. Every other strategy's rackTop is the whole
 // rack's own front edge (iterateRacks), the same reference
@@ -1206,9 +1206,9 @@ function computePanelHeights({ roof, layout, minPillarHeight }) {
 // reach, floating it above its own support. Bug seen in practice: on an
 // irregular (e.g. L-shaped) roof with panelsPerRow deep enough for a
 // tapering column to fall inside the same rack as a full-depth one, this
-// showed as panels visibly hovering above their legs once Truss (stepped)
-// was selected - worse the deeper panelsPerRow went, since a taller rack
-// grouping makes a mid-rack extent change more likely.
+// showed as panels visibly hovering above their legs once Roof mount
+// (stepped) was selected - worse the deeper panelsPerRow went, since a
+// taller rack grouping makes a mid-rack extent change more likely.
 function computeSteppedPanelHeights({ roof, layout, minPillarHeight }) {
   return heightsForPanelGroups(iterateSteppedRackBays(layout), { roof, layout, minPillarHeight });
 }
@@ -1582,7 +1582,7 @@ export const STRUCTURE_STRATEGIES = {
   // Independent per-row packing + a matching stepped structure - see the
   // comment above computeSteppedTrussStructure. Opt-in only: picking any
   // other strategy leaves both packing and structure exactly as before.
-  steppedTruss: { label: 'Truss (stepped)', compute: computeSteppedTrussStructure },
+  steppedTruss: { label: 'Roof mount (stepped)', compute: computeSteppedTrussStructure },
 };
 
 export function computeStructure({ roof, layout }) {
