@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
+import './PlantDesignEditor.css';
 import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from './geoConvert.js';
@@ -2335,7 +2336,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   const compassBtn = (active) => ({ width: 22, height: 22, padding: 0, borderRadius: '50%', border: active ? '1px solid #2f6fed' : '1px solid #ccc', background: active ? '#2f6fed' : '#fff', color: active ? '#fff' : '#555', fontSize: 10, fontWeight: 600, cursor: 'pointer', lineHeight: '20px' });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#222', height: '100vh', boxSizing: 'border-box' }}>
+    <div className="plant-design-editor" style={{ display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#222', height: '100vh', boxSizing: 'border-box' }}>
       {/* Thin step bar - always visible. A step is clickable once reached
           (maxUnlockedStep), never re-locked by later edits (see
           maxUnlockedStep's own comment above). */}

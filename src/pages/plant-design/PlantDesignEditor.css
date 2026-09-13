@@ -1,0 +1,48 @@
+/* Instant hover tooltip for icon-only buttons (the left/right rail's
+   shortcut icons) - a plain `title` attribute works too, but browsers
+   delay it ~1s before showing, which reads as "slow" for a button whose
+   only label is a symbol. This shows the moment the pointer lands, no
+   delay - the element carries its label in `data-tooltip`.
+
+   Ported from solar-mvp's index.css (not carried over with the rest of
+   that file, which was otherwise just Vite-scaffold boilerplate superseded
+   by the host app's own tokens.css) and scoped under .plant-design-editor
+   so it can't affect any other page's markup. */
+.plant-design-editor [data-tooltip] {
+  position: relative;
+}
+.plant-design-editor [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #222;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 50;
+}
+.plant-design-editor [data-tooltip]:hover::after,
+.plant-design-editor [data-tooltip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+.plant-design-editor [data-tooltip]:disabled:hover::after {
+  display: none;
+}
+
+/* Right-edge rail (properties for a selected roof/grid/obstacle) sits at
+   the screen's right edge, so a tooltip opening further right would run
+   off-screen - flip it to open leftward instead (see the wrapping
+   .tooltip-left div in PlantDesignEditor.tsx). */
+.plant-design-editor .tooltip-left [data-tooltip]::after {
+  left: auto;
+  right: calc(100% + 8px);
+}
