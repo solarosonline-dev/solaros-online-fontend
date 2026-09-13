@@ -33,6 +33,8 @@ import EntityDashboardPage from "./pages/admin/EntityDashboardPage";
 import MyWorkOrdersPage from "./pages/workorders/MyWorkOrdersPage";
 import EmailPage from "./pages/admin/EmailPage";
 import EmailCampaignDetailPage from "./pages/admin/EmailCampaignDetailPage";
+import PlantDesignListPage from "./pages/plant-design/PlantDesignListPage";
+import PlantDesignEditorPage from "./pages/plant-design/PlantDesignEditorPage";
 
 export default function App() {
   return (
@@ -64,6 +66,9 @@ export default function App() {
                 <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
                 <Route path="/app/projects" element={<ProjectsPage />} />
                 <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+                <Route path="/app/plant-design" element={<PlantDesignListPage />} />
+                <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
+                <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
               </Route>
               <Route element={<RequireSystemAdmin />}>
                 <Route path="/app/admin/entities" element={<EntitiesPage />} />

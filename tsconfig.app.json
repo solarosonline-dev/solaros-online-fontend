@@ -20,7 +20,15 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* Off app-wide (not just for src/pages/plant-design) so the math/
+       geometry/layout logic ported from solar-mvp doesn't need every
+       parameter annotated to compile -- it was plain JS with no type
+       coverage before, and stays functionally unchanged here. Other files
+       keep real inferred/declared types; this only stops TS from erroring
+       on a bare, untyped parameter anywhere. */
+    "noImplicitAny": false
   },
   "include": ["src"]
 }

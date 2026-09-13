@@ -25,6 +25,15 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Default is 2 MiB; the main bundle was already right at that
+        // ceiling (no route-based code splitting anywhere in the app yet),
+        // and the Plant Design module's ported logic (layoutEngine.ts,
+        // geometry.ts, etc. - all pure JS/TS, no Three.js) pushed it just
+        // over. Scene3D itself (the one genuinely heavy, Three.js-based
+        // piece) is already split into its own lazy-loaded chunk instead of
+        // being covered by this bump - see its React.lazy() import in
+        // PlantDesignEditor.tsx.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
