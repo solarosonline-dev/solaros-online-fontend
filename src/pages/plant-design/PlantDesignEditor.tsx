@@ -7,7 +7,7 @@ import { metersPerPixel } from './geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from './staticMap.js';
 import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
 import {
-  OBSTACLE_ICONS, Plan2DIcon, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
+  OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
   FillGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
@@ -2659,20 +2659,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               needed for legibility over the map/plan. */}
           <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, pointerEvents: 'none' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
-            {/* One toggle instead of two separate buttons - always shown
-                "pressed" since its icon is whichever mode is actually
-                current (a flat square for the plan, an isometric cube for
-                3D - see icons.jsx); click flips to the other. Icon-only, so
-                data-tooltip (instant hover, see PlantDesignEditor.css)
-                rather than a plain `title` now that there's no visible text
-                to already convey it. */}
+            {/* One toggle instead of two separate buttons - always shows
+                the 3D cube (see icons.jsx), "pressed" (active/blue) only
+                while actually in 3D, unpressed for the 2D plan; click flips
+                to the other. Icon-only, so data-tooltip (instant hover,
+                see PlantDesignEditor.css) rather than a plain `title` now
+                that there's no visible text to already convey it. */}
             <button
-              className={iconBtn(true)}
+              className={iconBtn(viewMode === '3d')}
               onClick={() => setViewMode((m) => (m === 'plan' ? '3d' : 'plan'))}
               data-tooltip={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
               aria-label={viewMode === 'plan' ? 'Viewing 2D plan - click for 3D view' : 'Viewing 3D view - click for 2D plan'}
             >
-              {viewMode === 'plan' ? <Plan2DIcon /> : <Cube3DIcon />}
+              <Cube3DIcon />
             </button>
             {/* The 2D plan's own zoom/pan (planZoom/panOffset, scroll to
                 zoom + drag to pan - see onPlanWheel) has no bounds on

@@ -143,18 +143,9 @@ export const OBSTACLE_ICONS: Record<string, (props: IconProps) => React.JSX.Elem
   cutout: CutoutIcon,
 };
 
-// The 2D/3D view toggle (see PlantDesignEditor.tsx) - a flat plan view vs
-// an isometric cube, rather than reusing a generic shape for both.
-export function Plan2DIcon({ size = 18, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <rect {...base} x="4" y="4" width="16" height="16" rx="1.5" />
-      <line {...base} x1="4" y1="12" x2="20" y2="12" />
-      <line {...base} x1="12" y1="4" x2="12" y2="20" />
-    </svg>
-  );
-}
-
+// The 2D/3D view toggle (see PlantDesignEditor.tsx) - stays this same
+// isometric cube regardless of which view is current; only the button's
+// own active state (pressed in 3D, not in 2D) changes.
 export function Cube3DIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
