@@ -792,7 +792,13 @@ function withRecomputedTotals(grid, panels) {
 
 // Appends one more shading-safe cluster's worth of rows (`panelsPerRow`
 // deep, same as every other cluster in this grid) to the front or back of
-// a grid, replicating its existing columns exactly. Force-added: no
+// a grid, replicating the columns of whichever existing row sits right at
+// that edge - not every column anywhere in the grid. A grid packed against
+// a non-rectangular footprint (a tapered or rotated roof edge clips
+// different rows by different amounts) can be stepped, so the front row
+// and the back row don't necessarily share the same columns; mirroring the
+// edge row itself is what keeps the new row's panel count matching it and
+// each new panel adjacent to the one it's replicating. Force-added: no
 // roof-boundary or obstacle checks (see README's "Panel grids" entry) -
 // once a grid exists it's already treated as freely placed (the same
 // philosophy grid move/rotate already use), so growing it doesn't get
@@ -815,7 +821,9 @@ export function addGridRow(grid, roof, side) {
   const extraRowClearance = grid.rowPitch - footprintDepth;
   const clusterDepth = panelsPerRow * footprintDepth + (panelsPerRow - 1) * gap;
 
-  const columnXs = [...new Set(grid.panels.map((p) => roundToTolerance(p.rackX, COLUMN_TOLERANCE)))];
+  const sortedRowYs = [...new Set(grid.panels.map((p) => p.rackY))].sort((a, b) => a - b);
+  const edgeRowY = side === 'front' ? sortedRowYs[0] : sortedRowYs[sortedRowYs.length - 1];
+  const columnXs = grid.panels.filter((p) => p.rackY === edgeRowY).map((p) => p.rackX);
   const w = grid.panels[0].w;
 
   const clusterTop = side === 'front'
@@ -839,21 +847,37 @@ export function addGridRow(grid, roof, side) {
   };
 }
 
-// Same idea as addGridRow, but appends one column (one panel per existing
-// row) to the left or right instead.
+// Same idea as addGridRow, but appends one panel to the left or right end of
+// every existing row instead of a whole new row. Unlike addGridRow (which
+// mirrors the columns of a single reference row - safe because rows always
+// share an exact rackY, see the invariant noted above COLUMN_TOLERANCE),
+// there's no reliable single "edge column" to mirror here: columns are only
+// ever a best-effort, tolerance-based grouping in the first place, since
+// each row's cluster can pack against the roof polygon with slightly
+// different rackX (see COLUMN_TOLERANCE's own comment) - trying to find
+// "the" edge column by clustering rackX values across the whole grid is
+// exactly what broke here, because which panels a tolerance-based cluster
+// picks up is sensitive to exactly where the jitter happens to fall.
+// Working row-by-row sidesteps that entirely: each row's own new panel is
+// placed directly off that same row's own existing edge panel, so it's
+// always adjacent to it regardless of what any other row's rackX happens to
+// be - no cross-row matching needed at all.
 export function addGridColumn(grid, roof, side) {
-  const bounds = gridLocalBounds(grid);
-  if (!bounds) return grid;
+  if (grid.panels.length === 0) return grid;
   const direction = roofDirection(roof);
   const gap = PANEL_GAP;
   const w = grid.panels[0].w;
   const footprintDepth = grid.footprintDepth;
 
   const rowYs = [...new Set(grid.panels.map((p) => p.rackY))];
-  const rackX = side === 'left' ? bounds.minX - gap - w / 2 : bounds.maxX + gap + w / 2;
 
   let nextId = Math.max(...grid.panels.map((p) => p.id)) + 1;
   const newPanels = rowYs.map((rowY) => {
+    const rowPanels = grid.panels.filter((p) => p.rackY === rowY);
+    const edgeX = side === 'left'
+      ? Math.min(...rowPanels.map((p) => p.rackX))
+      : Math.max(...rowPanels.map((p) => p.rackX));
+    const rackX = side === 'left' ? edgeX - gap - w : edgeX + gap + w;
     const world = toSlopeWorld({ x: rackX, y: rowY }, direction);
     return { id: nextId++, x: world.x, y: world.y, rackX, rackY: rowY, w, d: footprintDepth };
   });
