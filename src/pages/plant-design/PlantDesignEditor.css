@@ -72,6 +72,7 @@
 }
 .plant-design-editor .pde-btn:active:not(:disabled) {
   transform: translateY(1px);
+  z-index: 1; /* same stacking-context trap as .pde-icon-btn's hover/active - see its own comment */
 }
 .plant-design-editor .pde-btn.pde-active {
   border-color: var(--app-accent, #2563eb);
@@ -101,14 +102,26 @@
   box-shadow: var(--app-shadow, 0 1px 3px rgba(16, 24, 40, 0.08));
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, background 0.15s ease, color 0.15s ease;
 }
+/* `transform` (the hover lift) makes a button establish its own stacking
+   context - which then traps its own [data-tooltip]::after underneath any
+   LATER sibling button that doesn't have one, since that sibling still
+   wins the DOM-order tie-break at the shared "z-index:auto" tier they'd
+   otherwise both sit at. A button a few pixels from the right/bottom edge
+   of a wrapped icon grid (the obstacle picker) always has such a sibling
+   nearby, right where its own tooltip opens - `z-index` here (on the
+   button itself, not just the ::after, which the transform has already
+   locally isolated) lifts the whole hovered button - tooltip included -
+   above every sibling regardless of DOM order. */
 .plant-design-editor .pde-icon-btn:hover:not(:disabled) {
   border-color: var(--app-accent, #2563eb);
   box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
   transform: translateY(-1px);
+  z-index: 1;
 }
 .plant-design-editor .pde-icon-btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: var(--app-shadow, 0 1px 3px rgba(16, 24, 40, 0.08));
+  z-index: 1;
 }
 .plant-design-editor .pde-icon-btn.pde-active {
   border-color: var(--app-accent, #2563eb);
