@@ -51,7 +51,12 @@ export default function LoginPage() {
             />
           </div>
           <div className="auth-field">
-            <label htmlFor="password">Password</label>
+            <div className="auth-field-label-row">
+              <label htmlFor="password">Password</label>
+              <Link to="/forgot-password" className="auth-inline-link">
+                Forgot password?
+              </Link>
+            </div>
             <PasswordInput
               id="password"
               autoComplete="current-password"

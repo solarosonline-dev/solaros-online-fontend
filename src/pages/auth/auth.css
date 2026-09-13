@@ -84,6 +84,24 @@
   color: var(--app-text);
 }
 
+.auth-field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-inline-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-accent);
+  text-decoration: none;
+}
+
+.auth-inline-link:hover {
+  text-decoration: underline;
+}
+
 .auth-field-error {
   margin: 2px 0 0;
   font-size: 12px;

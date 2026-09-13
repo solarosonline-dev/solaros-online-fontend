@@ -29,6 +29,22 @@ export function activateAccount(token: string, password?: string) {
   });
 }
 
+export function forgotPassword(email: string) {
+  return apiRequest<{ message: string }>("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+    auth: false,
+  });
+}
+
+export function resetPassword(token: string, password: string) {
+  return apiRequest<{ message: string }>("/auth/reset-password", {
+    method: "POST",
+    body: { token, password },
+    auth: false,
+  });
+}
+
 export function getMe() {
   return apiRequest<LoginResponse["user"]>("/me");
 }
