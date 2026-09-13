@@ -246,7 +246,7 @@ function Ai() {
           paperwork your team already dreads.
         </p>
       </div>
-      <div className="why-grid">
+      <div className="why-grid ai-grid">
         {AI_CARDS.map((c) => (
           <article className={`why-card${c.highlight ? " highlight" : ""}`} key={c.n}>
             <div className="why-num">{c.n}</div>
@@ -280,8 +280,7 @@ const WHY_CARDS = [
   { n: "03", title: "Compliance, templated — not chased", body: "Subsidy filings, utility interconnection, PPA drafting: tracked as structured workflow steps inside the platform, not a folder of PDFs someone has to remember to follow up on." },
   { n: "04", title: "Your brand, our engine", body: "White-labelled customer portals mean your customers experience your brand end to end. SolarOS runs underneath — quietly, and never customer-facing as an installer." },
   { n: "05", title: "O&M and billing that don't drop the ball", body: "SLA timers, ticketing, generation-health alerts and automated billing — running for the full 25-year life of every asset your customers own." },
-  { n: "06", title: "Built for the whole deal team", body: "EPCs, financiers, RESCO investors and O&M vendors collaborate on the same live record. No forwarded spreadsheets, no stale PDFs, no \"let me check and get back to you.\"" },
-  { n: "07", title: "Geotagged photo proof, no separate app", body: "Field crews tap \"Take Photo\" right inside SolarOS on any phone browser — no GPS-camera app to download. Every shot is stamped with the exact latitude, longitude and timestamp, and attached straight to the work order." },
+  { n: "06", title: "Geotagged photo proof, no separate app", body: "Field crews tap \"Take Photo\" right inside SolarOS on any phone browser — no GPS-camera app to download. Every shot is stamped with the exact latitude, longitude and timestamp, and attached straight to the work order." },
 ];
 
 function Why() {

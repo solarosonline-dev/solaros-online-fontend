@@ -476,6 +476,12 @@ em { font-style: italic; }
   background: linear-gradient(180deg, rgba(6,182,212,0.07), transparent 70%);
   border-radius: 32px;
 }
+/* The AI capabilities grid always has exactly 4 cards -- unlike .why-grid
+   (which flexes between 6/3/etc and relies on the 3-column default), these
+   are meant to read as one deliberate row on desktop, not wrap to 3+1. */
+.ai-grid { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 980px) { .ai-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .ai-grid { grid-template-columns: 1fr; } }
 .ai-status {
   display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
