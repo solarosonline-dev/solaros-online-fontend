@@ -175,15 +175,28 @@ export type WorkOrderDocument = {
   uploaded_by_user_id: number;
   uploaded_by_name: string;
   created_at: string;
+  // Set only when this document was captured via the in-app camera/photo
+  // flow with geolocation available -- null for plain file-picker uploads
+  // without location permission, or non-photo documents.
+  latitude: number | null;
+  longitude: number | null;
+  captured_at: string | null;
 };
+
+export type PhotoGeotag = { latitude: number; longitude: number; capturedAt: string };
 
 export function listWorkOrderDocuments(entityId: number, workOrderId: number) {
   return apiRequest<{ items: WorkOrderDocument[] }>(`/entities/${entityId}/work-orders/${workOrderId}/documents`);
 }
 
-export function uploadWorkOrderDocument(entityId: number, workOrderId: number, file: File) {
+export function uploadWorkOrderDocument(entityId: number, workOrderId: number, file: File, geotag?: PhotoGeotag) {
   const form = new FormData();
   form.append("file", file, file.name);
+  if (geotag) {
+    form.append("latitude", String(geotag.latitude));
+    form.append("longitude", String(geotag.longitude));
+    form.append("captured_at", geotag.capturedAt);
+  }
   return apiRequest<WorkOrderDocument>(`/entities/${entityId}/work-orders/${workOrderId}/documents`, {
     method: "POST",
     body: form,

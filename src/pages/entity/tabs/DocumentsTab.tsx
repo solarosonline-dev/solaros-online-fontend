@@ -10,7 +10,7 @@ type Props = {
   onChange: (draft: DocumentCustomization) => void;
 };
 
-type SectionKey = "quote_notes" | "agreement_notes" | "skip_quote_otp";
+type SectionKey = "quote_notes" | "agreement_notes" | "skip_quote_otp" | "require_work_order_photo";
 
 function LineListField({
   id,
@@ -134,6 +134,31 @@ export default function DocumentsTab({ draft, onChange }: Props) {
             When enabled, customers accepting a quote only need to check the terms/AMC consent box — no code is
             emailed. Turn this on temporarily if your email delivery is down; otherwise leave it off, since OTP
             verification protects against a forwarded quote link being accepted by someone other than the customer.
+          </span>
+        </div>
+      </AccordionSection>
+
+      <AccordionSection
+        id="require_work_order_photo"
+        title="Work Order Photo Requirement"
+        open={openSection === "require_work_order_photo"}
+        onToggle={toggleSection}
+      >
+        <div className="entity-field">
+          <label htmlFor="require_work_order_photo" className="entity-checkbox-label">
+            <input
+              id="require_work_order_photo"
+              type="checkbox"
+              checked={draft.require_work_order_photo}
+              onChange={(e) => onChange({ ...draft, require_work_order_photo: e.target.checked })}
+            />
+            <span>Require a photo before marking a work order completed</span>
+          </label>
+          <span className="entity-field-help">
+            When enabled, a technician can't mark a work order "Completed" until at least one photo has been
+            captured or uploaded to it (via the work order's "Take Photo" or "Choose files to upload" controls).
+            Only image uploads count toward this — a PDF or spreadsheet document does not satisfy the requirement.
+            Leave this off if your workflow doesn't require photo proof.
           </span>
         </div>
       </AccordionSection>

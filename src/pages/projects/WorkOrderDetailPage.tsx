@@ -12,6 +12,7 @@ import {
 } from "../../api/workOrders";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { listTeams, type TeamListItem } from "../../api/teams";
+import { getEntityPreferences } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import WorkOrderDocuments from "./WorkOrderDocuments";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -42,6 +43,8 @@ export default function WorkOrderDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [photoRequired, setPhotoRequired] = useState(false);
+  const [hasPhoto, setHasPhoto] = useState(false);
 
   function load() {
     if (!workOrderId) return;
@@ -54,6 +57,16 @@ export default function WorkOrderDetailPage() {
   }
 
   useEffect(load, [entityId, workOrderId]);
+
+  // Drives the completion-hint below -- purely advisory; the backend's own
+  // 409 PHOTO_REQUIRED on the status PATCH is the actual enforcement, so a
+  // failure here just means the hint doesn't show, not that the rule is
+  // unenforced.
+  useEffect(() => {
+    getEntityPreferences(entityId)
+      .then((res) => setPhotoRequired(res.document_customization.require_work_order_photo))
+      .catch(() => {});
+  }, [entityId]);
 
   // Prefill the assign form with the current assignee once the work order
   // (and, for a team assignee, the teams list) has loaded, so reassigning is
@@ -195,6 +208,15 @@ export default function WorkOrderDetailPage() {
               {NEXT_ACTION_LABEL[wo.status] ?? `Advance to ${next}`}
             </button>
           )}
+          {/* Advisory only -- clicking through anyway is fine, the backend's
+              409 PHOTO_REQUIRED is the actual gate. hasPhoto is derived from
+              WorkOrderDocuments' own already-loaded list, so this can lag
+              slightly (e.g. right after a delete) without being unsafe. */}
+          {next === "COMPLETED" && photoRequired && !hasPhoto && (
+            <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
+              A photo is required before this work order can be completed.
+            </span>
+          )}
           {admin && wo.status === "NEW" && (
             <button className="projects-btn danger" disabled={deleting} onClick={() => setDeleteConfirmOpen(true)}>
               {deleting ? "Deleting…" : "Delete"}
@@ -325,7 +347,11 @@ export default function WorkOrderDetailPage() {
       </div>
 
       <div className="project-detail-side">
-        <WorkOrderDocuments entityId={entityId} workOrderId={Number(workOrderId)} />
+        <WorkOrderDocuments
+          entityId={entityId}
+          workOrderId={Number(workOrderId)}
+          onDocumentsChange={setHasPhoto}
+        />
       </div>
       </div>
     </div>

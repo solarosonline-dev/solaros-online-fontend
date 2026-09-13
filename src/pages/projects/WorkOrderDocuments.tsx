@@ -10,6 +10,7 @@ import {
 } from "../../api/workOrders";
 import { ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { stampAndPreparePhoto } from "../../lib/geotagPhoto";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx";
 
@@ -25,7 +26,19 @@ function formatSize(bytes: number): string {
  * its current assignee), enforced server-side -- this component doesn't
  * need its own permission check since it only ever renders inside a page
  * the viewer was already allowed to load. */
-export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId: number; workOrderId: number }) {
+export default function WorkOrderDocuments({
+  entityId,
+  workOrderId,
+  onDocumentsChange,
+}: {
+  entityId: number;
+  workOrderId: number;
+  /** Reports whether at least one image document exists, any time the
+   * documents list changes (initial load, upload, delete) -- purely
+   * informational for the parent page's completion-hint; this component's
+   * own load/upload/delete flow is unaffected either way. */
+  onDocumentsChange?: (hasPhoto: boolean) => void;
+}) {
   const [documents, setDocuments] = useState<WorkOrderDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,6 +50,7 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<WorkOrderDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
     setLoading(true);
@@ -49,11 +63,24 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
 
   useEffect(load, [entityId, workOrderId]);
 
+  useEffect(() => {
+    onDocumentsChange?.(documents.some((d) => d.content_type.startsWith("image/")));
+    // onDocumentsChange is a fresh setState-wrapping closure from the parent
+    // on every render -- depending on it too would re-fire this needlessly;
+    // documents is the only thing that actually determines the result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents]);
+
   const atLimit = documents.length >= MAX_WORK_ORDER_DOCUMENTS;
 
-  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []);
-    e.target.value = ""; // allow re-selecting the same file(s) after an error
+  /** Shared by both the generic file picker and the camera-capture input --
+   * enforces the same slot/size limits, then uploads sequentially. Any
+   * image file is run through stampAndPreparePhoto first: it attempts to
+   * grab the current location (best-effort -- never blocks the upload if
+   * denied/unavailable) and, when successful, burns a lat/long/timestamp
+   * watermark into the image and returns the geotag to send alongside the
+   * upload. Non-image files (PDF/XLS) skip geotagging entirely. */
+  async function uploadFiles(selected: File[]) {
     if (selected.length === 0) return;
 
     setUploadError(null);
@@ -85,11 +112,21 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
       // race past the limit rather than stopping cleanly at it.
       for (let i = 0; i < withinLimit.length; i++) {
         setUploadProgress({ done: i, total: withinLimit.length });
+        const original = withinLimit[i];
         try {
-          const doc = await uploadWorkOrderDocument(entityId, workOrderId, withinLimit[i]);
+          let toSend = original;
+          let geotag: { latitude: number; longitude: number; capturedAt: string } | undefined;
+          if (original.type.startsWith("image/")) {
+            const stamped = await stampAndPreparePhoto(original);
+            toSend = stamped.file;
+            if (stamped.latitude != null && stamped.longitude != null) {
+              geotag = { latitude: stamped.latitude, longitude: stamped.longitude, capturedAt: stamped.capturedAt };
+            }
+          }
+          const doc = await uploadWorkOrderDocument(entityId, workOrderId, toSend, geotag);
           setDocuments((prev) => [doc, ...prev]);
         } catch (err) {
-          errors.push(`${withinLimit[i].name} — ${err instanceof ApiError ? err.message : "could not upload"}.`);
+          errors.push(`${original.name} — ${err instanceof ApiError ? err.message : "could not upload"}.`);
         }
       }
       setUploadProgress(null);
@@ -97,6 +134,21 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
     }
 
     if (errors.length > 0) setUploadError(errors.join(" "));
+  }
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow re-selecting the same file(s) after an error
+    uploadFiles(selected);
+  }
+
+  function handleCameraCaptured(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    // Critical: reset the input value so tapping "Take Photo" again
+    // re-launches the camera app for another shot, rather than being a
+    // no-op because the browser sees the same file value as last time.
+    e.target.value = "";
+    uploadFiles(selected);
   }
 
   async function handleView(document: WorkOrderDocument) {
@@ -135,26 +187,49 @@ export default function WorkOrderDocuments({ entityId, workOrderId }: { entityId
         {MAX_WORK_ORDER_DOCUMENTS} per work order.
       </p>
 
-      <label
-        className={`work-orders-new-panel work-order-upload-row${uploading || atLimit ? " disabled" : ""}`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED_EXTENSIONS}
-          multiple
-          disabled={uploading || atLimit}
-          onChange={handleFileSelected}
-          className="visually-hidden"
-        />
-        <span>
-          {uploading
-            ? `Uploading ${uploadProgress ? uploadProgress.done + 1 : 1} of ${uploadProgress?.total ?? 1}…`
-            : atLimit
-              ? "Limit reached — delete one to add another."
-              : "Choose files to upload"}
-        </span>
-      </label>
+      <div className="work-order-upload-controls">
+        <label
+          className={`work-orders-new-panel work-order-upload-row${uploading || atLimit ? " disabled" : ""}`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_EXTENSIONS}
+            multiple
+            disabled={uploading || atLimit}
+            onChange={handleFileSelected}
+            className="visually-hidden"
+          />
+          <span>
+            {uploading
+              ? `Uploading ${uploadProgress ? uploadProgress.done + 1 : 1} of ${uploadProgress?.total ?? 1}…`
+              : atLimit
+                ? "Limit reached — delete one to add another."
+                : "Choose files to upload"}
+          </span>
+        </label>
+        {/* `capture="environment"` launches the phone's native camera app
+            directly on mobile; desktop browsers simply ignore the hint and
+            fall back to a normal file picker, so this is always shown --
+            no device-detection branching needed. Each tap captures one
+            photo; tapping again re-launches the camera for the next shot,
+            which is how "multiple photos" is supported here. */}
+        <label
+          className={`work-orders-new-panel work-order-upload-row${uploading || atLimit ? " disabled" : ""}`}
+        >
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            disabled={uploading || atLimit}
+            onChange={handleCameraCaptured}
+            className="visually-hidden"
+          />
+          <span>{uploading ? "Uploading…" : "Take Photo"}</span>
+        </label>
+      </div>
       {uploadError && (
         <p className="work-order-type-hint work-order-upload-error" style={{ color: "var(--app-danger)" }}>
           {uploadError}

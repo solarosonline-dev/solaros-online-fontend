@@ -479,6 +479,22 @@
   margin-bottom: 16px;
 }
 
+/* Wraps the generic file-picker control and the "Take Photo" camera control
+   side by side; each is a full .work-orders-new-panel row on its own, so
+   this just lets them sit next to each other on wide screens and stack
+   cleanly on narrow ones instead of overflowing. */
+.work-order-upload-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.work-order-upload-controls .work-orders-new-panel {
+  flex: 1 1 220px;
+  margin-bottom: 0;
+}
+
 /* The whole row opens the file picker (a <label> wrapping the actual,
    visually-hidden <input type="file">), not just the browser's own tiny
    "Choose File" button text -- cursor:pointer has to be explicit since a

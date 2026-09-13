@@ -25,6 +25,12 @@ export type DocumentCustomization = {
    * skips the emailed-OTP step and accepts on consent alone — e.g. while
    * the transactional email provider is down. */
   skip_quote_otp: boolean;
+  /** EPC-admin toggle: when true, a work order can't be transitioned to
+   * COMPLETED until at least one image (not just any document) has been
+   * uploaded to it. Off by default so existing entities aren't retroactively
+   * blocked. Enforced server-side (409 PHOTO_REQUIRED); this flag also
+   * drives a client-side hint before the technician even tries. */
+  require_work_order_photo: boolean;
 };
 
 export type Pricing = {
