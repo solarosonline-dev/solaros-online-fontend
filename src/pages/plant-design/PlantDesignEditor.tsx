@@ -40,6 +40,7 @@ import {
   reparentGridToRoof,
 } from './layoutEngine.js';
 import SiteMap from './SiteMap.jsx';
+import useIsMobile from '../../hooks/useIsMobile';
 // Lazy-loaded: three/@react-three/fiber/@react-three/drei alone push the
 // main bundle well past the PWA plugin's 2MB precache limit, and the 3D
 // view is opt-in (most sessions never toggle it) - splitting it into its
@@ -82,8 +83,6 @@ function toDateInputValue(d) {
   return `${y}-${m}-${day}`;
 }
 
-const collapsibleSectionStyle = { background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: '6px 10px', marginBottom: 6 };
-
 function CollapsibleSection({ title, defaultOpen = false, open: openProp, onToggle, children }: any) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   // Controlled when the parent passes `open` (used to auto-collapse/expand
@@ -93,13 +92,13 @@ function CollapsibleSection({ title, defaultOpen = false, open: openProp, onTogg
   const open = controlled ? openProp : internalOpen;
   const toggle = () => (controlled ? onToggle?.(!open) : setInternalOpen((o) => !o));
   return (
-    <div style={collapsibleSectionStyle}>
+    <div className="pde-section">
       <div
         onClick={toggle}
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0', marginBottom: open ? 6 : 0, userSelect: 'none' }}
+        className={`pde-section-header${open ? ' pde-section-open' : ''}`}
       >
         <span>{title}</span>
-        <span style={{ color: '#888', fontSize: 10 }}>{open ? '▾' : '▸'}</span>
+        <span className="pde-section-caret">{open ? '▾' : '▸'}</span>
       </div>
       {open && children}
     </div>
@@ -159,7 +158,8 @@ function SliderInput({ value, onChange, min, max, step = 1, disabled = false, nu
       <input
         type="number" step={displayStep} value={isFeet ? +displayValue.toFixed(2) : value} disabled={disabled}
         onChange={(e) => onChange(toMeters(+e.target.value))}
-        style={{ width: numberWidth, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11, color: '#222', background: disabled ? '#f2f2f2' : '#fff', flexShrink: 0 }}
+        className="pde-slider-num"
+        style={{ width: numberWidth, flexShrink: 0 }}
       />
     </div>
   );
@@ -220,6 +220,7 @@ function RailPopover({ open, width = 260, children }) {
 // ============================================================
 export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
+  const isMobile = useIsMobile();
 
   // Every roof/building traced on the 2D plan — each is an independent
   // roof with its own type/pitch/azimuth/height and its own panel layout
@@ -297,11 +298,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // range stringSizing.js needs - see handleLocationConfirm.
   const [designTempStatus, setDesignTempStatus] = useState('idle'); // idle | loading | ready | error
   const designTempRequestIdRef = useRef(0);
-  // Drives which of steps 1/2 is expanded — set explicitly once location is
-  // confirmed so the workflow visibly advances instead of leaving both (or
-  // neither) open. Left undefined initially so each section just falls
-  // back to its own defaultOpen.
-  const [locationOpen, setLocationOpen] = useState<any>(undefined);
   // The 6-step wizard (Project Setup / Location / Roof setup / Panel & grid
   // setup / Output estimate / Cost estimate) replacing the old
   // always-all-visible sidebar accordion. `currentStep` is just "what's
@@ -1488,12 +1484,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     setSelectedRoofId(null);
     setOutputResult(null);
     setCost(null);
-    // Location's confirmed — the center pane now switches from the map to
-    // the (still empty) 2D plan, backed by the real imagery just captured,
-    // while staying on step 1 - the user reviews Configuration (step 2)
-    // next, then explicitly moves on to Roof setup (step 3) themselves;
-    // see the "Next: Configuration" / "Next: Roof setup" buttons below.
-    setLocationOpen(false);
+    // Location's confirmed — the (still empty) 2D plan is now backed by
+    // the real imagery just captured, ready for when the user reaches a
+    // step that actually shows it (Roof setup, step 3 - see the CENTER
+    // block's own condition); steps 1/2 never display it, so this doesn't
+    // change what's on screen yet. Stays on step 1 - the user reviews
+    // Configuration (step 2) next, then explicitly moves on to Roof setup
+    // themselves; see the "Next: Configuration" / "Next: Roof setup"
+    // buttons below.
     setViewMode('plan');
     setMapMode(null);
     setLocationConfirmed(true);
@@ -2374,19 +2372,39 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // hover tooltip per the design brief ("user sees what it does on hover").
   const iconBtn = (active, _disabled = false) => `pde-icon-btn${active ? ' pde-active' : ''}`;
   const compassBtn = (active) => `pde-compass-btn${active ? ' pde-active' : ''}`;
+  // On mobile, opening the map on step 1 takes over the whole content area
+  // instead of stacking under the form - so the user isn't left scrolling
+  // past project/location inputs to reach it (or back up to leave it).
+  const mobileMapFullView = isMobile && currentStep === 1 && mapMode === 'location';
 
   return (
     <div className="plant-design-editor" style={{ display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#222', height: '100vh', boxSizing: 'border-box' }}>
       {/* Thin step bar - always visible. A step is clickable once reached
           (maxUnlockedStep), never re-locked by later edits (see
-          maxUnlockedStep's own comment above). */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 16px', borderBottom: '1px solid #e2e2e2', background: '#fff', flexShrink: 0 }}>
+          maxUnlockedStep's own comment above). Desktop keeps the tab strip
+          (it fits); mobile swaps it for a dropdown instead, since seven
+          step labels don't fit a phone-width row even scrolling. */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 8 : 4, padding: isMobile ? '8px 16px' : '8px 16px', borderBottom: '1px solid #e2e2e2', background: '#fff', flexShrink: 0 }}>
+        {isMobile ? (
+          <select
+            className="pde-step-select"
+            value={currentStep}
+            onChange={(e) => goToStep(Number(e.target.value))}
+          >
+            {STEPS.map((s) => (
+              <option key={s.n} value={s.n} disabled={s.n > maxUnlockedStep}>
+                {s.n}. {s.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         {STEPS.map((s, i) => {
           const unlocked = s.n <= maxUnlockedStep;
           const active = currentStep === s.n;
           return (
             <React.Fragment key={s.n}>
-              {i > 0 && <span style={{ color: '#ccc', fontSize: 12 }}>›</span>}
+              {i > 0 && <span style={{ color: '#ccc', fontSize: 12, flexShrink: 0 }}>›</span>}
               <button
                 onClick={() => goToStep(s.n)}
                 disabled={!unlocked}
@@ -2396,6 +2414,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   color: active ? '#2f6fed' : unlocked ? '#333' : '#bbb',
                   fontWeight: active ? 700 : 500, fontSize: 12, borderRadius: 6,
                   padding: '5px 10px', cursor: unlocked ? 'pointer' : 'not-allowed',
+                  whiteSpace: 'nowrap', flexShrink: 0,
                 }}
               >
                 {s.n}. {s.label}
@@ -2403,134 +2422,159 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             </React.Fragment>
           );
         })}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {saveStatus === 'saved' && <span style={{ fontSize: 11, color: '#2e7d32' }}>Saved</span>}
-          {saveStatus === 'error' && <span style={{ fontSize: 11, color: '#c0392b' }}>Save failed - try again</span>}
-          <button
-            onClick={handleSave}
-            disabled={saveStatus === 'saving'}
-            style={{
-              padding: '6px 14px', borderRadius: 6, border: 'none',
-              background: '#2f6fed', color: '#fff', fontSize: 12, fontWeight: 600,
-              cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer',
-              opacity: saveStatus === 'saving' ? 0.7 : 1,
-            }}
-          >
+        </div>
+        )}
+        <div className={`pde-topbar-save-row${isMobile ? ' pde-topbar-save-row--mobile' : ''}`} style={{ marginLeft: isMobile ? 0 : 'auto' }}>
+          {saveStatus === 'saved' && <span className="pde-save-status success">Saved</span>}
+          {saveStatus === 'error' && <span className="pde-save-status error">Save failed - try again</span>}
+          <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving'}>
             {saveStatus === 'saving' ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: 16 }}>
-      {currentStep <= 2 ? (
+      <div style={{ display: 'flex', flexDirection: isMobile && currentStep <= 2 ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && currentStep <= 2 && !mobileMapFullView ? 'auto' : undefined }}>
+      {currentStep <= 2 && !mobileMapFullView ? (
       /* LEFT: steps 1-2's own input form (Project & Location, then
-         Configuration). Before location's confirmed this is the whole
-         screen (step 1's map picker, when open, takes the right half - see
-         mapMode below); once confirmed, the plan view already renders
-         alongside it too (see the CENTER block's own condition), so the
-         user can see the empty canvas while still reviewing Configuration. */
-      <div style={{ width: 300, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
+         Configuration). Neither step shows the plan/3D canvas alongside it
+         (see the CENTER block's own condition, gated to currentStep > 2) -
+         step 1's map picker, when open, is the only thing that ever takes
+         the right half on desktop (see mapMode below) or replaces the form
+         entirely on mobile (see mobileMapFullView). With no canvas to
+         share space with, both steps get a wider column on desktop to
+         give their fields more room. */
+      <div style={isMobile
+        ? { width: '100%', flexShrink: 0 }
+        : { width: currentStep <= 2 ? 480 : 300, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
         {currentStep === 1 && (
-          <div style={sectionStyle}>
-            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Project</div>
-            <div style={labelStyle}><span>Project name</span><input style={{ ...inputStyle, width: 140 }} type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Untitled project" /></div>
-            <div style={labelStyle}><span>Capacity (kW)</span><input style={{ ...inputStyle, width: 140 }} type="number" min="0.01" step="any" value={capacityNote} onChange={(e) => setCapacityNote(e.target.value)} placeholder="e.g. 100" /></div>
-            {capacityNote !== '' && !(Number(capacityNote) > 0) && (
-              <div style={{ fontSize: 11, color: '#c0392b', marginTop: -3, marginBottom: 6 }}>Enter a positive number.</div>
-            )}
-            <div style={labelStyle}>
-              <span>Units</span>
-              <span>
-                <button className={btn(units === 'm')} onClick={() => setUnits('m')}>Meters</button>{' '}
-                <button className={btn(units === 'ft')} onClick={() => setUnits('ft')}>Feet</button>
-              </span>
+          <div className="pde-step1-card">
+            <div className="pde-step1-heading">Project & Location</div>
+            <div className="pde-step1-subtext">Enter coordinates directly, or use the map - Next confirms and continues.</div>
+
+            <div className="pde-field">
+              <label htmlFor="pdeProjectName">Project name</label>
+              <input id="pdeProjectName" type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Untitled project" />
             </div>
-            <div style={{ fontSize: 11, color: '#888' }}>Display only - every value stays stored in meters underneath.</div>
+
+            <div className="pde-field-row">
+              <div className="pde-field">
+                <label htmlFor="pdeCapacity">Capacity (kW)</label>
+                <input id="pdeCapacity" type="number" min="0.01" step="any" value={capacityNote} onChange={(e) => setCapacityNote(e.target.value)} placeholder="e.g. 100" />
+                {capacityNote !== '' && !(Number(capacityNote) > 0) && (
+                  <p className="pde-field-error">Enter a positive number.</p>
+                )}
+              </div>
+              <div className="pde-field">
+                <label>Units</label>
+                <div className="pde-unit-toggle">
+                  <button className={btn(units === 'm')} onClick={() => setUnits('m')}>Meters</button>
+                  <button className={btn(units === 'ft')} onClick={() => setUnits('ft')}>Feet</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pde-field-row">
+              <div className="pde-field">
+                <label htmlFor="pdeLat">Latitude</label>
+                <input id="pdeLat" type="number" value={location.lat} onChange={(e) => setLocation({ ...location, lat: +e.target.value })} />
+              </div>
+              <div className="pde-field">
+                <label htmlFor="pdeLon">Longitude</label>
+                <input id="pdeLon" type="number" value={location.lon} onChange={(e) => setLocation({ ...location, lon: +e.target.value })} />
+              </div>
+            </div>
+
+            <div className="pde-field">
+              <label htmlFor="pdeTz">Timezone (UTC+)</label>
+              <input id="pdeTz" type="number" value={location.tz} onChange={(e) => setLocation({ ...location, tz: +e.target.value })} />
+            </div>
+            <div className="pde-step1-hint" style={{ marginTop: -8 }}>Default: Bengaluru, IN</div>
+
+            <button className="pde-btn" style={{ width: '100%', padding: 10, fontSize: 14, marginBottom: 20 }} onClick={() => setMapMode('location')}>Set location on map…</button>
+
+            <button
+              className="pde-primary-btn"
+              onClick={() => { handleLocationConfirm({ lat: location.lat, lon: location.lon }); advanceToStep(2); }}
+            >
+              Next: Configuration →
+            </button>
           </div>
-        )}
-        {currentStep === 1 && (
-          <div style={{ fontSize: 11, color: '#888', margin: '0 0 8px 2px' }}>Enter coordinates directly, or use the map - Next confirms and continues.</div>
-        )}
-        {currentStep === 1 && (
-        <CollapsibleSection title="Location" defaultOpen open={locationOpen} onToggle={setLocationOpen}>
-          <div style={labelStyle}><span>Latitude</span><input style={inputStyle} type="number" value={location.lat} onChange={(e) => setLocation({ ...location, lat: +e.target.value })} /></div>
-          <div style={labelStyle}><span>Longitude</span><input style={inputStyle} type="number" value={location.lon} onChange={(e) => setLocation({ ...location, lon: +e.target.value })} /></div>
-          <div style={labelStyle}><span>Timezone (UTC+)</span><input style={inputStyle} type="number" value={location.tz} onChange={(e) => setLocation({ ...location, tz: +e.target.value })} /></div>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>Default: Bengaluru, IN</div>
-          <button className={btn(false)} onClick={() => setMapMode('location')}>Set location on map…</button>
-        </CollapsibleSection>
-        )}
-        {currentStep === 1 && (
-          <button
-            onClick={() => { handleLocationConfirm({ lat: location.lat, lon: location.lon }); advanceToStep(2); }}
-            style={{ width: '100%', padding: 6, borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-          >
-            Next: Configuration →
-          </button>
         )}
         {currentStep === 2 && (
         <>
         <CollapsibleSection title="Grid connection">
-          <div style={labelStyle}><span>Grid voltage (V)</span><input style={inputStyle} type="number" step="1" value={gridConnection.voltage} onChange={(e) => setGridConnection({ ...gridConnection, voltage: +e.target.value })} /></div>
-          <div style={labelStyle}>
-            <span>Phase</span>
-            <select style={{ ...inputStyle, width: 62 }} value={gridConnection.phase} onChange={(e) => setGridConnection({ ...gridConnection, phase: +e.target.value })}>
-              <option value={1}>1-Phase</option>
-              <option value={3}>3-Phase</option>
-            </select>
-          </div>
-          <div style={labelStyle}><span>Sanctioned load (kW)</span><input style={{ ...inputStyle, width: 140 }} type="number" min="0" step="any" value={gridConnection.sanctionedLoadKw} onChange={(e) => setGridConnection({ ...gridConnection, sanctionedLoadKw: e.target.value })} placeholder="e.g. 140" /></div>
-          <div style={labelStyle}><span>DISCOM</span><input style={{ ...inputStyle, width: 140 }} type="text" value={gridConnection.discom} onChange={(e) => setGridConnection({ ...gridConnection, discom: e.target.value })} placeholder="e.g. DHBVN" /></div>
-        </CollapsibleSection>
-        <CollapsibleSection title="Panel configuration" defaultOpen>
-          <div style={labelStyle}>
-            <span>Make</span>
-            <select
-              style={{ ...inputStyle, width: 140 }}
-              value={panelSpec.make}
-              onChange={(e) => {
-                const make = e.target.value;
-                if (make === CUSTOM_MODULE_MAKE) {
-                  setPanelSpec({ ...panelSpec, make, model: '' });
-                  return;
-                }
-                const first = moduleCatalogModels(make)[0];
-                setPanelSpec({ ...panelSpec, make, model: first.model, width: first.width, height: first.height, wattage: first.wattage, voc: first.voc, vmp: first.vmp, isc: first.isc, imp: first.imp, tempCoeffVoc: first.tempCoeffVoc });
-              }}
-            >
-              {moduleCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
-              <option value={CUSTOM_MODULE_MAKE}>{CUSTOM_MODULE_MAKE}</option>
-            </select>
-          </div>
-          {panelSpec.make !== CUSTOM_MODULE_MAKE && (
-            <div style={labelStyle}>
-              <span>Model</span>
-              <select
-                style={{ ...inputStyle, width: 140 }}
-                value={panelSpec.model}
-                onChange={(e) => {
-                  const mod = findModule(panelSpec.make, e.target.value);
-                  if (!mod) return;
-                  setPanelSpec({ ...panelSpec, model: mod.model, width: mod.width, height: mod.height, wattage: mod.wattage, voc: mod.voc, vmp: mod.vmp, isc: mod.isc, imp: mod.imp, tempCoeffVoc: mod.tempCoeffVoc });
-                }}
-              >
-                {moduleCatalogModels(panelSpec.make).map((m) => <option key={m.model} value={m.model}>{m.model} · {m.wattage}W</option>)}
+          <div className="pde-field-row">
+            <div className="pde-field-sm"><label>Grid voltage (V)</label><input type="number" step="1" value={gridConnection.voltage} onChange={(e) => setGridConnection({ ...gridConnection, voltage: +e.target.value })} /></div>
+            <div className="pde-field-sm">
+              <label>Phase</label>
+              <select value={gridConnection.phase} onChange={(e) => setGridConnection({ ...gridConnection, phase: +e.target.value })}>
+                <option value={1}>1-Phase</option>
+                <option value={3}>3-Phase</option>
               </select>
             </div>
-          )}
+          </div>
+          <div className="pde-field-row">
+            <div className="pde-field-sm"><label>Sanctioned load (kW)</label><input type="number" min="0" step="any" value={gridConnection.sanctionedLoadKw} onChange={(e) => setGridConnection({ ...gridConnection, sanctionedLoadKw: e.target.value })} placeholder="e.g. 140" /></div>
+            <div className="pde-field-sm"><label>DISCOM</label><input type="text" value={gridConnection.discom} onChange={(e) => setGridConnection({ ...gridConnection, discom: e.target.value })} placeholder="e.g. DHBVN" /></div>
+          </div>
+        </CollapsibleSection>
+        <CollapsibleSection title="Panel configuration" defaultOpen>
+          <div className={panelSpec.make !== CUSTOM_MODULE_MAKE ? 'pde-field-row' : undefined}>
+            <div className="pde-field-sm">
+              <label>Make</label>
+              <select
+                value={panelSpec.make}
+                onChange={(e) => {
+                  const make = e.target.value;
+                  if (make === CUSTOM_MODULE_MAKE) {
+                    setPanelSpec({ ...panelSpec, make, model: '' });
+                    return;
+                  }
+                  const first = moduleCatalogModels(make)[0];
+                  setPanelSpec({ ...panelSpec, make, model: first.model, width: first.width, height: first.height, wattage: first.wattage, voc: first.voc, vmp: first.vmp, isc: first.isc, imp: first.imp, tempCoeffVoc: first.tempCoeffVoc });
+                }}
+              >
+                {moduleCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
+                <option value={CUSTOM_MODULE_MAKE}>{CUSTOM_MODULE_MAKE}</option>
+              </select>
+            </div>
+            {panelSpec.make !== CUSTOM_MODULE_MAKE && (
+              <div className="pde-field-sm">
+                <label>Model</label>
+                <select
+                  value={panelSpec.model}
+                  onChange={(e) => {
+                    const mod = findModule(panelSpec.make, e.target.value);
+                    if (!mod) return;
+                    setPanelSpec({ ...panelSpec, model: mod.model, width: mod.width, height: mod.height, wattage: mod.wattage, voc: mod.voc, vmp: mod.vmp, isc: mod.isc, imp: mod.imp, tempCoeffVoc: mod.tempCoeffVoc });
+                  }}
+                >
+                  {moduleCatalogModels(panelSpec.make).map((m) => <option key={m.model} value={m.model}>{m.model} · {m.wattage}W</option>)}
+                </select>
+              </div>
+            )}
+          </div>
           {panelSpec.make === CUSTOM_MODULE_MAKE ? (
             <>
-              <div style={labelStyle}><span>Model name</span><input style={{ ...inputStyle, width: 140 }} type="text" value={panelSpec.model} onChange={(e) => setPanelSpec({ ...panelSpec, model: e.target.value })} placeholder="e.g. My module 550W" /></div>
-              <div style={labelStyle}><span>Width ({units})</span><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.width} onChange={(v) => setPanelSpec({ ...panelSpec, width: v })} /></div>
-              <div style={labelStyle}><span>Height ({units})</span><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.height} onChange={(v) => setPanelSpec({ ...panelSpec, height: v })} /></div>
-              <div style={labelStyle}><span>Wattage (W)</span><SliderInput min={100} max={800} step={10} value={panelSpec.wattage} onChange={(v) => setPanelSpec({ ...panelSpec, wattage: v })} /></div>
-              <div style={labelStyle}><span>Voc (V)</span><input style={inputStyle} type="number" step="0.01" value={panelSpec.voc} onChange={(e) => setPanelSpec({ ...panelSpec, voc: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Vmp (V)</span><input style={inputStyle} type="number" step="0.01" value={panelSpec.vmp} onChange={(e) => setPanelSpec({ ...panelSpec, vmp: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Isc (A)</span><input style={inputStyle} type="number" step="0.01" value={panelSpec.isc} onChange={(e) => setPanelSpec({ ...panelSpec, isc: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Imp (A)</span><input style={inputStyle} type="number" step="0.01" value={panelSpec.imp} onChange={(e) => setPanelSpec({ ...panelSpec, imp: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Temp coeff. Voc (%/°C)</span><input style={inputStyle} type="number" step="0.01" value={panelSpec.tempCoeffVoc} onChange={(e) => setPanelSpec({ ...panelSpec, tempCoeffVoc: +e.target.value })} /></div>
+              <div className="pde-field-sm"><label>Model name</label><input type="text" value={panelSpec.model} onChange={(e) => setPanelSpec({ ...panelSpec, model: e.target.value })} placeholder="e.g. My module 550W" /></div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>Width ({units})</label><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.width} onChange={(v) => setPanelSpec({ ...panelSpec, width: v })} /></div>
+                <div className="pde-field-sm"><label>Height ({units})</label><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.height} onChange={(v) => setPanelSpec({ ...panelSpec, height: v })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>Wattage (W)</label><SliderInput min={100} max={800} step={10} value={panelSpec.wattage} onChange={(v) => setPanelSpec({ ...panelSpec, wattage: v })} /></div>
+                <div className="pde-field-sm"><label>Temp coeff. Voc (%/°C)</label><input type="number" step="0.01" value={panelSpec.tempCoeffVoc} onChange={(e) => setPanelSpec({ ...panelSpec, tempCoeffVoc: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>Voc (V)</label><input type="number" step="0.01" value={panelSpec.voc} onChange={(e) => setPanelSpec({ ...panelSpec, voc: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Vmp (V)</label><input type="number" step="0.01" value={panelSpec.vmp} onChange={(e) => setPanelSpec({ ...panelSpec, vmp: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>Isc (A)</label><input type="number" step="0.01" value={panelSpec.isc} onChange={(e) => setPanelSpec({ ...panelSpec, isc: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Imp (A)</label><input type="number" step="0.01" value={panelSpec.imp} onChange={(e) => setPanelSpec({ ...panelSpec, imp: +e.target.value })} /></div>
+              </div>
             </>
           ) : (
-            <div style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>
+            <div className="pde-field-sm-hint">
               {panelSpec.width.toFixed(2)}×{panelSpec.height.toFixed(2)} m · {panelSpec.wattage} W<br />
               Voc {panelSpec.voc} V · Vmp {panelSpec.vmp} V · Isc {panelSpec.isc} A · Imp {panelSpec.imp} A<br />
               Temp coeff. Voc {panelSpec.tempCoeffVoc}%/°C
@@ -2538,56 +2582,64 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           )}
         </CollapsibleSection>
         <CollapsibleSection title="Inverter (default)">
-          <div style={labelStyle}>
-            <span>Make</span>
-            <select
-              style={{ ...inputStyle, width: 140 }}
-              value={inverterChoice.make}
-              onChange={(e) => {
-                const make = e.target.value;
-                if (make === CUSTOM_INVERTER_MAKE) {
-                  setInverterChoice({ ...inverterChoice, make, model: '' });
-                  return;
-                }
-                const first = inverterCatalogModels(make)[0];
-                setInverterChoice({ ...inverterChoice, ...first });
-              }}
-            >
-              {inverterCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
-              <option value={CUSTOM_INVERTER_MAKE}>{CUSTOM_INVERTER_MAKE}</option>
-            </select>
-          </div>
-          {inverterChoice.make !== CUSTOM_INVERTER_MAKE && (
-            <div style={labelStyle}>
-              <span>Model</span>
+          <div className={inverterChoice.make !== CUSTOM_INVERTER_MAKE ? 'pde-field-row' : undefined}>
+            <div className="pde-field-sm">
+              <label>Make</label>
               <select
-                style={{ ...inputStyle, width: 140 }}
-                value={inverterChoice.model}
+                value={inverterChoice.make}
                 onChange={(e) => {
-                  const inv = findInverter(inverterChoice.make, e.target.value);
-                  if (!inv) return;
-                  setInverterChoice({ ...inverterChoice, ...inv });
+                  const make = e.target.value;
+                  if (make === CUSTOM_INVERTER_MAKE) {
+                    setInverterChoice({ ...inverterChoice, make, model: '' });
+                    return;
+                  }
+                  const first = inverterCatalogModels(make)[0];
+                  setInverterChoice({ ...inverterChoice, ...first });
                 }}
               >
-                {inverterCatalogModels(inverterChoice.make).map((i) => <option key={i.model} value={i.model}>{i.model} · {i.acPowerKw}kW</option>)}
+                {inverterCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
+                <option value={CUSTOM_INVERTER_MAKE}>{CUSTOM_INVERTER_MAKE}</option>
               </select>
             </div>
-          )}
+            {inverterChoice.make !== CUSTOM_INVERTER_MAKE && (
+              <div className="pde-field-sm">
+                <label>Model</label>
+                <select
+                  value={inverterChoice.model}
+                  onChange={(e) => {
+                    const inv = findInverter(inverterChoice.make, e.target.value);
+                    if (!inv) return;
+                    setInverterChoice({ ...inverterChoice, ...inv });
+                  }}
+                >
+                  {inverterCatalogModels(inverterChoice.make).map((i) => <option key={i.model} value={i.model}>{i.model} · {i.acPowerKw}kW</option>)}
+                </select>
+              </div>
+            )}
+          </div>
           {inverterChoice.make === CUSTOM_INVERTER_MAKE ? (
             <>
-              <div style={labelStyle}><span>Model name</span><input style={{ ...inputStyle, width: 140 }} type="text" value={inverterChoice.model} onChange={(e) => setInverterChoice({ ...inverterChoice, model: e.target.value })} placeholder="e.g. My inverter 50kW" /></div>
-              <div style={labelStyle}><span>AC power (kW)</span><input style={inputStyle} type="number" step="0.1" value={inverterChoice.acPowerKw} onChange={(e) => setInverterChoice({ ...inverterChoice, acPowerKw: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Max DC voltage (V)</span><input style={inputStyle} type="number" step="1" value={inverterChoice.maxDcVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, maxDcVoltage: +e.target.value })} /></div>
-              <div style={labelStyle}><span>MPPT channels</span><input style={inputStyle} type="number" step="1" value={inverterChoice.mpptCount} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptCount: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Max current/MPPT (A)</span><input style={inputStyle} type="number" step="0.1" value={inverterChoice.maxCurrentPerMppt} onChange={(e) => setInverterChoice({ ...inverterChoice, maxCurrentPerMppt: +e.target.value })} /></div>
-              <div style={labelStyle}><span>MPPT V min (V)</span><input style={inputStyle} type="number" step="1" value={inverterChoice.mpptVoltageMin} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMin: +e.target.value })} /></div>
-              <div style={labelStyle}><span>MPPT V max (V)</span><input style={inputStyle} type="number" step="1" value={inverterChoice.mpptVoltageMax} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMax: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Max AC current (A)</span><input style={inputStyle} type="number" step="0.1" value={inverterChoice.maxAcCurrent} onChange={(e) => setInverterChoice({ ...inverterChoice, maxAcCurrent: +e.target.value })} /></div>
-              <div style={labelStyle}><span>AC voltage (V)</span><input style={inputStyle} type="number" step="1" value={inverterChoice.acVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, acVoltage: +e.target.value })} /></div>
-              <div style={labelStyle}><span>Phase</span><input style={inputStyle} type="number" step="1" value={inverterChoice.phase} onChange={(e) => setInverterChoice({ ...inverterChoice, phase: +e.target.value })} /></div>
+              <div className="pde-field-sm"><label>Model name</label><input type="text" value={inverterChoice.model} onChange={(e) => setInverterChoice({ ...inverterChoice, model: e.target.value })} placeholder="e.g. My inverter 50kW" /></div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>AC power (kW)</label><input type="number" step="0.1" value={inverterChoice.acPowerKw} onChange={(e) => setInverterChoice({ ...inverterChoice, acPowerKw: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Max DC voltage (V)</label><input type="number" step="1" value={inverterChoice.maxDcVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, maxDcVoltage: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>MPPT channels</label><input type="number" step="1" value={inverterChoice.mpptCount} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptCount: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Max current/MPPT (A)</label><input type="number" step="0.1" value={inverterChoice.maxCurrentPerMppt} onChange={(e) => setInverterChoice({ ...inverterChoice, maxCurrentPerMppt: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>MPPT V min (V)</label><input type="number" step="1" value={inverterChoice.mpptVoltageMin} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMin: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>MPPT V max (V)</label><input type="number" step="1" value={inverterChoice.mpptVoltageMax} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMax: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-row">
+                <div className="pde-field-sm"><label>Max AC current (A)</label><input type="number" step="0.1" value={inverterChoice.maxAcCurrent} onChange={(e) => setInverterChoice({ ...inverterChoice, maxAcCurrent: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>AC voltage (V)</label><input type="number" step="1" value={inverterChoice.acVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, acVoltage: +e.target.value })} /></div>
+              </div>
+              <div className="pde-field-sm"><label>Phase</label><input type="number" step="1" value={inverterChoice.phase} onChange={(e) => setInverterChoice({ ...inverterChoice, phase: +e.target.value })} /></div>
             </>
           ) : (
-            <div style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>
+            <div className="pde-field-sm-hint">
               {inverterChoice.acPowerKw} kW · {inverterChoice.phase}-Phase · {inverterChoice.acVoltage} V AC<br />
               Max DC {inverterChoice.maxDcVoltage} V · {inverterChoice.mpptCount} MPPT × {inverterChoice.maxCurrentPerMppt} A<br />
               MPPT window {inverterChoice.mpptVoltageMin}–{inverterChoice.mpptVoltageMax} V
@@ -2595,10 +2647,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           )}
         </CollapsibleSection>
         <CollapsibleSection title="String sizing">
-          <div style={labelStyle}><span>Target DC:AC ratio</span><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
-          <div style={labelStyle}><span>Design min temp (°C)</span><input style={inputStyle} type="number" step="1" value={designTemp.min} onChange={(e) => setDesignTemp({ ...designTemp, min: +e.target.value })} /></div>
-          <div style={labelStyle}><span>Design max temp (°C)</span><input style={inputStyle} type="number" step="1" value={designTemp.max} onChange={(e) => setDesignTemp({ ...designTemp, max: +e.target.value })} /></div>
-          <div style={{ fontSize: 10, color: '#999', marginBottom: 6 }}>
+          <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
+          <div className="pde-field-row">
+            <div className="pde-field-sm"><label>Design min temp (°C)</label><input type="number" step="1" value={designTemp.min} onChange={(e) => setDesignTemp({ ...designTemp, min: +e.target.value })} /></div>
+            <div className="pde-field-sm"><label>Design max temp (°C)</label><input type="number" step="1" value={designTemp.max} onChange={(e) => setDesignTemp({ ...designTemp, max: +e.target.value })} /></div>
+          </div>
+          <div className="pde-field-sm-hint" style={{ marginBottom: 10 }}>
             {designTempStatus === 'loading' && 'fetching this site\'s temperature range (NASA POWER)…'}
             {designTempStatus === 'ready' && 'this site\'s own monthly min/max (NASA POWER, 2001-2020 climatology) - edit above to override.'}
             {designTempStatus === 'error' && 'couldn\'t fetch this site\'s temperature data - edit above to set it manually.'}
@@ -2607,10 +2661,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           {(() => {
             const sizing = sizeStrings(panelSpec, inverterChoice, designTemp.min, designTemp.max);
             if (!sizing.valid) {
-              return <div style={{ fontSize: 11, color: '#c0392b' }}>No valid string configuration for this module/inverter/temperature combination.</div>;
+              return <div className="pde-field-error">No valid string configuration for this module/inverter/temperature combination.</div>;
             }
             return (
-              <div style={{ fontSize: 11, color: '#333', lineHeight: 1.7 }}>
+              <div className="pde-field-sm-hint" style={{ lineHeight: 1.7 }}>
                 Modules per string: {sizing.minModulesPerString}–{sizing.maxModulesPerString}<br />
                 Max strings per MPPT: {sizing.maxStringsPerMppt}<br />
                 Max modules per MPPT: {sizing.maxModulesPerMppt}<br />
@@ -2620,8 +2674,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           })()}
         </CollapsibleSection>
         <button
+          className="pde-primary-btn"
           onClick={() => { advanceToStep(3); startRoofDraw(); }}
-          style={{ width: '100%', padding: 6, borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
         >
           Next: Roof setup →
         </button>
@@ -2631,10 +2685,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
       ) : null}
 
       {/* CENTER: the map (picking a location), the plan/3D view (once a
-          location's confirmed), or nothing at all before either has
-          happened — the app starts as just the left panel. */}
+          location's confirmed and the user has moved past step 2), or
+          nothing at all before either has happened — the app starts as
+          just the left panel. Steps 1/2 never show the plan/3D view, even
+          once locationConfirmed, so a user working through Project &
+          Location or Configuration doesn't land in the design canvas as
+          if they could keep building there - it only ever appears from
+          Roof setup (step 3) onward. */}
       {currentStep === 1 && mapMode === 'location' && (
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={mobileMapFullView
+          ? { width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+          : { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
           <SiteMap
             fill
             mode="location"
@@ -2646,7 +2707,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
         </div>
       )}
 
-      {mapMode !== 'location' && locationConfirmed && currentStep !== 7 && (
+      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 7 && (
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
         <div style={{ flex: '1 1 auto', minHeight: 480, display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {/* View/edit toolbar + icon rail (steps 3-6) - one floating

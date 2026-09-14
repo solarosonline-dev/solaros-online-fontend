@@ -203,3 +203,262 @@
   background: var(--app-accent, #2563eb);
   color: #fff;
 }
+
+/* Step 1 (Project & Location) - a single merged card styled like the rest
+   of the app's real forms (Add Lead), not the tool's own tiny ad-hoc
+   inline-style scheme used elsewhere in this file. */
+.plant-design-editor .pde-step1-card {
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: var(--app-radius, 8px);
+  padding: 24px;
+}
+
+.plant-design-editor .pde-step1-heading {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--app-text, #222);
+  margin-bottom: 4px;
+}
+
+.plant-design-editor .pde-step1-subtext {
+  font-size: 13px;
+  color: var(--app-text-muted, #888);
+  margin-bottom: 20px;
+}
+
+.plant-design-editor .pde-step1-hint {
+  font-size: 12px;
+  color: var(--app-text-muted, #888);
+  margin: -4px 0 14px;
+}
+
+.plant-design-editor .pde-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.plant-design-editor .pde-field label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text, #222);
+}
+
+.plant-design-editor .pde-field input,
+.plant-design-editor .pde-field select {
+  font-family: var(--app-font, inherit);
+  font-size: 15px;
+  padding: 10px 14px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 8px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.plant-design-editor .pde-field input:focus,
+.plant-design-editor .pde-field select:focus {
+  outline: none;
+  border-color: var(--app-accent, #2563eb);
+}
+
+.plant-design-editor .pde-field-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-danger, #c0392b);
+}
+
+.plant-design-editor .pde-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 520px) {
+  .plant-design-editor .pde-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+.plant-design-editor .pde-unit-toggle {
+  display: flex;
+  gap: 8px;
+}
+.plant-design-editor .pde-unit-toggle .pde-btn {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.plant-design-editor .pde-primary-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #1c2b4a;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--app-font, inherit);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.plant-design-editor .pde-primary-btn:hover {
+  background: #16223b;
+}
+
+/* Mobile step nav - a dropdown instead of the tab strip, which won't fit
+   seven steps' worth of labels on a phone screen. Desktop keeps the tab
+   strip (see the STEPS.map() block above), since it already fits there. */
+.plant-design-editor .pde-step-select {
+  width: 100%;
+  font-family: var(--app-font, inherit);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  background: var(--app-surface, #fff);
+  color: var(--app-accent, #2563eb);
+}
+
+/* Save control - on mobile this drops to its own row under the step
+   dropdown (see the top bar's flexDirection:'column' in
+   PlantDesignEditor.tsx), so it gets a top divider and is pushed to the
+   row's right edge instead of hugging the left under the dropdown. */
+.plant-design-editor .pde-topbar-save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.plant-design-editor .pde-topbar-save-row--mobile {
+  width: 100%;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--app-border, #e2e5ea);
+}
+.plant-design-editor .pde-save-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--app-accent, #2563eb);
+  color: #fff;
+  font-family: var(--app-font, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.plant-design-editor .pde-save-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.plant-design-editor .pde-save-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.plant-design-editor .pde-save-status {
+  font-size: 12px;
+}
+.plant-design-editor .pde-save-status.success {
+  color: #2e7d32;
+}
+.plant-design-editor .pde-save-status.error {
+  color: var(--app-danger, #c0392b);
+}
+
+/* Step 2 (Configuration) - CollapsibleSection restyled to match step 1's
+   card look (bigger heading, app tokens) instead of the tool's original
+   flat #fff/#e2e2e2 box with a tiny 12px header. Also used by later
+   steps' own CollapsibleSection instances (Output/Cost estimate) so their
+   look stays consistent rather than only step 2 changing. */
+.plant-design-editor .pde-section {
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: var(--app-radius, 8px);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.plant-design-editor .pde-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--app-text, #222);
+  padding: 2px 0;
+  user-select: none;
+}
+.plant-design-editor .pde-section-header.pde-section-open {
+  margin-bottom: 10px;
+}
+.plant-design-editor .pde-section-caret {
+  color: var(--app-text-muted, #888);
+  font-size: 11px;
+}
+
+/* Step 2's own field styling - same visual language as step 1's
+   .pde-field/.pde-field-row (stacked label above input, 14/15px type)
+   instead of the old labelStyle/inputStyle pairing (flex row, 11px). Kept
+   as its own class rather than reusing .pde-field directly so a smaller
+   bottom margin fits multiple fields inside one already-padded section. */
+.plant-design-editor .pde-field-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.plant-design-editor .pde-field-sm:last-child {
+  margin-bottom: 0;
+}
+.plant-design-editor .pde-field-sm label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text, #222);
+}
+.plant-design-editor .pde-field-sm input,
+.plant-design-editor .pde-field-sm select {
+  font-family: var(--app-font, inherit);
+  font-size: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 8px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+.plant-design-editor .pde-field-sm input:focus,
+.plant-design-editor .pde-field-sm select:focus {
+  outline: none;
+  border-color: var(--app-accent, #2563eb);
+}
+.plant-design-editor .pde-field-sm-hint {
+  font-size: 12px;
+  color: var(--app-text-muted, #888);
+  line-height: 1.6;
+}
+
+/* SliderInput's own number field, used across every step - a small,
+   general bump in line with the rest of this pass rather than something
+   step-2-specific, since the same component renders inside Panel
+   configuration (step 2) and roof/output/pricing sliders elsewhere. */
+.plant-design-editor .pde-slider-num {
+  font-family: var(--app-font, inherit);
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 6px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+}
+.plant-design-editor .pde-slider-num:disabled {
+  background: #f2f2f2;
+  color: #999;
+}
