@@ -14,10 +14,28 @@
 // to fully reconstruct a design exactly as left off - everything else
 // (panel counts, output estimate, string/MPPT schedule, SLD) is
 // recomputed via useMemo from this data, not stored separately.
+// A single satellite capture - `url` is always present (the live Maps
+// Static API request the frontend built - see staticMap.ts) so the image
+// still renders during editing, before it's ever round-tripped through a
+// save. `s3Key` only appears once the backend has captured it to S3 (see
+// solaros-online-backend's ApiSpecs.md, "One narrow, deliberate exception
+// to opaque JSON blob"); a save response's `url` is a fresh presigned S3
+// url whenever `s3Key` is present, otherwise the same live Google url sent
+// up (capture is best-effort - a failed one just gets retried next save).
+export interface SiteImageCapture {
+  url: string;
+  centerLat: number;
+  centerLon: number;
+  zoom: number;
+  sizePx: number;
+  scale: number;
+  s3Key?: string;
+}
+
 export interface PlantDesignData {
   roofs: any[];
   obstacles: any[];
-  siteImages: { locationImage: any; locationImageWide: any };
+  siteImages: { locationImage: SiteImageCapture | null; locationImageWide: SiteImageCapture | null };
   location: { lat: number; lon: number; tz: number };
   locationConfirmed: boolean;
   monthlyGHI: number[];
@@ -34,8 +52,12 @@ export interface PlantDesignData {
 
 export interface PlantDesignEditorProps {
   initialDesignData?: PlantDesignData;
+  // Returns the server's own saved copy of `data` - specifically so the
+  // editor can pick up `siteImages` entries the backend just captured to
+  // S3 (see SiteImageCapture), replacing the live Google urls it sent up
+  // without waiting for a full reload.
   onSave: (
     data: PlantDesignData,
     meta: { name: string; capacityKw: number | null; latitude: number | null; longitude: number | null }
-  ) => Promise<void>;
+  ) => Promise<PlantDesignData | void>;
 }

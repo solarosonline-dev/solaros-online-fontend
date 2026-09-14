@@ -295,14 +295,25 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
         return Math.abs(x - op.x) < o.width / 2 + 0.3 && Math.abs(rowY - op.y) < o.depth / 2 + 0.3;
       }
       if (o.shape === 'polygon') {
-        // Its own axis-aligned bounding box (in the same local space as
-        // the scan) - a reasonable approximation for blocking purposes,
-        // same spirit as the box case above not accounting for rotation
-        // either.
+        // The real polygon (in the same local space as the scan), not its
+        // own bounding box - a non-rectangular drawn obstacle (a triangle,
+        // an L, ...) has a bounding box far bigger than its actual
+        // footprint, which used to block every panel position in that
+        // whole box, not just the ones the shape itself actually covers -
+        // visibly wasting real, obstacle-free roof space around anything
+        // but a rectangle. `margin` samples a small cross of points around
+        // the candidate position instead of the position alone, as a
+        // stand-in for a true 0.3m-clearance/Minkowski-expanded polygon
+        // test (matching the flat 0.3m the box/cylinder branches already
+        // add to their own half-dimensions).
         const localPoly = o.polygon.map((p) => toSlopeLocal(p, direction));
-        const xs = localPoly.map((p) => p.x), ys = localPoly.map((p) => p.y);
-        return x > Math.min(...xs) - 0.3 && x < Math.max(...xs) + 0.3
-          && rowY > Math.min(...ys) - 0.3 && rowY < Math.max(...ys) + 0.3;
+        const margin = 0.3;
+        const samplePoints = [
+          { x, y: rowY },
+          { x: x - margin, y: rowY }, { x: x + margin, y: rowY },
+          { x, y: rowY - margin }, { x, y: rowY + margin },
+        ];
+        return samplePoints.some((pt) => pointInPolygon(pt, localPoly));
       }
       return Math.hypot(x - op.x, rowY - op.y) < (o.radius || 0.5) + 0.3;
     });

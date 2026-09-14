@@ -697,6 +697,25 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     return Math.max(...xs, ...ys, 10, maxBuildingHeight, 1) * 2;
   }, [roofs, maxBuildingHeight]);
 
+  // Where OrbitControls should actually pivot/dolly-zoom toward - the
+  // average of every roof vertex and every obstacle's own position (world
+  // x/y, same coordinate space extent uses above). World (0,0) (the
+  // confirmed site pin) used to be the fixed target instead (see
+  // orbitTarget below), which zooms/orbits around wherever the pin happens
+  // to sit rather than the roofs/obstacles actually traced there - same
+  // fix as the 2D plan's own contentCentroid, for the same reason. Falls
+  // back to the origin once nothing's been placed yet.
+  const contentCentroid = useMemo(() => {
+    const pts: { x: number; y: number }[] = [];
+    roofs.forEach((r) => r.polygon.forEach((p) => pts.push(p)));
+    obstacles.forEach((o) => pts.push({ x: o.x, y: o.y }));
+    if (pts.length === 0) return { x: 0, y: 0 };
+    return {
+      x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+      y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+    };
+  }, [roofs, obstacles]);
+
   // The flat fallback plane sits directly under the map image (see
   // MapGround) and only shows at its edges/corners. It's sized far larger
   // than any building this app deals with (and colored identically to the
@@ -721,7 +740,10 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
   // hover, obstacle selection, slider drag), which snaps the camera's pivot
   // back to center and undoes any panning the user just did. Memoizing on
   // the actual value keeps identity stable across unrelated re-renders.
-  const orbitTarget = useMemo(() => [0, maxBuildingHeight + 1, 0], [maxBuildingHeight]);
+  const orbitTarget = useMemo(
+    () => toThree(contentCentroid.x, contentCentroid.y, maxBuildingHeight + 1),
+    [contentCentroid, maxBuildingHeight]
+  );
 
   function handleClick(e, roofId = null) {
     if (placingShape) {
@@ -746,7 +768,14 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
       style={{ width: '100%', height: '100%', cursor: placingShape ? 'crosshair' : 'default' }}
       onPointerDown={(e) => { pointerDownRef.current = { x: e.clientX, y: e.clientY }; }}
     >
-      <Canvas shadows camera={{ position: [extent * 0.7, extent * 0.6 + maxBuildingHeight, extent * 0.7], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
+      {/* logarithmicDepthBuffer: the ground stacks three nearly-coplanar
+          planes only 1-2cm apart (the flat fallback color, WideMapGround,
+          MapGround - see their own comments) under a far clip plane
+          (INFINITE_GROUND_SIZE * 3) that's 24000x the near one. A standard
+          depth buffer doesn't have enough precision at that ratio to keep
+          those layers reliably sorted, which shows up as flickering/
+          blocky z-fighting between them while orbiting. */}
+      <Canvas shadows gl={{ logarithmicDepthBuffer: true }} camera={{ position: [extent * 0.7, extent * 0.6 + maxBuildingHeight, extent * 0.7], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
         <color attach="background" args={['#eef3ea']} />
         <SunLight elevation={sunElevation} azimuth={sunAzimuth} />
 

@@ -12,6 +12,7 @@ import {
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
   FillGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
+  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -51,6 +52,7 @@ import { MODULE_CATALOG, CUSTOM_MODULE_MAKE, moduleCatalogMakes, moduleCatalogMo
 import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
 import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];
@@ -138,7 +140,7 @@ function formatLength(meters, units, decimals = 1) {
 // number box), so callers never juggle units themselves. Omit `unit` (or
 // pass 'm') for a non-length field (wattage, degrees, a fraction, ₹) -
 // the app-wide meter/feet toggle shouldn't touch those.
-function SliderInput({ value, onChange, min, max, step = 1, disabled = false, numberWidth = 62, unit = 'm' }: any) {
+function SliderInput({ value, onChange, min, max, step = 1, disabled = false, numberWidth = 70, unit = 'm' }: any) {
   const numeric = Number.isFinite(value) ? value : 0;
   const isFeet = unit === 'ft';
   const toDisplay = (m) => (isFeet ? metersToFeet(m) : m);
@@ -180,13 +182,38 @@ function SliderInput({ value, onChange, min, max, step = 1, disabled = false, nu
 // style).
 function RailPopover({ open, width = 260, children }) {
   const ref = useRef<any>(null);
+  const isMobile = useIsMobile();
   const [shiftY, setShiftY] = useState(0);
+  // Mobile only: the right rail (see its own comment further down) caps
+  // its own height and scrolls internally so its ever-growing icon list
+  // doesn't run off the bottom of the screen - but CSS only allows that
+  // (overflow-y: auto) by also forcing overflow-x to auto on the same
+  // box, which would clip this popover's usual "open to the left of the
+  // trigger" placement the moment it extends past the rail's own narrow
+  // width. `position: fixed` (viewport-relative, computed from the
+  // trigger's own on-screen position via its parent - the same
+  // `position: relative` wrapper every call site already renders around
+  // its trigger button) escapes that clipping entirely, so it renders
+  // freely over the canvas regardless of the rail's own scroll state.
+  const [fixedPos, setFixedPos] = useState<any>(null);
 
   useLayoutEffect(() => {
-    if (!open) { setShiftY(0); return; }
+    if (!open) { setShiftY(0); setFixedPos(null); return; }
     const el = ref.current;
     if (!el) return;
     const margin = 12;
+
+    if (isMobile) {
+      const anchor = el.parentElement;
+      const anchorRect = anchor ? anchor.getBoundingClientRect() : el.getBoundingClientRect();
+      const effectiveWidth = Math.min(width, window.innerWidth - margin * 2);
+      const left = Math.max(margin, anchorRect.left - effectiveWidth - 8);
+      const naturalHeight = el.getBoundingClientRect().height || 200;
+      const top = Math.max(margin, Math.min(anchorRect.top, window.innerHeight - margin - naturalHeight));
+      setFixedPos({ left, top, width: effectiveWidth });
+      return;
+    }
+    setFixedPos(null);
     const rect = el.getBoundingClientRect();
     const overflowBelow = rect.bottom - (window.innerHeight - margin);
     if (overflowBelow <= 0) { setShiftY(0); return; }
@@ -197,7 +224,7 @@ function RailPopover({ open, width = 260, children }) {
     // itself isn't a stable dependency, but that's fine here: we only
     // care that *some* render happened while open, not what changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, children]);
+  }, [open, children, isMobile, width]);
 
   if (!open) return null;
   return (
@@ -205,9 +232,12 @@ function RailPopover({ open, width = 260, children }) {
       ref={ref}
       className="rail-popover"
       style={{
-        position: 'absolute', right: 48, top: 0, transform: shiftY ? `translateY(${shiftY}px)` : undefined,
+        position: isMobile ? 'fixed' : 'absolute',
+        ...(isMobile
+          ? (fixedPos || { left: -9999, top: -9999 })
+          : { right: 48, top: 0, width, transform: shiftY ? `translateY(${shiftY}px)` : undefined }),
         background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10,
-        boxShadow: '0 4px 18px rgba(0,0,0,0.18)', width, maxHeight: '70vh', overflowY: 'auto', zIndex: 5,
+        boxShadow: '0 4px 18px rgba(0,0,0,0.18)', maxHeight: '70vh', overflowY: 'auto', zIndex: 20,
       }}
     >
       {children}
@@ -283,6 +313,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // Nothing to show in the center pane until a location's been picked —
   // before that, the app is just the left panel (see the main return below).
   const [locationConfirmed, setLocationConfirmed] = useState(initialDesignData?.locationConfirmed ?? false);
+  // The location actually last confirmed, as opposed to `location` itself
+  // (which updates live as the pin's dragged/typed, before ever being
+  // confirmed) - lets handleLocationConfirm tell a genuine change apart
+  // from a no-op re-click of "Next" after just navigating back to step 1
+  // without touching anything (see its own comment). Seeded from the saved
+  // design so reopening an already-confirmed design doesn't treat its own
+  // location as new the first time "Next" is clicked again.
+  const lastConfirmedLocationRef = useRef(
+    initialDesignData?.locationConfirmed
+      ? { lat: initialDesignData.location.lat, lon: initialDesignData.location.lon }
+      : null
+  );
+  // A location change that would actually reset work already done (roofs/
+  // panels/output/cost, or having reached past Configuration) - held here
+  // until the user confirms it in the dialog below, rather than applied
+  // immediately on "Next".
+  const [pendingLocationChange, setPendingLocationChange] = useState<{ lat: number; lon: number } | null>(null);
+  // A just-added obstacle that overlaps one or more already-placed panels
+  // (see promptOverlapRemovalIfNeeded) - held here until the user picks
+  // Remove or Keep in the dialog below.
+  const [obstacleOverlapPrompt, setObstacleOverlapPrompt] = useState<{ hits: { roofId: any; gridId: any; panelId: any }[] } | null>(null);
   // Monthly GHI (kWh/m^2/day) actually used by computeOutput below - starts
   // as the illustrative SAMPLE_MONTHLY_GHI and gets replaced with this
   // site's own values once handleLocationConfirm's fetchMonthlyGHI call
@@ -388,12 +439,35 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // there (a fixed reference, not tracked).
   const [compass3DAngleDeg, setCompass3DAngleDeg] = useState(0);
   const [planZoom, setPlanZoom] = useState(1);
+  // The 2D plan's viewBox height is held fixed at 560 and its width tracks
+  // the svg's own on-screen aspect ratio (see the ResizeObserver effect just
+  // below) so viewBox and container are always the same shape -
+  // preserveAspectRatio="xMidYMid meet" then has nothing to letterbox, and
+  // the backdrop image/content fill the container edge-to-edge instead of
+  // leaving bare space down the sides on a wide screen (or top/bottom on a
+  // narrow one). Starts at 560 (square) before the first layout pass has a
+  // real size to measure.
+  const [planViewBoxWidth, setPlanViewBoxWidth] = useState(560);
+  const PLAN_VIEWBOX_HEIGHT = 560;
   // Screen-space pan offset (in viewBox pixels) for the 2D plan — without
   // this, zooming in always keeps the same center point in view with no
   // way to shift focus to the parts of the shape that scrolled off-screen.
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef<any>(null);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (w > 0 && h > 0) setPlanViewBoxWidth(PLAN_VIEWBOX_HEIGHT * (w / h));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Selected grids, keyed `${roofId}:${gridId}` - clicking any panel
   // selects every panel in its own grid (see README's "Panel grids" entry),
   // not just that one panel, so selection is tracked at the grid level.
@@ -882,13 +956,51 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   const combinedExtent = (movingRoof && frozenExtentRef.current != null) ? frozenExtentRef.current : liveCombinedExtent;
   const halfExtent = combinedExtent / 2 + 8;
   const scale = (520 / (halfExtent * 2)) * planZoom;
-  const center = 280;
-  const toScreen = (x, y) => ({ sx: center + panOffset.x + x * scale, sy: center + panOffset.y - y * scale });
+  const centerX = planViewBoxWidth / 2;
+  const centerY = PLAN_VIEWBOX_HEIGHT / 2;
+  const toScreen = (x, y) => ({ sx: centerX + panOffset.x + x * scale, sy: centerY + panOffset.y - y * scale });
+
+  // Where scrolling to zoom should actually zoom *toward* - the average of
+  // every roof vertex and every obstacle's own position, in world (site-
+  // local-meters) coordinates. Plain world (0,0) (the confirmed site pin)
+  // used to be the implicit zoom pivot instead (see onPlanWheel below), but
+  // that's rarely where the roofs/obstacles actually end up once a real
+  // site's traced - zooming in "at the pin" then just as often zooms into
+  // blank ground nearby as it does the roof itself. Falls back to the
+  // origin once nothing's been placed yet (nothing else to zoom toward).
+  const contentCentroid = useMemo(() => {
+    const pts: { x: number; y: number }[] = [];
+    roofPolygons.forEach((rp) => rp.polygon.forEach((p) => pts.push(p)));
+    obstacles.forEach((o) => pts.push({ x: o.x, y: o.y }));
+    if (pts.length === 0) return { x: 0, y: 0 };
+    return {
+      x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+      y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+    };
+  }, [roofPolygons, obstacles]);
+
+  // Adjusts panOffset so that whichever world point stays fixed on screen
+  // across a zoom change is `anchor` (contentCentroid, normally) rather
+  // than world (0,0) - i.e. solves toScreen(anchor) at the old zoom ==
+  // toScreen(anchor) at the new one for panOffset. Same shape both axes
+  // bar the sign flip toScreen's own sy already has (screen y grows
+  // downward, world y grows up).
+  function panOffsetZoomingToward(anchor, offset, prevZoom, nextZoom) {
+    const baseScale = 520 / (halfExtent * 2);
+    const ds = baseScale * nextZoom - baseScale * prevZoom;
+    return { x: offset.x - anchor.x * ds, y: offset.y + anchor.y * ds };
+  }
 
   function onPlanWheel(e) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    setPlanZoom((z) => Math.min(6, Math.max(minPlanZoom, z * factor)));
+    const nextZoom = Math.min(6, Math.max(minPlanZoom, planZoom * factor));
+    setPlanZoom(nextZoom);
+    // Re-anchored to contentCentroid (see its own comment) rather than a
+    // plain re-clamp of the existing offset - zooming out shrinks the
+    // backdrop image toward the view's center too, so the offset still
+    // needs clamping back onto the image afterward either way.
+    setPanOffset(clampPanOffsetForZoom(panOffsetZoomingToward(contentCentroid, panOffset, planZoom, nextZoom), nextZoom));
   }
 
   // Where the site-wide satellite captures (see handleLocationConfirm) sit
@@ -917,14 +1029,61 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // and plain background peeks out around it. Without a map image the
   // background already fills the whole view at any zoom, so 0.3x is fine;
   // with one, floor the zoom-out so the image's own span still covers the
-  // widest the view can get.
+  // widest the view can get - checked against the *wider* of the viewBox's
+  // two dimensions (planViewBoxWidth vs. PLAN_VIEWBOX_HEIGHT), since on a
+  // wide screen the width is the one that needs the most image to cover it.
+  // Deliberately not capped at 1x (an earlier version was, on the
+  // assumption the backdrop could never need *more* than the roof's own
+  // default fit to cover the view) - on a wide enough screen the viewBox
+  // itself can need more span than the image has even at the roof's
+  // default fit, and this floor is the only thing that forces the extra
+  // zoom-in that then requires (see the effect just below, which keeps
+  // planZoom itself in sync with a floor that can rise past 1 like this).
   let minPlanZoom = 0.3;
   if (backdropPlacement) {
     const baseScale = 520 / (halfExtent * 2);
-    const viewSpanAt1x = 560 / baseScale;
+    const viewSpanAt1x = Math.max(planViewBoxWidth, PLAN_VIEWBOX_HEIGHT) / baseScale;
     const imageSpan = Math.min(backdropPlacement.widthMeters, backdropPlacement.heightMeters);
-    minPlanZoom = Math.max(0.3, Math.min(1, viewSpanAt1x / imageSpan));
+    minPlanZoom = Math.max(0.3, viewSpanAt1x / imageSpan);
   }
+
+  // Panning itself has no inherent bounds (see the Reset view button's own
+  // comment above) - clamp it here to keep the backdrop image covering the
+  // full viewBox, the same goal minPlanZoom serves for zoom alone. Takes an
+  // explicit zoom (rather than reading planZoom directly) so onPlanWheel can
+  // clamp against the zoom level it's about to commit to, not the one about
+  // to be replaced. A no-op once there's no backdrop image, or - same as
+  // minPlanZoom's own floor - once even a centered image can't fully cover
+  // the viewBox at this zoom (maxOffset clamps to 0 rather than letting the
+  // offset drift either way). Bounded separately per axis (against
+  // centerX/centerY, not a single shared center) since the viewBox is only
+  // square by coincidence now - see planViewBoxWidth's own comment.
+  function clampPanOffsetForZoom(offset, zoom) {
+    if (!backdropPlacement) return offset;
+    const baseScale = 520 / (halfExtent * 2);
+    const halfImgPx = (backdropPlacement.widthMeters / 2) * baseScale * zoom;
+    const maxOffsetX = Math.max(0, halfImgPx - centerX);
+    const maxOffsetY = Math.max(0, halfImgPx - centerY);
+    return {
+      x: Math.max(-maxOffsetX, Math.min(maxOffsetX, offset.x)),
+      y: Math.max(-maxOffsetY, Math.min(maxOffsetY, offset.y)),
+    };
+  }
+
+  // minPlanZoom can rise above the state's own starting value of 1 on a
+  // wide-enough screen (see its own comment) - but nothing else pushes
+  // `planZoom` itself up to meet a rising floor except a live wheel event,
+  // so a plain page load (or a window resize that widens planViewBoxWidth)
+  // would otherwise sit below the floor indefinitely, still showing the
+  // gap this whole floor exists to prevent. Keep planZoom in sync with it
+  // directly instead of waiting for the first scroll.
+  useEffect(() => {
+    if (planZoom < minPlanZoom) {
+      setPanOffset((p) => clampPanOffsetForZoom(panOffsetZoomingToward(contentCentroid, p, planZoom, minPlanZoom), minPlanZoom));
+      setPlanZoom(minPlanZoom);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPlanZoom]);
 
   // Sun position doesn't depend on any particular roof, just location/time —
   // computed once and shared by every roof's own shading calc below.
@@ -952,6 +1111,28 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     });
     return m;
   }, [location, selectedDate, selectedHour, obstacles, roofs]);
+
+  // Which panels (per grid, keyed by gridKey) sit on top of an obstacle
+  // right now - see panelOverlapsObstacle's own comment (below, hoisted) for
+  // the overlap test itself. Drives the red highlight on the 2D plan below,
+  // so an overlap that shows up after an obstacle's own creation (moved
+  // grid, resized/moved obstacle) is still visible at a glance, not just
+  // the one-time prompt/manual button at creation (see
+  // promptOverlapRemovalIfNeeded/removeOverlappingPanels).
+  const overlappingPanelIdsByGrid = useMemo(() => {
+    const m: Record<string, Set<any>> = {};
+    roofs.forEach((roof) => {
+      roof.grids.forEach((grid) => {
+        const ids = new Set<any>();
+        grid.panels.forEach((panel) => {
+          if (obstacles.some((o) => !o.marker && panelOverlapsObstacle(panel, o))) ids.add(panel.id);
+        });
+        m[gridKey(roof.id, grid.id)] = ids;
+      });
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roofs, obstacles]);
 
   // Mounting structure per grid, keyed by gridKey - computed from the
   // grid's own unrotated packed geometry (rackX/rackY), since a grid's
@@ -1013,12 +1194,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [efficiencyView, roofs, obstacles, location, selectedDate, panelSpec, assumptions]);
 
-  // Green (100%, full sun) to yellow to red (least output) - a plain hue
-  // sweep from green's hue (120) down to red's (0) is enough to read as a
-  // gradient without needing a lookup table.
+  // Reuses Shadow analysis's own gradient (sunExposureColor, defined further
+  // down - function declarations hoist, so the forward reference is fine)
+  // rather than a separate green-to-red hue sweep, so the two heatmaps read
+  // as the same visual language: blue (worst) through to red (best) either
+  // way, instead of each toggle needing its own color key.
   function efficiencyColor(pct) {
-    const hue = Math.max(0, Math.min(100, pct)) * 1.2;
-    return `hsl(${hue}, 75%, 45%)`;
+    return sunExposureColor(pct);
   }
 
   // Roof-wide shadow analysis (see the toolbar toggle further down): a
@@ -1281,9 +1463,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     const preset = OBSTACLE_PRESETS[kind];
     const extra = kind === 'tree' ? { canopy: TREE_CANOPIES[Math.floor(Math.random() * TREE_CANOPIES.length)] } : {};
     const id = Date.now();
-    setObstacles((obs) => [...obs, { id, ...preset, ...extra, x, y }]);
+    const obstacle = { id, ...preset, ...extra, x, y };
+    setObstacles((obs) => [...obs, obstacle]);
     setPlacingShape(null);
     selectObstacle(id);
+    promptOverlapRemovalIfNeeded(obstacle);
   }
 
   // A "drawable" obstacle (see OBSTACLE_PRESETS) is traced freehand on the
@@ -1295,10 +1479,97 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
     const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
     const id = Date.now();
-    setObstacles((obs) => [...obs, { id, ...preset, polygon: points, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) }]);
+    const obstacle = { id, ...preset, polygon: points, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) };
+    setObstacles((obs) => [...obs, obstacle]);
     setPlacingShape(null);
     setObstacleDrawPoints([]);
     selectObstacle(id);
+    promptOverlapRemovalIfNeeded(obstacle);
+  }
+
+  // A rough (unrotated bounding-box) overlap test between an already-placed
+  // panel and a freshly-added obstacle - generateLayout's own isBlockedAt
+  // (layoutEngine.ts) is the authoritative version of this check, used when
+  // packing *new* panel positions, but it's an internal detail of that
+  // function; this is just close enough to flag existing panels worth a
+  // second look; the +0.3m below mirrors isBlockedAt's own clearance.
+  function panelOverlapsObstacle(panel, obstacle) {
+    const halfW = panel.w / 2, halfD = panel.d / 2;
+    const dx = panel.x - obstacle.x, dy = panel.y - obstacle.y;
+    if (obstacle.shape === 'box') {
+      return Math.abs(dx) < halfW + obstacle.width / 2 + 0.3 && Math.abs(dy) < halfD + obstacle.depth / 2 + 0.3;
+    }
+    if (obstacle.shape === 'polygon' && obstacle.polygon) {
+      // A drawn obstacle (elevation/skylight/walkway/cutout) can be an
+      // arbitrary, non-rectangular shape (a triangle, an L, ...) - testing
+      // against its own bounding box (as this used to) flags every panel
+      // in that box's corners too, even ones nowhere near the actual
+      // shape (very visible on anything but a rectangle). Testing the
+      // panel's own center and four corners against the real polygon
+      // instead only flags a panel that's actually inside it or has a
+      // corner clipping across an edge of it.
+      const corners = [
+        { x: panel.x, y: panel.y },
+        { x: panel.x - halfW, y: panel.y - halfD },
+        { x: panel.x + halfW, y: panel.y - halfD },
+        { x: panel.x - halfW, y: panel.y + halfD },
+        { x: panel.x + halfW, y: panel.y + halfD },
+      ];
+      return corners.some((c) => pointInPolygon(c, obstacle.polygon));
+    }
+    // cylinder (tree/tank/vent/chimney-adjacent round obstacles)
+    return Math.hypot(dx, dy) < (obstacle.radius || 0.5) + Math.max(halfW, halfD) + 0.3;
+  }
+
+  // Every already-placed panel (across every roof) this obstacle now
+  // overlaps - a marker (see OBSTACLE_PRESETS' own comment) is reference-
+  // only and never blocks placement, so it's excluded same as
+  // generateLayout's own check does.
+  function findPanelsOverlappingObstacle(obstacle) {
+    if (obstacle.marker) return [];
+    const hits: { roofId: any; gridId: any; panelId: any }[] = [];
+    roofs.forEach((roof) => {
+      roof.grids.forEach((grid) => {
+        grid.panels.forEach((panel) => {
+          if (panelOverlapsObstacle(panel, obstacle)) {
+            hits.push({ roofId: roof.id, gridId: grid.id, panelId: panel.id });
+          }
+        });
+      });
+    });
+    return hits;
+  }
+
+  // Adding an obstacle never used to touch already-placed panels - they'd
+  // only ever get excluded from a spot once the grid was regenerated (e.g.
+  // clicking "Fill roof" again), easy to miss and easy to end up with a
+  // panel visually sitting on top of a tree/AC unit/chimney just placed.
+  // This surfaces the overlap right away and lets the user decide, rather
+  // than removing anything silently.
+  function promptOverlapRemovalIfNeeded(obstacle) {
+    const hits = findPanelsOverlappingObstacle(obstacle);
+    if (hits.length > 0) setObstacleOverlapPrompt({ hits });
+  }
+
+  function removeOverlappingPanels(hits) {
+    const panelIdsByRoofAndGrid = new Map<any, Map<any, any[]>>();
+    hits.forEach(({ roofId, gridId, panelId }) => {
+      if (!panelIdsByRoofAndGrid.has(roofId)) panelIdsByRoofAndGrid.set(roofId, new Map());
+      const byGrid = panelIdsByRoofAndGrid.get(roofId)!;
+      if (!byGrid.has(gridId)) byGrid.set(gridId, []);
+      byGrid.get(gridId)!.push(panelId);
+    });
+    panelIdsByRoofAndGrid.forEach((byGrid, roofId) => {
+      const roof = roofs.find((r) => r.id === roofId);
+      if (!roof) return;
+      updateRoofGrids(roofId, (grids) => grids.map((g) => {
+        const panelIds = byGrid.get(g.id);
+        if (!panelIds) return g;
+        return panelIds.reduce((acc, pid) => deleteGridPanel(acc, pid, roof), g);
+      }));
+    });
+    setOutputResult(null);
+    setCost(null);
   }
 
   function updateObstacle(id, field, value) {
@@ -1471,19 +1742,38 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     // when the user has already confirmed this exact location and just
     // navigated back to step 1 - only redo the heavy side effects (wiping
     // roofs, refetching site data) when the location is actually new.
-    if (locationConfirmed && lat === location.lat && lon === location.lon) return;
+    // Compares against the *last confirmed* location, not `location` itself
+    // - the caller always passes the current `location` state, so comparing
+    // against that directly would be tautologically true and this guard
+    // would never fire once locationConfirmed was set (a real bug this
+    // replaced: it silently skipped the reset/re-capture below on every
+    // repeat confirm, "new" location or not).
+    const last = lastConfirmedLocationRef.current;
+    if (last && lat === last.lat && lon === last.lon) return;
+    const isChangeFromPriorConfirm = last !== null;
     setLocation((loc) => ({ ...loc, lat, lon }));
-    // Any existing roofs/imagery were captured relative to the old location
-    // — moving the site invalidates them, so clear the roofs rather than
-    // leave outlines silently pointing at the wrong place on a future 3D
-    // texture.
+    // Any existing roofs/obstacles/imagery were captured relative to the
+    // old location — moving the site invalidates them, so clear both
+    // rather than leave outlines (or an obstacle's x/y, which are plain
+    // roof-relative coordinates, not tied to any roof id) silently
+    // pointing at the wrong place on the new backdrop.
     const locationImage = GOOGLE_MAPS_API_KEY ? buildLocationPreviewImage({ apiKey: GOOGLE_MAPS_API_KEY, lat, lon }) : null;
     const locationImageWide = GOOGLE_MAPS_API_KEY ? buildWideLocationPreviewImage({ apiKey: GOOGLE_MAPS_API_KEY, lat, lon }) : null;
     setSiteImages({ locationImage, locationImageWide });
     setRoofs([]);
+    setObstacles([]);
     setSelectedRoofId(null);
+    setSelectedObstacleId(null);
+    setSelectedGridKeys(new Set());
     setOutputResult(null);
     setCost(null);
+    // A genuine location change invalidates everything built on the old
+    // site (roofs cleared above), so later steps are no longer "reached" -
+    // unlike every other edit in this wizard, which never re-locks a step
+    // once visited (see maxUnlockedStep's own comment). The very first
+    // confirm (isChangeFromPriorConfirm false) has nothing to re-lock yet.
+    if (isChangeFromPriorConfirm) setMaxUnlockedStep(2);
+    lastConfirmedLocationRef.current = { lat, lon };
     // Location's confirmed — the (still empty) 2D plan is now backed by
     // the real imagery just captured, ready for when the user reaches a
     // step that actually shows it (Roof setup, step 3 - see the CENTER
@@ -1532,27 +1822,51 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
       });
   }
 
+  // Whether confirming the current `location` state right now would throw
+  // away work the user would actually miss - gates the "are you sure?"
+  // dialog below. A location edit before any of this exists (or before
+  // Configuration's even been reached) just proceeds silently.
+  function hasProgressWorthConfirming() {
+    return roofs.length > 0 || totalPanelCount > 0 || !!outputResult || !!cost || maxUnlockedStep > 2;
+  }
+
+  // "Next: Configuration"'s own click handler - step 1's only entry point
+  // into handleLocationConfirm. Interposes the confirm dialog when this
+  // would actually be a destructive change; a first-time confirm, or a
+  // repeat click that doesn't change the location, goes straight through.
+  function requestLocationConfirm() {
+    const candidate = { lat: location.lat, lon: location.lon };
+    const last = lastConfirmedLocationRef.current;
+    const isRealChange = !last || candidate.lat !== last.lat || candidate.lon !== last.lon;
+    if (isRealChange && hasProgressWorthConfirming()) {
+      setPendingLocationChange(candidate);
+      return;
+    }
+    handleLocationConfirm(candidate);
+    advanceToStep(2);
+  }
+
   // The svg's container isn't square, but its viewBox is — with
   // preserveAspectRatio="xMidYMid meet" the content is scaled to fit the
-  // limiting dimension and letterboxed (centered) along the other axis.
-  // Naively dividing by rect.width/rect.height ignores that letterbox
-  // offset, so clicks land off from the visible point whenever the
-  // container's aspect ratio isn't 1:1 (the normal case).
+  // limiting dimension and letterboxed (centered) along the other axis in
+  // general - but planViewBoxWidth keeps the viewBox itself matched to the
+  // svg's own on-screen aspect ratio (see its own comment), so in practice
+  // there's no letterbox to correct for here. Kept general (rather than
+  // assuming offsetX/offsetY are always 0) since the ResizeObserver that
+  // updates planViewBoxWidth runs one tick behind an actual resize.
   function svgContentScale() {
     const rect = svgRef.current.getBoundingClientRect();
-    const vbSize = 560;
-    return Math.min(rect.width / vbSize, rect.height / vbSize);
+    return Math.min(rect.width / planViewBoxWidth, rect.height / PLAN_VIEWBOX_HEIGHT);
   }
 
   function clientToWorld(clientX, clientY) {
     const rect = svgRef.current.getBoundingClientRect();
-    const vbSize = 560;
     const contentScale = svgContentScale();
-    const offsetX = (rect.width - vbSize * contentScale) / 2;
-    const offsetY = (rect.height - vbSize * contentScale) / 2;
+    const offsetX = (rect.width - planViewBoxWidth * contentScale) / 2;
+    const offsetY = (rect.height - PLAN_VIEWBOX_HEIGHT * contentScale) / 2;
     const sx = (clientX - rect.left - offsetX) / contentScale;
     const sy = (clientY - rect.top - offsetY) / contentScale;
-    return { sx, sy, worldX: (sx - center - panOffset.x) / scale, worldY: (center + panOffset.y - sy) / scale };
+    return { sx, sy, worldX: (sx - centerX - panOffset.x) / scale, worldY: (centerY + panOffset.y - sy) / scale };
   }
 
   // Live "N% sun" readout while the pointer sits over the sun-exposure
@@ -1679,7 +1993,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
       const dy = e.clientY - start.clientY;
       if (Math.hypot(dx, dy) > 3) start.moved = true;
       const contentScale = svgContentScale();
-      setPanOffset({ x: start.offsetX + dx / contentScale, y: start.offsetY + dy / contentScale });
+      setPanOffset(clampPanOffsetForZoom(
+        { x: start.offsetX + dx / contentScale, y: start.offsetY + dy / contentScale },
+        planZoom
+      ));
     }
     function handleMouseUp() {
       setIsPanning(false);
@@ -2313,6 +2630,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     });
   }
 
+  // Output estimate (step 5) recalculates on its own - on arrival, and
+  // again whenever the user changes the period (day/month/year) or an
+  // assumption (system derate/diffuse fraction) while already there - so
+  // there's no separate "Recalculate" button to remember to press. Not
+  // keyed on the design itself (roofs/panels/pricing) since those can
+  // only change on other steps, which this effect isn't active on.
+  useEffect(() => {
+    if (currentStep === 5 && totalPanelCount > 0) handleCalculate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, mode, assumptions, totalPanelCount]);
+
   // Persistence: gathers exactly the content state identified as the
   // round-trippable shape (see types.ts's PlantDesignData) and hands it to
   // the host page's onSave, which does the actual POST/PATCH. idle |
@@ -2327,12 +2655,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     };
     setSaveStatus('saving');
     try {
-      await onSave(data, {
+      const saved = await onSave(data, {
         name: projectName.trim() || 'Untitled project',
         capacityKw: totalCapacityKW > 0 ? totalCapacityKW : null,
         latitude: location.lat,
         longitude: location.lon,
       });
+      // The server may have just captured one/both site images to S3 (see
+      // SiteImageCapture) - pick up its resolved urls (a fresh presigned
+      // S3 url once captured, otherwise unchanged) so the 2D/3D backdrop
+      // stops depending on the live Google url this session built, without
+      // needing a full reload to notice.
+      if (saved?.siteImages) setSiteImages(saved.siteImages);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 3000);
     } catch (err) {
@@ -2354,6 +2688,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     { n: 6, label: 'Cost estimate', complete: true },
     { n: 7, label: 'Electrical Design (SLD)', complete: true },
   ];
+  // Cost estimate is hidden for now - still fully wired underneath (its
+  // own step number, right-panel content and cost computation all still
+  // work if reached directly), just not offered as a step to navigate to.
+  // Filtered here rather than removed from STEPS itself so `complete`/`n`
+  // stay meaningful if this needs to come back.
+  const visibleSteps = STEPS.filter((s) => s.n !== 6);
 
   const inputStyle = { width: 62, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11, color: '#222', background: '#fff' };
   const sectionStyle = { background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10, marginBottom: 8 };
@@ -2376,6 +2716,45 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // instead of stacking under the form - so the user isn't left scrolling
   // past project/location inputs to reach it (or back up to leave it).
   const mobileMapFullView = isMobile && currentStep === 1 && mapMode === 'location';
+  // Step 4's site-wide layout-summary readout (panel count, structure
+  // totals, per-grid inverter assignment) - shared between the desktop
+  // floating corner overlay and the mobile in-flow block below the canvas
+  // (see their own call sites further down) so the content itself isn't
+  // duplicated between the two presentations.
+  const renderLayoutSummary = () => (
+    <>
+      <div>{totalPanelCount} panels · {totalCapacityKW.toFixed(1)} kW across {roofs.length} roof{roofs.length === 1 ? '' : 's'}</div>
+      <div style={{ marginTop: 3, color: '#555' }}>
+        {Object.entries(structureTotals).map(([kind, t]) => (
+          <span key={kind} style={{ marginRight: 8 }}><span style={{ textTransform: 'capitalize' }}>{kind}s</span>: {formatLength((t as any).length, units)} ({(t as any).count})</span>
+        ))}
+      </div>
+      {sitePlan.perGrid.length > 0 && (
+        <div style={{ marginTop: 5, paddingTop: 5, borderTop: '1px solid #eee' }}>
+          {!sitePlan.valid ? (
+            <div style={{ color: '#c0392b' }}>Inverter assignment: {sitePlan.perGrid.filter((g) => !g.valid).length} grid(s) need attention - see below.</div>
+          ) : (
+            <div>
+              Inverters needed: {sitePlan.inverters.length} × {inverterChoice.model || inverterChoice.acPowerKw + 'kW'}
+              {' '}({(totalCapacityKW / (sitePlan.inverters.length * inverterChoice.acPowerKw) * 100).toFixed(0)}% of combined AC capacity used)
+            </div>
+          )}
+          {inverterSuggestion && (
+            <div style={{ color: '#b8860b' }}>
+              💡 Try {inverterSuggestion.model} instead: same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'}, {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilized instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}%.
+            </div>
+          )}
+          {sitePlan.perGrid.map((g) => (
+            <div key={g.key} style={{ color: g.valid ? '#555' : '#c0392b' }}>
+              {g.label} ({g.panelCount} panels): {g.valid
+                ? `INV-${g.inverterIds.join(', INV-')}${g.pooled ? ' (shared)' : ''} - strings [${g.strings.join(',')}]`
+                : g.reason}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div className="plant-design-editor" style={{ display: 'flex', flexDirection: 'column', fontFamily: 'system-ui, sans-serif', color: '#222', height: '100vh', boxSizing: 'border-box' }}>
@@ -2391,15 +2770,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             value={currentStep}
             onChange={(e) => goToStep(Number(e.target.value))}
           >
-            {STEPS.map((s) => (
+            {visibleSteps.map((s, i) => (
               <option key={s.n} value={s.n} disabled={s.n > maxUnlockedStep}>
-                {s.n}. {s.label}
+                {i + 1}. {s.label}
               </option>
             ))}
           </select>
         ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {STEPS.map((s, i) => {
+        {visibleSteps.map((s, i) => {
           const unlocked = s.n <= maxUnlockedStep;
           const active = currentStep === s.n;
           return (
@@ -2408,7 +2787,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               <button
                 onClick={() => goToStep(s.n)}
                 disabled={!unlocked}
-                title={unlocked ? s.label : `Finish step ${s.n - 1} first`}
+                title={unlocked ? s.label : `Finish the previous step first`}
                 style={{
                   border: 'none', background: active ? '#e8f0ff' : 'transparent',
                   color: active ? '#2f6fed' : unlocked ? '#333' : '#bbb',
@@ -2417,7 +2796,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   whiteSpace: 'nowrap', flexShrink: 0,
                 }}
               >
-                {s.n}. {s.label}
+                {i + 1}. {s.label}
               </button>
             </React.Fragment>
           );
@@ -2493,7 +2872,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
 
             <button
               className="pde-primary-btn"
-              onClick={() => { handleLocationConfirm({ lat: location.lat, lon: location.lon }); advanceToStep(2); }}
+              onClick={requestLocationConfirm}
             >
               Next: Configuration →
             </button>
@@ -2501,7 +2880,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
         )}
         {currentStep === 2 && (
         <>
-        <CollapsibleSection title="Grid connection">
+        <CollapsibleSection title="Grid connection" defaultOpen>
           <div className="pde-field-row">
             <div className="pde-field-sm"><label>Grid voltage (V)</label><input type="number" step="1" value={gridConnection.voltage} onChange={(e) => setGridConnection({ ...gridConnection, voltage: +e.target.value })} /></div>
             <div className="pde-field-sm">
@@ -2517,7 +2896,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             <div className="pde-field-sm"><label>DISCOM</label><input type="text" value={gridConnection.discom} onChange={(e) => setGridConnection({ ...gridConnection, discom: e.target.value })} placeholder="e.g. DHBVN" /></div>
           </div>
         </CollapsibleSection>
-        <CollapsibleSection title="Panel configuration" defaultOpen>
+        <CollapsibleSection title="Panel configuration">
           <div className={panelSpec.make !== CUSTOM_MODULE_MAKE ? 'pde-field-row' : undefined}>
             <div className="pde-field-sm">
               <label>Make</label>
@@ -2707,9 +3086,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
         </div>
       )}
 
-      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 7 && (
+      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 5 && currentStep !== 7 && (
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-        <div style={{ flex: '1 1 auto', minHeight: 480, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {/* On mobile, step 4's map gets a capped height instead of
+            flex:1 filling the whole screen - otherwise the layout-summary
+            block right after it (see its own comment further down) is
+            technically reachable by scrolling, but only after scrolling
+            through an entire screen-height map first, which reads as
+            "buried at the end of the map" rather than its own separate
+            section. A fixed portion of the screen keeps both visible
+            together, or close to it, instead of one long combined
+            scroll. 65% (not a smaller share) plus the same 480px floor
+            desktop uses - the floating toolbar + icon rail (steps 3/4 can
+            stack 4-5 icons) need real room, or they run past the bottom
+            of a too-short map box since they're position:absolute and
+            don't get clipped/scrolled by it. */}
+        <div style={isMobile && currentStep === 4
+          ? { flex: '0 0 65%', minHeight: 480, display: 'flex', flexDirection: 'column', position: 'relative' }
+          : { flex: '1 1 auto', minHeight: 480, display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {/* View/edit toolbar + icon rail (steps 3-6) - one floating
               top-left stack instead of two independently-positioned pieces,
               so the rail sits directly under the toolbar with no dead
@@ -2718,8 +3112,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               taking a row/column of their own, so the canvas always gets
               the full height/width. Each button already has its own opaque
               background (see btn()/iconBtn()), so no extra enclosing box is
-              needed for legibility over the map/plan. */}
-          <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, pointerEvents: 'none' }}>
+              needed for legibility over the map/plan. On mobile, `right`
+              stops short of the fixed compass (see the right-side rail
+              further down - always rendered, 44px wide there) instead of
+              running the full width and wrapping underneath/behind it. */}
+          <div style={{ position: 'absolute', top: 12, left: 12, right: isMobile ? 64 : 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, pointerEvents: 'none' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
             {/* One toggle instead of two separate buttons - always shows
                 the 3D cube (see icons.jsx), "pressed" (active/blue) only
@@ -2744,11 +3141,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 this. Only shown once the view actually differs from the
                 default, same as Undo/Redo dimming rather than
                 disappearing outright would, but here there's nothing
-                useful to show disabled, so it's just absent instead. */}
-            {viewMode === 'plan' && (planZoom !== 1 || panOffset.x !== 0 || panOffset.y !== 0) && (
+                useful to show disabled, so it's just absent instead.
+                "Default" is 1x unless minPlanZoom's own floor (see its
+                comment - can exceed 1 on a wide screen) forces more. */}
+            {viewMode === 'plan' && (planZoom !== Math.max(1, minPlanZoom) || panOffset.x !== 0 || panOffset.y !== 0) && (
               <button
                 className={iconBtn(false)}
-                onClick={() => { setPlanZoom(1); setPanOffset({ x: 0, y: 0 }); }}
+                onClick={() => {
+                  const z = Math.max(1, minPlanZoom);
+                  setPlanZoom(z);
+                  setPanOffset(clampPanOffsetForZoom({ x: 0, y: 0 }, z));
+                }}
                 data-tooltip="Reset zoom and pan back to the default fit-to-content view" aria-label="Reset view"
               >
                 ⊙
@@ -2774,12 +3177,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 Roof setup itself. 2D plan only - there's no 3D rendering
                 of it. */}
             {viewMode === 'plan' && roofs.length > 0 && (
-              <button
-                className={btn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
-                title="Heatmap of each part of the roof's own annual sun exposure - red gets the most, blue the least"
-              >
-                Shadow analysis
-              </button>
+              isMobile ? (
+                <button
+                  className={iconBtn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
+                  data-tooltip="Shadow analysis: heatmap of each part of the roof's own annual sun exposure"
+                  aria-label="Toggle shadow analysis heatmap"
+                >
+                  <SunIcon />
+                </button>
+              ) : (
+                <button
+                  className={btn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
+                  title="Heatmap of each part of the roof's own annual sun exposure - red gets the most, blue the least"
+                >
+                  Shadow analysis
+                </button>
+              )
             )}
             {viewMode === '3d' && (
               <button className={btn(!showPanels)} onClick={() => setShowPanels((v) => !v)}>
@@ -2794,12 +3207,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 - moved inline here once that started sitting right under
                 the compass/properties rail, which also docks there. */}
             {totalPanelCount > 0 && (
-              <button
-                className={btn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
-                title="Color each panel by its own annual output as a % of the best panel on site"
-              >
-                Efficiency view{efficiencyView ? ` · ${totalPanelCount} panel${totalPanelCount === 1 ? '' : 's'}` : ''}
-              </button>
+              isMobile ? (
+                <button
+                  className={iconBtn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
+                  data-tooltip={`Efficiency view: color each panel by its own annual output (${totalPanelCount} panel${totalPanelCount === 1 ? '' : 's'})`}
+                  aria-label="Toggle efficiency view"
+                >
+                  <EfficiencyIcon />
+                </button>
+              ) : (
+                <button
+                  className={btn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
+                  title="Color each panel by its own annual output as a % of the best panel on site"
+                >
+                  Efficiency view{efficiencyView ? ` · ${totalPanelCount} panel${totalPanelCount === 1 ? '' : 's'}` : ''}
+                </button>
+              )
             )}
             {/* Only for a *multi*-grid selection (box-select/shift-click) -
                 exactly one selected grid gets these same actions from its
@@ -2936,16 +3359,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
             </>
             )}
 
-            {currentStep === 5 && (
-              <button
-                data-tooltip="Continue to Cost estimate"
-                aria-label="Continue to Cost estimate"
-                onClick={() => advanceToStep(6)}
-                className={`${iconBtn(false)} pde-primary`}
-              >
-                <ArrowRightIcon />
-              </button>
-            )}
             {currentStep === 6 && (
               <button
                 data-tooltip="Continue to Electrical Design (SLD)"
@@ -3071,7 +3484,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
           )}
 
           <svg
-            ref={svgRef} viewBox="0 0 560 560" preserveAspectRatio="xMidYMid meet"
+            ref={svgRef} viewBox={`0 0 ${planViewBoxWidth} ${PLAN_VIEWBOX_HEIGHT}`} preserveAspectRatio="xMidYMid meet"
             style={{ display: viewMode === 'plan' ? 'block' : 'none', flex: 1, minHeight: 0, width: '100%', height: '100%', background: '#eef3ea', borderRadius: 10, border: '1px solid #d5d5d5', cursor: (placingShape || drawingRoof || placingGrid) ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
             onClick={onSvgClick}
             onDoubleClick={onSvgDoubleClick}
@@ -3460,6 +3873,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
 
             {roofs.flatMap((roof) => roof.grids.flatMap((g) => {
               const shadedIds = instantByGrid[gridKey(roof.id, g.id)]?.shadedIds || new Set();
+              const overlappingIds = overlappingPanelIdsByGrid[gridKey(roof.id, g.id)] || new Set();
               const pctMap = efficiencyView ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined;
               const gSelected = selectedGridKeys.has(gridKey(roof.id, g.id));
               // Delete row/column/panel mode is only ever active for the
@@ -3486,6 +3900,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 const s = toScreen(p.x - p.w / 2, p.y + p.d / 2);
                 const center = toScreen(p.x, p.y);
                 const shaded = shadedIds.has(p.id);
+                const overlapsObstacle = overlappingIds.has(p.id);
                 const rotation = (p.rotation || 0) + (g.rotation || 0);
                 const pct = pctMap?.[p.id];
                 const w = p.w * scale, h = p.d * scale;
@@ -3498,9 +3913,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${-rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
                       x={s.sx} y={s.sy} width={w} height={h}
-                      fill={deletePicked ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
+                      fill={deletePicked || overlapsObstacle ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
                       stroke={deletePicked ? '#fff' : gSelected ? '#fff' : '#0a1428'} strokeWidth={deletePicked ? 2 : gSelected ? 1.5 : 0.5}
-                      style={{ cursor: deleteModeActive ? 'pointer' : (selectedRoofId === roof.id && currentStep === 3) ? (movingRoof ? 'grabbing' : 'grab') : movingGrids ? 'grabbing' : 'pointer', pointerEvents: (placingGrid || addSideMode) ? 'none' : 'auto' }}
+                      // Editing a grid (drag/select/delete-mode picking)
+                      // only belongs to Panel/Grid setup (step 4) - outside
+                      // it (Roof setup in particular, where panels from an
+                      // earlier pass through step 4 are still visible for
+                      // context) these rects step out of the hit-test
+                      // entirely, so a click meant for the roof beneath
+                      // (selecting/dragging it, or placing a new obstacle)
+                      // reaches it instead of grabbing the panel on top.
+                      style={{ cursor: deleteModeActive ? 'pointer' : movingGrids ? 'grabbing' : 'pointer', pointerEvents: (currentStep !== 4 || placingGrid || addSideMode) ? 'none' : 'auto' }}
                       onMouseDown={(e) => {
                         if (deleteModeActive) {
                           e.stopPropagation();
@@ -3520,17 +3943,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                                 : { panelIds: [...existing, p.id] };
                             });
                           }
-                          return;
-                        }
-                        // A panel usually starts a grid drag - but when its
-                        // OWN roof is the current selection (not a grid;
-                        // selectRoof/selectObstacle always clear the grid
-                        // selection, so this is unambiguous), the panels
-                        // fully covering the roof's surface would otherwise
-                        // leave no bare spot left to grab it by. Move the
-                        // whole roof instead in that case.
-                        if (selectedRoofId === roof.id && currentStep === 3) {
-                          startRoofDrag(e, roof.id);
                           return;
                         }
                         startGridDrag(e, roof.id, g.id);
@@ -3763,39 +4175,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               per-grid breakdown the old sidebar's "Layout summary" section
               showed now lives in each grid's own floating popup instead;
               this is just the site-wide total, always visible while
-              placing grids. */}
-          {currentStep === 4 && totalPanelCount > 0 && (
+              placing grids. Desktop only: it's a small floating corner
+              overlay there, but that same treatment on a phone screen
+              covers real map/canvas area with text - mobile instead gets
+              an in-flow block below the canvas (see further down, after
+              this canvas box closes) sharing the same renderLayoutSummary
+              content. */}
+          {!isMobile && currentStep === 4 && totalPanelCount > 0 && (
             <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: '6px 10px', fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}>
-              <div>{totalPanelCount} panels · {totalCapacityKW.toFixed(1)} kW across {roofs.length} roof{roofs.length === 1 ? '' : 's'}</div>
-              <div style={{ marginTop: 3, color: '#555' }}>
-                {Object.entries(structureTotals).map(([kind, t]) => (
-                  <span key={kind} style={{ marginRight: 8 }}><span style={{ textTransform: 'capitalize' }}>{kind}s</span>: {formatLength(t.length, units)} ({t.count})</span>
-                ))}
-              </div>
-              {sitePlan.perGrid.length > 0 && (
-                <div style={{ marginTop: 5, paddingTop: 5, borderTop: '1px solid #eee' }}>
-                  {!sitePlan.valid ? (
-                    <div style={{ color: '#c0392b' }}>Inverter assignment: {sitePlan.perGrid.filter((g) => !g.valid).length} grid(s) need attention - see below.</div>
-                  ) : (
-                    <div>
-                      Inverters needed: {sitePlan.inverters.length} × {inverterChoice.model || inverterChoice.acPowerKw + 'kW'}
-                      {' '}({(totalCapacityKW / (sitePlan.inverters.length * inverterChoice.acPowerKw) * 100).toFixed(0)}% of combined AC capacity used)
-                    </div>
-                  )}
-                  {inverterSuggestion && (
-                    <div style={{ color: '#b8860b' }}>
-                      💡 Try {inverterSuggestion.model} instead: same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'}, {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilized instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}%.
-                    </div>
-                  )}
-                  {sitePlan.perGrid.map((g) => (
-                    <div key={g.key} style={{ color: g.valid ? '#555' : '#c0392b' }}>
-                      {g.label} ({g.panelCount} panels): {g.valid
-                        ? `INV-${g.inverterIds.join(', INV-')}${g.pooled ? ' (shared)' : ''} - strings [${g.strings.join(',')}]`
-                        : g.reason}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {renderLayoutSummary()}
             </div>
           )}
 
@@ -3810,12 +4198,39 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
               properties rail" section for the full per-object icon list
               this mirrors. Always rendered (not gated on a selection) so
               the compass has a stable home whether or not anything's
-              selected. */}
+              selected. On mobile, a selected roof/grid/obstacle's full
+              icon list can run taller than the screen (compass + name +
+              5-6 property icons) - `bottom: 12` alongside `top: 12` caps
+              the column to the canvas's own height and `overflowY: auto`
+              scrolls the rest into view, instead of it just running off
+              the bottom with no way to reach it. Desktop is tall enough
+              that this never triggers, so it keeps the old unbounded
+              column. Each icon's own popover still opens fine while this
+              scrolls (see RailPopover's own comment - `position: fixed`
+              on mobile escapes this container's clipping). */}
           {(() => {
             const toggleGroup = (key) => setRightPanelOpenGroup((g) => (g === key ? null : key));
 
             return (
-              <div className="tooltip-left" style={{ position: 'absolute', top: 12, right: 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div
+                className="tooltip-left"
+                style={{
+                  position: 'absolute', top: 12, right: 12, zIndex: 6,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                  // `maxHeight` (not `bottom`, which forced this box to
+                  // always span the full canvas height even with only the
+                  // compass in it) - an empty stretch below a short icon
+                  // list was still part of this div's own hit-testable
+                  // box, so a touch-scroll starting there got captured by
+                  // this rail (nested inside its own scroll container)
+                  // instead of bubbling to the page underneath, making the
+                  // mobile stats block below the canvas unreachable unless
+                  // you'd already scrolled the rail's own list to its end
+                  // first. Sizing to content (capped, not forced) keeps
+                  // the dead zone limited to whatever's actually visible.
+                  ...(isMobile ? { maxHeight: 'calc(100% - 24px)' } : {}),
+                }}
+              >
                 {/* Orientation legend - in the 2D plan, north is always up
                     (toScreen never rotates, see geoConvert.js's x=east/
                     y=north convention), so the whole dial stays fixed. The
@@ -3830,9 +4245,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 <div
                   data-tooltip={viewMode === 'plan' ? 'Plan view: north is up' : 'Compass: needle points true north'}
                   aria-label={viewMode === 'plan' ? 'Compass: north is up' : 'Compass: needle points true north'}
-                  style={{ width: 60, height: 60, borderRadius: 10, background: '#fff', border: '1px solid #ccc', boxShadow: 'var(--app-shadow, 0 1px 3px rgba(16,24,40,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  style={{ width: isMobile ? 44 : 60, height: isMobile ? 44 : 60, borderRadius: 10, background: '#fff', border: '1px solid #ccc', boxShadow: 'var(--app-shadow, 0 1px 3px rgba(16,24,40,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                 >
-                  <svg width={46} height={46} viewBox="0 0 36 36">
+                  <svg width={isMobile ? 34 : 46} height={isMobile ? 34 : 46} viewBox="0 0 36 36">
                     <g transform={viewMode === '3d' && compass3DAngleDeg ? `rotate(${compass3DAngleDeg} 18 18)` : undefined}>
                       <circle cx="18" cy="18" r="13" fill="#fafafa" stroke="#ddd" strokeWidth="1" />
                       <line x1="18" y1="18" x2="18" y2="11" stroke="#e0873c" strokeWidth="2" />
@@ -3845,6 +4260,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   </svg>
                 </div>
 
+                {/* Everything below the compass (a selected roof/grid/
+                    obstacle's own property icons) scrolls on its own on
+                    mobile - `display: contents` on desktop makes this
+                    wrapper a no-op there, so its children stay direct
+                    flex items of the rail exactly as before. The compass
+                    above stays outside this wrapper so it never scrolls
+                    out of view itself. No `flex: 1` - that forced this to
+                    fill all leftover space in the rail (see the rail's
+                    own `maxHeight` comment above) even with little or no
+                    content; sizing to content, with `minHeight: 0` letting
+                    it shrink below that against the rail's own maxHeight
+                    when there IS enough content to need scrolling. */}
+                <div style={isMobile
+                  ? { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, minHeight: 0, overflowY: 'auto', width: '100%', paddingBottom: 4 }
+                  : { display: 'contents' }}>
                 {selectedRoof && (() => {
                   const roofIdx = roofs.findIndex((r) => r.id === selectedRoof.id);
                   const bounds = selectedRoof.polygon ? polygonBounds(selectedRoof.polygon) : null;
@@ -4048,6 +4478,26 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                         </div>
                       )}
 
+                      {/* Not just the one-time prompt at creation (see
+                          promptOverlapRemovalIfNeeded) - a grid regenerated
+                          or moved after this obstacle was already placed
+                          can newly overlap it too, with nothing prompting
+                          for that. Only shown when there's actually
+                          something to remove right now. */}
+                      {(() => {
+                        const overlaps = findPanelsOverlappingObstacle(selectedObstacle);
+                        if (overlaps.length === 0) return null;
+                        return (
+                          <button
+                            data-tooltip={`Remove ${overlaps.length} panel${overlaps.length === 1 ? '' : 's'} overlapping this obstacle`}
+                            aria-label="Remove overlapping panels"
+                            className={`${iconBtn(false)} pde-danger`}
+                            onClick={() => removeOverlappingPanels(overlaps)}
+                          >
+                            <DeletePanelIcon />
+                          </button>
+                        );
+                      })()}
                       <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={`${iconBtn(false)} pde-danger`} onClick={() => removeObstacle(selectedObstacle.id)}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}><CloseIcon /></button>
                     </>
@@ -4135,7 +4585,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}><GearIcon /></button>
+                        <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}><RackTiltIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridRack'}>
                             <div style={labelStyle}>
                               <span>Panels per row (depth)</span>
@@ -4235,10 +4685,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                     </>
                   );
                 })()}
+                </div>
               </div>
             );
           })()}
         </div>
+
+        {/* Mobile counterpart of the desktop floating layout-summary
+            overlay above (same renderLayoutSummary content) - a normal
+            in-flow block below the canvas instead of a corner overlay, so
+            it scrolls into view under the map rather than sitting on top
+            of it and covering panels/roofs with text. */}
+        {isMobile && currentStep === 4 && totalPanelCount > 0 && (
+          <div style={{ ...sectionStyle, margin: '8px 12px 12px', fontSize: 12, flexShrink: 0 }}>
+            {renderLayoutSummary()}
+          </div>
+        )}
       </div>
       )}
 
@@ -4258,48 +4720,80 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
         </div>
       )}
 
-      {/* RIGHT: steps 5-6's own data panel - Output estimate's results and
-          Cost estimate's editable pricing, both moved out of the old
-          sidebar accordion now that the canvas is full-bleed for these
-          steps too. */}
-      {(currentStep === 5 || currentStep === 6) && (
-        <div style={{ width: 280, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
-          {currentStep === 5 && (
-            <CollapsibleSection title="Output analysis" defaultOpen>
-              <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-                <button className={btn(mode === 'day')} onClick={() => setMode('day')}>Day</button>
-                <button className={btn(mode === 'month')} onClick={() => setMode('month')}>Month</button>
-                <button className={btn(mode === 'year')} onClick={() => setMode('year')}>Year</button>
-              </div>
-              <button
-                onClick={handleCalculate} disabled={totalPanelCount === 0}
-                style={{ width: '100%', padding: 6, borderRadius: 6, border: 'none', background: totalPanelCount ? '#1c2b4a' : '#ccc', color: '#fff', fontSize: 11, cursor: totalPanelCount ? 'pointer' : 'not-allowed', marginBottom: 6 }}
-              >
-                Calculate {mode} output
-              </button>
-              {outputResult && (
-                <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                  <div style={{ color: '#555' }}>{outputResult.label}</div>
-                  <div style={{ fontSize: 17, fontWeight: 700 }}>{outputResult.totalKWh.toFixed(1)} kWh</div>
-                  <div style={{ fontSize: 11, color: '#666' }}>Avg. {outputResult.avgShadedPct}% of daylight samples shaded</div>
+      {/* Output estimate (step 5) - no canvas alongside it (see the CENTER
+          block's own condition, excluding step 5), same simple single-
+          column treatment as steps 1/2 instead of the old narrow 280px
+          data panel that used to sit beside the plan/3D view. */}
+      {currentStep === 5 && (
+        <div style={isMobile ? { width: '100%', flexShrink: 0, overflowY: 'auto' } : { width: 480, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
+          <div className="pde-step1-card">
+            <div className="pde-step1-heading">Output estimate</div>
+            <div className="pde-step1-subtext">Estimated energy output for this design, based on shading, module specs, and this site's own irradiance.</div>
+
+            {totalPanelCount === 0 ? (
+              <div className="pde-field-sm-hint">Place at least one grid (Panel/Grid setup) to see an estimate.</div>
+            ) : (
+              <>
+                <div className="pde-field-row">
+                  <div className="pde-field-sm"><label>Panels</label><div className="pde-stat-value">{totalPanelCount} across {roofs.length} roof{roofs.length === 1 ? '' : 's'}</div></div>
+                  <div className="pde-field-sm"><label>Capacity</label><div className="pde-stat-value">{totalCapacityKW.toFixed(1)} kW</div></div>
                 </div>
-              )}
-              <details style={{ marginTop: 8, fontSize: 10, color: '#777' }}>
-                <summary>Assumptions</summary>
-                <div style={labelStyle}><span>System derate</span><SliderInput min={0} max={1} step={0.01} value={assumptions.systemDerate} onChange={(v) => setAssumptions({ ...assumptions, systemDerate: v })} /></div>
-                <div style={labelStyle}><span>Diffuse fraction</span><SliderInput min={0} max={1} step={0.05} value={assumptions.diffuseFraction} onChange={(v) => setAssumptions({ ...assumptions, diffuseFraction: v })} /></div>
-                <div>
+                <div className="pde-field-sm">
+                  <label>Module</label>
+                  <div className="pde-stat-value">{panelSpec.make} {panelSpec.model} · {panelSpec.wattage} W</div>
+                </div>
+                {outputResult && (
+                  <div className="pde-field-sm">
+                    <label>Overall efficiency</label>
+                    <div className="pde-stat-value">{100 - outputResult.avgShadedPct}% average unshaded</div>
+                  </div>
+                )}
+
+                <div className="pde-field-sm">
+                  <label>Period</label>
+                  <div className="pde-unit-toggle">
+                    <button className={btn(mode === 'day')} onClick={() => setMode('day')}>Day</button>
+                    <button className={btn(mode === 'month')} onClick={() => setMode('month')}>Month</button>
+                    <button className={btn(mode === 'year')} onClick={() => setMode('year')}>Year</button>
+                  </div>
+                </div>
+
+                {outputResult ? (
+                  <div className="pde-field-sm" style={{ marginBottom: 20 }}>
+                    <label>{outputResult.label}</label>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--app-text, #222)' }}>{outputResult.totalKWh.toFixed(1)} kWh</div>
+                  </div>
+                ) : (
+                  <div className="pde-field-sm-hint" style={{ marginBottom: 20 }}>Calculating…</div>
+                )}
+              </>
+            )}
+
+            <CollapsibleSection title="Assumptions">
+                <div className="pde-field-sm"><label>System derate</label><SliderInput min={0} max={1} step={0.01} value={assumptions.systemDerate} onChange={(v) => setAssumptions({ ...assumptions, systemDerate: v })} /></div>
+                <div className="pde-field-sm"><label>Diffuse fraction</label><SliderInput min={0} max={1} step={0.05} value={assumptions.diffuseFraction} onChange={(v) => setAssumptions({ ...assumptions, diffuseFraction: v })} /></div>
+                <div className="pde-field-sm-hint">
                   Irradiance:{' '}
                   {ghiStatus === 'loading' && 'fetching this site\'s own monthly averages (NASA POWER)…'}
                   {ghiStatus === 'ready' && 'this site\'s own monthly averages (NASA POWER, 2001-2020 climatology).'}
                   {ghiStatus === 'error' && 'couldn\'t fetch this site\'s data - using illustrative sample averages instead.'}
                   {ghiStatus === 'idle' && 'illustrative sample monthly averages.'}
                 </div>
-              </details>
             </CollapsibleSection>
-          )}
-          {currentStep === 6 && (
-            <>
+
+            <button className="pde-primary-btn" style={{ marginTop: 16 }} onClick={() => advanceToStep(7)}>
+              Continue to Electrical Design (SLD) →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT: step 6's own data panel - Cost estimate's editable
+          pricing, moved out of the old sidebar accordion now that the
+          canvas is full-bleed for this step too. Hidden from navigation
+          for now (see visibleSteps) but left otherwise intact. */}
+      {currentStep === 6 && (
+        <div style={{ width: 280, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
               {cost && (
                 <CollapsibleSection title="Cost estimate" defaultOpen>
                   <div style={{ fontSize: 12, lineHeight: 1.6 }}>
@@ -4314,11 +4808,41 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                 <div style={labelStyle}><span>₹/m rail</span><SliderInput min={0} max={2000} step={50} value={pricing.structureRatePerMeter} onChange={(v) => setPricing({ ...pricing, structureRatePerMeter: v })} /></div>
                 <div style={labelStyle}><span>₹/mount (pitched)</span><SliderInput min={0} max={2000} step={50} value={pricing.mountCostPerPanel} onChange={(v) => setPricing({ ...pricing, mountCostPerPanel: v })} /></div>
               </CollapsibleSection>
-            </>
-          )}
         </div>
       )}
     </div>
+
+    <ConfirmDialog
+      open={pendingLocationChange !== null}
+      title="Change location?"
+      message="Changing the site location clears the roofs, panel layout, and output/cost estimates you've already worked on for this design - you'll need to draw the roof and place panels again for the new location."
+      confirmLabel="Change location"
+      cancelLabel="Keep current location"
+      onConfirm={() => {
+        if (pendingLocationChange) {
+          handleLocationConfirm(pendingLocationChange);
+          advanceToStep(2);
+        }
+        setPendingLocationChange(null);
+      }}
+      onCancel={() => setPendingLocationChange(null)}
+    />
+
+    <ConfirmDialog
+      open={obstacleOverlapPrompt !== null}
+      title="Remove overlapping panels?"
+      message={(() => {
+        const n = obstacleOverlapPrompt?.hits.length ?? 0;
+        return `This obstacle overlaps ${n} panel${n === 1 ? '' : 's'} already placed. Remove ${n === 1 ? 'it' : 'them'} now, or keep ${n === 1 ? 'it' : 'them'} and clean this up later - regenerating the grid (e.g. "Fill roof") will skip this area either way.`;
+      })()}
+      confirmLabel="Remove panels"
+      cancelLabel="Keep panels"
+      onConfirm={() => {
+        if (obstacleOverlapPrompt) removeOverlappingPanels(obstacleOverlapPrompt.hits);
+        setObstacleOverlapPrompt(null);
+      }}
+      onCancel={() => setObstacleOverlapPrompt(null)}
+    />
     </div>
   );
 }

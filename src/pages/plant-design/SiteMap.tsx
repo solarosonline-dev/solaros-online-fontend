@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadGoogleMaps } from './googleMaps.js';
 import { latLngPathToLocalMeters, localMetersToLatLng, centroidOf } from './geoConvert.js';
-import { buildStaticMapImage, buildWideStaticMapImage } from './staticMap.js';
+import { buildStaticMapImage, buildWideStaticMapImage, LOCATION_PREVIEW_SPAN_METERS } from './staticMap.js';
 
 const inputStyle = { flex: 1, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12, color: '#222', background: '#fff' };
 const btnStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', background: '#fff', color: '#222', fontSize: 12, cursor: 'pointer' };
 const btnPrimary = { ...btnStyle, border: '1px solid #2f6fed', background: '#2f6fed', color: '#fff' };
 const btnDisabled = { ...btnStyle, opacity: 0.5, cursor: 'not-allowed' };
+
+// Shows some satellite context around the capture boundary rather than
+// framing it edge-to-edge against the map div's own borders.
+const BOUNDARY_FIT_PADDING = 1.4;
+
+// Picks an initial zoom so the location-mode boundary box (see
+// updateBoundaryRect below) is actually visible on load, instead of the
+// map's own fixed zoom=20 - fine at the old 120m span, but the box no
+// longer fully fits the viewport at every screen size once it grew to
+// 200m. Same ground-resolution formula staticMap.ts's buildImageForSpan
+// uses for the actual capture, just solved for the map DIV's own
+// on-screen pixel size instead of the Static API's fixed request size.
+function computeBoundaryFitZoom(lat, spanMeters, viewportPx) {
+  if (!viewportPx) return 20;
+  const targetMetersPerPixel = (spanMeters * BOUNDARY_FIT_PADDING) / viewportPx;
+  const rawZoom = Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / targetMetersPerPixel);
+  return Math.max(3, Math.min(21, Math.floor(rawZoom)));
+}
 
 // Traces a roof outline on a Google satellite map and hands the caller back
 // a local meters polygon (compatible with the plan-view engine) plus the
@@ -25,6 +43,7 @@ export default function SiteMap({ apiKey, initialLocation, initialPolygon, onCap
   const polygonRef = useRef<any>(null);
   const tempPolylineRef = useRef<any>(null);
   const startMarkerRef = useRef<any>(null);
+  const boundaryRectRef = useRef<any>(null);
   const drawPointsRef = useRef<any[]>([]);
   const isDrawingRef = useRef(false);
   const addressInputRef = useRef<any>(null);
@@ -56,8 +75,16 @@ export default function SiteMap({ apiKey, initialLocation, initialPolygon, onCap
       .then((google) => {
         if (cancelled) return;
         const center = { lat: initialLocation.lat, lng: initialLocation.lon };
+        const viewportPx = Math.min(mapDivRef.current.clientWidth, mapDivRef.current.clientHeight);
+        const initialZoom = mode === 'location'
+          ? computeBoundaryFitZoom(initialLocation.lat, LOCATION_PREVIEW_SPAN_METERS, viewportPx)
+          : 20;
         const map = new google.maps.Map(mapDivRef.current, {
-          center, zoom: 20, mapTypeId: 'satellite', tilt: 0, streetViewControl: false,
+          center, zoom: initialZoom, mapTypeId: 'satellite', tilt: 0, streetViewControl: false,
+          // Floors zoom-out at exactly the fitted level in location mode so
+          // the boundary box can never shrink past the viewport and leave
+          // bare space on the sides - zooming in further is still free.
+          ...(mode === 'location' ? { minZoom: initialZoom } : {}),
         });
 
         // location mode has no separate "confirm" step - the fixed center
@@ -72,6 +99,35 @@ export default function SiteMap({ apiKey, initialLocation, initialPolygon, onCap
           onLocationChangeRef.current({ lat: c.lat(), lon: c.lng() });
         }
         if (mode === 'location') map.addListener('dragend', syncCenterToParent);
+
+        // Shows exactly what handleLocationConfirm's own capture will cover
+        // (see staticMap.ts's buildLocationPreviewImage, same
+        // LOCATION_PREVIEW_SPAN_METERS) - a square centered on the fixed
+        // pin, recomputed from the map's own center on every listener that
+        // can move it (drag, search, autocomplete), so it never drifts out
+        // of sync with what actually gets fetched on confirm.
+        function updateBoundaryRect() {
+          if (mode !== 'location') return;
+          const c = map.getCenter();
+          if (!c) return;
+          const center = { lat: c.lat(), lng: c.lng() };
+          const half = LOCATION_PREVIEW_SPAN_METERS / 2;
+          const sw = localMetersToLatLng({ x: -half, y: -half }, center);
+          const ne = localMetersToLatLng({ x: half, y: half }, center);
+          const bounds = { north: ne.lat, south: sw.lat, east: ne.lng, west: sw.lng };
+          if (boundaryRectRef.current) {
+            boundaryRectRef.current.setBounds(bounds);
+          } else {
+            boundaryRectRef.current = new google.maps.Rectangle({
+              bounds, map, clickable: false,
+              strokeColor: '#ffb300', strokeWeight: 2, strokeOpacity: 0.9, fillOpacity: 0,
+            });
+          }
+        }
+        if (mode === 'location') {
+          updateBoundaryRect();
+          map.addListener('center_changed', updateBoundaryRect);
+        }
 
         map.addListener('click', (e) => {
           if (mode !== 'shape' || !isDrawingRef.current) return;
@@ -260,7 +316,7 @@ export default function SiteMap({ apiKey, initialLocation, initialPolygon, onCap
           {mode === 'location' ? (
             <>
               <div style={{ fontSize: 11, color: '#666', margin: '8px 0' }}>
-                Search an address or drag the map so the pin sits on your site - the coordinates on the left update as you go.
+                Search an address or drag the map so the pin sits on your site - the coordinates on the left update as you go. The <span style={{ color: '#e0a300', fontWeight: 600 }}>amber box</span> shows the area that will be captured as the site image.
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button style={btnPrimary} onClick={onCancel}>Done</button>

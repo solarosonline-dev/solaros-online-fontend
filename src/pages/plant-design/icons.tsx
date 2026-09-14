@@ -450,3 +450,47 @@ export function ArrowRightIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+// Toolbar toggle icons (mobile - see PlantDesignEditor.tsx's toolbar row),
+// replacing the "Shadow analysis"/"Efficiency view" text labels once the
+// row has to fit a phone-width strip alongside the fixed compass.
+export function SunIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle {...base} cx="12" cy="12" r="4.5" />
+      <line {...base} x1="12" y1="2" x2="12" y2="5" />
+      <line {...base} x1="12" y1="19" x2="12" y2="22" />
+      <line {...base} x1="2" y1="12" x2="5" y2="12" />
+      <line {...base} x1="19" y1="12" x2="22" y2="12" />
+      <line {...base} x1="4.5" y1="4.5" x2="6.5" y2="6.5" />
+      <line {...base} x1="17.5" y1="17.5" x2="19.5" y2="19.5" />
+      <line {...base} x1="4.5" y1="19.5" x2="6.5" y2="17.5" />
+      <line {...base} x1="17.5" y1="6.5" x2="19.5" y2="4.5" />
+    </svg>
+  );
+}
+
+// "Rack settings" (panels-per-row, panel tilt, row spacing) - a side-view
+// angle glyph (ground line + tilted panel line + the angle arc between
+// them) reads as "tilt configuration" specifically, rather than reusing
+// the generic GearIcon (already doing double duty for "Properties") or
+// GroundMountIcon's own tilted-panel-on-legs silhouette (already "Structure").
+export function RackTiltIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="3" y1="20" x2="21" y2="20" />
+      <line {...base} x1="6" y1="20" x2="18" y2="8" />
+      <path {...base} d="M11 20 A6 6 0 0 0 9.2 15.9" />
+    </svg>
+  );
+}
+
+export function EfficiencyIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M4 18 A8 8 0 0 1 20 18" />
+      <line {...base} x1="12" y1="18" x2="16" y2="12" />
+      <line {...base} x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  );
+}

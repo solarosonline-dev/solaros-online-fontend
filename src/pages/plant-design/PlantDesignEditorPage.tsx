@@ -55,9 +55,10 @@ export default function PlantDesignEditorPage() {
       // real id exists, so back-navigation doesn't return to a stale "new"
       // form that would create a second design on the next save.
       navigate(`/app/plant-design/${created.plant_design_id}`, { replace: true });
-    } else {
-      await updatePlantDesign(entityId, savedId, body);
+      return created.design_data;
     }
+    const updated = await updatePlantDesign(entityId, savedId, body);
+    return updated.design_data;
   }
 
   if (loading) return <div style={{ padding: 32, fontSize: 14, color: "var(--app-text-muted)" }}>Loading…</div>;

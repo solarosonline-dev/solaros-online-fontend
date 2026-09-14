@@ -27,9 +27,15 @@ const WIDE_SPAN_METERS = 500;
 // plan, so it wants the opposite trade-off from the 3D ground texture: a
 // tight span for sharp resolution (the same fixed ~1280x1280 pixel budget
 // spread over far less real-world area), even though that means it won't
-// stay framed if the eventual roof turns out to be unusually large. Roughly
-// matches a generous single building + yard, not a whole neighborhood.
-const LOCATION_PREVIEW_SPAN_METERS = 120;
+// stay framed if the eventual roof turns out to be unusually large. 200m
+// covers a generous property/small campus rather than just a single
+// building + yard - sizePx/scale can't go higher without a paid Maps
+// plan (see MAX_ZOOM's own comment), so more coverage here only ever
+// comes at the cost of per-pixel sharpness, not the other way round.
+// Exported so the location-picker map (SiteMap.tsx) can draw a boundary
+// showing exactly what this capture will cover, rather than the two
+// numbers drifting apart if one is ever tuned without the other.
+export const LOCATION_PREVIEW_SPAN_METERS = 200;
 
 function buildImageForSpan({ apiKey, center, spanMeters, sizePx, scale }) {
   // Ground coverage for a given zoom is independent of `scale` — scale only

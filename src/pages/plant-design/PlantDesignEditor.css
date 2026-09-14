@@ -418,7 +418,16 @@
 }
 .plant-design-editor .pde-field-sm label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
+  color: var(--app-text, #222);
+}
+/* A field's plain read-only value (e.g. step 5's Panels/Capacity/Module
+   stats) - explicit sizing so it doesn't fall back to the browser's own
+   default body font-size, which reads bigger than the (13px) label above
+   it and inverts the intended label/value hierarchy. */
+.plant-design-editor .pde-stat-value {
+  font-size: 14px;
+  font-weight: 400;
   color: var(--app-text, #222);
 }
 .plant-design-editor .pde-field-sm input,
@@ -452,11 +461,12 @@
 .plant-design-editor .pde-slider-num {
   font-family: var(--app-font, inherit);
   font-size: 13px;
-  padding: 4px 8px;
+  padding: 4px 4px;
   border: 1px solid var(--app-border, #e2e5ea);
   border-radius: 6px;
   background: var(--app-surface, #fff);
   color: var(--app-text, #222);
+  text-align: right;
 }
 .plant-design-editor .pde-slider-num:disabled {
   background: #f2f2f2;
