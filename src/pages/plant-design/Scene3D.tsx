@@ -1,6 +1,6 @@
 import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld } from './geometry.js';
 import { gridPivot, rotateAroundPivot } from './layoutEngine.js';
@@ -280,7 +280,18 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]}>
       <mesh rotation={[-tiltRad, 0, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, 0.03, len]} />
-        <meshStandardMaterial color={color} />
+        {/* A real panel's glass surface glints as the sun moves across the
+            sky - clearcoat (a thin glossy layer over the tinted base) gets
+            that directly from SunLight's own directional light (already
+            tied to selectedHour via sunElevation/sunAzimuth), no
+            environment map needed since a direct specular highlight comes
+            from the light itself, not a reflected scene. */}
+        <meshPhysicalMaterial color={color} roughness={0.35} metalness={0.15} clearcoat={1} clearcoatRoughness={0.12} />
+        {/* A white edge per panel so adjacent panels in the same grid/rack
+            read as separate modules instead of blurring into one solid
+            slab, especially once every panel's own tint is close to
+            identical (the common case, no shading/efficiency view active). */}
+        <Edges color="white" />
       </mesh>
     </group>
   );

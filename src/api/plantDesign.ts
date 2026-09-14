@@ -85,3 +85,21 @@ export function updatePlantDesign(
 export function deletePlantDesign(entityId: number, plantDesignId: number) {
   return apiRequest<void>(`/entities/${entityId}/plant-designs/${plantDesignId}`, { method: "DELETE" });
 }
+
+export type SiteImageUpload = { s3_key: string; url: string };
+
+/** Uploads a satellite capture the frontend already fetched itself (see
+ * PlantDesignEditor's captureSiteImage) straight to S3, instead of the
+ * backend re-fetching the same image from the Maps Static API with its own
+ * key on save - one Maps API call per capture instead of two. Entity-scoped
+ * rather than tied to a plant_design_id: the location step can confirm (and
+ * so capture) before the design has ever been saved and so before it has an
+ * id at all. */
+export function uploadPlantDesignSiteImage(entityId: number, blob: Blob, contentType: string) {
+  const form = new FormData();
+  form.append("file", blob, contentType === "image/jpeg" ? "capture.jpg" : "capture.png");
+  return apiRequest<SiteImageUpload>(`/entities/${entityId}/plant-designs/site-image-uploads`, {
+    method: "POST",
+    body: form,
+  });
+}

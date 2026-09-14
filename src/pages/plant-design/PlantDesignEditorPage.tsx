@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { createPlantDesign, getPlantDesign, updatePlantDesign } from "../../api/plantDesign";
+import { createPlantDesign, getPlantDesign, updatePlantDesign, uploadPlantDesignSiteImage } from "../../api/plantDesign";
 import { ApiError } from "../../api/client";
 import PlantDesignEditor from "./PlantDesignEditor";
 import type { PlantDesignData } from "./types";
@@ -61,6 +61,11 @@ export default function PlantDesignEditorPage() {
     return updated.design_data;
   }
 
+  async function handleCaptureSiteImage(blob: Blob, contentType: string) {
+    const result = await uploadPlantDesignSiteImage(entityId, blob, contentType);
+    return { s3Key: result.s3_key, url: result.url };
+  }
+
   if (loading) return <div style={{ padding: 32, fontSize: 14, color: "var(--app-text-muted)" }}>Loading…</div>;
   if (loadError) {
     return (
@@ -68,5 +73,11 @@ export default function PlantDesignEditorPage() {
     );
   }
 
-  return <PlantDesignEditor initialDesignData={initialDesignData} onSave={handleSave} />;
+  return (
+    <PlantDesignEditor
+      initialDesignData={initialDesignData}
+      onSave={handleSave}
+      onCaptureSiteImage={handleCaptureSiteImage}
+    />
+  );
 }

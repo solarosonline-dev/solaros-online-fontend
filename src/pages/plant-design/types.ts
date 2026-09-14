@@ -60,4 +60,13 @@ export interface PlantDesignEditorProps {
     data: PlantDesignData,
     meta: { name: string; capacityKw: number | null; latitude: number | null; longitude: number | null }
   ) => Promise<PlantDesignData | void>;
+  // Uploads a satellite capture the editor already fetched itself straight
+  // to S3 (see PlantDesignEditorPage's uploadPlantDesignSiteImage) -
+  // resolves to the same {s3Key} a save's own backend-side capture would
+  // otherwise produce, just without that second Maps Static API call. The
+  // editor stays HTTP-agnostic otherwise (see onSave's own comment above),
+  // so this is optional: without it, a site image simply keeps riding on
+  // its live Google url until the next save triggers the backend's own
+  // fallback capture instead.
+  onCaptureSiteImage?: (blob: Blob, contentType: string) => Promise<{ s3Key: string; url: string }>;
 }

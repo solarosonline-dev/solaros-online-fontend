@@ -248,7 +248,7 @@ function RailPopover({ open, width = 260, children }) {
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   const isMobile = useIsMobile();
 
@@ -456,6 +456,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef<any>(null);
 
+  // The svg (and so svgRef.current) doesn't exist in the DOM at all until
+  // currentStep reaches Roof setup (see the CENTER block's own render
+  // condition further down) - an empty dependency array here would only
+  // ever run this effect once, at the whole editor's own mount, which on a
+  // brand new design is always step 1 (svgRef.current still null then).
+  // It'd silently no-op forever after that and planViewBoxWidth would
+  // never leave its square fallback for that entire session - exactly
+  // backwards from a design reopened past step 2, where the svg (and a
+  // real size to measure) is already there on the very first render.
+  // Re-running whenever currentStep changes re-attaches the observer once
+  // the svg actually mounts, instead of only ever getting one shot at it.
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
@@ -467,7 +478,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [currentStep]);
   // Selected grids, keyed `${roofId}:${gridId}` - clicking any panel
   // selects every panel in its own grid (see README's "Panel grids" entry),
   // not just that one panel, so selection is tracked at the grid level.
@@ -916,12 +927,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
   // Animates selectedHour through the 3D view's own 5:00-19:00 range while
   // playing, looping back to the start rather than stopping dead at 19:00 -
   // a continuous shading/output preview instead of only one manually-picked
-  // time at a time (see README's "View layout" entry).
+  // time at a time (see README's "View layout" entry). Ticks in small
+  // (3.75-minute) steps rather than the slider's old fixed 30-minute jump,
+  // at a faster cadence, so the sun/shadows/panel glint (see Panel's own
+  // meshPhysicalMaterial) sweep smoothly instead of visibly snapping frame
+  // to frame - same 14-hour full sweep in the same ~11.2s either way (16
+  // ticks/hour * 50ms = 800ms/hour), just far more steps along the way.
   useEffect(() => {
     if (!sunPlaying) return;
     const id = setInterval(() => {
-      setSelectedHour((h) => (h >= 19 ? 5 : h + 0.5));
-    }, 400);
+      setSelectedHour((h) => (h >= 19 ? 5 : h + 0.0625));
+    }, 50);
     return () => clearInterval(id);
   }, [sunPlaying]);
 
@@ -1737,6 +1753,40 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     setCost(null);
   }
 
+  // Fetches a just-built Static Maps capture's own bytes (the browser
+  // already has a live, working URL for it - see handleLocationConfirm)
+  // and hands them to onCaptureSiteImage so the backend can upload them to
+  // S3 without ever calling the Maps Static API itself (see its own prop
+  // comment in types.ts). Best-effort and fire-and-forget, same as the
+  // backend's own site-image capture always was: a failure here (offline,
+  // upload endpoint down, no onCaptureSiteImage at all) just leaves that
+  // entry riding on its live Google url, same as before this existed - the
+  // backend's own fallback capture on next save still has a chance to
+  // pick it up.
+  function captureSiteImageToS3(imageKey, capture) {
+    if (!onCaptureSiteImage || !capture) return;
+    (async () => {
+      try {
+        const resp = await fetch(capture.url);
+        if (!resp.ok) return;
+        const blob = await resp.blob();
+        const { s3Key } = await onCaptureSiteImage(blob, blob.type || 'image/png');
+        // Only apply if this is still the entry it was captured for - the
+        // user may have confirmed a different location (or re-confirmed
+        // the same one, rebuilding a fresh capture object) while this was
+        // in flight, which already replaced siteImages[imageKey] with
+        // something this s3Key doesn't belong to.
+        setSiteImages((prev) => {
+          const current = prev?.[imageKey];
+          if (!current || current.url !== capture.url || current.s3Key) return prev;
+          return { ...prev, [imageKey]: { ...current, s3Key } };
+        });
+      } catch {
+        // Best-effort - see this function's own comment.
+      }
+    })();
+  }
+
   function handleLocationConfirm({ lat, lon }) {
     // "Next: Configuration" calls this every time it's clicked, including
     // when the user has already confirmed this exact location and just
@@ -1760,6 +1810,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
     const locationImage = GOOGLE_MAPS_API_KEY ? buildLocationPreviewImage({ apiKey: GOOGLE_MAPS_API_KEY, lat, lon }) : null;
     const locationImageWide = GOOGLE_MAPS_API_KEY ? buildWideLocationPreviewImage({ apiKey: GOOGLE_MAPS_API_KEY, lat, lon }) : null;
     setSiteImages({ locationImage, locationImageWide });
+    captureSiteImageToS3('locationImage', locationImage);
+    captureSiteImageToS3('locationImageWide', locationImageWide);
     setRoofs([]);
     setObstacles([]);
     setSelectedRoofId(null);
@@ -3457,13 +3509,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                   </button>
                   <span style={{ fontSize: 11, opacity: 0.85, width: 60 }}>Sunrise 05:00</span>
                   <input
-                    type="range" min="5" max="19" step="0.5" value={selectedHour}
+                    type="range" min="5" max="19" step="0.0625" value={selectedHour}
                     onChange={(e) => { setSunPlaying(false); setSelectedHour(+e.target.value); }}
                     style={{ flex: 1 }}
                   />
                   <span style={{ fontSize: 11, opacity: 0.85, width: 60, textAlign: 'right' }}>Sunset 19:00</span>
                   <span style={{ fontSize: 12, fontWeight: 600, width: 54, textAlign: 'right' }}>
-                    {String(Math.floor(selectedHour)).padStart(2, '0')}:{selectedHour % 1 ? '30' : '00'}
+                    {(() => {
+                      // Rounds to the nearest whole minute via total-minutes
+                      // math (not (selectedHour % 1) * 60 directly), which
+                      // rounding a value like 18.999375h -> 59.9625min ->
+                      // "60" would otherwise render as "18:60".
+                      const totalMinutes = Math.round(selectedHour * 60);
+                      const hh = Math.floor(totalMinutes / 60), mm = totalMinutes % 60;
+                      return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+                    })()}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
@@ -3914,7 +3974,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                     <rect
                       x={s.sx} y={s.sy} width={w} height={h}
                       fill={deletePicked || overlapsObstacle ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
-                      stroke={deletePicked ? '#fff' : gSelected ? '#fff' : '#0a1428'} strokeWidth={deletePicked ? 2 : gSelected ? 1.5 : 0.5}
+                      // White at every state now (previously '#0a1428' when
+                      // idle - nearly the same navy as the fill it sat on,
+                      // so adjacent panels blurred into one slab instead of
+                      // reading as separate modules; matches the white
+                      // <Edges> the 3D view's own Panel now draws for the
+                      // same reason).
+                      stroke="#fff" strokeWidth={deletePicked ? 2 : gSelected ? 1.5 : 0.6}
                       // Editing a grid (drag/select/delete-mode picking)
                       // only belongs to Panel/Grid setup (step 4) - outside
                       // it (Roof setup in particular, where panels from an
