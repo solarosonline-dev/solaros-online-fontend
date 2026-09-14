@@ -47,6 +47,20 @@
   right: calc(100% + 8px);
 }
 
+/* That same left-flip overcorrects for a popover's own leftmost button
+   (RailPopover, see its "rail-popover" class in PlantDesignEditor.tsx) -
+   the popover already sits well clear of the screen's right edge (it opens
+   to the LEFT of its own trigger button), so its first item has more room
+   to its right than its left, and flipping it left too ran its tooltip off
+   the visible canvas. Only the first button in each popover reverts to the
+   default right-opening side; every other button in it still opens left,
+   same as before, since by then it's shifted further right across the row
+   and has less room that way. */
+.plant-design-editor .tooltip-left .rail-popover [data-tooltip]:first-child::after {
+  left: calc(100% + 8px);
+  right: auto;
+}
+
 /* Shared button looks (pde-btn/pde-icon-btn/pde-compass-btn), replacing
    the flat ad-hoc inline styles (`#2f6fed`/`#ccc`, no shadow, no
    hover/transition) that came over from the standalone prototype - these

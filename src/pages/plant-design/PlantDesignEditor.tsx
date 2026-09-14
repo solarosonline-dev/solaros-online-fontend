@@ -203,6 +203,7 @@ function RailPopover({ open, width = 260, children }) {
   return (
     <div
       ref={ref}
+      className="rail-popover"
       style={{
         position: 'absolute', right: 48, top: 0, transform: shiftY ? `translateY(${shiftY}px)` : undefined,
         background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10,
