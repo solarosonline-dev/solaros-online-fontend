@@ -4035,8 +4035,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                             nothing further to pick on the canvas for it. */}
                         <button data-tooltip="Delete row / column / panel / grid" aria-label="Delete row, column, panel, or grid" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
+                            {/* The label used to share the same flex row as
+                                the buttons - fine for 3, but a 4th (Grid)
+                                pushed the row past the popover's own width
+                                and wrapped just that one button onto its
+                                own line, landing it somewhere unexpected.
+                                Its own row now, so the buttons always get
+                                the full width to themselves. */}
+                            <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>Delete:</div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                              <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
                               {['row', 'column', 'panel', 'grid'].map((mode) => {
                                 const ModeIcon = DELETE_MODE_ICONS[mode];
                                 return (
