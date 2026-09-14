@@ -4025,21 +4025,30 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       )}
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Delete row / column / panel" aria-label="Delete row, column, or panel" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
+                        {/* One delete button instead of two identical-looking
+                            red trash icons (this one used to only cover row/
+                            column/panel, with a separate "Delete selected
+                            grid(s)" icon further down doing the same visual
+                            thing for a totally different scope) - "Grid"
+                            joins row/column/panel as a fourth option here,
+                            deleting immediately on click since there's
+                            nothing further to pick on the canvas for it. */}
+                        <button data-tooltip="Delete row / column / panel / grid" aria-label="Delete row, column, panel, or grid" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span style={{ fontSize: 11, color: '#555' }}>Delete:</span>
-                              {['row', 'column', 'panel'].map((mode) => {
+                              {['row', 'column', 'panel', 'grid'].map((mode) => {
                                 const ModeIcon = DELETE_MODE_ICONS[mode];
                                 return (
                                   <button
                                     key={mode}
-                                    data-tooltip={mode[0].toUpperCase() + mode.slice(1)} aria-label={mode}
+                                    data-tooltip={mode === 'grid' ? 'Delete the whole grid' : mode[0].toUpperCase() + mode.slice(1)} aria-label={mode === 'grid' ? 'Delete the whole grid' : mode}
                                     onClick={() => {
+                                      if (mode === 'grid') { deleteSelectedGrids(); return; }
                                       setGridDeleteMode((m) => (m === mode ? null : mode));
                                       setGridDeleteSelection(null);
                                     }}
-                                    className={iconBtn(gridDeleteMode === mode)}
+                                    className={mode === 'grid' ? `${iconBtn(false)} pde-danger` : iconBtn(gridDeleteMode === mode)}
                                   >
                                     {ModeIcon ? <ModeIcon /> : mode}
                                   </button>
@@ -4153,7 +4162,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave }: PlantDe
                       </div>
 
                       <button data-tooltip="Duplicate selected grid(s)" aria-label="Duplicate selected grid(s)" className={iconBtn(false)} onClick={duplicateSelectedGrids}><DuplicateIcon /></button>
-                      <button data-tooltip="Delete selected grid(s)" aria-label="Delete selected grid(s)" className={`${iconBtn(false)} pde-danger`} onClick={deleteSelectedGrids}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedGridKeys(new Set())}><CloseIcon /></button>
                     </>
                   );

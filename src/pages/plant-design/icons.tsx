@@ -308,6 +308,7 @@ export const DELETE_MODE_ICONS: Record<string, (props: IconProps) => React.JSX.E
   row: DeleteRowIcon,
   column: DeleteColumnIcon,
   panel: DeletePanelIcon,
+  grid: FillGridIcon,
 };
 
 // General-purpose glyphs (PlantDesignEditor.tsx's icon rail) - replacing
