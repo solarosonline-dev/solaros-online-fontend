@@ -68,6 +68,11 @@ export const DEFAULT_PAYMENT_SCHEDULE: PaymentScheduleRow[] = [
   { label: "on commissioning", percent: 10, description: "Day 7–10 — net-meter live, generating units" },
 ];
 
+/** Display label per ENTITY-scope role name (e.g. {"ENTITY_SERVICE_MANAGER":
+ * "Field Ops Lead"}) — see the backend's DEFAULT_PREFERENCES["role_labels"]
+ * for the built-in defaults every key falls back to. */
+export type RoleLabels = Record<string, string>;
+
 export type EntityPreferences = {
   branding: Branding;
   typography: Typography;
@@ -76,6 +81,7 @@ export type EntityPreferences = {
   components: Components;
   payment_schedule: PaymentSchedule;
   language: string;
+  role_labels: RoleLabels;
   updated_at: string | null;
 };
 
@@ -86,7 +92,8 @@ export type PreferenceCategory =
   | "pricing"
   | "components"
   | "payment_schedule"
-  | "language";
+  | "language"
+  | "role_labels";
 
 export function getEntityPreferences(entityId: number) {
   return apiRequest<EntityPreferences>(`/entities/${entityId}/preferences`);

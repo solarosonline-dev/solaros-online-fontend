@@ -11,8 +11,8 @@ const PROJECT_STATUS_STEPS: { status: ProjectStatus; label: string }[] = [
   { status: "SITE_SURVEY_COMPLETED", label: "Site survey completed" },
   { status: "INSTALLATION_IN_PROGRESS", label: "Installation in progress" },
   { status: "INSTALLATION_COMPLETED", label: "Installation completed" },
-  { status: "DOCUMENTATION_IN_PROGRESS", label: "Documentation in progress" },
-  { status: "DOCUMENTATION_COMPLETED", label: "Documentation completed" },
+  { status: "COMMISSIONING_IN_PROGRESS", label: "Commissioning in progress" },
+  { status: "COMMISSIONING_COMPLETED", label: "Commissioning completed" },
   { status: "COMPLETED", label: "Completed" },
 ];
 
@@ -31,22 +31,25 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   return <span className={`project-status-badge${modifier}`}>{projectFunnelLabel(status)}</span>;
 }
 
-export type ProjectPhase = "SITE_SURVEY" | "INSTALLATION" | "DOCUMENTATION";
+export type ProjectPhase = "SITE_SURVEY" | "INSTALLATION" | "COMMISSIONING";
 
 /** The three work-order-driven phases, each collapsing its own IN_PROGRESS/
  * COMPLETED pair (see SKIP_STAGE_TRANSITIONS in api/projects.ts, which is
  * symmetric the same way) into one funnel stage. NEW folds into the site
  * survey stage (nothing has happened yet, so it's the start of that phase);
- * COMPLETED folds into documentation (the last active phase before the
+ * COMPLETED folds into commissioning (the last active phase before the
  * terminal state) rather than getting its own stage, matching the request
- * to show only these three in the bar. */
+ * to show only these three in the bar. Commissioning's own 4-stage
+ * sub-lifecycle (apply net meter / Discom visit / meter installation / meter
+ * commissioning) lives one level deeper, inside CommissioningPanel's own
+ * stepper -- this bar only ever shows the macro phase. */
 export const PROJECT_PHASE_GROUPS: { phase: ProjectPhase; label: string; statuses: ProjectStatus[] }[] = [
   { phase: "SITE_SURVEY", label: "Site survey", statuses: ["NEW", "SITE_SURVEY_IN_PROGRESS", "SITE_SURVEY_COMPLETED"] },
   { phase: "INSTALLATION", label: "Installation", statuses: ["INSTALLATION_IN_PROGRESS", "INSTALLATION_COMPLETED"] },
   {
-    phase: "DOCUMENTATION",
-    label: "Documentation",
-    statuses: ["DOCUMENTATION_IN_PROGRESS", "DOCUMENTATION_COMPLETED", "COMPLETED"],
+    phase: "COMMISSIONING",
+    label: "Commissioning",
+    statuses: ["COMMISSIONING_IN_PROGRESS", "COMMISSIONING_COMPLETED", "COMPLETED"],
   },
 ];
 
@@ -57,7 +60,7 @@ export function phaseForStatus(status: ProjectStatus): ProjectPhase | null {
 }
 
 /** Top-level, clickable funnel navigation for the projects list: Site
- * survey > Installation > Documentation. Clicking a stage filters the list
+ * survey > Installation > Commissioning. Clicking a stage filters the list
  * down to every status within that stage (`onSelect(phase)`, resolved to
  * multiple `status` query params by the caller — see ProjectsPage); "All"
  * clears the filter and shows every project regardless of status (the page

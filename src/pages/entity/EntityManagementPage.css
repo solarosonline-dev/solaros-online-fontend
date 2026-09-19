@@ -475,6 +475,17 @@
   border-bottom: 1px solid var(--app-border);
 }
 
+/* Role and Display Name are the 4th/5th columns (Name, Email, Mobile,
+   Role, Display Name, State, actions) -- wide enough to fit the longest
+   role constant, "ENTITY_SERVICE_MANAGER", on one line in its badge
+   without wrapping/clipping. */
+.entity-users-table th:nth-child(4),
+.entity-users-table td:nth-child(4),
+.entity-users-table th:nth-child(5),
+.entity-users-table td:nth-child(5) {
+  min-width: 220px;
+}
+
 .entity-invite-form {
   display: flex;
   gap: 8px;
@@ -497,6 +508,50 @@
 .entity-invite-error {
   flex-basis: 100%;
   margin: 0;
+}
+
+/* Role select + its always-visible display-label field need more room than
+   the other 180px-capped invite-form fields (see
+   .entity-invite-form .entity-field below) so neither control feels
+   cramped -- wide enough for the select alone to fit the longest role
+   constant, "ENTITY_SERVICE_MANAGER", on one line (see the select's own
+   min-width below). */
+.entity-invite-form .entity-role-field {
+  max-width: 480px;
+  flex: 1 1 480px;
+}
+
+.entity-role-row {
+  display: flex;
+  gap: 10px;
+}
+
+.entity-role-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.entity-role-row select {
+  width: 100%;
+  min-width: 220px;
+  /* Smaller than the other invite-form inputs (14px) so "ENTITY_SERVICE_
+     MANAGER", the longest role constant, comfortably fits the select's
+     width instead of pushing right up against/behind the dropdown arrow. */
+  font-size: 12px;
+}
+
+.entity-role-label-caption {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.entity-role-label-input {
+  width: 100%;
+  min-width: 160px;
 }
 
 .entity-role-badge {

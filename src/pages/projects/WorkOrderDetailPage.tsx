@@ -9,6 +9,7 @@ import {
   deleteWorkOrder,
   nextWorkOrderStatus,
   generateSldPdf,
+  setWorkOrderVisitDate,
   type WorkOrderDetail,
 } from "../../api/workOrders";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
@@ -16,6 +17,7 @@ import { listTeams, type TeamListItem } from "../../api/teams";
 import { getEntityPreferences } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import WorkOrderDocuments from "./WorkOrderDocuments";
+import CommissioningPanel from "./CommissioningPanel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
@@ -50,6 +52,10 @@ export default function WorkOrderDetailPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0);
+  const [editingVisitDate, setEditingVisitDate] = useState(false);
+  const [visitDateInput, setVisitDateInput] = useState("");
+  const [visitDateReason, setVisitDateReason] = useState("");
+  const [savingVisitDate, setSavingVisitDate] = useState(false);
 
   function load() {
     if (!workOrderId) return;
@@ -154,6 +160,38 @@ export default function WorkOrderDetailPage() {
     }
   }
 
+  // Entity admins can set/change the date freely; the current USER assignee
+  // (the only non-admin who can ever reach this page -- see
+  // _ensure_can_access_work_order on the backend) can only change an
+  // already-set date and must supply a non-empty reason. See
+  // setWorkOrderVisitDate / the backend's PATCH .../visit-date.
+  function startEditingVisitDate() {
+    setVisitDateInput(wo?.visit_date ?? "");
+    setVisitDateReason("");
+    setEditingVisitDate(true);
+  }
+
+  async function handleSaveVisitDate() {
+    if (!workOrderId || !visitDateInput) return;
+    setSavingVisitDate(true);
+    setStatus(null);
+    try {
+      const res = await setWorkOrderVisitDate(
+        entityId,
+        Number(workOrderId),
+        visitDateInput,
+        isEntityAdmin(user!.roles) ? undefined : visitDateReason.trim(),
+      );
+      setWo((prev) => (prev ? { ...prev, visit_date: res.visit_date } : prev));
+      setEditingVisitDate(false);
+      setStatus({ kind: "success", message: "Visit date updated." });
+    } catch (err) {
+      setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not update visit date" });
+    } finally {
+      setSavingVisitDate(false);
+    }
+  }
+
   async function handleDelete() {
     if (!workOrderId || !wo) return;
     setDeleteConfirmOpen(false);
@@ -189,6 +227,18 @@ export default function WorkOrderDetailPage() {
     }
   }
 
+  // Fired by CommissioningPanel right after a successful stage advance --
+  // its own PATCH .../commissioning/stage response reports the WorkOrder's
+  // resulting status directly (no separate reload needed to reflect it in
+  // the header badge/status row above), same idea as handleTransition's own
+  // setWo call for every other type.
+  function handleCommissioningAdvanced(result: { work_order_status: string; project_status: string | null }) {
+    setWo((prev) => (prev ? { ...prev, status: result.work_order_status as typeof prev.status } : prev));
+    const projectNote =
+      result.work_order_status === "COMPLETED" && result.project_status ? ` Project is now ${result.project_status}.` : "";
+    setStatus({ kind: "success", message: `Stage advanced.${projectNote}` });
+  }
+
   if (loading) return <div className="projects-loading">Loading…</div>;
   if (loadError || !wo) {
     return (
@@ -218,6 +268,12 @@ export default function WorkOrderDetailPage() {
   // can never assign, only be assigned.
   const canAssign = wo.type === "AMC_SERVICE" ? canManageAmc(user!.roles) : admin;
   const isSld = wo.type === "SLD_GENERATION";
+  // Its status is driven entirely by CommissioningPanel's own stage-advance
+  // action below -- the backend itself rejects the generic PATCH .../status
+  // endpoint for this type (409 USE_COMMISSIONING_STAGE_ENDPOINT), so the
+  // generic next-status button/hints are suppressed here the same way isSld
+  // suppresses the generic photo hint.
+  const isCommissioning = wo.type === "COMMISSIONING";
 
   return (
     <div className="projects-page">
@@ -230,7 +286,11 @@ export default function WorkOrderDetailPage() {
           {wo.type.replace("_", " ")} <span className="project-status-badge">{wo.status}</span>
         </h1>
         <div className="project-detail-actions">
-          {next && (
+          {/* Excluded for COMMISSIONING: its status is driven entirely by
+              CommissioningPanel's own stage-advance action below -- the
+              backend rejects this generic endpoint for that type outright
+              (409 USE_COMMISSIONING_STAGE_ENDPOINT). */}
+          {next && !isCommissioning && (
             <button className="projects-btn primary" disabled={transitioning} onClick={() => handleTransition(next)}>
               {NEXT_ACTION_LABEL[wo.status] ?? `Advance to ${next}`}
             </button>
@@ -241,8 +301,11 @@ export default function WorkOrderDetailPage() {
               slightly (e.g. right after a delete) without being unsafe.
               Excluded for SLD_GENERATION: the backend skips this gate for
               that type entirely (the generated SLD PDF is itself the proof
-              of completion), so showing this hint there would be misleading. */}
-          {next === "COMPLETED" && !isSld && photoRequired && !hasPhoto && (
+              of completion), so showing this hint there would be misleading.
+              Excluded for COMMISSIONING for the same reason as the button
+              above -- this gate is on the generic status endpoint, which
+              COMMISSIONING work orders never use. */}
+          {next === "COMPLETED" && !isSld && !isCommissioning && photoRequired && !hasPhoto && (
             <span className="work-order-type-hint" style={{ color: "var(--app-danger)" }}>
               A photo is required before this work order can be completed.
             </span>
@@ -298,6 +361,63 @@ export default function WorkOrderDetailPage() {
         <div className="project-detail-row">
           <span>Completed</span>
           <span>{wo.closed_at ? new Date(wo.closed_at).toLocaleString() : "—"}</span>
+        </div>
+        <div className="project-detail-row">
+          <span>Visit date</span>
+          <span>
+            {editingVisitDate ? (
+              <>
+                <input
+                  type="date"
+                  value={visitDateInput}
+                  onChange={(e) => setVisitDateInput(e.target.value)}
+                  style={{ display: "block", marginBottom: 4 }}
+                />
+                {!admin && (
+                  <textarea
+                    placeholder="Reason for changing the visit date (required)"
+                    value={visitDateReason}
+                    onChange={(e) => setVisitDateReason(e.target.value)}
+                    rows={2}
+                    style={{ display: "block", width: "100%", marginBottom: 4 }}
+                  />
+                )}
+                <button
+                  className="projects-btn primary"
+                  disabled={!visitDateInput || (!admin && !visitDateReason.trim()) || savingVisitDate}
+                  onClick={handleSaveVisitDate}
+                >
+                  {savingVisitDate ? "Saving…" : "Save"}
+                </button>{" "}
+                <button
+                  className="projects-btn"
+                  disabled={savingVisitDate}
+                  onClick={() => setEditingVisitDate(false)}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                {wo.visit_date ? new Date(wo.visit_date).toLocaleDateString() : "—"}
+                {/* Non-admins can only reschedule an already-set date, never
+                    set an initial one from null (see the backend's 403
+                    VISIT_DATE_ADMIN_ONLY) -- hide the edit control entirely
+                    for that case rather than show one that will just fail. */}
+                {(admin || wo.visit_date) && (
+                  <>
+                    {" "}
+                    <button className="projects-btn" onClick={startEditingVisitDate}>
+                      {wo.visit_date ? "Change" : "Set"}
+                    </button>
+                  </>
+                )}
+                {!admin && !wo.visit_date && (
+                  <div className="work-order-type-hint">Only an entity admin can set a visit date.</div>
+                )}
+              </>
+            )}
+          </span>
         </div>
         <div className="project-detail-row">
           <span>Notes</span>
@@ -402,6 +522,10 @@ export default function WorkOrderDetailPage() {
             )}
           </div>
         </>
+      )}
+
+      {isCommissioning && (
+        <CommissioningPanel entityId={entityId} workOrderId={Number(workOrderId)} onAdvanced={handleCommissioningAdvanced} />
       )}
 
       {/* No explanatory hint for the non-permitted case -- a WORKER/

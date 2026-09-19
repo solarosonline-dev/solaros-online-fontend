@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type { WorkOrderType } from "./workOrders";
+import type { CommissioningStage } from "./commissioning";
 
 export type ProjectStatus =
   | "NEW"
@@ -7,8 +8,8 @@ export type ProjectStatus =
   | "SITE_SURVEY_COMPLETED"
   | "INSTALLATION_IN_PROGRESS"
   | "INSTALLATION_COMPLETED"
-  | "DOCUMENTATION_IN_PROGRESS"
-  | "DOCUMENTATION_COMPLETED"
+  | "COMMISSIONING_IN_PROGRESS"
+  | "COMMISSIONING_COMPLETED"
   | "COMPLETED"
   | "REJECTED";
 
@@ -19,8 +20,8 @@ const STATUS_CHAIN: ProjectStatus[] = [
   "SITE_SURVEY_COMPLETED",
   "INSTALLATION_IN_PROGRESS",
   "INSTALLATION_COMPLETED",
-  "DOCUMENTATION_IN_PROGRESS",
-  "DOCUMENTATION_COMPLETED",
+  "COMMISSIONING_IN_PROGRESS",
+  "COMMISSIONING_COMPLETED",
   "COMPLETED",
 ];
 
@@ -56,9 +57,9 @@ export const SKIP_STAGE_TRANSITIONS: {
   },
   {
     from: "INSTALLATION_COMPLETED",
-    to: "DOCUMENTATION_COMPLETED",
-    workOrderType: "DOCUMENTATION",
-    label: "Skip documentation",
+    to: "COMMISSIONING_COMPLETED",
+    workOrderType: "COMMISSIONING",
+    label: "Skip commissioning",
   },
 ];
 
@@ -67,10 +68,10 @@ export function skipStageFor(status: ProjectStatus) {
 }
 
 // The WorkOrderType creatable against a project at its current phase -- null
-// once there's no more work-order-driven phase left (DOCUMENTATION_COMPLETED,
+// once there's no more work-order-driven phase left (COMMISSIONING_COMPLETED,
 // COMPLETED, REJECTED). Mirrors the phases the backend's
 // PROJECT_ADVANCE_ON_WORK_ORDER_CREATION/_COMPLETION maps assume (creating a
-// SITE_SURVEY/INSTALLATION/DOCUMENTATION work order is itself what starts
+// SITE_SURVEY/INSTALLATION/COMMISSIONING work order is itself what starts
 // that phase now, same as completing one is what ends it).
 export function currentPhaseWorkOrderType(status: ProjectStatus): WorkOrderType | null {
   switch (status) {
@@ -81,8 +82,8 @@ export function currentPhaseWorkOrderType(status: ProjectStatus): WorkOrderType 
     case "INSTALLATION_IN_PROGRESS":
       return "INSTALLATION";
     case "INSTALLATION_COMPLETED":
-    case "DOCUMENTATION_IN_PROGRESS":
-      return "DOCUMENTATION";
+    case "COMMISSIONING_IN_PROGRESS":
+      return "COMMISSIONING";
     default:
       return null;
   }
@@ -107,6 +108,19 @@ export type ProjectList = {
   total: number;
 };
 
+/** Read-only rollup of the project's COMMISSIONING work order -- lets the
+ * Project detail page show the Discom application number/screenshot/current
+ * stage without a separate fetch. Editing either field happens from the
+ * Commissioning work order's own detail page (CommissioningPanel); this is
+ * display-only. Null until a COMMISSIONING work order exists for the
+ * project (mirrors CommissioningSummary in app/schemas/commissioning.py). */
+export type CommissioningSummary = {
+  work_order_id: number;
+  current_stage: CommissioningStage;
+  netmeter_application_number: string | null;
+  screenshot_download_url: string | null;
+};
+
 export type ProjectDetail = {
   project_id: number;
   entity_id: number;
@@ -123,6 +137,7 @@ export type ProjectDetail = {
    * configured on it. */
   amc_id: number | null;
   amc_duration_years: number | null;
+  commissioning: CommissioningSummary | null;
 };
 
 /** Convenience lookup used from Lead detail once an agreement is accepted; 404s until then. */
@@ -173,7 +188,7 @@ export function getProjectForLead(entityId: number, leadId: number) {
  * file, and an Agreement has none until signed). */
 export type ProjectDocumentItem = {
   key: string;
-  source: "QUOTE" | "AGREEMENT" | "WORK_ORDER";
+  source: "QUOTE" | "AGREEMENT" | "WORK_ORDER" | "COMMISSIONING";
   title: string;
   /** Quote/Agreement status, or the owning work order's type. */
   subtitle: string | null;

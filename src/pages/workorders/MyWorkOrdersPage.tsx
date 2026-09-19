@@ -87,6 +87,7 @@ export default function MyWorkOrdersPage() {
                 <th>Address</th>
                 <th>Opened</th>
                 <th>Completed</th>
+                <th>Visit date</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +104,9 @@ export default function MyWorkOrdersPage() {
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td data-label="Visit date">
+                    {wo.visit_date ? new Date(wo.visit_date).toLocaleDateString() : "—"}
                   </td>
                 </tr>
               ))}

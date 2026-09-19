@@ -12,6 +12,7 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [notes, setNotes] = useState("");
+  const [visitDate, setVisitDate] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -35,8 +36,13 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
     setCreating(true);
     setCreateError(null);
     try {
-      await createLeadWorkOrder(entityId, leadId, { type: "SITE_SURVEY", notes: notes.trim() || undefined });
+      await createLeadWorkOrder(entityId, leadId, {
+        type: "SITE_SURVEY",
+        notes: notes.trim() || undefined,
+        visit_date: visitDate || undefined,
+      });
       setNotes("");
+      setVisitDate("");
       load();
     } catch (err) {
       setCreateError(err instanceof ApiError ? err.message : "Could not create site survey");
@@ -56,6 +62,12 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
             placeholder="Notes (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+          />
+          <input
+            type="date"
+            title="Visit date (optional)"
+            value={visitDate}
+            onChange={(e) => setVisitDate(e.target.value)}
           />
           <button className="leads-btn primary" disabled={creating} onClick={handleCreate}>
             {creating ? "Creating…" : "+ Create site survey"}
@@ -80,6 +92,7 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
                 <th>Assignee</th>
                 <th>Opened</th>
                 <th>Completed</th>
+                <th>Visit date</th>
               </tr>
             </thead>
             <tbody>
@@ -108,6 +121,9 @@ export default function LeadWorkOrders({ entityId, leadId }: { entityId: number;
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td data-label="Visit date">
+                    {wo.visit_date ? new Date(wo.visit_date).toLocaleDateString() : "—"}
                   </td>
                 </tr>
               ))}

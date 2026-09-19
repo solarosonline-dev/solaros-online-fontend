@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "DOCUMENTATION" | "AMC_SERVICE" | "SLD_GENERATION";
+export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "COMMISSIONING" | "AMC_SERVICE" | "SLD_GENERATION";
 export type WorkOrderStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
 export function nextWorkOrderStatus(status: WorkOrderStatus): WorkOrderStatus | null {
@@ -33,6 +33,12 @@ export type WorkOrderListItem = {
   status: WorkOrderStatus;
   opened_at: string;
   closed_at: string | null;
+  // Customer-preferred appointment date -- optional, per the customer's
+  // availability. Once set, the assignee is expected to visit only on this
+  // date (informational only, not enforced on status transitions); changing
+  // an already-set date requires a reason unless the actor is an entity
+  // admin. See setWorkOrderVisitDate.
+  visit_date: string | null;
   assignee: Assignee | null;
   lead: LeadSummary;
 };
@@ -90,6 +96,9 @@ export type WorkOrderDetail = WorkOrderListItem & {
 export type CreateWorkOrderInput = {
   type: WorkOrderType;
   notes?: string;
+  // Customer-preferred appointment date -- optional, per the customer's
+  // availability. See WorkOrderListItem.visit_date.
+  visit_date?: string;
   // Required (all) when type === "SLD_GENERATION"; ignored otherwise.
   panel_wattage_w?: number;
   panel_make?: string;
@@ -133,6 +142,7 @@ export function createProjectWorkOrder(entityId: number, projectId: number, data
     type: WorkOrderType;
     status: WorkOrderStatus;
     opened_at: string;
+    visit_date: string | null;
     // Set whenever creating this work order also advanced the project's
     // status (see PROJECT_ADVANCE_ON_WORK_ORDER_CREATION on the backend) --
     // reflects current state either way, not just when it changed.
@@ -162,6 +172,7 @@ export function createLeadWorkOrder(entityId: number, leadId: number, data: Crea
     type: WorkOrderType;
     status: WorkOrderStatus;
     opened_at: string;
+    visit_date: string | null;
   }>(`/entities/${entityId}/leads/${leadId}/work-orders`, { method: "POST", body: data });
 }
 
@@ -197,6 +208,18 @@ export function updateWorkOrderStatus(entityId: number, workOrderId: number, sta
     closed_at: string | null;
     project_status: string | null;
   }>(`/entities/${entityId}/work-orders/${workOrderId}/status`, { method: "PATCH", body: { status } });
+}
+
+// Entity admins can set/change the date freely; the current USER assignee
+// can only change an already-set date (reschedule) and must supply a
+// non-empty `reason` -- they can't set an initial date from null. See the
+// backend's PATCH .../visit-date for the full permission table (403
+// VISIT_DATE_ADMIN_ONLY / 400 REASON_REQUIRED / 403 SCOPE_MISMATCH).
+export function setWorkOrderVisitDate(entityId: number, workOrderId: number, visitDate: string, reason?: string) {
+  return apiRequest<{ work_order_id: number; visit_date: string }>(
+    `/entities/${entityId}/work-orders/${workOrderId}/visit-date`,
+    { method: "PATCH", body: { visit_date: visitDate, reason: reason || undefined } },
+  );
 }
 
 export function assignWorkOrder(

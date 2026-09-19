@@ -13,6 +13,7 @@ import ProjectWorkOrders from "./ProjectWorkOrders";
 import GenerateSldPanel from "./GenerateSldPanel";
 import ProjectAmcTab from "./ProjectAmcTab";
 import ProjectDocumentsTab from "./ProjectDocumentsTab";
+import CommissioningSummaryCard from "./CommissioningSummaryCard";
 import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
@@ -78,10 +79,10 @@ export default function ProjectDetailPage() {
     );
   }
 
-  // Collapsed 3-stage stepper (Site survey / Installation / Documentation)
+  // Collapsed 3-stage stepper (Site survey / Installation / Commissioning)
   // instead of every individual IN_PROGRESS/COMPLETED status -- the exact
   // status is still shown in the header badge and the detail panel below.
-  // A project sitting at COMPLETED is fully past the Documentation stage
+  // A project sitting at COMPLETED is fully past the Commissioning stage
   // (folded into it, see PROJECT_PHASE_GROUPS), not merely "current" there.
   const phase = phaseForStatus(project.status);
   const phaseIdx = PROJECT_PHASE_GROUPS.findIndex((g) => g.phase === phase);
@@ -114,7 +115,7 @@ export default function ProjectDetailPage() {
               a manual advance button for those would just flip the status
               with no work order behind it. COMPLETED has no work-order type
               and no skip entry, so it's the one manual step left. */}
-          {project.status === "DOCUMENTATION_COMPLETED" && (
+          {project.status === "COMMISSIONING_COMPLETED" && (
             <button
               className="projects-btn primary"
               disabled={transitioning}
@@ -240,6 +241,12 @@ export default function ProjectDetailPage() {
           </div>
 
           {status && <p className={`projects-status ${status.kind}`}>{status.message}</p>}
+
+          {/* Read-only -- the Discom application number/screenshot/current
+              stage are entered/edited from the Commissioning work order's
+              own detail page (CommissioningPanel), not here. Only rendered
+              once a COMMISSIONING work order exists for this project. */}
+          {project.commissioning && <CommissioningSummaryCard commissioning={project.commissioning} />}
 
           <ProjectWorkOrders
             entityId={entityId}

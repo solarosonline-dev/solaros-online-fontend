@@ -8,6 +8,11 @@ export type LoginResponse = {
     email: string;
     entity_id: number | null;
     roles: string[];
+    // Display label per role this user holds, e.g.
+    // {"ENTITY_SERVICE_MANAGER": "Field Ops Lead"} -- resolved server-side
+    // from the entity's role_labels preference merged with the built-in
+    // defaults. Empty for SYSTEM-scope users.
+    role_labels: Record<string, string>;
   };
 };
 

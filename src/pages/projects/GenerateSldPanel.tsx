@@ -6,7 +6,7 @@ import { ApiError } from "../../api/client";
 /**
  * Dedicated entry point for creating an SLD_GENERATION work order --
  * deliberately separate from the fixed-phase panel in ProjectWorkOrders
- * (Site survey -> Installation -> Documentation), since generating a Single
+ * (Site survey -> Installation -> Commissioning), since generating a Single
  * Line Diagram isn't a funnel phase and can be done at any point in a
  * project's life (mirrors how AMC_SERVICE work orders are created outside
  * that panel too). Always visible, not gated on project status.

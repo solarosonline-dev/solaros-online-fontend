@@ -7,7 +7,7 @@ import { ApiError } from "../../api/client";
 const TYPE_LABEL: Record<string, string> = {
   SITE_SURVEY: "Site survey",
   INSTALLATION: "Installation",
-  DOCUMENTATION: "Documentation",
+  COMMISSIONING: "Commissioning",
 };
 
 export default function ProjectWorkOrders({
@@ -28,6 +28,7 @@ export default function ProjectWorkOrders({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [newNotes, setNewNotes] = useState("");
+  const [newVisitDate, setNewVisitDate] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -47,10 +48,10 @@ export default function ProjectWorkOrders({
 
   // Only the type matching the project's current phase is offered here --
   // e.g. while the project is NEW, only a Site survey work order can be
-  // created; once it's INSTALLATION_COMPLETED, only Documentation. Mirrors
+  // created; once it's INSTALLATION_COMPLETED, only Commissioning. Mirrors
   // currentPhaseWorkOrderType on the backend's PROJECT_ADVANCE_ON_WORK_ORDER_
   // CREATION/_COMPLETION maps -- null once the project has moved past every
-  // work-order-driven phase (DOCUMENTATION_COMPLETED, COMPLETED, REJECTED).
+  // work-order-driven phase (COMMISSIONING_COMPLETED, COMPLETED, REJECTED).
   const currentType = currentPhaseWorkOrderType(projectStatus);
   const openTypes = new Set(items.filter((i) => i.status !== "COMPLETED").map((i) => i.type));
   const alreadyOpen = currentType != null && openTypes.has(currentType);
@@ -72,8 +73,10 @@ export default function ProjectWorkOrders({
       const res = await createProjectWorkOrder(entityId, projectId, {
         type: currentType,
         notes: newNotes.trim() || undefined,
+        visit_date: newVisitDate || undefined,
       });
       setNewNotes("");
+      setNewVisitDate("");
       load();
       // Creating a work order can itself advance the project's status (e.g.
       // NEW -> SITE_SURVEY_IN_PROGRESS) -- without this the header badge,
@@ -114,6 +117,12 @@ export default function ProjectWorkOrders({
             value={newNotes}
             onChange={(e) => setNewNotes(e.target.value)}
           />
+          <input
+            type="date"
+            title="Visit date (optional)"
+            value={newVisitDate}
+            onChange={(e) => setNewVisitDate(e.target.value)}
+          />
           <button className="projects-btn primary" disabled={creating || alreadyOpen} onClick={handleCreate}>
             {creating ? "Creating…" : alreadyOpen ? "Already open" : "+ New work order"}
           </button>
@@ -152,6 +161,7 @@ export default function ProjectWorkOrders({
                 <th>Customer</th>
                 <th>Opened</th>
                 <th>Completed</th>
+                <th>Visit date</th>
               </tr>
             </thead>
             <tbody>
@@ -186,6 +196,9 @@ export default function ProjectWorkOrders({
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td data-label="Visit date">
+                    {wo.visit_date ? new Date(wo.visit_date).toLocaleDateString() : "—"}
                   </td>
                 </tr>
               ))}
