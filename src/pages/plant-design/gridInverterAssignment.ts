@@ -60,8 +60,8 @@ export function distributeAcrossMppts(strings, mpptCount, maxPerChannel) {
 // Full assignment for one grid: how many inverters it needs, and each
 // inverter's strings/MPPT layout. `targetDcAcRatio` (DC kWp / AC kW) steers
 // how many inverters get used before MPPT capacity alone would force more.
-export function assignGridToInverters({ panelCount, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio }) {
-  const sizing = sizeStrings(module, inverter, designMinTempC, designMaxTempC);
+export function assignGridToInverters({ panelCount, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio, mpptVoltageUtilizationPct = 100 }) {
+  const sizing = sizeStrings(module, inverter, designMinTempC, designMaxTempC, mpptVoltageUtilizationPct);
   if (!sizing.valid) return { valid: false, reason: 'No valid string configuration for this module/inverter/temperature combination.' };
   if (!(panelCount > 0)) return { valid: false, reason: 'No panels in this grid.' };
 
@@ -143,8 +143,8 @@ const DEFAULT_MAX_POOLING_DISTANCE_M = 25;
 // "no proximity data at all") break toward the smaller combined group,
 // which is what keeps five equal small grids needing two inverters landing
 // 3-and-2 instead of 4-and-1.
-export function assignSiteToInverters({ grids, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio, maxPoolingDistanceM = DEFAULT_MAX_POOLING_DISTANCE_M }) {
-  const sizing = sizeStrings(module, inverter, designMinTempC, designMaxTempC);
+export function assignSiteToInverters({ grids, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio, maxPoolingDistanceM = DEFAULT_MAX_POOLING_DISTANCE_M, mpptVoltageUtilizationPct = 100 }) {
+  const sizing = sizeStrings(module, inverter, designMinTempC, designMaxTempC, mpptVoltageUtilizationPct);
   let perGrid: any[] = [];
   if (!sizing.valid) {
     grids.forEach((g) => perGrid.push({ ...g, valid: false, reason: 'No valid string configuration for this module/inverter/temperature combination.' }));
@@ -171,7 +171,7 @@ export function assignSiteToInverters({ grids, module, inverter, designMinTempC,
   let inverters: any[] = [];
 
   bigGrids.forEach((g) => {
-    const assignment = assignGridToInverters({ panelCount: g.panelCount, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio });
+    const assignment = assignGridToInverters({ panelCount: g.panelCount, module, inverter, designMinTempC, designMaxTempC, targetDcAcRatio, mpptVoltageUtilizationPct });
     if (!assignment.valid) {
       perGrid.push({ ...g, valid: false, reason: assignment.reason });
       return;

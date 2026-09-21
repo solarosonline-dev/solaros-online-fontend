@@ -46,6 +46,7 @@ export interface PlantDesignData {
   inverterChoice: any;
   designTemp: { min: number; max: number };
   targetDcAcRatio: number;
+  mpptVoltageUtilizationPct: number;
   currentStep: number;
   maxUnlockedStep: number;
 }

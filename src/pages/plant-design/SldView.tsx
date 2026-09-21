@@ -14,6 +14,9 @@
 // wide - the standard trick for printing a single view out of an SPA that
 // has no per-page routes.
 
+import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
+import { CollapsibleSection, SliderInput } from './PlantDesignControls.jsx';
+
 const PRINT_ROOT_CLASS = 'sld-print-root';
 
 // Compact throughout on purpose: an inverter used to be a large text-filled
@@ -140,7 +143,10 @@ function buildPrintFilename(projectName) {
   return `SolarOS-SLD-${safeName}-${dateStr}`;
 }
 
-export default function SldView({ projectName, capacityNote, gridConnection, panelSpec, inverterChoice, sitePlan, totalPanelCount, totalCapacityKW, inverterSuggestion }) {
+export default function SldView({
+  projectName, gridConnection, panelSpec, inverterChoice, sitePlan, totalPanelCount, totalCapacityKW,
+  targetDcAcRatio, mpptVoltageUtilizationPct = 100, onInverterChoiceChange, onTargetDcAcRatioChange, onMpptVoltageUtilizationPctChange,
+}) {
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
   const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
 
@@ -166,8 +172,69 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
   const busY = INV_BOX_Y - 12;
   const centerX = svgWidth / 2;
 
+  // Lets the electrical design be tweaked without leaving this page - reads
+  // and writes the exact same state as Step 2's "Inverter (default)"/
+  // "String sizing" sections (passed down from PlantDesignEditor as these
+  // onChange props), so a change here or there shows up in both places and
+  // re-runs assignSiteToInverters either way. Built from the same
+  // CollapsibleSection/SliderInput/pde-field-* pieces Step 2 uses (see
+  // PlantDesignControls.jsx) so it looks and behaves identically rather
+  // than reinventing a second style of input here. Sits above the
+  // printable SLD card itself (not inside it) - it's a live editor for
+  // this page, not part of the diagram/schedule being drawn, and never
+  // needs a sld-no-print escape hatch for that reason: it's outside
+  // .sld-print-root entirely, so the print stylesheet's "hide everything
+  // except .sld-print-root" rule already keeps it off the printed sheet.
+  // Collapsed by default (defaultOpen=false) - reviewing the diagram is
+  // the common case, tweaking these is occasional. Only rendered when the
+  // caller wired the onChange props up - keeps this component still usable
+  // as pure read-only display (e.g. a future share/export view) otherwise.
+  const controls = onInverterChoiceChange && onTargetDcAcRatioChange && onMpptVoltageUtilizationPctChange && (
+    <div style={{ flexShrink: 0 }}>
+      <CollapsibleSection title="Inverter & string sizing" defaultOpen={false}>
+        <div className={inverterChoice.make !== CUSTOM_INVERTER_MAKE ? 'pde-field-row' : undefined}>
+          <div className="pde-field-sm">
+            <label>Make</label>
+            <select
+              value={inverterChoice.make}
+              onChange={(e) => {
+                const make = e.target.value;
+                if (make === CUSTOM_INVERTER_MAKE) {
+                  onInverterChoiceChange({ ...inverterChoice, make, model: '' });
+                  return;
+                }
+                onInverterChoiceChange({ ...inverterChoice, ...inverterCatalogModels(make)[0] });
+              }}
+            >
+              {inverterCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
+              <option value={CUSTOM_INVERTER_MAKE}>{CUSTOM_INVERTER_MAKE}</option>
+            </select>
+          </div>
+          {inverterChoice.make !== CUSTOM_INVERTER_MAKE && (
+            <div className="pde-field-sm">
+              <label>Model</label>
+              <select
+                value={inverterChoice.model}
+                onChange={(e) => {
+                  const inv = findInverter(inverterChoice.make, e.target.value);
+                  if (inv) onInverterChoiceChange({ ...inverterChoice, ...inv });
+                }}
+              >
+                {inverterCatalogModels(inverterChoice.make).map((i) => <option key={i.model} value={i.model}>{i.model} · {i.acPowerKw}kW</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={onTargetDcAcRatioChange} /></div>
+        <div className="pde-field-sm"><label>MPPT voltage utilization (%)</label><SliderInput min={100} max={140} step={1} value={mpptVoltageUtilizationPct} onChange={onMpptVoltageUtilizationPctChange} /></div>
+      </CollapsibleSection>
+    </div>
+  );
+
   return (
-    <div className={PRINT_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: 20, height: '100%', overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', boxSizing: 'border-box' }}>
+      {controls}
+      <div className={PRINT_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
       <style>{`
         @media print {
           @page { size: landscape; margin: 12mm; }
@@ -218,11 +285,8 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
         }
       `}</style>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid #1c2b4a', paddingBottom: 10 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#1c2b4a' }}>SINGLE LINE DIAGRAM</div>
-          <div style={{ fontSize: 14, color: '#555' }}>{projectName || 'Untitled project'} · {capacityNote || '?'} kW</div>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid #1c2b4a', paddingBottom: 6 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#1c2b4a' }}>SINGLE LINE DIAGRAM</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ fontSize: 13, color: '#777', textAlign: 'right' }}>
             Grid: {gridConnection.voltage} V · {gridConnection.phase}-Phase{gridConnection.discom && ` · DISCOM: ${gridConnection.discom}`}
@@ -238,34 +302,9 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
         </div>
       </div>
 
-      {/* flexShrink:0 required here too - see the sld-svg-scroll comment
-          below for why any flex-column child with non-visible overflow
-          (border-radius clipping needs overflow:hidden) collapses to 0
-          height otherwise. Bit us twice now; watch for this on any new
-          flex child that sets `overflow` to anything but 'visible'. */}
-      <div style={{ display: 'flex', flexShrink: 0, gap: 0, fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6, overflow: 'hidden' }}>
-        {[
-          ['Client', projectName || 'Untitled project'],
-          ['Date', new Date().toLocaleDateString('en-IN')],
-          ['Scale', 'NTS'],
-          ['Rev', 'R00'],
-        ].map(([k, v], i) => (
-          <div key={k} style={{ flex: 1, padding: '6px 10px', borderLeft: i > 0 ? '1px solid #e2e2e2' : 'none', background: '#fafafa' }}>
-            <div style={{ color: '#888', textTransform: 'uppercase', fontSize: 10 }}>{k}</div>
-            <div style={{ fontWeight: 600, color: '#333' }}>{v}</div>
-          </div>
-        ))}
-      </div>
-
       {invalidGrids.length > 0 && (
         <div style={{ background: '#fdecea', border: '1px solid #f5c6c0', borderRadius: 6, padding: 12, fontSize: 13, color: '#c0392b' }}>
           {invalidGrids.map((g) => <div key={g.key}>{g.label}: {g.reason}</div>)}
-        </div>
-      )}
-
-      {inverterSuggestion && (
-        <div className="sld-no-print" style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6, padding: 12, fontSize: 13, color: '#7a5c00' }}>
-          💡 A smaller inverter would fit this site better: <strong>{inverterSuggestion.model}</strong> ({inverterSuggestion.acPowerKw} kW) needs the same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'} but runs at {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilization instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}% — switch it in Step 2's Inverter picker.
         </div>
       )}
 
@@ -429,7 +468,7 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
                   <ol style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 12px 8px 26px', margin: 0, fontSize: 10.5, color: '#333', lineHeight: 1.6 }}>
                     <li>Plant: {totalCapacityKW.toFixed(2)} kWp DC, {totalPanelCount}× {panelSpec.wattage}Wp modules, {inverters.reduce((s, inv) => s + inv.rows.reduce((s2, row) => s2 + row.lens.length, 0), 0)} strings.</li>
                     <li>Module: Voc {panelSpec.voc} V, Isc {panelSpec.isc} A, {panelSpec.model || `${panelSpec.wattage}W custom`}.</li>
-                    <li>Inverter: {inverterChoice.model || `${inverterChoice.acPowerKw}kW custom`}, {inverterChoice.mpptCount} MPPT, max {inverterChoice.maxCurrentPerMppt} A/MPPT.</li>
+                    <li>Inverter: {inverterChoice.model || `${inverterChoice.acPowerKw}kW custom`}, {inverterChoice.mpptCount} MPPT, max {inverterChoice.maxCurrentPerMppt} A/MPPT. Strings sized to {mpptVoltageUtilizationPct}% of the rated MPPT voltage window (never exceeding the {inverterChoice.maxDcVoltage} V absolute max).</li>
                     <li>Grid: {gridConnection.voltage} V, {gridConnection.phase}-Phase. {gridConnection.sanctionedLoadKw !== '' && `Sanctioned load: ${gridConnection.sanctionedLoadKw} kW. `}{gridConnection.discom && `DISCOM: ${gridConnection.discom}.`}</li>
                     <li>Earthing as per IS 3043; SPD as per IS/IEC 61643.</li>
                     <li>Wiring &amp; protection as per IS 732, IE Rules &amp; CEA standards for grid-connected solar PV.</li>
@@ -442,8 +481,26 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
             {/* Sidebar: specs that used to repeat under every inverter
                 column, or sit in a third full-width row below the diagram,
                 now live once each in this side column instead - see this
-                whole split's own comment above. */}
+                whole split's own comment above. The Client/Date/Scale strip
+                used to be its own full-width row above the diagram, pushing
+                it down a whole row for no reason - it's a small title-block
+                fact box, not something that needs the full page width, so
+                it lives here now as the sidebar's first card instead,
+                letting the diagram start right under the header. */}
             <div style={{ flex: '1 1 220px', maxWidth: 260, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div className="sld-print-card" style={{ display: 'flex', gap: 0, fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6, overflow: 'hidden' }}>
+                {[
+                  ['Client', projectName || 'Untitled project'],
+                  ['Date', new Date().toLocaleDateString('en-IN')],
+                  ['Scale', 'NTS'],
+                ].map(([k, v], i) => (
+                  <div key={k} style={{ flex: 1, padding: '6px 8px', borderLeft: i > 0 ? '1px solid #e2e2e2' : 'none', background: '#fafafa' }}>
+                    <div style={{ color: '#888', textTransform: 'uppercase', fontSize: 9.5 }}>{k}</div>
+                    <div style={{ fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+
               <div className="sld-print-card">
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>MODULE — {panelSpec.model || `${panelSpec.wattage}W custom`}</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
@@ -486,6 +543,37 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
                 </table>
               </div>
 
+              {/* Sidebar had room to spare below its tables (its cards
+                  together are shorter than the diagram+schedule on the
+                  left), so the legend lives here rather than sitting in its
+                  own row below the diagram - trading otherwise-blank space
+                  for a full-width schedule table there instead. Sits above
+                  PLANT DETAILS: the legend explains symbols used in the
+                  diagram right above it, so it reads before the plant's own
+                  summary numbers below. */}
+              <div className="sld-print-card">
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>LEGEND</div>
+                <div style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10.5, color: '#333' }}>
+                  {[
+                    ['module', 'PV module'],
+                    ['inverter', 'String inverter'],
+                    ['grid', 'Grid'],
+                    ['meter', 'Net (bi-dir) meter'],
+                    ['panel', 'LT panel / busbar'],
+                    ['busbar', 'AC busbar'],
+                    ['earth', 'Earthing'],
+                  ].map(([kind, label]) => (
+                    <div key={label} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <LegendIcon kind={kind} />
+                      <span>{label}</span>
+                    </div>
+                  ))}
+                  <div style={{ gridColumn: '1 / -1', fontSize: 9.5, color: '#777', borderTop: '1px solid #f0f0f0', paddingTop: 5, marginTop: 1 }}>
+                    <strong>M1, M2 …</strong> label MPPT channels; <strong>n×m</strong> = n strings of m modules on that channel.
+                  </div>
+                </div>
+              </div>
+
               <div className="sld-print-card">
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>PLANT DETAILS</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
@@ -509,38 +597,11 @@ export default function SldView({ projectName, capacityNote, gridConnection, pan
                   </tbody>
                 </table>
               </div>
-
-              {/* Sidebar had room to spare below its last table (its three
-                  cards together are shorter than the diagram+schedule on
-                  the left), so the legend moved here rather than sitting in
-                  its own row below the diagram - trading otherwise-blank
-                  space for a full-width schedule table there instead. */}
-              <div className="sld-print-card">
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>LEGEND</div>
-                <div style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10.5, color: '#333' }}>
-                  {[
-                    ['module', 'PV module'],
-                    ['inverter', 'String inverter'],
-                    ['grid', 'Grid'],
-                    ['meter', 'Net (bi-dir) meter'],
-                    ['panel', 'LT panel / busbar'],
-                    ['busbar', 'AC busbar'],
-                    ['earth', 'Earthing'],
-                  ].map(([kind, label]) => (
-                    <div key={label} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <LegendIcon kind={kind} />
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                  <div style={{ gridColumn: '1 / -1', fontSize: 9.5, color: '#777', borderTop: '1px solid #f0f0f0', paddingTop: 5, marginTop: 1 }}>
-                    <strong>M1, M2 …</strong> label MPPT channels; <strong>n×m</strong> = n strings of m modules on that channel.
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }

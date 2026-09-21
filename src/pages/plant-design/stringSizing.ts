@@ -18,11 +18,16 @@ export function tempCorrectedVoltage(voltageAtStc, tempCoeffPctPerC, tempC) {
 
 // Max modules in series without exceeding the inverter's absolute max DC
 // voltage or its MPPT window's upper bound, at the coldest design temp.
-export function maxModulesPerString(module, inverter, designMinTempC) {
+// `mpptVoltageUtilizationPct` (default 100) lets the MPPT window's upper
+// bound be pushed past its rated value - inverters keep tracking somewhat
+// above that rated window, just with reduced accuracy at the extremes, so
+// installers commonly allow strings up to ~120% of it. The absolute max DC
+// voltage is a hard safety rating regardless and is never scaled.
+export function maxModulesPerString(module, inverter, designMinTempC, mpptVoltageUtilizationPct = 100) {
   const vocCold = tempCorrectedVoltage(module.voc, module.tempCoeffVoc, designMinTempC);
   if (vocCold <= 0) return 0;
   const byAbsoluteMax = Math.floor(inverter.maxDcVoltage / vocCold);
-  const byMpptWindow = Math.floor(inverter.mpptVoltageMax / vocCold);
+  const byMpptWindow = Math.floor((inverter.mpptVoltageMax * (mpptVoltageUtilizationPct / 100)) / vocCold);
   return Math.max(0, Math.min(byAbsoluteMax, byMpptWindow));
 }
 
@@ -42,9 +47,9 @@ export function maxStringsPerMppt(module, inverter) {
 }
 
 // Full sizing summary for a module/inverter/design-temp combination.
-export function sizeStrings(module, inverter, designMinTempC, designMaxTempC) {
+export function sizeStrings(module, inverter, designMinTempC, designMaxTempC, mpptVoltageUtilizationPct = 100) {
   const minPerString = minModulesPerString(module, inverter, designMaxTempC);
-  const maxPerString = maxModulesPerString(module, inverter, designMinTempC);
+  const maxPerString = maxModulesPerString(module, inverter, designMinTempC, mpptVoltageUtilizationPct);
   const stringsPerMppt = maxStringsPerMppt(module, inverter);
   const valid = Number.isFinite(minPerString) && maxPerString >= minPerString && stringsPerMppt > 0;
   return {

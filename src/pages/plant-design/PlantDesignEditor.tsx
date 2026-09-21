@@ -53,6 +53,7 @@ import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterC
 import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { CollapsibleSection, SliderInput, metersToFeet, feetToMeters } from './PlantDesignControls.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];
@@ -85,86 +86,12 @@ function toDateInputValue(d) {
   return `${y}-${m}-${day}`;
 }
 
-function CollapsibleSection({ title, defaultOpen = false, open: openProp, onToggle, children }: any) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  // Controlled when the parent passes `open` (used to auto-collapse/expand
-  // steps as the user progresses through the workflow) — otherwise each
-  // section just tracks its own toggle state as before.
-  const controlled = openProp !== undefined;
-  const open = controlled ? openProp : internalOpen;
-  const toggle = () => (controlled ? onToggle?.(!open) : setInternalOpen((o) => !o));
-  return (
-    <div className="pde-section">
-      <div
-        onClick={toggle}
-        className={`pde-section-header${open ? ' pde-section-open' : ''}`}
-      >
-        <span>{title}</span>
-        <span className="pde-section-caret">{open ? '▾' : '▸'}</span>
-      </div>
-      {open && children}
-    </div>
-  );
-}
-
-// Display-layer only - every roof/panel/obstacle field and every
-// calculation stays in meters internally (see AGENTS.md). `unit` in
-// SliderInput/formatLength below is the *display* unit ('m' | 'ft'); the
-// value passed in/out of those is always meters.
-const METERS_PER_FOOT = 1 / 3.28084;
-function metersToFeet(m) {
-  return m * 3.28084;
-}
-function feetToMeters(ft) {
-  return ft * METERS_PER_FOOT;
-}
 // Feet shown as decimal (e.g. `12.5 ft`), not feet+inches - simpler and
 // consistent with the rest of the app's precision level (see README's
 // "Input UX" entry).
 function formatLength(meters, units, decimals = 1) {
   const v = units === 'ft' ? metersToFeet(meters) : meters;
   return `${v.toFixed(decimals)} ${units}`;
-}
-
-// A `<input type="range">` paired with a plain number box, kept in sync -
-// dragging the slider updates the number box and vice versa. `min`/`max`
-// only bound the *slider* thumb, not the value itself: the number box
-// still accepts anything (someone typing 120 into a 0-50 building-height
-// field isn't rejected), the slider just pins to whichever end is closer
-// when the real value falls outside its own range, rather than the two
-// controls disagreeing or one silently clamping the other.
-//
-// `value`/`onChange`/`min`/`max`/`step` are always in meters when `unit`
-// is given (a length field) - conversion to/from the display unit happens
-// entirely inside this component (both the slider's own range and the
-// number box), so callers never juggle units themselves. Omit `unit` (or
-// pass 'm') for a non-length field (wattage, degrees, a fraction, ₹) -
-// the app-wide meter/feet toggle shouldn't touch those.
-function SliderInput({ value, onChange, min, max, step = 1, disabled = false, numberWidth = 70, unit = 'm' }: any) {
-  const numeric = Number.isFinite(value) ? value : 0;
-  const isFeet = unit === 'ft';
-  const toDisplay = (m) => (isFeet ? metersToFeet(m) : m);
-  const toMeters = (d) => (isFeet ? feetToMeters(d) : d);
-  const displayMin = toDisplay(min);
-  const displayMax = toDisplay(max);
-  const displayStep = isFeet ? step * 3.28084 : step;
-  const displayValue = toDisplay(numeric);
-  const sliderDisplayValue = Math.min(displayMax, Math.max(displayMin, displayValue));
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-      <input
-        type="range" min={displayMin} max={displayMax} step={displayStep} value={sliderDisplayValue} disabled={disabled}
-        onChange={(e) => onChange(toMeters(+e.target.value))}
-        style={{ flex: 1, minWidth: 0 }}
-      />
-      <input
-        type="number" step={displayStep} value={isFeet ? +displayValue.toFixed(2) : value} disabled={disabled}
-        onChange={(e) => onChange(toMeters(+e.target.value))}
-        className="pde-slider-num"
-        style={{ width: numberWidth, flexShrink: 0 }}
-      />
-    </div>
-  );
 }
 
 // The right-side properties rail's popovers (see the rail's own comment
@@ -796,6 +723,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // How many inverters a grid's panel count gets sized for, before MPPT
   // capacity alone would force more - see gridInverterAssignment.js.
   const [targetDcAcRatio, setTargetDcAcRatio] = useState(initialDesignData?.targetDcAcRatio ?? 1.05);
+
+  // How far a string's cold-weather Voc is allowed to push past the
+  // inverter's rated MPPT voltage window (100% = never exceed it), while
+  // still never exceeding the inverter's absolute max DC voltage rating -
+  // see stringSizing.js's maxModulesPerString. 120% matches common
+  // installer practice of allowing some MPPT headroom to size longer
+  // strings.
+  const [mpptVoltageUtilizationPct, setMpptVoltageUtilizationPct] = useState(initialDesignData?.mpptVoltageUtilizationPct ?? 120);
 
   // Undo/redo over the site's actual document state (roofs, obstacles,
   // their generated layouts, and the shared panel spec) - not view state
@@ -1433,9 +1368,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     return assignSiteToInverters({
       grids: buildSiteGrids(), module: panelSpec, inverter: inverterChoice,
       designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
+      mpptVoltageUtilizationPct,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roofs, panelSpec, inverterChoice, designTemp, targetDcAcRatio]);
+  }, [roofs, panelSpec, inverterChoice, designTemp, targetDcAcRatio, mpptVoltageUtilizationPct]);
   const totalCapacityKW = roofs.reduce((s, r) => s + r.grids.reduce((s2, g) => s2 + g.capacityKW, 0), 0);
 
   // If a smaller catalog inverter (same make - keeps the voltage class/
@@ -1453,6 +1389,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       const trial = assignSiteToInverters({
         grids: buildSiteGrids(), module: panelSpec, inverter: candidate,
         designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
+        mpptVoltageUtilizationPct,
       });
       if (!trial.valid || trial.inverters.length > sitePlan.inverters.length) continue;
       const suggestedUtilization = totalCapacityKW / (trial.inverters.length * candidate.acPowerKw);
@@ -1462,7 +1399,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sitePlan, panelSpec, inverterChoice, designTemp, targetDcAcRatio, totalCapacityKW]);
+  }, [sitePlan, panelSpec, inverterChoice, designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, totalCapacityKW]);
   const structureTotals = useMemo(() => {
     const totals: Record<string, any> = {};
     Object.values(structuresByGrid as Record<string, any>).forEach((s: any) => {
@@ -2703,7 +2640,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const data: PlantDesignData = {
       roofs, obstacles, siteImages, location, locationConfirmed, monthlyGHI,
       projectName, capacityNote, gridConnection, panelSpec, inverterChoice,
-      designTemp, targetDcAcRatio, currentStep, maxUnlockedStep,
+      designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, currentStep, maxUnlockedStep,
     };
     setSaveStatus('saving');
     try {
@@ -3076,6 +3013,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               MPPT window {inverterChoice.mpptVoltageMin}–{inverterChoice.mpptVoltageMax} V
             </div>
           )}
+          {inverterSuggestion && (
+            <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6, padding: 10, fontSize: 12.5, color: '#7a5c00', marginTop: 10 }}>
+              💡 A smaller inverter would fit this site better: <strong>{inverterSuggestion.model}</strong> ({inverterSuggestion.acPowerKw} kW) needs the same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'} but runs at {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilization instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}%.
+            </div>
+          )}
+          <div className="pde-field-sm" style={{ marginTop: 10 }}>
+            <label>MPPT voltage utilization (%)</label>
+            <SliderInput min={100} max={140} step={1} value={mpptVoltageUtilizationPct} onChange={setMpptVoltageUtilizationPct} />
+          </div>
+          <div className="pde-field-sm-hint">
+            how far a string's cold-weather voltage may push past this inverter's rated MPPT window (100% = never exceed it) when sizing modules per string - still capped by its absolute max DC voltage rating either way.
+          </div>
         </CollapsibleSection>
         <CollapsibleSection title="String sizing">
           <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
@@ -3090,7 +3039,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             {designTempStatus === 'idle' && 'confirm a location (step 1) to fetch this automatically, or edit manually now.'}
           </div>
           {(() => {
-            const sizing = sizeStrings(panelSpec, inverterChoice, designTemp.min, designTemp.max);
+            const sizing = sizeStrings(panelSpec, inverterChoice, designTemp.min, designTemp.max, mpptVoltageUtilizationPct);
             if (!sizing.valid) {
               return <div className="pde-field-error">No valid string configuration for this module/inverter/temperature combination.</div>;
             }
@@ -4781,7 +4730,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             sitePlan={sitePlan}
             totalPanelCount={totalPanelCount}
             totalCapacityKW={totalCapacityKW}
-            inverterSuggestion={inverterSuggestion}
+            targetDcAcRatio={targetDcAcRatio}
+            mpptVoltageUtilizationPct={mpptVoltageUtilizationPct}
+            onInverterChoiceChange={setInverterChoice}
+            onTargetDcAcRatioChange={setTargetDcAcRatio}
+            onMpptVoltageUtilizationPctChange={setMpptVoltageUtilizationPct}
           />
         </div>
       )}
