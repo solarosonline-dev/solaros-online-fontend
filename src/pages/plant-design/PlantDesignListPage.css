@@ -1,0 +1,129 @@
+.plant-design-list-page h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.plant-design-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.plant-design-new-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--app-accent);
+  color: var(--app-accent-contrast);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.plant-design-new-btn:hover {
+  background: var(--app-accent-hover);
+}
+
+.plant-design-list-error {
+  background: var(--app-danger-bg);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-danger);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.plant-design-list-empty {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 32px;
+  text-align: center;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.plant-design-table-wrap {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  overflow: hidden;
+}
+
+.plant-design-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.plant-design-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.plant-design-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+}
+
+.plant-design-table tr:last-child td {
+  border-bottom: none;
+}
+
+.plant-design-open-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--app-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.plant-design-open-link:hover {
+  text-decoration: underline;
+}
+
+.plant-design-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--app-bg);
+  color: var(--app-text-muted);
+}
+
+.plant-design-status-final {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.plant-design-row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.plant-design-row-actions button {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plant-design-delete-btn {
+  color: var(--app-danger);
+  border-color: var(--app-danger-border);
+}

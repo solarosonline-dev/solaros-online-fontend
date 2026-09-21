@@ -139,6 +139,7 @@ function AppLayoutInner() {
             {!systemAdmin && entityAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/leads">Leads</NavLink>}
             {!systemAdmin && entityAdmin && <NavLink to="/app/projects">Projects</NavLink>}
+            {!systemAdmin && entityAdmin && <NavLink to="/app/plant-design">Plant Design</NavLink>}
             {!systemAdmin && !entityAdmin && user?.entity_id && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>
             )}

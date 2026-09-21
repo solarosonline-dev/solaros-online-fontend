@@ -140,6 +140,7 @@ Since Phase 10, in no particular phase order:
 - Assignee contact details (email/phone), project customer contact details, work order completed-date columns, user mobile numbers on the entity/system Users pages, and now every work order's own lead contact/address (Customer + Address on `ProjectWorkOrders.tsx`/`WorkOrderDetailPage.tsx`) — small display additions once the backend started returning the extra fields.
 - Mobile-layout fixes for the action-cell/button-overflow issue described in the conventions above, plus hover states added to every shared button class.
 - Reassign-button no-op guard (see the convention above).
+- **Plant Design module** — `/app/plant-design` (`RequireEntityAdmin`), a standalone tool not linked to Leads/Projects, almost entirely a mechanical port of the standalone `solar-mvp` prototype (roof/panel layout, string sizing, grid→inverter/MPPT assignment, SVG SLD rendering, a Three.js 3D view). Its own `src/pages/plant-design/AGENTS.md` has the full picture — file layout, the persistence seam, every ported gotcha, and the two build-system side effects (`noImplicitAny` off app-wide, `Scene3D.tsx` lazy-loaded) — don't duplicate that detail here, read it before touching anything in that directory.
 
 ## Safety notes for agents
 
