@@ -53,7 +53,7 @@ import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterC
 import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { CollapsibleSection, SliderInput, metersToFeet, feetToMeters } from './PlantDesignControls.jsx';
+import { CollapsibleSection, SliderInput, metersToFeet } from './PlantDesignControls.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];

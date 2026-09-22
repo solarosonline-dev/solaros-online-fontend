@@ -832,7 +832,7 @@ export function addGridRow(grid, roof, side) {
   const extraRowClearance = grid.rowPitch - footprintDepth;
   const clusterDepth = panelsPerRow * footprintDepth + (panelsPerRow - 1) * gap;
 
-  const sortedRowYs = [...new Set(grid.panels.map((p) => p.rackY))].sort((a, b) => a - b);
+  const sortedRowYs = [...new Set<number>(grid.panels.map((p: any) => p.rackY))].sort((a: number, b: number) => a - b);
   const edgeRowY = side === 'front' ? sortedRowYs[0] : sortedRowYs[sortedRowYs.length - 1];
   const columnXs = grid.panels.filter((p) => p.rackY === edgeRowY).map((p) => p.rackX);
   const w = grid.panels[0].w;

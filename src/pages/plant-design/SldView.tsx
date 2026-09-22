@@ -146,6 +146,20 @@ function buildPrintFilename(projectName) {
 export default function SldView({
   projectName, gridConnection, panelSpec, inverterChoice, sitePlan, totalPanelCount, totalCapacityKW,
   targetDcAcRatio, mpptVoltageUtilizationPct = 100, onInverterChoiceChange, onTargetDcAcRatioChange, onMpptVoltageUtilizationPctChange,
+}: {
+  projectName?: any;
+  capacityNote?: any;
+  gridConnection?: any;
+  panelSpec?: any;
+  inverterChoice?: any;
+  sitePlan?: any;
+  totalPanelCount?: any;
+  totalCapacityKW?: any;
+  targetDcAcRatio?: any;
+  mpptVoltageUtilizationPct?: number;
+  onInverterChoiceChange?: any;
+  onTargetDcAcRatioChange?: any;
+  onMpptVoltageUtilizationPctChange?: any;
 }) {
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
   const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
