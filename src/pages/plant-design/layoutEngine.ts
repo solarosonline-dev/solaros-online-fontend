@@ -404,7 +404,8 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     const thisClusterDepth = rowsHere * footprintDepth + (rowsHere - 1) * gap;
 
     rowYs.forEach((rowY) => {
-      clusterSegments.forEach(([segX0, segX1]) => {
+      const rowSegments = scanlineSegmentsForDepth(usablePoly, rowY, footprintDepth / 2);
+      rowSegments.forEach(([segX0, segX1]) => {
         let x = segX0 + Wp / 2;
         while (x + Wp / 2 <= segX1 + 1e-9) {
           if (!isBlockedAt(x, rowY)) {

@@ -3950,6 +3950,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const rotation = (p.rotation || 0) + (g.rotation || 0);
                 const pct = pctMap?.[p.id];
                 const w = p.w * scale, h = p.d * scale;
+                const isMultiRow = (g.panelsPerRow ?? 1) > 1;
+                const yInset = isMultiRow ? Math.min(1.5, h * 0.1) : 0;
+                const rectY = s.sy + yInset;
+                const rectH = Math.max(1, h - yInset * 2);
                 const deletePicked = deleteModeActive && gridDeleteSelection && (
                   (gridDeleteMode === 'row' && gridDeleteSelection.rackY === p.rackY)
                   || (gridDeleteMode === 'column' && columnMatchIds?.has(p.id))
@@ -3958,7 +3962,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 return (
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${-rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
-                      x={s.sx} y={s.sy} width={w} height={h}
+                      x={s.sx} y={rectY} width={w} height={rectH}
                       fill={deletePicked || overlapsObstacle ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
                       // White at every state now (previously '#0a1428' when
                       // idle - nearly the same navy as the fill it sat on,
