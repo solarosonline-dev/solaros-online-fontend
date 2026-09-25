@@ -578,9 +578,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // grids" entry): addGridRow/addGridColumn don't call generateLayout, so
   // this never touches the roof's own obstacle list or edge margin at all.
   function startAddRowMode(roofId, gridId) {
+    cancelActiveModes();
     setAddSideMode({ roofId, gridId, axis: 'row' });
   }
   function startAddColumnMode(roofId, gridId) {
+    cancelActiveModes();
     setAddSideMode({ roofId, gridId, axis: 'column' });
   }
   function cancelAddSideMode() {
@@ -1680,11 +1682,28 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setHoveredMirrorEdge(null);
   }
 
-  function startRoofDraw() {
-    resetClickSuppression();
-    setDrawingRoof(true);
+  function cancelActiveModes() {
+    setDrawingRoof(false);
     setRoofDrawPoints([]);
     setPlacingShape(null);
+    setObstacleDrawPoints([]);
+    setObstaclePickerOpen(false);
+    setPlacingGrid(false);
+    setGridDrawPoints([]);
+    setGridPlacementError(null);
+    setMirrorRoofId(null);
+    setHoveredMirrorEdge(null);
+    setMarginEditRoofId(null);
+    setSelectedMarginEdges(new Set());
+    setAddSideMode(null);
+    setGridDeleteMode(null);
+    setGridDeleteSelection(null);
+  }
+
+  function startRoofDraw() {
+    resetClickSuppression();
+    cancelActiveModes();
+    setDrawingRoof(true);
   }
 
   function cancelRoofDraw() {
@@ -2520,11 +2539,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   function startGridPlacement() {
     resetClickSuppression();
+    cancelActiveModes();
     setPlacingGrid(true);
-    setGridDrawPoints([]);
-    setGridPlacementError(null);
-    setPlacingShape(null);
-    setDrawingRoof(false);
   }
 
   function cancelGridPlacement() {
@@ -3308,9 +3324,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             data-tooltip={p.label} aria-label={p.label}
                             onClick={() => {
                               resetClickSuppression();
-                              setPlacingShape(placingShape === k ? null : k);
-                              setObstacleDrawPoints([]);
-                              setObstaclePickerOpen(false);
+                              const isSelf = placingShape === k;
+                              cancelActiveModes();
+                              if (!isSelf) {
+                                setPlacingShape(k);
+                              }
                             }}
                           >
                             {ObstacleIcon ? <ObstacleIcon /> : p.label}
@@ -4373,11 +4391,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </div>
                             <button
                               onClick={() => {
-                                setMarginEditRoofId((id) => {
-                                  const next = id === selectedRoof.id ? null : selectedRoof.id;
-                                  if (next === null) setSelectedMarginEdges(new Set());
-                                  return next;
-                                });
+                                const isSelf = marginEditRoofId === selectedRoof.id;
+                                cancelActiveModes();
+                                if (!isSelf) {
+                                  setMarginEditRoofId(selectedRoof.id);
+                                }
                               }}
                               style={{ border: 'none', background: 'none', color: marginEditRoofId === selectedRoof.id ? '#8e44ad' : '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 2 }}
                             >
@@ -4466,7 +4484,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         data-tooltip={mirrorRoofId === selectedRoof.id ? 'Click an edge on the plan to mirror across it (click again to cancel)' : 'Mirror this roof across an edge'}
                         aria-label="Mirror this roof"
                         className={iconBtn(mirrorRoofId === selectedRoof.id)}
-                        onClick={() => setMirrorRoofId((id) => (id === selectedRoof.id ? null : selectedRoof.id))}
+                        onClick={() => {
+                          const isSelf = mirrorRoofId === selectedRoof.id;
+                          cancelActiveModes();
+                          if (!isSelf) {
+                            setMirrorRoofId(selectedRoof.id);
+                          }
+                        }}
                       ><MirrorIcon /></button>
                       <button data-tooltip="Remove this roof" aria-label="Remove this roof" className={`${iconBtn(false)} pde-danger`} onClick={() => removeRoof(selectedRoof.id)}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedRoofId(null)}><CloseIcon /></button>
@@ -4614,8 +4638,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     data-tooltip={mode === 'grid' ? 'Delete the whole grid' : mode[0].toUpperCase() + mode.slice(1)} aria-label={mode === 'grid' ? 'Delete the whole grid' : mode}
                                     onClick={() => {
                                       if (mode === 'grid') { deleteSelectedGrids(); return; }
-                                      setGridDeleteMode((m) => (m === mode ? null : mode));
-                                      setGridDeleteSelection(null);
+                                      const isSelf = gridDeleteMode === mode;
+                                      cancelActiveModes();
+                                      if (!isSelf) setGridDeleteMode(mode);
                                     }}
                                     className={mode === 'grid' ? `${iconBtn(false)} pde-danger` : iconBtn(gridDeleteMode === mode)}
                                   >
