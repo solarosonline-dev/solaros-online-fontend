@@ -314,11 +314,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // expecting a fresh "Set location on map…" click to have opened it.
     if (step !== 1) setMapMode(null);
     clearSelectionForStep(step);
+    cancelActiveModes();
     setCurrentStep(step);
   }
   function advanceToStep(step) {
     if (step !== 1) setMapMode(null);
     clearSelectionForStep(step);
+    cancelActiveModes();
     setCurrentStep(step);
     setMaxUnlockedStep((m) => Math.max(m, step));
   }
@@ -3308,7 +3310,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   data-tooltip="Add an obstacle (tree, AC unit, chimney, ...)"
                   aria-label="Add an obstacle"
                   className={iconBtn(obstaclePickerOpen || !!placingShape)}
-                  onClick={() => setObstaclePickerOpen((v) => !v)}
+                  onClick={() => {
+                    cancelActiveModes();
+                    setObstaclePickerOpen((v) => !v);
+                  }}
                 >
                   <PlusIcon />
                 </button>
@@ -4277,7 +4282,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               scrolls (see RailPopover's own comment - `position: fixed`
               on mobile escapes this container's clipping). */}
           {(() => {
-            const toggleGroup = (key) => setRightPanelOpenGroup((g) => (g === key ? null : key));
+            const toggleGroup = (key) => {
+              cancelActiveModes();
+              setRightPanelOpenGroup((g) => (g === key ? null : key));
+            };
 
             return (
               <div
