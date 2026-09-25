@@ -1682,7 +1682,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function finishRoofDraw(points) {
     if (points.length < 3) return;
     const id = Date.now();
-    setRoofs((rs) => [...rs, { ...ROOF_DEFAULTS, id, polygon: points, grids: [] }]);
+    const finalPoints = points;
+    setRoofs((rs) => [...rs, { ...ROOF_DEFAULTS, id, polygon: finalPoints, grids: [] }]);
     selectRoof(id);
     setDrawingRoof(false);
     setRoofDrawPoints([]);
@@ -4147,14 +4148,35 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             {roofPolygons.map((rp) => {
               const roof = roofs.find((r) => r.id === rp.id);
               if (!roof || roof.type !== 'pitched') return null;
-              const xs = rp.polygon.map((p) => p.x);
-              const ys = rp.polygon.map((p) => p.y);
+              const poly = rp.polygon;
+              const xs = poly.map((p) => p.x);
+              const ys = poly.map((p) => p.y);
               const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
               const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-              const w = Math.max(...xs) - Math.min(...xs);
-              const l = Math.max(...ys) - Math.min(...ys);
-              const dir = { N: { x: 0, y: 1 }, S: { x: 0, y: -1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } }[roof.slopeDirection || 'S'];
-              const halfLen = (dir.x !== 0 ? w : l) * 0.3;
+              // Cardinal reference for the chosen slope direction
+              const ref = { N: { x: 0, y: 1 }, S: { x: 0, y: -1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } }[roof.slopeDirection || 'S'];
+              // Find the polygon edge whose outward normal best aligns with the
+              // cardinal slope direction — that edge is the eave, and its normal
+              // is the roof's actual downhill axis. For axis-aligned roofs this is
+              // identical to the cardinal vector; for rotated roofs it follows the
+              // polygon's own geometry so the arrow lies along the drawn slope.
+              let dir = ref;
+              let bestDot = -1;
+              for (let i = 0; i < poly.length; i++) {
+                const a = poly[i], b = poly[(i + 1) % poly.length];
+                const ex = b.x - a.x, ey = b.y - a.y;
+                const len = Math.hypot(ex, ey);
+                if (len < 1e-9) continue;
+                const nx = -ey / len, ny = ex / len;
+                const d = nx * ref.x + ny * ref.y;
+                if (Math.abs(d) > bestDot) {
+                  bestDot = Math.abs(d);
+                  dir = { x: nx * Math.sign(d), y: ny * Math.sign(d) };
+                }
+              }
+              // Arrow length is 60 % of the polygon's extent along the slope axis
+              const projections = poly.map((p) => (p.x - cx) * dir.x + (p.y - cy) * dir.y);
+              const halfLen = (Math.max(...projections) - Math.min(...projections)) * 0.3;
               const s1 = toScreen(cx - dir.x * halfLen, cy - dir.y * halfLen);
               const s2 = toScreen(cx + dir.x * halfLen, cy + dir.y * halfLen);
               const angle = Math.atan2(s2.sy - s1.sy, s2.sx - s1.sx);
@@ -4388,36 +4410,36 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 <div style={labelStyle}><span>pitch (°)</span><SliderInput min={0} max={60} step={1} value={selectedRoof.pitchDeg} onChange={(v) => updateRoof(selectedRoof.id, 'pitchDeg', v)} /></div>
                                 <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'flex-start' }}>
                                   <div>
-                                    <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>Slope faces</div>
+                                    <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>Slope direction</div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 22px)', gridTemplateRows: 'repeat(3, 22px)', gap: 2 }}>
                                       <span />
                                       <button
                                         className={compassBtn(selectedRoof.slopeDirection === 'N')}
                                         style={{ gridColumn: 2, gridRow: 1 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'N')}
-                                        title="Ridge to the south, eave to the north"
-                                      >N</button>
+                                        title="Slope down toward the top of the plan (north)"
+                                      >↑</button>
                                       <span />
                                       <button
                                         className={compassBtn(selectedRoof.slopeDirection === 'W')}
                                         style={{ gridColumn: 1, gridRow: 2 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'W')}
-                                        title="Ridge to the east, eave to the west"
-                                      >W</button>
+                                        title="Slope down toward the left of the plan (west)"
+                                      >←</button>
                                       <span style={{ gridColumn: 2, gridRow: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#bbb' }}>⌂</span>
                                       <button
                                         className={compassBtn(selectedRoof.slopeDirection === 'E')}
                                         style={{ gridColumn: 3, gridRow: 2 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'E')}
-                                        title="Ridge to the west, eave to the east"
-                                      >E</button>
+                                        title="Slope down toward the right of the plan (east)"
+                                      >→</button>
                                       <span />
                                       <button
                                         className={compassBtn(selectedRoof.slopeDirection === 'S')}
                                         style={{ gridColumn: 2, gridRow: 3 }}
                                         onClick={() => updateRoof(selectedRoof.id, 'slopeDirection', 'S')}
-                                        title="Ridge to the north, eave to the south"
-                                      >S</button>
+                                        title="Slope down toward the bottom of the plan (south)"
+                                      >↓</button>
                                       <span />
                                     </div>
                                   </div>

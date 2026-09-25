@@ -81,6 +81,8 @@ export function polygonBounds(poly) {
   return { width: Math.max(...xs) - Math.min(...xs), length: Math.max(...ys) - Math.min(...ys) };
 }
 
+
+
 // ============================================================
 // Pitched-roof slope direction (N/E/S/W)
 // ============================================================

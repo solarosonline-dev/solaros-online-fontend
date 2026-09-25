@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld } from './geometry.js';
+import { getRoofPolygon, isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld } from './geometry.js';
 import { gridPivot, rotateAroundPivot } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -119,16 +119,66 @@ function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchR
     else shape.lineTo(p.x, p.y);
   });
   shape.closePath();
+
+  const localYs = polygon.map((p) => toSlopeLocal(p, direction).y);
+  const maxLocalY = Math.max(...localYs);
+
+  // Build a per-vertex height-offset map keyed by (x, y) position.
+  // For a 4-vertex polygon (the common case for a drawn roof): sort vertices by
+  // their slope-axis projection (localY), group the bottom half as eave and the
+  // top half as ridge, then snap every vertex in each group to the exact same
+  // height offset. This guarantees both eave corners (and both ridge corners)
+  // come out at the exact same elevation even when the roof polygon is rotated
+  // relative to the cardinal slope direction — the core bug when drawing a roof
+  // at an arbitrary angle. Without this snapping, each corner's height is computed
+  // from its own world coordinate, so a rotated eave edge (whose two corners are
+  // at slightly different world-y positions) ends up tilted sideways.
+  const vertexOffsets = new Map<string, number>();
+  const n = polygon.length;
+  const sorted = polygon
+    .map((p, i) => ({ p, ly: localYs[i] }))
+    .sort((a, b) => a.ly - b.ly);
+
+  if (n === 4) {
+    // Bottom 2 = eave (offset 0), top 2 = ridge (full pitch climb).
+    // Use the average localY of each group to compute the actual depth so the
+    // climb matches the true eave-to-ridge distance along the slope axis.
+    const eaveAvg = (sorted[0].ly + sorted[1].ly) / 2;
+    const ridgeAvg = (sorted[2].ly + sorted[3].ly) / 2;
+    const depth = ridgeAvg - eaveAvg || 1;
+    sorted.slice(0, 2).forEach(({ p }) => {
+      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, 0);
+    });
+    sorted.slice(2).forEach(({ p }) => {
+      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, depth * Math.tan(pitchRad));
+    });
+  } else {
+    // For 3-vertex or non-quad polygons: proportional height per vertex.
+    const totalDepth = maxLocalY - frontLocalY || 1;
+    polygon.forEach((p, idx) => {
+      const t = Math.max(0, Math.min(1, (localYs[idx] - frontLocalY) / totalDepth));
+      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, t * totalDepth * Math.tan(pitchRad));
+    });
+  }
+
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: eaveHeight, bevelEnabled: false });
   const pos = geometry.attributes.position;
+  const totalDepth = maxLocalY - frontLocalY || 1;
   for (let i = 0; i < pos.count; i++) {
     if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
-      // The vertex's own position in the roof's local "south-facing"
-      // space (see toSlopeLocal in geometry.js) - climbing with its local
-      // Y is what makes the roof actually slope toward whichever compass
-      // direction it's set to face, not always north.
-      const localY = toSlopeLocal({ x: pos.getX(i), y: pos.getY(i) }, direction).y;
-      pos.setZ(i, eaveHeight + (localY - frontLocalY) * Math.tan(pitchRad));
+      const vx = pos.getX(i);
+      const vy = pos.getY(i);
+      const key = `${vx.toFixed(3)},${vy.toFixed(3)}`;
+      let offset: number;
+      if (vertexOffsets.has(key)) {
+        offset = vertexOffsets.get(key)!;
+      } else {
+        // Interior triangulation vertices on the cap — interpolate proportionally.
+        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+        const t = Math.max(0, Math.min(1, (ly - frontLocalY) / totalDepth));
+        offset = t * totalDepth * Math.tan(pitchRad);
+      }
+      pos.setZ(i, eaveHeight + offset);
     }
   }
   pos.needsUpdate = true;
@@ -208,10 +258,44 @@ function boundaryRingGeometry(polygon, height, slope: any = null) {
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
   if (slope) {
     const { direction, frontLocalY, pitchRad } = slope;
+    const localYs = polygon.map((p) => toSlopeLocal(p, direction).y);
+    const maxLocalY = Math.max(...localYs);
+    const totalDepth = maxLocalY - frontLocalY || 1;
+    const n = polygon.length;
+
+    // Same group-snap as polygonToSlopedBuildingGeometry: for a 4-vertex
+    // polygon, both eave corners share one height and both ridge corners share
+    // another, so a rotated pitched roof's parapet walls stay level at eave
+    // and ridge even when the polygon is not axis-aligned.
+    const vertexOffsets = new Map<string, number>();
+    const sorted = polygon.map((p, i) => ({ p, ly: localYs[i] })).sort((a, b) => a.ly - b.ly);
+    if (n === 4) {
+      const eaveAvg = (sorted[0].ly + sorted[1].ly) / 2;
+      const ridgeAvg = (sorted[2].ly + sorted[3].ly) / 2;
+      const depth = ridgeAvg - eaveAvg || 1;
+      sorted.slice(0, 2).forEach(({ p }) => vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, 0));
+      sorted.slice(2).forEach(({ p }) => vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, depth * Math.tan(pitchRad)));
+    } else {
+      polygon.forEach((p, idx) => {
+        const t = Math.max(0, Math.min(1, (localYs[idx] - frontLocalY) / totalDepth));
+        vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, t * totalDepth * Math.tan(pitchRad));
+      });
+    }
+
     const pos = geometry.attributes.position;
     for (let i = 0; i < pos.count; i++) {
-      const localY = toSlopeLocal({ x: pos.getX(i), y: pos.getY(i) }, direction).y;
-      pos.setZ(i, pos.getZ(i) + (localY - frontLocalY) * Math.tan(pitchRad));
+      const vx = pos.getX(i);
+      const vy = pos.getY(i);
+      const key = `${vx.toFixed(3)},${vy.toFixed(3)}`;
+      let offset: number;
+      if (vertexOffsets.has(key)) {
+        offset = vertexOffsets.get(key)!;
+      } else {
+        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+        const t = Math.max(0, Math.min(1, (ly - frontLocalY) / totalDepth));
+        offset = t * totalDepth * Math.tan(pitchRad);
+      }
+      pos.setZ(i, pos.getZ(i) + offset);
     }
     pos.needsUpdate = true;
     geometry.computeVertexNormals();
@@ -823,22 +907,23 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           // comment above for why the pitched/sloped case is out of scope
           // for v1; Cutout still blocks panel placement and shows in the 2D
           // plan there, it just doesn't carve a real 3D shaft).
+          const roofPoly = getRoofPolygon(roof);
           const roofCutouts = roof.type === 'pitched'
             ? []
-            : obstacles.filter((o) => o.label === 'Cutout' && isOnRoof(o, roof.polygon)).map((o) => o.polygon);
+            : obstacles.filter((o) => o.label === 'Cutout' && isOnRoof(o, roofPoly)).map((o) => o.polygon);
           return (
             <group key={roof.id}>
               {roof.type === 'pitched' ? (
                 <>
-                  <PitchedBuilding polygon={roof.polygon} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={roof.slopeDirection || 'S'} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <BoundaryWall polygon={roof.polygon} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={roof.slopeDirection || 'S'} pitchDeg={roof.pitchDeg} />
+                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={roof.slopeDirection || 'S'} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={roof.slopeDirection || 'S'} pitchDeg={roof.pitchDeg} />
                 </>
               ) : (
                 <>
-                  <BuildingBlock polygon={roof.polygon} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <RoofDeck polygon={roof.polygon} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <RoofMarginBand polygon={roof.polygon} usablePolygon={roof.usablePolygon || []} buildingHeight={roof.buildingHeight} />
-                  <BoundaryWall polygon={roof.polygon} baseHeight={deckTop} height={roof.boundaryHeight} />
+                  <BuildingBlock polygon={roofPoly} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <RoofDeck polygon={roofPoly} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <RoofMarginBand polygon={roofPoly} usablePolygon={roof.usablePolygon || []} buildingHeight={roof.buildingHeight} />
+                  <BoundaryWall polygon={roofPoly} baseHeight={deckTop} height={roof.boundaryHeight} />
                 </>
               )}
 
