@@ -1,7 +1,7 @@
 import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
-  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld,
+  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth,
 } from './geometry.js';
 
 // ============================================================
@@ -185,12 +185,12 @@ export function computeAutoRowSpacing({ location, tilt, Ls }) {
 // panelsPerRow) - each grid keeps its own copy once created, so a roof can
 // hold more than one independently configured grid.
 export function generateLayout({ roof, footprintPolygon, gridSettings = {} as any, panelSpec, obstacles, location }: any): any {
-  const { type, slopeDirection } = roof;
+  const { type } = roof;
   // A flat roof always packs/faces in world coordinates directly ('S' is
   // the identity transform below); a pitched roof packs in local
   // "south-facing" space and gets rotated into whichever direction it's
   // actually set to face (see toSlopeLocal/toSlopeWorld in geometry.js).
-  const direction = type === 'pitched' ? (slopeDirection || 'S') : 'S';
+  const direction = type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
   // Row-to-row spacing is separate and unaffected by PANEL_GAP - the
   // shading-derived rowPitch for flat roofs, or the flush-mounted Ls for
   // pitched roofs.
@@ -472,8 +472,8 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
 // without actually packing anything, since all that's needed here is how
 // much depth is available.
 export function suggestMaxPanelsPerRow({ roof, footprintPolygon, panelSpec, location }) {
-  const { type, slopeDirection } = roof;
-  const direction = type === 'pitched' ? (slopeDirection || 'S') : 'S';
+  const { type } = roof;
+  const direction = type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
   const gap = PANEL_GAP;
   // Called before the grid this footprint is destined for actually exists
   // (see startGridPlacement in solar_layout_engine.jsx) - orientation is a
@@ -817,7 +817,7 @@ function footprintPolygonFromPanels(panels, direction) {
 }
 
 function roofDirection(roof) {
-  return roof.type === 'pitched' ? (roof.slopeDirection || 'S') : 'S';
+  return roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
 }
 
 function withRecomputedTotals(grid, panels) {
@@ -913,7 +913,7 @@ export function addGridColumn(grid, roof, side) {
       ? Math.min(...rowPanels.map((p) => p.rackX))
       : Math.max(...rowPanels.map((p) => p.rackX));
     const rackX = side === 'left' ? edgeX - gap - w : edgeX + gap + w;
-    const world = toSlopeWorld({ x: rackX, y: rowY }, direction);
+    const world = toSlopeWorld({ x: rackX, y: rowY as number }, direction);
     return { id: nextId++, x: world.x, y: world.y, rackX, rackY: rowY, w, d: footprintDepth };
   });
 

@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { getRoofPolygon, isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld } from './geometry.js';
+import { getRoofPolygon, isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -119,9 +119,11 @@ const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
   W: { x: -1, y: 0 },
 };
 
-function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction: string, pitchRad: number) {
+function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction: any, pitchRad: number) {
   const n = polygon.length;
-  const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
+  const slopeVec = typeof direction === 'number'
+    ? { x: Math.sin(direction * DEG), y: Math.cos(direction * DEG) }
+    : (CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S);
 
   let area = 0;
   for (let i = 0; i < n; i++) {
@@ -151,6 +153,14 @@ function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction:
   const ridge1 = (bestEdgeIdx + 2) % n;
   const ridge2 = (bestEdgeIdx + 3) % n;
 
+  const ex = polygon[eave2].x - polygon[eave1].x;
+  const ey = polygon[eave2].y - polygon[eave1].y;
+  const len = Math.hypot(ex, ey) || 1e-9;
+  const upSlopeVec = {
+    x: isCcw ? -ey / len : ey / len,
+    y: isCcw ? ex / len : -ex / len,
+  };
+
   const eaveMid = {
     x: (polygon[eave1].x + polygon[eave2].x) / 2,
     y: (polygon[eave1].y + polygon[eave2].y) / 2,
@@ -160,7 +170,7 @@ function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction:
     y: (polygon[ridge1].y + polygon[ridge2].y) / 2,
   };
 
-  let depth = (ridgeMid.x - eaveMid.x) * slopeVec.x + (ridgeMid.y - eaveMid.y) * slopeVec.y;
+  let depth = (ridgeMid.x - eaveMid.x) * upSlopeVec.x + (ridgeMid.y - eaveMid.y) * upSlopeVec.y;
   if (depth <= 1e-3) depth = Math.hypot(ridgeMid.x - eaveMid.x, ridgeMid.y - eaveMid.y) || 1;
 
   const cornerOffset = new Array<number>(n);
@@ -169,7 +179,7 @@ function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction:
   cornerOffset[ridge1] = depth * Math.tan(pitchRad);
   cornerOffset[ridge2] = depth * Math.tan(pitchRad);
 
-  return { eaveMid, depth, cornerOffset, slopeVec };
+  return { eaveMid, depth, cornerOffset, slopeVec: upSlopeVec };
 }
 
 function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchRad, eaveHeight) {
@@ -960,8 +970,8 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             <group key={roof.id}>
               {roof.type === 'pitched' ? (
                 <>
-                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={roof.slopeDirection || 'S'} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={roof.slopeDirection || 'S'} pitchDeg={roof.pitchDeg} />
+                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={getPitchedRoofSlopeAzimuth(roof)} pitchDeg={roof.pitchDeg} />
                 </>
               ) : (
                 <>
@@ -1016,7 +1026,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       depth={rack.depth}
                       azimuth={grid.layout.azimuth}
                       roofHeight={deckTop}
-                      direction={roof.slopeDirection || 'S'}
+                      direction={roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S'}
                       grid={grid.layout}
                     />
                   ))

@@ -97,21 +97,111 @@ export function polygonBounds(poly) {
 // are pure rotations (0°/90°/180°/270°, never a mirror-image reflection)
 // so they compose cleanly with the plain Y-axis rotations Scene3D already
 // uses elsewhere for a panel's own facing.
-const SLOPE_DIRECTIONS = {
-  S: { azimuthDeg: 180, toLocal: (p) => ({ x: p.x, y: p.y }), toWorld: (p) => ({ x: p.x, y: p.y }) },
-  N: { azimuthDeg: 0, toLocal: (p) => ({ x: -p.x, y: -p.y }), toWorld: (p) => ({ x: -p.x, y: -p.y }) },
-  E: { azimuthDeg: 90, toLocal: (p) => ({ x: p.y, y: -p.x }), toWorld: (p) => ({ x: -p.y, y: p.x }) },
-  W: { azimuthDeg: 270, toLocal: (p) => ({ x: -p.y, y: p.x }), toWorld: (p) => ({ x: p.y, y: -p.x }) },
+const SLOPE_DIRECTIONS: Record<string, { azimuthDeg: number }> = {
+  S: { azimuthDeg: 180 },
+  N: { azimuthDeg: 0 },
+  E: { azimuthDeg: 90 },
+  W: { azimuthDeg: 270 },
 };
 
-export function slopeDirectionAzimuth(direction) {
+const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
+  S: { x: 0, y: -1 },
+  N: { x: 0, y: 1 },
+  E: { x: 1, y: 0 },
+  W: { x: -1, y: 0 },
+};
+
+export function getPitchedRoofSlopeAzimuth(roof: any): number {
+  const direction = roof?.slopeDirection || 'S';
+  const defaultAz = (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
+  if (!roof || roof.type !== 'pitched') return defaultAz;
+
+  const poly = getRoofPolygon(roof);
+  const n = poly.length;
+  if (n < 3) return defaultAz;
+
+  const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
+
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i], b = poly[(i + 1) % n];
+    area += a.x * b.y - b.x * a.y;
+  }
+  const isCcw = area > 0;
+
+  const edges = poly.map((a, i) => {
+    const b = poly[(i + 1) % n];
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const len = Math.hypot(ex, ey) || 1e-9;
+    const nx = isCcw ? ey / len : -ey / len;
+    const ny = isCcw ? -ex / len : ex / len;
+    return { idx: i, len, nx, ny };
+  });
+
+  let candidateIndices = edges.map((e) => e.idx);
+  if (n === 4) {
+    const len02 = (edges[0].len + edges[2].len) / 2;
+    const len13 = (edges[1].len + edges[3].len) / 2;
+    if (len02 > len13 * 1.15) {
+      candidateIndices = [0, 2];
+    } else if (len13 > len02 * 1.15) {
+      candidateIndices = [1, 3];
+    }
+  }
+
+  let bestEdgeIdx = candidateIndices[0];
+  let bestDot = -Infinity;
+
+  for (const idx of candidateIndices) {
+    const e = edges[idx];
+    const dot = e.nx * slopeVec.x + e.ny * slopeVec.y;
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestEdgeIdx = idx;
+    }
+  }
+
+  const bestEdge = edges[bestEdgeIdx];
+  const azRad = Math.atan2(bestEdge.nx, bestEdge.ny);
+  const azDeg = (azRad * (180 / Math.PI) + 360) % 360;
+  return Math.round(azDeg * 100) / 100;
+}
+
+export function slopeDirectionAzimuth(direction: any): number {
+  if (typeof direction === 'number') return direction;
   return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
 }
-export function toSlopeLocal(p, direction) {
-  return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).toLocal(p);
+
+export function toSlopeLocal(p: { x: number; y: number }, direction: any): { x: number; y: number } {
+  const az = slopeDirectionAzimuth(direction);
+  if (az === 180) return { x: p.x, y: p.y };
+  if (az === 0) return { x: -p.x, y: -p.y };
+  if (az === 90) return { x: p.y, y: -p.x };
+  if (az === 270) return { x: -p.y, y: p.x };
+
+  const rad = toRad(az);
+  const sinA = Math.sin(rad);
+  const cosA = Math.cos(rad);
+  return {
+    x: -p.x * cosA + p.y * sinA,
+    y: -p.x * sinA - p.y * cosA,
+  };
 }
-export function toSlopeWorld(p, direction) {
-  return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).toWorld(p);
+
+export function toSlopeWorld(p: { x: number; y: number }, direction: any): { x: number; y: number } {
+  const az = slopeDirectionAzimuth(direction);
+  if (az === 180) return { x: p.x, y: p.y };
+  if (az === 0) return { x: -p.x, y: -p.y };
+  if (az === 90) return { x: -p.y, y: p.x };
+  if (az === 270) return { x: p.y, y: -p.x };
+
+  const rad = toRad(az);
+  const sinA = Math.sin(rad);
+  const cosA = Math.cos(rad);
+  return {
+    x: -p.x * cosA - p.y * sinA,
+    y: p.x * sinA - p.y * cosA,
+  };
 }
 
 function signedArea(poly) {

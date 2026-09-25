@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth } from './geometry.js';
+import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from './geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from './staticMap.js';
@@ -521,7 +521,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     idsByRoof.forEach((ids, roofId) => {
       const roof = roofs.find((r) => r.id === roofId);
       if (!roof) return;
-      const direction = roof.type === 'pitched' ? (roof.slopeDirection || 'S') : 'S';
+      const direction = roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
       const clones = ids.map((gridId) => {
         const g = roof.grids.find((gg) => gg.id === gridId);
         if (!g) return null;
@@ -2305,7 +2305,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       // (see README's "Panel grids" entry).
       start.origins.forEach((o) => {
         const roof = roofs.find((r) => r.id === o.roofId);
-        const direction = roof?.type === 'pitched' ? (roof.slopeDirection || 'S') : 'S';
+        const direction = roof?.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
         updateRoofGrids(o.roofId, (grids) => grids.map((g) => {
           if (g.id !== o.gridId) return g;
           const panelById = new Map(o.panels.map((p) => [p.id, p]) as [any, any][]);
@@ -2419,7 +2419,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
       setRoofs((rs) => rs.map((r) => {
         if (r.id !== start.roofId) return r;
-        const direction = r.type === 'pitched' ? (r.slopeDirection || 'S') : 'S';
+        const direction = r.type === 'pitched' ? getPitchedRoofSlopeAzimuth(r) : 'S';
         const gridById = new Map(start.grids.map((g) => [g.id, g]) as [any, any][]);
         const grids = r.grids.map((g) => {
           const origin: any = gridById.get(g.id);
@@ -3947,7 +3947,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const center = toScreen(p.x, p.y);
                 const shaded = shadedIds.has(p.id);
                 const overlapsObstacle = overlappingIds.has(p.id);
-                const rotation = (p.rotation || 0) + (g.rotation || 0);
+                const gridAzimuth = g.azimuth != null ? g.azimuth : (roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 180);
+                const slopeRotation = gridAzimuth - 180;
+                const rotation = (p.rotation || 0) + (g.rotation || 0) + slopeRotation;
                 const pct = pctMap?.[p.id];
                 const w = p.w * scale, h = p.d * scale;
                 const isMultiRow = (g.panelsPerRow ?? 1) > 1;
@@ -3960,7 +3962,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   || (gridDeleteMode === 'panel' && gridDeleteSelection.panelIds?.includes(p.id))
                 );
                 return (
-                  <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${-rotation} ${center.sx} ${center.sy})` : undefined}>
+                  <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
                       x={s.sx} y={rectY} width={w} height={rectH}
                       fill={deletePicked || overlapsObstacle ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
@@ -4140,7 +4142,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               if (!roof || !grid) return null;
               const bounds = gridLocalBounds(grid);
               if (!bounds) return null;
-              const direction = roof.type === 'pitched' ? (roof.slopeDirection || 'S') : 'S';
+              const direction = roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
               const pivot = gridPivot(grid);
               const rot = grid.rotation || 0;
               const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
