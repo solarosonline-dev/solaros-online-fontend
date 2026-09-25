@@ -112,6 +112,66 @@ function RoofMarginBand({ polygon, usablePolygon, buildingHeight }) {
 // edge follows the roofline all the way around instead of stopping flat at
 // the eave height and leaving a gap under wherever the roof climbs above
 // it (what a separate flat-topped building + a floating sloped cap did).
+const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
+  N: { x: 0, y: 1 },
+  S: { x: 0, y: -1 },
+  E: { x: 1, y: 0 },
+  W: { x: -1, y: 0 },
+};
+
+function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction: string, pitchRad: number) {
+  const n = polygon.length;
+  const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
+
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const a = polygon[i], b = polygon[(i + 1) % n];
+    area += a.x * b.y - b.x * a.y;
+  }
+  const isCcw = area > 0;
+
+  let bestEdgeIdx = 0;
+  let bestDot = -Infinity;
+
+  for (let i = 0; i < n; i++) {
+    const a = polygon[i], b = polygon[(i + 1) % n];
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const len = Math.hypot(ex, ey) || 1e-9;
+    const nx = isCcw ? ey / len : -ey / len;
+    const ny = isCcw ? -ex / len : ex / len;
+    const dot = nx * slopeVec.x + ny * slopeVec.y;
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestEdgeIdx = i;
+    }
+  }
+
+  const eave1 = bestEdgeIdx;
+  const eave2 = (bestEdgeIdx + 1) % n;
+  const ridge1 = (bestEdgeIdx + 2) % n;
+  const ridge2 = (bestEdgeIdx + 3) % n;
+
+  const eaveMid = {
+    x: (polygon[eave1].x + polygon[eave2].x) / 2,
+    y: (polygon[eave1].y + polygon[eave2].y) / 2,
+  };
+  const ridgeMid = {
+    x: (polygon[ridge1].x + polygon[ridge2].x) / 2,
+    y: (polygon[ridge1].y + polygon[ridge2].y) / 2,
+  };
+
+  let depth = (ridgeMid.x - eaveMid.x) * slopeVec.x + (ridgeMid.y - eaveMid.y) * slopeVec.y;
+  if (depth <= 1e-3) depth = Math.hypot(ridgeMid.x - eaveMid.x, ridgeMid.y - eaveMid.y) || 1;
+
+  const cornerOffset = new Array<number>(n);
+  cornerOffset[eave1] = 0;
+  cornerOffset[eave2] = 0;
+  cornerOffset[ridge1] = depth * Math.tan(pitchRad);
+  cornerOffset[ridge2] = depth * Math.tan(pitchRad);
+
+  return { eaveMid, depth, cornerOffset, slopeVec };
+}
+
 function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchRad, eaveHeight) {
   const shape = new THREE.Shape();
   polygon.forEach((p, i) => {
@@ -120,67 +180,51 @@ function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchR
   });
   shape.closePath();
 
-  const localYs = polygon.map((p) => toSlopeLocal(p, direction).y);
-  const maxLocalY = Math.max(...localYs);
-
-  // Build a per-vertex height-offset map keyed by (x, y) position.
-  // For a 4-vertex polygon (the common case for a drawn roof): sort vertices by
-  // their slope-axis projection (localY), group the bottom half as eave and the
-  // top half as ridge, then snap every vertex in each group to the exact same
-  // height offset. This guarantees both eave corners (and both ridge corners)
-  // come out at the exact same elevation even when the roof polygon is rotated
-  // relative to the cardinal slope direction — the core bug when drawing a roof
-  // at an arbitrary angle. Without this snapping, each corner's height is computed
-  // from its own world coordinate, so a rotated eave edge (whose two corners are
-  // at slightly different world-y positions) ends up tilted sideways.
-  const vertexOffsets = new Map<string, number>();
   const n = polygon.length;
-  const sorted = polygon
-    .map((p, i) => ({ p, ly: localYs[i] }))
-    .sort((a, b) => a.ly - b.ly);
-
-  if (n === 4) {
-    // Bottom 2 = eave (offset 0), top 2 = ridge (full pitch climb).
-    // Use the average localY of each group to compute the actual depth so the
-    // climb matches the true eave-to-ridge distance along the slope axis.
-    const eaveAvg = (sorted[0].ly + sorted[1].ly) / 2;
-    const ridgeAvg = (sorted[2].ly + sorted[3].ly) / 2;
-    const depth = ridgeAvg - eaveAvg || 1;
-    sorted.slice(0, 2).forEach(({ p }) => {
-      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, 0);
-    });
-    sorted.slice(2).forEach(({ p }) => {
-      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, depth * Math.tan(pitchRad));
-    });
-  } else {
-    // For 3-vertex or non-quad polygons: proportional height per vertex.
-    const totalDepth = maxLocalY - frontLocalY || 1;
-    polygon.forEach((p, idx) => {
-      const t = Math.max(0, Math.min(1, (localYs[idx] - frontLocalY) / totalDepth));
-      vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, t * totalDepth * Math.tan(pitchRad));
-    });
-  }
-
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: eaveHeight, bevelEnabled: false });
   const pos = geometry.attributes.position;
-  const totalDepth = maxLocalY - frontLocalY || 1;
-  for (let i = 0; i < pos.count; i++) {
-    if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
-      const vx = pos.getX(i);
-      const vy = pos.getY(i);
-      const key = `${vx.toFixed(3)},${vy.toFixed(3)}`;
-      let offset: number;
-      if (vertexOffsets.has(key)) {
-        offset = vertexOffsets.get(key)!;
-      } else {
-        // Interior triangulation vertices on the cap — interpolate proportionally.
-        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
-        const t = Math.max(0, Math.min(1, (ly - frontLocalY) / totalDepth));
-        offset = t * totalDepth * Math.tan(pitchRad);
+  const tanPitch = Math.tan(pitchRad);
+
+  if (n === 4) {
+    const { eaveMid, depth, cornerOffset, slopeVec } = computeQuadSlopeOffsets(polygon, direction, pitchRad);
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        let minSq = Infinity;
+        let nearestIdx = 0;
+        for (let j = 0; j < n; j++) {
+          const dx = vx - polygon[j].x;
+          const dy = vy - polygon[j].y;
+          const sq = dx * dx + dy * dy;
+          if (sq < minSq) {
+            minSq = sq;
+            nearestIdx = j;
+          }
+        }
+        let offset: number;
+        if (minSq < 1e-1) {
+          offset = cornerOffset[nearestIdx];
+        } else {
+          const pProj = (vx - eaveMid.x) * slopeVec.x + (vy - eaveMid.y) * slopeVec.y;
+          const t = Math.max(0, Math.min(1, pProj / depth));
+          offset = t * depth * tanPitch;
+        }
+        pos.setZ(i, eaveHeight + offset);
       }
-      pos.setZ(i, eaveHeight + offset);
+    }
+  } else {
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+        const offset = Math.max(0, ly - frontLocalY) * tanPitch;
+        pos.setZ(i, eaveHeight + offset);
+      }
     }
   }
+
   pos.needsUpdate = true;
   geometry.computeVertexNormals();
   return geometry;
@@ -258,45 +302,46 @@ function boundaryRingGeometry(polygon, height, slope: any = null) {
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
   if (slope) {
     const { direction, frontLocalY, pitchRad } = slope;
-    const localYs = polygon.map((p) => toSlopeLocal(p, direction).y);
-    const maxLocalY = Math.max(...localYs);
-    const totalDepth = maxLocalY - frontLocalY || 1;
     const n = polygon.length;
-
-    // Same group-snap as polygonToSlopedBuildingGeometry: for a 4-vertex
-    // polygon, both eave corners share one height and both ridge corners share
-    // another, so a rotated pitched roof's parapet walls stay level at eave
-    // and ridge even when the polygon is not axis-aligned.
-    const vertexOffsets = new Map<string, number>();
-    const sorted = polygon.map((p, i) => ({ p, ly: localYs[i] })).sort((a, b) => a.ly - b.ly);
-    if (n === 4) {
-      const eaveAvg = (sorted[0].ly + sorted[1].ly) / 2;
-      const ridgeAvg = (sorted[2].ly + sorted[3].ly) / 2;
-      const depth = ridgeAvg - eaveAvg || 1;
-      sorted.slice(0, 2).forEach(({ p }) => vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, 0));
-      sorted.slice(2).forEach(({ p }) => vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, depth * Math.tan(pitchRad)));
-    } else {
-      polygon.forEach((p, idx) => {
-        const t = Math.max(0, Math.min(1, (localYs[idx] - frontLocalY) / totalDepth));
-        vertexOffsets.set(`${p.x.toFixed(3)},${p.y.toFixed(3)}`, t * totalDepth * Math.tan(pitchRad));
-      });
-    }
-
+    const tanPitch = Math.tan(pitchRad);
     const pos = geometry.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const vx = pos.getX(i);
-      const vy = pos.getY(i);
-      const key = `${vx.toFixed(3)},${vy.toFixed(3)}`;
-      let offset: number;
-      if (vertexOffsets.has(key)) {
-        offset = vertexOffsets.get(key)!;
-      } else {
-        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
-        const t = Math.max(0, Math.min(1, (ly - frontLocalY) / totalDepth));
-        offset = t * totalDepth * Math.tan(pitchRad);
+
+    if (n === 4) {
+      const { eaveMid, depth, cornerOffset, slopeVec } = computeQuadSlopeOffsets(polygon, direction, pitchRad);
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        let minSq = Infinity;
+        let nearestIdx = 0;
+        for (let j = 0; j < n; j++) {
+          const dx = vx - polygon[j].x;
+          const dy = vy - polygon[j].y;
+          const sq = dx * dx + dy * dy;
+          if (sq < minSq) {
+            minSq = sq;
+            nearestIdx = j;
+          }
+        }
+        let offset: number;
+        if (minSq < 1e-1) {
+          offset = cornerOffset[nearestIdx];
+        } else {
+          const pProj = (vx - eaveMid.x) * slopeVec.x + (vy - eaveMid.y) * slopeVec.y;
+          const t = Math.max(0, Math.min(1, pProj / depth));
+          offset = t * depth * tanPitch;
+        }
+        pos.setZ(i, pos.getZ(i) + offset);
       }
-      pos.setZ(i, pos.getZ(i) + offset);
+    } else {
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+        const offset = Math.max(0, ly - frontLocalY) * tanPitch;
+        pos.setZ(i, pos.getZ(i) + offset);
+      }
     }
+
     pos.needsUpdate = true;
     geometry.computeVertexNormals();
   }
@@ -870,7 +915,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           depth buffer doesn't have enough precision at that ratio to keep
           those layers reliably sorted, which shows up as flickering/
           blocky z-fighting between them while orbiting. */}
-      <Canvas shadows gl={{ logarithmicDepthBuffer: true }} camera={{ position: [extent * 0.7, extent * 0.6 + maxBuildingHeight, extent * 0.7], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
+      <Canvas shadows gl={{ logarithmicDepthBuffer: true }} camera={{ position: [0, extent * 0.8 + maxBuildingHeight, extent * 1.2], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
         <color attach="background" args={['#eef3ea']} />
         <SunLight elevation={sunElevation} azimuth={sunAzimuth} />
 
