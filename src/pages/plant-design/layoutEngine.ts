@@ -126,17 +126,21 @@ function scanlineSegmentsForDepth(poly, centerY, halfDepth) {
 // its own full available width, producing a staircase/pyramid silhouette
 // that doesn't correspond to a buildable rack - the whole point of
 // grouping rows into one cluster in the first place.
-function intersectSegmentLists(lists) {
-  return lists.reduce((acc, segs) => {
-    let result: any[] = [];
-    acc.forEach(([a0, a1]) => {
-      segs.forEach(([b0, b1]) => {
-        const lo = Math.max(a0, b0), hi = Math.min(a1, b1);
-        if (hi > lo) result.push([lo, hi]);
-      });
-    });
-    return result;
-  });
+function unionSegmentLists(lists) {
+  const allSegs = lists.flat();
+  if (allSegs.length === 0) return [];
+  const sorted = allSegs.slice().sort((a, b) => a[0] - b[0]);
+  let merged: any[] = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = merged[merged.length - 1];
+    const curr = sorted[i];
+    if (curr[0] <= prev[1] + 1e-6) {
+      prev[1] = Math.max(prev[1], curr[1]);
+    } else {
+      merged.push(curr);
+    }
+  }
+  return merged;
 }
 
 // ============================================================
@@ -417,15 +421,14 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     for (;;) {
       rowYs = [];
       for (let i = 0; i < rowsHere; i++) rowYs.push(clusterTop + footprintDepth / 2 + i * (footprintDepth + gap));
-      clusterSegments = intersectSegmentLists(rowYs.map((rowY) => scanlineSegmentsForDepth(usablePoly, rowY, footprintDepth / 2)));
+      clusterSegments = unionSegmentLists(rowYs.map((rowY) => scanlineSegmentsForDepth(usablePoly, rowY, footprintDepth / 2)));
       if (clusterSegments.length > 0 || rowsHere <= 1) break;
       rowsHere -= 1;
     }
     const thisClusterDepth = rowsHere * footprintDepth + (rowsHere - 1) * gap;
 
     rowYs.forEach((rowY) => {
-      const rowSegments = scanlineSegmentsForDepth(usablePoly, rowY, footprintDepth / 2);
-      rowSegments.forEach(([segX0, segX1]) => {
+      clusterSegments.forEach(([segX0, segX1]) => {
         let x = segX0 + Wp / 2;
         while (x + Wp / 2 <= segX1 + 1e-9) {
           if (!isBlockedAt(x, rowY)) {
@@ -1097,28 +1100,27 @@ function* iterateRacks(layout) {
     const rackTop = rackYs[0] - footprintDepth / 2;
     const rackDepth = rackYs[rackYs.length - 1] + footprintDepth / 2 - rackTop;
 
-    // The first sub-row's x-extent stands in for the whole rack's
-    // structure - a simplification: on a concave roof a different sub-row
-    // sharing this rack could in principle have a different extent, which
-    // isn't captured here.
-    const representative = rowMap.get(rackYs[0]).slice().sort((a, b) => a.rackX - b.rackX);
+    const rackPanels = rackYs.flatMap((y) => rowMap.get(y) || []);
+    if (rackPanels.length === 0) continue;
+    const sortedPanels = rackPanels.slice().sort((a, b) => a.rackX - b.rackX);
+
     let runs: any[] = [];
-    let current = [representative[0]];
-    for (let i = 1; i < representative.length; i++) {
-      const prevEdge = current[current.length - 1].rackX + current[current.length - 1].w / 2;
-      const nextStart = representative[i].rackX - representative[i].w / 2;
-      if (nextStart - prevEdge > 0.05) {
+    let current = [sortedPanels[0]];
+    for (let i = 1; i < sortedPanels.length; i++) {
+      const prevMaxX = Math.max(...current.map((p) => p.rackX + p.w / 2));
+      const nextMinX = sortedPanels[i].rackX - sortedPanels[i].w / 2;
+      if (nextMinX - prevMaxX > 0.05) {
         runs.push(current);
-        current = [representative[i]];
+        current = [sortedPanels[i]];
       } else {
-        current.push(representative[i]);
+        current.push(sortedPanels[i]);
       }
     }
     runs.push(current);
 
     const xSegments = runs.map((segPanels) => ({
-      xStart: segPanels[0].rackX - segPanels[0].w / 2,
-      xEnd: segPanels[segPanels.length - 1].rackX + segPanels[segPanels.length - 1].w / 2,
+      xStart: Math.min(...segPanels.map((p) => p.rackX - p.w / 2)),
+      xEnd: Math.max(...segPanels.map((p) => p.rackX + p.w / 2)),
     }));
 
     yield { rackYs, rackTop, rackDepth, xSegments, rowMap };
