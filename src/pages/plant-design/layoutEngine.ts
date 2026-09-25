@@ -217,7 +217,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   const targetPolygon = footprintPolygon || roofPolygon;
   const isWholeRoofFootprint = targetPolygon === roofPolygon;
   const panelTiltDeg = gridSettings.panelTiltDeg ?? null;
-  const rowSpacing = gridSettings.rowSpacing ?? null;
+  const rowSpacing = gridSettings.rowSpacing ?? 1.0;
   const structureStrategy = gridSettings.structureStrategy ?? roof.structureStrategy ?? 'truss';
 
   let tilt, azimuth, rowPitch;
@@ -228,10 +228,9 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     // whenever no override is set rather than leaving the field blank.
     tilt = panelTiltDeg ?? computeAutoTilt(location);
     azimuth = location.lat >= 0 ? 180 : 0;
-    rowPitch = (rowSpacing != null && rowSpacing > 0)
-      // Explicit override - skip the shading-safe calc below entirely.
+    rowPitch = typeof rowSpacing === 'number' && rowSpacing > 0
       ? rowSpacing
-      : computeAutoRowSpacing({ location, tilt, Ls });
+      : (rowSpacing === 'recommended' ? computeAutoRowSpacing({ location, tilt, Ls }) : 1.0);
   } else {
     // The panel array's own mounting angle, independent of the building
     // roof's own slope (roof.pitchDeg, which only drives Scene3D's sloped
@@ -823,6 +822,80 @@ function roofDirection(roof) {
 function withRecomputedTotals(grid, panels) {
   const wattPerPanel = grid.count > 0 ? grid.capacityKW / grid.count : 0;
   return { ...grid, panels, count: panels.length, capacityKW: panels.length * wattPerPanel };
+}
+
+export function generateFixedGrid({ roof, rows, cols, panelSpec, location, center }: any): any {
+  const isPitched = roof.type === 'pitched';
+  const direction = roofDirection(roof);
+  const gap = PANEL_GAP;
+  const orientation: 'portrait' | 'landscape' = panelSpec?.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const Wp = orientation === 'landscape' ? panelSpec.height : panelSpec.width;
+  const Ls = orientation === 'landscape' ? panelSpec.width : panelSpec.height;
+
+  const tilt = isPitched ? roof.pitchDeg : computeAutoTilt(location);
+  const azimuth = isPitched
+    ? (typeof direction === 'number' ? direction : slopeDirectionAzimuth(direction))
+    : (location.lat >= 0 ? 180 : 0);
+
+  const footprintDepth = isPitched
+    ? Ls * Math.cos(toRad(roof.pitchDeg || 15))
+    : Ls * Math.cos(toRad(tilt));
+
+  const rawRowPitch = isPitched
+    ? Ls + gap
+    : 1.0;
+  const rowPitch = Math.max(rawRowPitch, footprintDepth + gap);
+
+  const poly = getRoofPolygon(roof);
+  const cx = center?.x ?? (poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length);
+  const cy = center?.y ?? (poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length);
+  const localCenter = toSlopeLocal({ x: cx, y: cy }, direction);
+
+  const totalW = cols * Wp + (cols - 1) * gap;
+  const totalD = (rows - 1) * rowPitch + footprintDepth;
+  const startX = localCenter.x - totalW / 2 + Wp / 2;
+  const startY = localCenter.y - totalD / 2 + footprintDepth / 2;
+
+  let nextId = 1;
+  const panels: any[] = [];
+  for (let r = 0; r < rows; r++) {
+    const rackY = startY + r * rowPitch;
+    for (let c = 0; c < cols; c++) {
+      const rackX = startX + c * (Wp + gap);
+      const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
+      panels.push({
+        id: nextId++,
+        x: world.x,
+        y: world.y,
+        rackX,
+        rackY,
+        w: Wp,
+        d: footprintDepth,
+      });
+    }
+  }
+
+  const gridId = Date.now() + Math.floor(Math.random() * 1000);
+  const wattPerPanel = panelSpec.wattage || 550;
+  const footprintPolygon = footprintPolygonFromPanels(panels, direction);
+
+  return {
+    id: gridId,
+    panels,
+    count: panels.length,
+    capacityKW: (panels.length * wattPerPanel) / 1000,
+    footprintPolygon,
+    panelsPerRow: cols,
+    orientation,
+    panelTiltDeg: null,
+    rowSpacing: null,
+    structureStrategy: roof.structureStrategy || 'truss',
+    tilt,
+    azimuth,
+    footprintDepth,
+    rowPitch,
+    source: 'preset',
+  };
 }
 
 // Appends one more shading-safe cluster's worth of rows (`panelsPerRow`

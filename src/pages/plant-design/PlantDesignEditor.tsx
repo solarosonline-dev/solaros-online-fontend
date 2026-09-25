@@ -10,7 +10,7 @@ import {
   OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
-  FillGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
+  FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
   SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon,
 } from './icons.js';
@@ -18,6 +18,7 @@ import {
   SAMPLE_MONTHLY_GHI,
   OBSTACLE_PRESETS,
   generateLayout,
+  generateFixedGrid,
   getInstantShading,
   computeOutput,
   computeCost,
@@ -172,6 +173,66 @@ function RailPopover({ open, width = 260, children }) {
   );
 }
 
+function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) {
+  const [hover, setHover] = useState({ rows: 1, cols: 1 });
+
+  return (
+    <div
+      style={{
+        padding: 10,
+        background: '#ffffff',
+        borderRadius: 8,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
+        border: '1px solid #dcdcdc',
+        width: 206,
+        boxSizing: 'border-box',
+        zIndex: 1000,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#333' }}>Insert grid by size</span>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#888', display: 'flex' }}
+        >
+          <CloseIcon size={12} />
+        </button>
+      </div>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 15px)', gap: 3, justifyContent: 'center' }}
+        onMouseLeave={() => setHover({ rows: 1, cols: 1 })}
+      >
+        {Array.from({ length: 10 }, (_, rIdx) => {
+          const r = rIdx + 1;
+          return Array.from({ length: 10 }, (_, cIdx) => {
+            const c = cIdx + 1;
+            const active = r <= hover.rows && c <= hover.cols;
+            return (
+              <div
+                key={`${r}-${c}`}
+                onMouseEnter={() => setHover({ rows: r, cols: c })}
+                onClick={() => onSelect(r, c)}
+                style={{
+                  width: 15,
+                  height: 15,
+                  borderRadius: 2,
+                  backgroundColor: active ? '#2563eb' : '#f1f5f9',
+                  border: active ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.05s',
+                }}
+              />
+            );
+          });
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: '#475569', marginTop: 6, textAlign: 'center', fontWeight: 600 }}>
+        {hover.rows} × {hover.cols} ({hover.rows * hover.cols} panel{hover.rows * hover.cols === 1 ? '' : 's'})
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // Component
 // ============================================================
@@ -233,6 +294,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // addGridFromPolygon) - shown inline near the "+ Place grid" button so
   // that failure isn't silent, cleared on the next attempt.
   const [gridPlacementError, setGridPlacementError] = useState<any>(null);
+  const [gridTablePickerOpen, setGridTablePickerOpen] = useState(false);
   // Whether the map picker is currently shown in place of the center pane
   // ('location' — the only map mode now; shape tracing happens on the 2D
   // plan itself, see startRoofDraw).
@@ -2585,6 +2647,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setCost(null);
   }
 
+  function handleAddFixedGrid(rows: number, cols: number) {
+    const roof = roofs.find((r) => r.id === selectedRoofId) || roofs[0];
+    if (!roof) {
+      setGridPlacementError("Add a roof first before placing a grid.");
+      return;
+    }
+    setGridPlacementError(null);
+    const grid = generateFixedGrid({ roof, rows, cols, panelSpec, location });
+    setRoofs((rs) => rs.map((r) => (r.id === roof.id ? { ...r, grids: [...r.grids, grid] } : r)));
+    setSelectedGridKeys(new Set([gridKey(roof.id, grid.id)]));
+    setGridTablePickerOpen(false);
+    setOutputResult(null);
+    setCost(null);
+  }
+
   // (Re)generates every roof's own whole-roof grid from its own
   // polygon/type, sharing the one panel spec and the global obstacle list.
   // Only ever touches each roof's whole-roof grid (source of a plain
@@ -3375,6 +3452,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               >
                 <FillGridIcon />
               </button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  data-tooltip={gridTablePickerOpen ? "Close table picker" : "Add grid by size (rows × cols)"}
+                  aria-label="Add grid by size"
+                  onClick={() => setGridTablePickerOpen(!gridTablePickerOpen)} disabled={roofs.length === 0}
+                  className={iconBtn(gridTablePickerOpen, roofs.length === 0)}
+                >
+                  <TableGridIcon />
+                </button>
+                {gridTablePickerOpen && (
+                  <div style={{ position: 'absolute', left: 42, top: 0, zIndex: 1000 }}>
+                    <TablePickerGrid
+                      onSelect={(r, c) => handleAddFixedGrid(r, c)}
+                      onClose={() => setGridTablePickerOpen(false)}
+                    />
+                  </div>
+                )}
+              </div>
               <button
                 data-tooltip={placingGrid ? 'Cancel placing this grid' : 'Draw a custom panel area'}
                 aria-label={placingGrid ? 'Cancel placing this grid' : 'Draw a custom panel area'}
@@ -4597,8 +4692,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   const autoTilt = gridOwnerRoof.type === 'pitched' ? gridOwnerRoof.pitchDeg : computeAutoTilt(location);
                   const resolvedTilt = selectedGrid.panelTiltDeg ?? autoTilt;
                   const Ls = selectedGrid.orientation === 'landscape' ? panelSpec.width : panelSpec.height;
-                  const autoRowSpacing = +computeAutoRowSpacing({ location, tilt: computeAutoTilt(location), Ls }).toFixed(2);
-                  const resolvedRowSpacing = selectedGrid.rowSpacing ?? autoRowSpacing;
+                  const recommendedRowSpacing = +computeAutoRowSpacing({ location, tilt: computeAutoTilt(location), Ls }).toFixed(2);
+                  const resolvedRowSpacing = selectedGrid.rowSpacing ?? 1.0;
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>
@@ -4719,20 +4814,28 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: v })}
                               />
                             </div>
-                            {gridOwnerRoof.type === 'flat' && selectedGrid.rowSpacing != null && (
-                              <button
-                                onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: null })}
-                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginBottom: 4 }}
-                              >
-                                reset to auto ({formatLength(autoRowSpacing, units, 2)})
-                              </button>
+                            {gridOwnerRoof.type === 'flat' && (
+                              <div style={{ display: 'flex', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                                {selectedGrid.rowSpacing != null && selectedGrid.rowSpacing !== 1.0 && (
+                                  <button
+                                    onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: 1.0 })}
+                                    style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                  >
+                                    reset to default (1.00m)
+                                  </button>
+                                )}
+                                {selectedGrid.rowSpacing !== recommendedRowSpacing && (
+                                  <button
+                                    onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: recommendedRowSpacing })}
+                                    style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                  >
+                                    use recommended ({formatLength(recommendedRowSpacing, units, 2)})
+                                  </button>
+                                )}
+                              </div>
                             )}
                             <div style={{ fontSize: 11, color: '#888' }}>
-                              Auto uses the shading-safe row-to-row spacing computed from
-                              this site's own latitude (no inter-row shading 9am-3pm on the
-                              winter solstice) - set a value here to override it directly,
-                              e.g. for a tighter or more conservative layout than that rule
-                              gives.
+                              Default row spacing is 1.00m. Recommended uses the shading-safe row-to-row spacing computed from this site's own latitude ({formatLength(recommendedRowSpacing, units, 2)}).
                             </div>
                         </RailPopover>
                       </div>
