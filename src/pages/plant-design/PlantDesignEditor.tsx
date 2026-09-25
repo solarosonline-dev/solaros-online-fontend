@@ -1642,30 +1642,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const a = poly[edgeIndex], b = poly[(edgeIndex + 1) % poly.length];
     const mirroredPolygon = poly.map((p) => reflectPointAcrossLine(p, a, b));
 
-    // Reflect the slope direction across the mirror edge so the mirrored roof's
-    // downhill direction is geometrically correct. The slope is a 2D unit vector;
-    // we reflect it across the edge direction (b-a normalised), then round to the
-    // nearest of N/E/S/W. For a horizontal edge N↔S swap; for a vertical edge
-    // E↔W swap; for a diagonal the closest cardinal of the reflected vector wins.
     let mirroredSlopeDirection = roof.slopeDirection || 'S';
     if (roof.type === 'pitched' && mirroredSlopeDirection) {
-      const SLOPE_VECS = { N: { x: 0, y: 1 }, S: { x: 0, y: -1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
-      const sv = SLOPE_VECS[mirroredSlopeDirection];
-      // Edge unit vector
-      const ex = b.x - a.x, ey = b.y - a.y;
-      const elen = Math.hypot(ex, ey) || 1;
-      const edx = ex / elen, edy = ey / elen;
-      // Reflect sv across the edge direction: r = 2*(sv·e)e - sv
-      const dot = sv.x * edx + sv.y * edy;
-      const rx = 2 * dot * edx - sv.x;
-      const ry = 2 * dot * edy - sv.y;
-      // Snap to nearest cardinal
-      let bestDir = mirroredSlopeDirection, bestDot = -Infinity;
-      for (const [dir, dv] of Object.entries(SLOPE_VECS)) {
-        const d = rx * dv.x + ry * dv.y;
-        if (d > bestDot) { bestDot = d; bestDir = dir; }
-      }
-      mirroredSlopeDirection = bestDir;
+      const OPPOSITE_SLOPE: Record<string, string> = { N: 'S', S: 'N', E: 'W', W: 'E' };
+      mirroredSlopeDirection = OPPOSITE_SLOPE[mirroredSlopeDirection] || 'N';
     }
 
     const baseLabel = (roof.label || roofLabel(roof, idx)).replace(/-(left|right)$/, '');
