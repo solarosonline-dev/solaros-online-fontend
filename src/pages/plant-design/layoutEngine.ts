@@ -324,9 +324,29 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   // exactly the shared-width-per-cluster behavior below, untouched.
   const stepped = structureStrategy === 'steppedTruss';
 
+  // Pre-calculate total depth consumed by all clusters that will fit in [minY, maxY]
+  // so we can center the cluster stack vertically on the usable roof surface
+  // instead of dumping all leftover space at the bottom.
+  let simTop = minY;
+  let totalUsedDepth = 0;
+  let simClusterCount = 0;
+  while (simTop + footprintDepth <= maxY + 1e-9) {
+    const remainingDepth = maxY - simTop;
+    const maxRowsThatFit = Math.max(1, Math.floor((remainingDepth + gap) / (footprintDepth + gap)));
+    let rowsHere = Math.min(panelsPerRow, maxRowsThatFit);
+    const thisClusterDepth = rowsHere * footprintDepth + (rowsHere - 1) * gap;
+    simClusterCount++;
+    simTop += thisClusterDepth + extraRowClearance;
+  }
+  if (simClusterCount > 0) {
+    totalUsedDepth = (simTop - extraRowClearance) - minY;
+  }
+  const leftoverDepth = Math.max(0, (maxY - minY) - totalUsedDepth);
+  const verticalOffset = leftoverDepth / 2;
+
   let panels: any[] = [];
   let idc = 0;
-  let clusterTop = minY;
+  let clusterTop = minY + verticalOffset;
   // Packs however many full clusters of `panelsPerRow` fit, then - unlike
   // before - keeps going with a smaller *partial* final cluster for
   // whatever depth is left over, rather than stopping the instant a full
