@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy this to whatsapp_template_config.json and fill in your approved template details. field_mapping is ordered: index 0 maps to {{1}} in your template body, index 1 to {{2}}, etc.",
+
+  "template_name": "epc_vendor_outreach",
+  "language_code": "en",
+
+  "field_mapping": [
+    "contact_person_name",
+    "vendor_name",
+    "delhi_installs"
+  ],
+
+  "phone_field": "mobile",
+  "country_code": "+91",
+
+  "rate_limit_seconds": 2,
+  "log_file": "whatsapp_send_log.csv"
+}

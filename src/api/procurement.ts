@@ -33,14 +33,16 @@ export interface ProcurementOrderItemResponse {
 export interface ProcurementOrderResponse {
     procurement_id: number;
     entity_id: number;
-    project_id: number;
-    warehouse_id: number | null;
-    status: ProcurementStatus;
-    shipping_address: string | null;
-    shipping_latitude: number | null;
-    shipping_longitude: number | null;
-    notes: string | null;
-    created_at: string;
+  project_id: number;
+  warehouse_id: number | null;
+  vendor_id: number | null;
+  status: ProcurementStatus;
+  shipping_address: string | null;
+  shipping_latitude: number | null;
+  shipping_longitude: number | null;
+  notes: string | null;
+  total_cost: number | null;
+  created_at: string;
     updated_at: string;
     items: ProcurementOrderItemResponse[];
 }
@@ -90,4 +92,21 @@ export function createProcurementOrder(entityId: number, data: ProcurementOrderC
 
 export function listProcurementOrders(entityId: number, projectId: number) {
     return apiRequest<ProcurementOrderListResponse>(`/entities/${entityId}/projects/${projectId}/procurement`);
+}
+
+export interface ProcurementOrderUpdate {
+  status?: ProcurementStatus;
+  total_cost?: number | null;
+  notes?: string | null;
+}
+
+export async function updateProcurementOrder(
+  entityId: number,
+  procurementId: number,
+  data: ProcurementOrderUpdate
+): Promise<ProcurementOrderResponse> {
+  return apiRequest<ProcurementOrderResponse>(`/entities/${entityId}/procurement/${procurementId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }

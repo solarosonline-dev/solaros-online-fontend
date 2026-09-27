@@ -15,12 +15,13 @@ import ProjectAmcTab from "./ProjectAmcTab";
 import ProjectDocumentsTab from "./ProjectDocumentsTab";
 import MaterialRoutingTab from "./tabs/MaterialRoutingTab";
 import ProcurementOrdersTab from "./tabs/ProcurementOrdersTab";
+import { ProjectPaymentsTab } from "./tabs/ProjectPaymentsTab";
 import CommissioningSummaryCard from "./CommissioningSummaryCard";
 import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
 
-type ProjectTab = "installations" | "amc" | "sld" | "documents" | "routing" | "procurement";
+type ProjectTab = "installations" | "amc" | "sld" | "documents" | "routing" | "procurement" | "payments";
 
 function badgeClass(status: ProjectStatus): string {
   if (status === "REJECTED") return "project-status-badge rejected";
@@ -216,6 +217,14 @@ export default function ProjectDetailPage() {
           Procurement Orders
         </button>
       </div>
+        <button
+          role="tab"
+          aria-selected={tab === "payments"}
+          className={`project-tab${tab === "payments" ? " active" : ""}`}
+          onClick={() => setTab("payments")}
+        >
+          Project Payments
+        </button>
 
       {tab === "installations" ? (
         <>
@@ -294,6 +303,8 @@ export default function ProjectDetailPage() {
         <MaterialRoutingTab entityId={entityId} projectId={project.project_id} />
       ) : tab === "procurement" ? (
         <ProcurementOrdersTab entityId={entityId} projectId={project.project_id} />
+      ) : tab === "payments" ? (
+        <ProjectPaymentsTab entityId={entityId} projectId={project.project_id} />
       ) : (
         <ProjectDocumentsTab entityId={entityId} projectId={project.project_id} />
       )}

@@ -1,0 +1,31 @@
+@@ -3,9 +3,11 @@
+ from fastapi import APIRouter, Body, Depends
+ from pydantic import ValidationError
+ from sqlalchemy.orm import Session
++from sqlalchemy.exc import IntegrityError
+ 
+ from app.api.deps import AuthContext, require_entity_admin_scope
+ from app.core.errors import ApiError, first_error_message
+ from app.db.session import get_db
+ from app.models.vendor import Vendor
++from app.models.warehouse import Warehouse
+ from app.repositories.vendor import VendorRepository
+@@ -82,3 +84,18 @@
+         vendor.is_active = data.is_active
+ 
+     return _to_vendor_response(vendor)
++
++@router.delete("/entities/{entity_id}/vendors/{vendor_id}", status_code=204)
++def delete_vendor(
++    entity_id: int,
++    vendor_id: int,
++    db: Session = Depends(get_db),
++    auth: AuthContext = Depends(require_entity_admin_scope),
++):
++    vendor = _get_vendor_or_404(db, entity_id, vendor_id)
++    in_use = db.query(Warehouse).filter(Warehouse.vendor_id == vendor_id).first()
++    if in_use:
++        raise ApiError(400, "VENDOR_IN_USE", "Cannot delete vendor because it is assigned to one or more warehouses.")
++    
++    db.delete(vendor)
++    db.commit()
