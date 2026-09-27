@@ -19,6 +19,7 @@ import { ApiError } from "../../api/client";
 import WorkOrderDocuments from "./WorkOrderDocuments";
 import CommissioningPanel from "./CommissioningPanel";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SiteMap from "../../components/map/SiteMap";
 import "./ProjectsPage.css";
 
 const NEXT_ACTION_LABEL: Record<string, string> = {
@@ -40,6 +41,9 @@ export default function WorkOrderDetailPage() {
   const [teams, setTeams] = useState<TeamListItem[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [assigneeType, setAssigneeType] = useState<"USER" | "TEAM">("USER");
+
+  const [mapOpen, setMapOpen] = useState(false);
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   const [transitioning, setTransitioning] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -482,8 +486,44 @@ export default function WorkOrderDetailPage() {
         </div>
         <div className="project-detail-row">
           <span>Address</span>
-          <span>{wo.lead.address || "—"}</span>
+          <span>
+            {wo.lead.address || "—"}
+            {wo.lead.latitude !== null && wo.lead.longitude !== null && (
+              <div style={{ marginTop: "4px" }}>
+                <a
+                  href={`https://maps.google.com/?q=${wo.lead.latitude},${wo.lead.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="leads-btn"
+                  style={{ display: "inline-block", padding: "4px 8px", fontSize: "12px", textDecoration: "none" }}
+                >
+                  📍 Open in Google Maps
+                </a>
+                <button
+                  type="button"
+                  className="leads-btn"
+                  onClick={() => setMapOpen(!mapOpen)}
+                  style={{ display: "inline-block", padding: "4px 8px", fontSize: "12px", marginLeft: "6px" }}
+                >
+                  {mapOpen ? "Hide Map" : "View Map"}
+                </button>
+              </div>
+            )}
+          </span>
         </div>
+        {mapOpen && wo.lead.latitude !== null && wo.lead.longitude !== null && (
+          <div className="project-detail-row" style={{ gridColumn: "1 / -1" }}>
+            <div style={{ width: "100%", height: "200px", border: "1px solid var(--app-border)", borderRadius: "8px", overflow: "hidden" }}>
+              <SiteMap
+                mode="location"
+                apiKey={apiKey}
+                initialLocation={{ lat: wo.lead.latitude, lon: wo.lead.longitude }}
+                onLocationChange={() => {}}
+                onCancel={() => setMapOpen(false)}
+              />
+            </div>
+          </div>
+        )}
         <div className="project-detail-row">
           <span>Assignee</span>
           <span>

@@ -24,6 +24,10 @@ export type LeadDetail = Lead & {
   avg_monthly_bill: string | null;
   avg_monthly_units: number | null;
   requirement: string | null;
+  /** Latitude of the project site, populated via Map location picker */
+  latitude: number | null;
+  /** Longitude of the project site, populated via Map location picker */
+  longitude: number | null;
 };
 
 export type LeadList = {
@@ -49,6 +53,10 @@ export type CreateLeadInput = {
   avg_monthly_units?: number;
   requirement?: string;
   entry_duration_ms?: number;
+  /** Optional map location coordinates */
+  latitude?: number;
+  /** Optional map location coordinates */
+  longitude?: number;
 };
 
 export type UpdateLeadInput = Partial<CreateLeadInput>;

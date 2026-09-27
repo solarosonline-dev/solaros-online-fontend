@@ -3,8 +3,8 @@ import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
 import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
-import { metersPerPixel } from './geoConvert.js';
-import { buildLocationPreviewImage, buildWideLocationPreviewImage } from './staticMap.js';
+import { metersPerPixel } from '../../components/map/geoConvert.js';
+import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
 import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
 import {
   OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
@@ -41,7 +41,7 @@ import {
   bestRoofForGrid,
   reparentGridToRoof,
 } from './layoutEngine.js';
-import SiteMap from './SiteMap.jsx';
+import SiteMap from '../../components/map/SiteMap.js';
 import useIsMobile from '../../hooks/useIsMobile';
 // Lazy-loaded: three/@react-three/fiber/@react-three/drei alone push the
 // main bundle well past the PWA plugin's 2MB precache limit, and the 3D

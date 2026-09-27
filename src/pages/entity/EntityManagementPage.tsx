@@ -16,6 +16,8 @@ import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
 import ComponentsTab from "./tabs/ComponentsTab";
 import PaymentScheduleTab from "./tabs/PaymentScheduleTab";
+import WarehousesTab from "./tabs/WarehousesTab";
+import VendorsTab from "./tabs/VendorsTab";
 import AmcPlansPage from "../amc/AmcPlansPage";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./EntityManagementPage.css";
@@ -27,15 +29,19 @@ type Tab =
   | "pricing"
   | "components"
   | "payment_schedule"
+  | "vendors"
+  | "warehouses"
   | "amc";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "business", label: "Business info" },
+  { key: "business", label: "Business Info" },
   { key: "branding", label: "Branding & Typography" },
   { key: "documents", label: "Documents" },
-  { key: "pricing", label: "Pricing & language" },
-  { key: "components", label: "Default components" },
-  { key: "payment_schedule", label: "Payment schedule" },
+  { key: "pricing", label: "Pricing & Language" },
+  { key: "components", label: "Components" },
+  { key: "payment_schedule", label: "Payment Schedule" },
+  { key: "vendors", label: "Vendors" },
+  { key: "warehouses", label: "Warehouses" },
   { key: "amc", label: "AMC Plans" },
 ];
 
@@ -43,7 +49,7 @@ const TABS: { key: Tab; label: string }[] = [
 // deactivate all hit the API immediately) rather than the draft-then-Save
 // pattern every other tab here uses, so it doesn't participate in the
 // shared Save/Reset bar below.
-const SELF_MANAGED_TABS: Tab[] = ["amc"];
+const SELF_MANAGED_TABS: Tab[] = ["amc", "warehouses", "vendors"];
 
 // "branding" here covers the merged Branding & Typography tab -- resetting
 // it resets both underlying categories (see handleReset), so this only
@@ -325,6 +331,8 @@ export default function EntityManagementPage() {
             }}
           />
         )}
+        {tab === "vendors" && <VendorsTab entityId={entityId} />}
+        {tab === "warehouses" && <WarehousesTab entityId={entityId} />}
         {tab === "amc" && <AmcPlansPage />}
       </div>
 

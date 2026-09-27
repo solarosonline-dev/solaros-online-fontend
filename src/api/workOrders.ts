@@ -25,6 +25,8 @@ export type LeadSummary = {
   email: string | null;
   address: string | null;
   status: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type WorkOrderListItem = {

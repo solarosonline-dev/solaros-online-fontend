@@ -100,7 +100,21 @@ export default function MyWorkOrdersPage() {
                     </span>
                   </td>
                   <td data-label="Customer">{wo.lead.name}</td>
-                  <td data-label="Address">{wo.lead.address || "—"}</td>
+                  <td data-label="Address">
+                    {wo.lead.address || "—"}
+                    {wo.lead.latitude !== null && wo.lead.longitude !== null && (
+                      <div style={{ marginTop: "4px" }}>
+                        <a
+                          href={`https://maps.google.com/?q=${wo.lead.latitude},${wo.lead.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "12px", textDecoration: "none" }}
+                        >
+                          📍 Map
+                        </a>
+                      </div>
+                    )}
+                  </td>
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">
                     {wo.closed_at ? new Date(wo.closed_at).toLocaleDateString() : "—"}

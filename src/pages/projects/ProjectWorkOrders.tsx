@@ -158,7 +158,7 @@ export default function ProjectWorkOrders({
                 <th>Type</th>
                 <th>Status</th>
                 <th>Assignee</th>
-                <th>Customer</th>
+                <th>Customer / Address</th>
                 <th>Opened</th>
                 <th>Completed</th>
                 <th>Visit date</th>
@@ -187,11 +187,24 @@ export default function ProjectWorkOrders({
                       "Unassigned"
                     )}
                   </td>
-                  <td data-label="Customer">
+                  <td data-label="Customer/Address">
                     <div>{wo.lead.name}</div>
                     <div className="work-order-assignee-contact">
                       {[wo.lead.mobile, wo.lead.email].filter(Boolean).join(" · ")}
                     </div>
+                    {wo.lead.address && <div style={{ fontSize: "12px", marginTop: "2px" }}>{wo.lead.address}</div>}
+                    {wo.lead.latitude !== null && wo.lead.longitude !== null && (
+                      <div style={{ marginTop: "2px" }}>
+                        <a
+                          href={`https://maps.google.com/?q=${wo.lead.latitude},${wo.lead.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "12px", textDecoration: "none" }}
+                        >
+                          📍 Map
+                        </a>
+                      </div>
+                    )}
                   </td>
                   <td data-label="Opened">{new Date(wo.opened_at).toLocaleDateString()}</td>
                   <td data-label="Completed">

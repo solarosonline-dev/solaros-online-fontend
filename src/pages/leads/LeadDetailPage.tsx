@@ -21,6 +21,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
+import LocationPicker from "../../components/map/LocationPicker";
 import "./LeadsPage.css";
 
 type LeadDraftFields = {
@@ -38,6 +39,8 @@ type LeadDraftFields = {
   avg_monthly_bill: string;
   avg_monthly_units: string;
   requirement: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 function draftFieldsFromLead(res: LeadDetail): LeadDraftFields {
@@ -53,9 +56,11 @@ function draftFieldsFromLead(res: LeadDetail): LeadDraftFields {
     discom: res.discom ?? "",
     roof_area_sqft: res.roof_area_sqft != null ? String(res.roof_area_sqft) : "",
     ca_number: res.ca_number ?? "",
-    avg_monthly_bill: res.avg_monthly_bill ?? "",
+    avg_monthly_bill: res.avg_monthly_bill != null ? String(res.avg_monthly_bill) : "",
     avg_monthly_units: res.avg_monthly_units != null ? String(res.avg_monthly_units) : "",
     requirement: res.requirement ?? "",
+    latitude: res.latitude ?? null,
+    longitude: res.longitude ?? null,
   };
 }
 
@@ -209,6 +214,8 @@ export default function LeadDetailPage() {
         avg_monthly_bill: draft.avg_monthly_bill ? Number(draft.avg_monthly_bill) : undefined,
         avg_monthly_units: draft.avg_monthly_units ? Number(draft.avg_monthly_units) : undefined,
         requirement: draft.requirement.trim() || undefined,
+        latitude: draft.latitude ?? undefined,
+        longitude: draft.longitude ?? undefined,
       });
       setLead(updated);
       setSavedSnapshot(draft);
@@ -252,7 +259,7 @@ export default function LeadDetailPage() {
   const actions = manualTransitions(lead.status);
   const isDirtySinceSave = savedSnapshot != null && JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
   const showSaved = savedSnapshot != null && !isDirtySinceSave;
-  const hasExistingDetails = Object.values(draft).some((v) => v.trim() !== "");
+  const hasExistingDetails = Object.values(draft).some((v) => typeof v === "string" ? v.trim() !== "" : v !== null);
 
   // Reset before a re-uploaded bill's extraction is applied -- unlike
   // AddLeadForm's equivalent, name/mobile are deliberately left untouched:
@@ -277,6 +284,8 @@ export default function LeadDetailPage() {
             avg_monthly_bill: "",
             avg_monthly_units: "",
             requirement: "",
+            latitude: null,
+            longitude: null,
           }
         : d,
     );
@@ -405,6 +414,22 @@ export default function LeadDetailPage() {
               value={draft.address}
               onChange={(e) => setDraft({ ...draft, address: e.target.value })}
             />
+          </div>
+
+          <div className="add-lead-field">
+            <label>Map Location (Optional)</label>
+            <LocationPicker 
+              initialLat={draft.latitude} 
+              initialLng={draft.longitude} 
+              onLocationSelect={(lat, lng) => {
+                setDraft({ ...draft, latitude: lat, longitude: lng });
+              }} 
+            />
+            {draft.latitude !== null && draft.longitude !== null && (
+              <div style={{ fontSize: "12px", color: "var(--app-text-muted)", marginTop: "4px" }}>
+                Saved: {draft.latitude.toFixed(6)}, {draft.longitude.toFixed(6)}
+              </div>
+            )}
           </div>
 
           <div className="add-lead-field-row">

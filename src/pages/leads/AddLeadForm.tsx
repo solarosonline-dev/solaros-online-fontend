@@ -9,6 +9,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
+import LocationPicker from "../../components/map/LocationPicker";
 
 type DraftFields = {
   name: string;
@@ -25,6 +26,8 @@ type DraftFields = {
   avgBill: string;
   avgUnits: string;
   requirement: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 type FieldErrors = Partial<Record<keyof CreateLeadInput, string>>;
@@ -50,6 +53,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [avgBill, setAvgBill] = useState("");
   const [avgUnits, setAvgUnits] = useState("");
   const [requirement, setRequirement] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
 
@@ -75,6 +80,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     setAvgBill(f.avgBill);
     setAvgUnits(f.avgUnits);
     setRequirement(f.requirement);
+    if (f.latitude !== undefined) setLatitude(f.latitude);
+    if (f.longitude !== undefined) setLongitude(f.longitude);
     setDraftRestoredAt(draft.timestamp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -94,6 +101,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     setAvgBill("");
     setAvgUnits("");
     setRequirement("");
+    setLatitude(null);
+    setLongitude(null);
   }
 
   function handleResetDraft() {
@@ -127,7 +136,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     avgBill,
     avgUnits,
     requirement,
-  ].some((v) => v.trim() !== "");
+  ].some((v) => v.trim() !== "") || latitude !== null || longitude !== null;
 
   // Only autosave once the user has actually typed something -- otherwise
   // simply opening (and closing) the "Add lead" panel would seed an
@@ -150,6 +159,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
       avgBill,
       avgUnits,
       requirement,
+      latitude,
+      longitude,
     },
     isDirty,
   );
@@ -249,6 +260,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         avg_monthly_units: avgUnits ? Number(avgUnits) : undefined,
         requirement: requirement.trim() || undefined,
         entry_duration_ms: getElapsedMs(),
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
       });
       clearDraft(draftKeys.leadNew());
       setDraftRestoredAt(null);
@@ -308,6 +321,23 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         <div className="add-lead-field">
           <label htmlFor="leadAddress">Address</label>
           <textarea id="leadAddress" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+        </div>
+
+        <div className="add-lead-field">
+          <label>Map Location (Optional)</label>
+          <LocationPicker 
+            initialLat={latitude} 
+            initialLng={longitude} 
+            onLocationSelect={(lat, lng) => {
+              setLatitude(lat);
+              setLongitude(lng);
+            }} 
+          />
+          {latitude !== null && longitude !== null && (
+            <div style={{ fontSize: "12px", color: "var(--app-text-muted)", marginTop: "4px" }}>
+              Saved: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+            </div>
+          )}
         </div>
 
         <div className="add-lead-field-row">
