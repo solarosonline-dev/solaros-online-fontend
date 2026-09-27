@@ -43,7 +43,7 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
 
   if (orders.length === 0) {
     return (
-      <div className="project-detail-panel">
+      <div>
         <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>
         <div className="entity-panel-empty">No procurement orders created for this project yet. Use the Material Routing tab to generate orders.</div>
       </div>
@@ -51,7 +51,7 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
   }
 
   return (
-    <div className="project-detail-panel">
+    <div>
       <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>
       <div style={{ display: "grid", gap: "16px" }}>
         {orders.map((order) => (

@@ -102,7 +102,7 @@ export default function MaterialRoutingTab({ entityId, projectId }: Props) {
   }
 
   return (
-    <div className="project-detail-panel">
+    <div>
       <h3 style={{ margin: "0 0 16px" }}>Material Routing & Procurement</h3>
       <p style={{ margin: "0 0 24px", color: "var(--app-text-muted)" }}>
         Build a Bill of Materials (BOM) and let the engine find the closest warehouses with available stock.
@@ -110,7 +110,7 @@ export default function MaterialRoutingTab({ entityId, projectId }: Props) {
 
       <div className="routing-layout">
         {/* Left: BOM Builder */}
-        <div className="add-lead-panel" style={{ flex: 1, margin: 0, width: "100%", boxSizing: "border-box" }}>
+        <div className="project-detail-panel" style={{ flex: 1, margin: 0, width: "100%", boxSizing: "border-box" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: "14px" }}>Bill of Materials</h4>
           
           <form onSubmit={handleAddItem} className="bom-form-grid">
