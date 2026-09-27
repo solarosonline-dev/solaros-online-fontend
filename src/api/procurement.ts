@@ -107,6 +107,6 @@ export async function updateProcurementOrder(
 ): Promise<ProcurementOrderResponse> {
   return apiRequest<ProcurementOrderResponse>(`/entities/${entityId}/procurement/${procurementId}`, {
     method: "PATCH",
-    body: JSON.stringify(data),
+    body: data,
   });
 }

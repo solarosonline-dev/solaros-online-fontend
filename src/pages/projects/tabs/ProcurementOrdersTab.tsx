@@ -33,7 +33,10 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<PaymentMethod>("NEFT");
   const [payRef, setPayRef] = useState("");
-  const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]);
+  const [payDate, setPayDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [payStatus, setPayStatus] = useState<PaymentStatus>("COMPLETED");
   const [payNotes, setPayNotes] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
@@ -194,8 +197,8 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
               <input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} required />
             </div>
             <div className="projects-form-field">
-              <label>Date</label>
-              <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
+              <label>Date & Time</label>
+              <input type="datetime-local" value={payDate} onChange={e => setPayDate(e.target.value)} required />
             </div>
             <div className="projects-form-field">
               <label>Method</label>
@@ -253,7 +256,13 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
             <tbody>
               {payments.map(p => (
                 <tr key={p.payment_id}>
-                  <td data-label="Date">{new Date(p.payment_date).toLocaleDateString()}</td>
+                  <td data-label="Date">
+                    {new Date(p.payment_date).toLocaleDateString()}
+                    <br />
+                    <span style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
+                      {new Date(p.payment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </td>
                   <td data-label="Amount"><strong>₹{p.amount.toLocaleString()}</strong></td>
                   <td data-label="Method">{p.payment_method}</td>
                   <td data-label="Reference">{p.reference_number || "-"}</td>
@@ -300,7 +309,6 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
   if (orders.length === 0) {
     return (
       <div>
-        <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>
         <div className="entity-panel-empty">No procurement orders created for this project yet. Use the Material Routing tab to generate orders.</div>
       </div>
     );

@@ -43,7 +43,7 @@ export interface PaymentUpdate {
 export async function createPayment(entityId: number, data: PaymentCreate): Promise<Payment> {
   return apiRequest<Payment>(`/entities/${entityId}/payments`, {
     method: "POST",
-    body: JSON.stringify(data)
+    body: data
   });
 }
 
@@ -73,6 +73,6 @@ export async function updatePayment(
 ): Promise<Payment> {
   return apiRequest<Payment>(`/entities/${entityId}/payments/${paymentId}`, {
     method: "PATCH",
-    body: JSON.stringify(data)
+    body: data
   });
 }

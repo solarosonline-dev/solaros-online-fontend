@@ -16,7 +16,10 @@ export function ProjectPaymentsTab({
   const [amount, setAmount] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("NEFT");
   const [referenceNumber, setReferenceNumber] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentDate, setPaymentDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [status, setStatus] = useState<PaymentStatus>("COMPLETED");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -33,7 +36,10 @@ export function ProjectPaymentsTab({
       // Only show INBOUND payments here (project revenue)
       setPayments(res.items.filter((p) => p.direction === "INBOUND"));
     } catch (err: any) {
-      setError(err.message || "Failed to load payments");
+      // Only show error for 5xx errors or network errors (which might be masked 500s due to CORS)
+      if (!(err instanceof ApiError) || err.status >= 500) {
+        setError(err.message || "Failed to load payments");
+      }
     } finally {
       setLoading(false);
     }
@@ -44,6 +50,7 @@ export function ProjectPaymentsTab({
     if (!amount || isNaN(Number(amount))) return;
     
     setSaving(true);
+    setError(null); // Clear any previous errors on new attempt
     try {
       const payload: PaymentCreate = {
         project_id: projectId,
@@ -81,7 +88,6 @@ export function ProjectPaymentsTab({
     <div className="project-payments-tab">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
         <div>
-          <h3 style={{ margin: 0 }}>Project Payments</h3>
           <p className="text-muted" style={{ margin: "0.25rem 0 0" }}>
             Total Received: <strong>₹{totalReceived.toLocaleString()}</strong>
           </p>
@@ -104,8 +110,8 @@ export function ProjectPaymentsTab({
               <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required />
             </div>
             <div className="projects-form-field">
-              <label>Date</label>
-              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+              <label>Date & Time</label>
+              <input type="datetime-local" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
             </div>
           </div>
           <div className="projects-form-row">
@@ -170,7 +176,13 @@ export function ProjectPaymentsTab({
             <tbody>
               {payments.map(p => (
                 <tr key={p.payment_id}>
-                  <td data-label="Date">{new Date(p.payment_date).toLocaleDateString()}</td>
+                  <td data-label="Date">
+                    {new Date(p.payment_date).toLocaleDateString()}
+                    <br />
+                    <span style={{ fontSize: '11px', color: 'var(--app-text-muted)' }}>
+                      {new Date(p.payment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </td>
                   <td data-label="Amount"><strong>₹{p.amount.toLocaleString()}</strong></td>
                   <td data-label="Method">{p.payment_method}</td>
                   <td data-label="Reference">
