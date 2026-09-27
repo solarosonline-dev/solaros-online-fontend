@@ -187,17 +187,17 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
       </div>
 
       {showAddPayment && (
-        <form className="admin-form-card" onSubmit={handleSavePayment} style={{ marginBottom: "16px" }}>
-          <div className="admin-form-row">
-            <div className="admin-form-group">
+        <form className="projects-form-card" onSubmit={handleSavePayment} style={{ marginBottom: "16px" }}>
+          <div className="projects-form-row">
+            <div className="projects-form-field">
               <label>Amount (₹)</label>
               <input type="number" step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value)} required />
             </div>
-            <div className="admin-form-group">
+            <div className="projects-form-field">
               <label>Date</label>
               <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
             </div>
-            <div className="admin-form-group">
+            <div className="projects-form-field">
               <label>Method</label>
               <select value={payMethod} onChange={e => setPayMethod(e.target.value as PaymentMethod)}>
                 <option value="UPI">UPI</option>
@@ -211,8 +211,8 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
               </select>
             </div>
           </div>
-          <div className="admin-form-row">
-            <div className="admin-form-group">
+          <div className="projects-form-row">
+            <div className="projects-form-field">
               <label>Status</label>
               <select value={payStatus} onChange={e => setPayStatus(e.target.value as PaymentStatus)}>
                 <option value="COMPLETED">Paid (Completed)</option>
@@ -220,7 +220,7 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
                 <option value="FAILED">Failed</option>
               </select>
             </div>
-            <div className="admin-form-group" style={{ flex: 2 }}>
+            <div className="projects-form-field" style={{ flex: 2 }}>
               <label>Reference Number (UTR / Cheque No)</label>
               <input type="text" value={payRef} onChange={e => setPayRef(e.target.value)} />
             </div>
@@ -239,8 +239,8 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
       {loadingPayments ? (
         <div className="text-muted" style={{ fontSize: "13px" }}>Loading payments...</div>
       ) : payments.length > 0 ? (
-        <div className="admin-table-container">
-          <table className="admin-table projects-table" style={{ fontSize: "13px" }}>
+        <div className="projects-table-wrap">
+          <table className="projects-table" style={{ fontSize: "13px" }}>
             <thead>
               <tr>
                 <th>Date</th>

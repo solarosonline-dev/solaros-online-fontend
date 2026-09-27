@@ -96,20 +96,20 @@ export function ProjectPaymentsTab({
       {error && <div className="error-message" style={{ marginBottom: "1rem" }}>{error}</div>}
 
       {showAddForm && (
-        <form className="admin-form-card" onSubmit={handleAddPayment} style={{ marginBottom: "2rem" }}>
+        <form className="projects-form-card" onSubmit={handleAddPayment} style={{ marginBottom: "2rem" }}>
           <h4 style={{ marginTop: 0 }}>Record Incoming Payment</h4>
-          <div className="admin-form-row">
-            <div className="admin-form-group">
+          <div className="projects-form-row">
+            <div className="projects-form-field">
               <label>Amount (₹)</label>
               <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} required />
             </div>
-            <div className="admin-form-group">
+            <div className="projects-form-field">
               <label>Date</label>
               <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
             </div>
           </div>
-          <div className="admin-form-row">
-            <div className="admin-form-group">
+          <div className="projects-form-row">
+            <div className="projects-form-field">
               <label>Method</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}>
                 <option value="UPI">UPI</option>
@@ -122,7 +122,7 @@ export function ProjectPaymentsTab({
                 <option value="OTHER">Other</option>
               </select>
             </div>
-            <div className="admin-form-group">
+            <div className="projects-form-field">
               <label>Status</label>
               <select value={status} onChange={e => setStatus(e.target.value as PaymentStatus)}>
                 <option value="COMPLETED">Received (Completed)</option>
@@ -131,13 +131,13 @@ export function ProjectPaymentsTab({
               </select>
             </div>
           </div>
-          <div className="admin-form-row">
-            <div className="admin-form-group" style={{ flex: 2 }}>
+          <div className="projects-form-row">
+            <div className="projects-form-field" style={{ flex: 2 }}>
               <label>Reference Number (UTR / Cheque No)</label>
               <input type="text" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} />
             </div>
           </div>
-          <div className="admin-form-group">
+          <div className="projects-form-field">
             <label>Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
@@ -155,8 +155,8 @@ export function ProjectPaymentsTab({
       {payments.length === 0 ? (
         <div className="empty-state">No payments recorded for this project yet.</div>
       ) : (
-        <div className="admin-table-container">
-          <table className="admin-table projects-table">
+        <div className="projects-table-wrap">
+          <table className="projects-table">
             <thead>
               <tr>
                 <th>Date</th>

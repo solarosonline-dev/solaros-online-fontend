@@ -1057,3 +1057,57 @@
     gap: 8px;
   }
 }
+
+/* Procurement / Payments form layout */
+.projects-form-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.projects-form-card h4 {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+
+.projects-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.projects-form-field {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.projects-form-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+}
+
+.projects-form-field input,
+.projects-form-field select {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .projects-form-field {
+    min-width: 100%;
+  }
+}
