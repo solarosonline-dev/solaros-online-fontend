@@ -41,7 +41,7 @@ export interface PaymentUpdate {
 }
 
 export async function createPayment(entityId: number, data: PaymentCreate): Promise<Payment> {
-  return apiRequest<Payment>(`/entities/${entityId}/payments/`, {
+  return apiRequest<Payment>(`/entities/${entityId}/payments`, {
     method: "POST",
     body: JSON.stringify(data)
   });
@@ -62,7 +62,7 @@ export async function listPayments(
   
   const query = searchParams.toString();
   return apiRequest<{ items: Payment[] }>(
-    `/entities/${entityId}/payments/${query ? `?${query}` : ""}`
+    `/entities/${entityId}/payments${query ? `?${query}` : ""}`
   );
 }
 

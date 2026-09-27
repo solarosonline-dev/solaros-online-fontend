@@ -216,8 +216,8 @@ export default function ProjectDetailPage() {
         >
           Procurement Orders
         </button>
-      </div>
         <button
+          type="button"
           role="tab"
           aria-selected={tab === "payments"}
           className={`project-tab${tab === "payments" ? " active" : ""}`}
@@ -225,6 +225,7 @@ export default function ProjectDetailPage() {
         >
           Project Payments
         </button>
+      </div>
 
       {tab === "installations" ? (
         <>

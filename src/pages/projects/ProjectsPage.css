@@ -278,6 +278,7 @@
   gap: 4px;
   border-bottom: 1px solid var(--app-border);
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 /* Native dropdown shown only ≤640px in place of .wo-status-tabs below --

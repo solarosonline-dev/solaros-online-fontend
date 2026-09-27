@@ -123,18 +123,18 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
               <input 
                 type="number" 
                 className="admin-input" 
-                style={{ width: "120px" }}
+                style={{ width: "120px", padding: "6px 8px", fontSize: "14px", border: "1px solid var(--app-border)", borderRadius: "6px" }}
                 value={costInput} 
                 onChange={e => setCostInput(e.target.value)} 
                 placeholder="0.00"
               />
-              <button className="projects-btn primary" style={{ padding: "4px 8px", fontSize: "12px" }} onClick={handleSaveCost} disabled={savingCost}>Save</button>
-              <button className="projects-btn" style={{ padding: "4px 8px", fontSize: "12px" }} onClick={() => setIsEditingCost(false)}>Cancel</button>
+              <button type="button" className="projects-btn primary" style={{ padding: "4px 8px", fontSize: "12px" }} onClick={handleSaveCost} disabled={savingCost}>Save</button>
+              <button type="button" className="projects-btn" style={{ padding: "4px 8px", fontSize: "12px" }} onClick={() => setIsEditingCost(false)}>Cancel</button>
             </div>
           ) : (
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <strong style={{ fontSize: "16px" }}>{order.total_cost != null ? `₹${order.total_cost.toLocaleString()}` : "Not set"}</strong>
-              <button className="projects-btn" style={{ padding: "2px 8px", fontSize: "12px" }} onClick={() => { setCostInput(order.total_cost?.toString() || ""); setIsEditingCost(true); }}>Edit</button>
+              <button type="button" className="projects-btn" style={{ padding: "2px 8px", fontSize: "12px" }} onClick={() => { setCostInput(order.total_cost?.toString() || ""); setIsEditingCost(true); }}>Edit</button>
             </div>
           )}
         </div>
@@ -180,7 +180,7 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderTop: "1px solid var(--app-border)", paddingTop: "16px" }}>
         <h4 style={{ margin: 0, fontSize: "13px", color: "var(--app-text-muted)", textTransform: "uppercase" }}>Vendor Payments</h4>
         {!showAddPayment && (
-          <button className="projects-btn primary" style={{ padding: "4px 12px", fontSize: "13px" }} onClick={() => setShowAddPayment(true)}>
+          <button type="button" className="projects-btn primary" style={{ padding: "4px 12px", fontSize: "13px" }} onClick={() => setShowAddPayment(true)}>
             + Record Payment
           </button>
         )}

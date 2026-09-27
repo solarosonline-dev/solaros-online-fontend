@@ -87,7 +87,7 @@ export function ProjectPaymentsTab({
           </p>
         </div>
         {!showAddForm && (
-          <button className="projects-btn primary" onClick={() => setShowAddForm(true)}>
+          <button type="button" className="projects-btn primary" onClick={() => setShowAddForm(true)}>
             + Record Payment
           </button>
         )}
