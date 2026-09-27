@@ -108,12 +108,12 @@ export default function MaterialRoutingTab({ entityId, projectId }: Props) {
         Build a Bill of Materials (BOM) and let the engine find the closest warehouses with available stock.
       </p>
 
-      <div style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
+      <div className="routing-layout">
         {/* Left: BOM Builder */}
-        <div className="add-lead-panel" style={{ flex: 1, margin: 0 }}>
+        <div className="add-lead-panel" style={{ flex: 1, margin: 0, width: "100%", boxSizing: "border-box" }}>
           <h4 style={{ margin: "0 0 12px", fontSize: "14px" }}>Bill of Materials</h4>
           
-          <form onSubmit={handleAddItem} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px 100px auto", gap: "8px", alignItems: "end", marginBottom: "16px" }}>
+          <form onSubmit={handleAddItem} className="bom-form-grid">
             <div>
               <label style={{ display: "block", fontSize: "12px", marginBottom: "4px" }}>Type</label>
               <select value={materialType} onChange={(e) => setMaterialType(e.target.value as MaterialType)} style={{ width: "100%", padding: "6px" }}>

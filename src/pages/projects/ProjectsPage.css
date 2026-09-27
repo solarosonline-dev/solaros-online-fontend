@@ -1014,3 +1014,46 @@
   font-size: 13px;
   color: var(--app-text-muted);
 }
+
+/* Material Routing BOM Grid layout */
+.bom-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 80px 100px auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.routing-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+@media (max-width: 900px) {
+  .routing-layout {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .bom-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.procurement-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+@media (max-width: 640px) {
+  .procurement-order-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

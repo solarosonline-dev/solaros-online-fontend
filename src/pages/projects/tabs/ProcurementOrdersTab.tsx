@@ -55,8 +55,8 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
       <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>
       <div style={{ display: "grid", gap: "16px" }}>
         {orders.map((order) => (
-          <div key={order.procurement_id} style={{ background: "var(--app-bg)", border: "1px solid var(--app-border)", borderRadius: "var(--app-radius)", padding: "16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid var(--app-border)" }}>
+          <div key={order.procurement_id} style={{ background: "var(--app-bg)", border: "1px solid var(--app-border)", borderRadius: "var(--app-radius)", padding: "16px", overflowX: "auto" }}>
+            <div className="procurement-order-header">
               <div>
                 <div style={{ fontWeight: 500, fontSize: "16px", marginBottom: "4px" }}>Order #{order.procurement_id}</div>
                 <div style={{ fontSize: "13px", color: "var(--app-text-muted)" }}>
