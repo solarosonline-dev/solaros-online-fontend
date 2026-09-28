@@ -10,10 +10,16 @@ import type { PlantDesignData } from "./types";
 // /new), and turns PlantDesignEditor's onSave into a POST (first save) or
 // PATCH (every save after). The editor itself owns all the wizard state and
 // knows nothing about HTTP - see types.ts's PlantDesignEditorProps.
+import { useSearchParams } from "react-router-dom";
+import { uploadWorkOrderDocument } from "../../api/workOrders";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+
 export default function PlantDesignEditorPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const { plantDesignId } = useParams<{ plantDesignId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [initialDesignData, setInitialDesignData] = useState<PlantDesignData | undefined>(undefined);
@@ -24,6 +30,13 @@ export default function PlantDesignEditorPage() {
   // React's perspective within the same tick).
   const [savedId, setSavedId] = useState<number | null>(plantDesignId ? Number(plantDesignId) : null);
 
+  // New URL params when creating from a Work Order
+  const workOrderIdParam = searchParams.get("workOrderId");
+  const projectIdParam = searchParams.get("projectId");
+  const leadIdParam = searchParams.get("leadId");
+
+  const [linkedWorkOrderId, setLinkedWorkOrderId] = useState<number | null>(workOrderIdParam ? Number(workOrderIdParam) : null);
+
   useEffect(() => {
     if (!plantDesignId) return;
     setLoading(true);
@@ -32,16 +45,90 @@ export default function PlantDesignEditorPage() {
       .then((detail) => {
         setInitialDesignData(detail.design_data);
         setSavedId(detail.plant_design_id);
+        if (detail.work_order_id) {
+          setLinkedWorkOrderId(detail.work_order_id);
+        }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load plant design"))
       .finally(() => setLoading(false));
   }, [entityId, plantDesignId]);
 
+  async function handleGeneratePdf() {
+    if (!linkedWorkOrderId) return;
+    
+    // We expect the Editor to render the `.pde-capture-area` (the 2D/3D view) 
+    // and the `.sld-print-root` (the SLD layout)
+    const viewContainer = document.querySelector(".pde-map-container") as HTMLElement;
+    const sldContainer = document.querySelector(".sld-print-root") as HTMLElement;
+    
+    if (!viewContainer && !sldContainer) {
+       alert("Nothing to capture. Please ensure you have a design or SLD generated.");
+       return;
+    }
+
+    try {
+      const pdf = new jsPDF("l", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      let pageCount = 0;
+
+      // Capture 2D/3D View
+      if (viewContainer) {
+        const canvas = await html2canvas(viewContainer, { useCORS: true, scale: 2 });
+        const imgData = canvas.toDataURL("image/png");
+        const ratio = canvas.width / canvas.height;
+        const width = pdfWidth;
+        const height = pdfWidth / ratio;
+        
+        pdf.addImage(imgData, "PNG", 0, 10, width, height);
+        pageCount++;
+      }
+
+      // Capture SLD View
+      if (sldContainer) {
+        if (pageCount > 0) pdf.addPage();
+        
+        // SLD is often wider/taller, scale to fit
+        const canvas = await html2canvas(sldContainer, { useCORS: true, scale: 2 });
+        const imgData = canvas.toDataURL("image/png");
+        const ratio = canvas.width / canvas.height;
+        let width = pdfWidth;
+        let height = pdfWidth / ratio;
+
+        if (height > pdfHeight) {
+          height = pdfHeight - 20;
+          width = height * ratio;
+        }
+
+        pdf.addImage(imgData, "PNG", (pdfWidth - width) / 2, 10, width, height);
+      }
+
+      const pdfBlob = pdf.output("blob");
+      const file = new File([pdfBlob], "Site_Design_Report.pdf", { type: "application/pdf" });
+
+      await uploadWorkOrderDocument(entityId, linkedWorkOrderId, file);
+      
+      alert("Design Document generated and attached to Work Order successfully!");
+      
+      // Navigate back if we were created explicitly for a project
+      if (projectIdParam) {
+        navigate(`/app/projects/${projectIdParam}`);
+      } else {
+        navigate(`/app/work-orders/${linkedWorkOrderId}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to generate or upload the design document.");
+      throw err; // bubble up to stop the button's loading state
+    }
+  }
+
   async function handleSave(
     data: PlantDesignData,
     meta: { name: string; capacityKw: number | null; latitude: number | null; longitude: number | null },
   ) {
-    const body = {
+    const body: any = {
       name: meta.name,
       capacity_kw: meta.capacityKw,
       latitude: meta.latitude,
@@ -49,12 +136,20 @@ export default function PlantDesignEditorPage() {
       design_data: data,
     };
     if (savedId == null) {
+      if (workOrderIdParam) body.work_order_id = Number(workOrderIdParam);
+      if (projectIdParam) body.project_id = Number(projectIdParam);
+      if (leadIdParam) body.lead_id = Number(leadIdParam);
+
       const created = await createPlantDesign(entityId, body);
       setSavedId(created.plant_design_id);
+      
+      // Preserve the query params if we came from a work order so the UI knows we are still linked
+      const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+      
       // Replace, not push - the /new URL shouldn't stay in history once a
       // real id exists, so back-navigation doesn't return to a stale "new"
       // form that would create a second design on the next save.
-      navigate(`/app/plant-design/${created.plant_design_id}`, { replace: true });
+      navigate(`/app/plant-design/${created.plant_design_id}${qs}`, { replace: true });
       return created.design_data;
     }
     const updated = await updatePlantDesign(entityId, savedId, body);
@@ -78,6 +173,9 @@ export default function PlantDesignEditorPage() {
       initialDesignData={initialDesignData}
       onSave={handleSave}
       onCaptureSiteImage={handleCaptureSiteImage}
+      linkedWorkOrderId={linkedWorkOrderId}
+      entityId={entityId}
+      onGeneratePdf={handleGeneratePdf}
     />
   );
 }

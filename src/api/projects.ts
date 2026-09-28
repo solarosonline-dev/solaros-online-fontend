@@ -6,6 +6,14 @@ export type ProjectStatus =
   | "NEW"
   | "SITE_SURVEY_IN_PROGRESS"
   | "SITE_SURVEY_COMPLETED"
+  | "SITE_DESIGN_IN_PROGRESS"
+  | "SITE_DESIGN_COMPLETED"
+  | "PRE_INSTALL_DISCOM_APPROVAL_IN_PROGRESS"
+  | "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED"
+  | "MATERIAL_PROCUREMENT_IN_PROGRESS"
+  | "MATERIAL_PROCUREMENT_COMPLETED"
+  | "MATERIAL_DELIVERY_IN_PROGRESS"
+  | "MATERIAL_DELIVERY_COMPLETED"
   | "INSTALLATION_IN_PROGRESS"
   | "INSTALLATION_COMPLETED"
   | "COMMISSIONING_IN_PROGRESS"
@@ -18,6 +26,14 @@ const STATUS_CHAIN: ProjectStatus[] = [
   "NEW",
   "SITE_SURVEY_IN_PROGRESS",
   "SITE_SURVEY_COMPLETED",
+  "SITE_DESIGN_IN_PROGRESS",
+  "SITE_DESIGN_COMPLETED",
+  "PRE_INSTALL_DISCOM_APPROVAL_IN_PROGRESS",
+  "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED",
+  "MATERIAL_PROCUREMENT_IN_PROGRESS",
+  "MATERIAL_PROCUREMENT_COMPLETED",
+  "MATERIAL_DELIVERY_IN_PROGRESS",
+  "MATERIAL_DELIVERY_COMPLETED",
   "INSTALLATION_IN_PROGRESS",
   "INSTALLATION_COMPLETED",
   "COMMISSIONING_IN_PROGRESS",
@@ -49,8 +65,12 @@ export const SKIP_STAGE_TRANSITIONS: {
   label: string;
 }[] = [
   { from: "NEW", to: "SITE_SURVEY_COMPLETED", workOrderType: "SITE_SURVEY", label: "Skip site survey" },
+  { from: "SITE_SURVEY_COMPLETED", to: "SITE_DESIGN_COMPLETED", workOrderType: "SITE_DESIGN", label: "Skip site design" },
+  { from: "SITE_DESIGN_COMPLETED", to: "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED", workOrderType: "PRE_INSTALL_DISCOM_APPROVAL", label: "Skip discom approval" },
+  { from: "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED", to: "MATERIAL_PROCUREMENT_COMPLETED", workOrderType: "MATERIAL_PROCUREMENT", label: "Skip procurement" },
+  { from: "MATERIAL_PROCUREMENT_COMPLETED", to: "MATERIAL_DELIVERY_COMPLETED", workOrderType: "MATERIAL_DELIVERY", label: "Skip delivery" },
   {
-    from: "SITE_SURVEY_COMPLETED",
+    from: "MATERIAL_DELIVERY_COMPLETED",
     to: "INSTALLATION_COMPLETED",
     workOrderType: "INSTALLATION",
     label: "Skip installation",
@@ -73,19 +93,36 @@ export function skipStageFor(status: ProjectStatus) {
 // PROJECT_ADVANCE_ON_WORK_ORDER_CREATION/_COMPLETION maps assume (creating a
 // SITE_SURVEY/INSTALLATION/COMMISSIONING work order is itself what starts
 // that phase now, same as completing one is what ends it).
-export function currentPhaseWorkOrderType(status: ProjectStatus): WorkOrderType | null {
+export function currentPhaseWorkOrderType(status: ProjectStatus): WorkOrderType[] {
   switch (status) {
     case "NEW":
     case "SITE_SURVEY_IN_PROGRESS":
-      return "SITE_SURVEY";
+      return ["SITE_SURVEY"];
     case "SITE_SURVEY_COMPLETED":
+    case "SITE_DESIGN_IN_PROGRESS":
+      return ["SITE_DESIGN"];
+    case "SITE_DESIGN_COMPLETED":
+    case "PRE_INSTALL_DISCOM_APPROVAL_IN_PROGRESS":
+    case "MATERIAL_PROCUREMENT_IN_PROGRESS":
+    case "MATERIAL_DELIVERY_IN_PROGRESS":
+      // These three are allowed to be opened in parallel, so we return all available options
+      // to let the UI render them in a dropdown/menu.
+      return ["PRE_INSTALL_DISCOM_APPROVAL", "MATERIAL_PROCUREMENT", "MATERIAL_DELIVERY"];
+    case "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED":
+    case "MATERIAL_PROCUREMENT_COMPLETED":
+    case "MATERIAL_DELIVERY_COMPLETED":
+      // As any of the parallel stages complete, the project status bumps forward.
+      // In the real UI, we will check if ALL 3 are completed before offering INSTALLATION.
+      // But purely based on the string status, here are the possibilities:
+      if (status === "MATERIAL_DELIVERY_COMPLETED") return ["INSTALLATION"];
+      return ["PRE_INSTALL_DISCOM_APPROVAL", "MATERIAL_PROCUREMENT", "MATERIAL_DELIVERY"];
     case "INSTALLATION_IN_PROGRESS":
-      return "INSTALLATION";
+      return ["INSTALLATION"];
     case "INSTALLATION_COMPLETED":
     case "COMMISSIONING_IN_PROGRESS":
-      return "COMMISSIONING";
+      return ["COMMISSIONING"];
     default:
-      return null;
+      return [];
   }
 }
 

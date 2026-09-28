@@ -31,20 +31,37 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   return <span className={`project-status-badge${modifier}`}>{projectFunnelLabel(status)}</span>;
 }
 
-export type ProjectPhase = "SITE_SURVEY" | "INSTALLATION" | "COMMISSIONING";
+export type ProjectPhase = "SITE_SURVEY" | "PRE_INSTALLATION" | "INSTALLATION" | "COMMISSIONING";
 
-/** The three work-order-driven phases, each collapsing its own IN_PROGRESS/
+/** The work-order-driven phases, each collapsing its own IN_PROGRESS/
  * COMPLETED pair (see SKIP_STAGE_TRANSITIONS in api/projects.ts, which is
  * symmetric the same way) into one funnel stage. NEW folds into the site
- * survey stage (nothing has happened yet, so it's the start of that phase);
+ * survey stage (nothing has happened yet, so it's the start of that phase).
+ * PRE_INSTALLATION collapses the parallel tasks (Site Design, Discom Approval,
+ * Procurement, Delivery) so the funnel UI doesn't jump back and forth as
+ * parallel tracking is updated.
  * COMPLETED folds into commissioning (the last active phase before the
  * terminal state) rather than getting its own stage, matching the request
- * to show only these three in the bar. Commissioning's own 4-stage
+ * to show only these in the bar. Commissioning's own 4-stage
  * sub-lifecycle (apply net meter / Discom visit / meter installation / meter
  * commissioning) lives one level deeper, inside CommissioningPanel's own
  * stepper -- this bar only ever shows the macro phase. */
 export const PROJECT_PHASE_GROUPS: { phase: ProjectPhase; label: string; statuses: ProjectStatus[] }[] = [
   { phase: "SITE_SURVEY", label: "Site survey", statuses: ["NEW", "SITE_SURVEY_IN_PROGRESS", "SITE_SURVEY_COMPLETED"] },
+  {
+    phase: "PRE_INSTALLATION",
+    label: "Pre-Installation",
+    statuses: [
+      "SITE_DESIGN_IN_PROGRESS",
+      "SITE_DESIGN_COMPLETED",
+      "PRE_INSTALL_DISCOM_APPROVAL_IN_PROGRESS",
+      "PRE_INSTALL_DISCOM_APPROVAL_COMPLETED",
+      "MATERIAL_PROCUREMENT_IN_PROGRESS",
+      "MATERIAL_PROCUREMENT_COMPLETED",
+      "MATERIAL_DELIVERY_IN_PROGRESS",
+      "MATERIAL_DELIVERY_COMPLETED",
+    ],
+  },
   { phase: "INSTALLATION", label: "Installation", statuses: ["INSTALLATION_IN_PROGRESS", "INSTALLATION_COMPLETED"] },
   {
     phase: "COMMISSIONING",

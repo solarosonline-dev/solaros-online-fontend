@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type WorkOrderType = "SITE_SURVEY" | "INSTALLATION" | "COMMISSIONING" | "AMC_SERVICE" | "SLD_GENERATION";
+export type WorkOrderType = "SITE_SURVEY" | "SITE_DESIGN" | "PRE_INSTALL_DISCOM_APPROVAL" | "MATERIAL_PROCUREMENT" | "MATERIAL_DELIVERY" | "INSTALLATION" | "COMMISSIONING" | "AMC_SERVICE" | "SLD_GENERATION";
 export type WorkOrderStatus = "NEW" | "IN_PROGRESS" | "COMPLETED";
 
 export function nextWorkOrderStatus(status: WorkOrderStatus): WorkOrderStatus | null {

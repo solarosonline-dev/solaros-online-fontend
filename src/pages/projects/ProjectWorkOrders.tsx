@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listProjectWorkOrders, createProjectWorkOrder, type WorkOrderListItem } from "../../api/workOrders";
-import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus } from "../../api/projects";
+import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus, type WorkOrderType } from "../../api/projects";
 import { ApiError } from "../../api/client";
 
 const TYPE_LABEL: Record<string, string> = {
   SITE_SURVEY: "Site survey",
+  SITE_DESIGN: "Site design",
+  PRE_INSTALL_DISCOM_APPROVAL: "Discom approval",
+  MATERIAL_PROCUREMENT: "Material procurement",
+  MATERIAL_DELIVERY: "Material delivery",
   INSTALLATION: "Installation",
   COMMISSIONING: "Commissioning",
 };
@@ -46,42 +50,40 @@ export default function ProjectWorkOrders({
 
   useEffect(load, [entityId, projectId]);
 
-  // Only the type matching the project's current phase is offered here --
-  // e.g. while the project is NEW, only a Site survey work order can be
-  // created; once it's INSTALLATION_COMPLETED, only Commissioning. Mirrors
-  // currentPhaseWorkOrderType on the backend's PROJECT_ADVANCE_ON_WORK_ORDER_
-  // CREATION/_COMPLETION maps -- null once the project has moved past every
-  // work-order-driven phase (COMMISSIONING_COMPLETED, COMPLETED, REJECTED).
-  const currentType = currentPhaseWorkOrderType(projectStatus);
+  // Now returns an array of allowed Work Order types based on the project's current status
+  const currentTypes = currentPhaseWorkOrderType(projectStatus);
   const openTypes = new Set(items.filter((i) => i.status !== "COMPLETED").map((i) => i.type));
-  const alreadyOpen = currentType != null && openTypes.has(currentType);
+  
+  // Track selected type in dropdown when multiple are available
+  const [selectedType, setSelectedType] = useState<WorkOrderType | "">("");
 
-  // Skip lets an admin bypass the current phase entirely (no work order of
-  // that type ever created) and jump the project straight to the next
-  // phase -- only offered while no work order of the skipped type exists
-  // yet (open or completed); once one does, the phase must be resolved by
-  // completing/deleting it instead. See SKIP_STAGE_TRANSITIONS in
-  // api/projects.ts and the backend's mirror in projects.py.
+  // Default the selected type to the first available one if the dropdown hasn't been touched
+  useEffect(() => {
+    if (currentTypes.length === 1) {
+      setSelectedType(currentTypes[0]);
+    } else if (currentTypes.length > 1 && (!selectedType || !currentTypes.includes(selectedType))) {
+      setSelectedType(currentTypes[0]);
+    }
+  }, [currentTypes, selectedType]);
+
+  const alreadyOpen = selectedType !== "" && openTypes.has(selectedType as WorkOrderType);
+
   const skip = skipStageFor(projectStatus);
   const canSkip = skip != null && !items.some((i) => i.type === skip.workOrderType);
 
   async function handleCreate() {
-    if (!currentType) return;
+    if (!selectedType) return;
     setCreating(true);
     setCreateError(null);
     try {
       const res = await createProjectWorkOrder(entityId, projectId, {
-        type: currentType,
+        type: selectedType as WorkOrderType,
         notes: newNotes.trim() || undefined,
         visit_date: newVisitDate || undefined,
       });
       setNewNotes("");
       setNewVisitDate("");
       load();
-      // Creating a work order can itself advance the project's status (e.g.
-      // NEW -> SITE_SURVEY_IN_PROGRESS) -- without this the header badge,
-      // stepper, and the type/skip options above stay stale until the page
-      // is reloaded.
       if (res.project_status) onProjectStatusChange(res.project_status as ProjectStatus);
     } catch (err) {
       setCreateError(err instanceof ApiError ? err.message : "Could not create work order");
@@ -108,9 +110,25 @@ export default function ProjectWorkOrders({
     <>
       <p className="projects-section-label">Work orders</p>
 
-      {currentType && (
+      {currentTypes.length > 0 && (
         <div className="work-orders-new-panel">
-          <span className="work-order-current-type">{TYPE_LABEL[currentType]}</span>
+          {currentTypes.length === 1 ? (
+            <span className="work-order-current-type">{TYPE_LABEL[currentTypes[0]]}</span>
+          ) : (
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as WorkOrderType)}
+              className="admin-input"
+              style={{ width: "auto", margin: 0 }}
+            >
+              {currentTypes.map((type) => (
+                <option key={type} value={type}>
+                  {TYPE_LABEL[type]}
+                </option>
+              ))}
+            </select>
+          )}
+          
           <input
             type="text"
             placeholder="Notes (optional)"
@@ -123,7 +141,7 @@ export default function ProjectWorkOrders({
             value={newVisitDate}
             onChange={(e) => setNewVisitDate(e.target.value)}
           />
-          <button className="projects-btn primary" disabled={creating || alreadyOpen} onClick={handleCreate}>
+          <button className="projects-btn primary" disabled={creating || alreadyOpen || !selectedType} onClick={handleCreate}>
             {creating ? "Creating…" : alreadyOpen ? "Already open" : "+ New work order"}
           </button>
           {skip && (
@@ -167,7 +185,7 @@ export default function ProjectWorkOrders({
             <tbody>
               {items.map((wo) => (
                 <tr key={wo.work_order_id} onClick={() => navigate(`/app/work-orders/${wo.work_order_id}`)}>
-                  <td data-label="Type">{wo.type.replace("_", " ")}</td>
+                  <td data-label="Type">{TYPE_LABEL[wo.type] || wo.type.replace("_", " ")}</td>
                   <td data-label="Status">
                     <span className={wo.status === "COMPLETED" ? "project-status-badge completed" : "project-status-badge"}>
                       {wo.status}

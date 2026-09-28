@@ -11,6 +11,9 @@ export type PlantDesignListItem = {
   address: string | null;
   created_by_user_id: number;
   updated_at: string;
+  work_order_id?: number | null;
+  project_id?: number | null;
+  lead_id?: number | null;
 };
 
 export type PlantDesignList = {
@@ -34,18 +37,21 @@ export type PlantDesignDetail = {
   updated_by_user_id: number | null;
   created_at: string;
   updated_at: string;
+  work_order_id?: number | null;
+  project_id?: number | null;
+  lead_id?: number | null;
 };
 
-export function listPlantDesigns(entityId: number, params: { page?: number; page_size?: number } = {}) {
+export function listPlantDesigns(
+  entityId: number,
+  params: { page?: number; page_size?: number; work_order_id?: number } = {},
+) {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
   if (params.page_size) qs.set("page_size", String(params.page_size));
+  if (params.work_order_id) qs.set("work_order_id", String(params.work_order_id));
   const query = qs.toString();
   return apiRequest<PlantDesignList>(`/entities/${entityId}/plant-designs${query ? `?${query}` : ""}`);
-}
-
-export function getPlantDesign(entityId: number, plantDesignId: number) {
-  return apiRequest<PlantDesignDetail>(`/entities/${entityId}/plant-designs/${plantDesignId}`);
 }
 
 export function createPlantDesign(
@@ -58,6 +64,9 @@ export function createPlantDesign(
     latitude?: number | null;
     longitude?: number | null;
     design_data: PlantDesignData;
+    work_order_id?: number | null;
+    project_id?: number | null;
+    lead_id?: number | null;
   },
 ) {
   return apiRequest<PlantDesignDetail>(`/entities/${entityId}/plant-designs`, { method: "POST", body });

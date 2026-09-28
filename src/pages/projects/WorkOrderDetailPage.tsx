@@ -18,6 +18,7 @@ import { getEntityPreferences } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import WorkOrderDocuments from "./WorkOrderDocuments";
 import CommissioningPanel from "./CommissioningPanel";
+import SiteDesignPanel from "./SiteDesignPanel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SiteMap from "../../components/map/SiteMap";
 import "./ProjectsPage.css";
@@ -566,6 +567,15 @@ export default function WorkOrderDetailPage() {
 
       {isCommissioning && (
         <CommissioningPanel entityId={entityId} workOrderId={Number(workOrderId)} onAdvanced={handleCommissioningAdvanced} />
+      )}
+
+      {wo.type === "SITE_DESIGN" && (
+        <SiteDesignPanel 
+          entityId={entityId} 
+          workOrderId={Number(workOrderId)} 
+          projectId={wo.project_id} 
+          leadId={wo.lead_id} 
+        />
       )}
 
       {/* No explanatory hint for the non-permitted case -- a WORKER/

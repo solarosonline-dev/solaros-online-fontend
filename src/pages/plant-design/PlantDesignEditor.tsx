@@ -236,7 +236,7 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, entityId, onGeneratePdf }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   const isMobile = useIsMobile();
 
@@ -2744,7 +2744,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the host page's onSave, which does the actual POST/PATCH. idle |
   // saving | saved | error, mirrored back to "idle" a few seconds after a
   // successful save so the indicator doesn't sit stale.
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'generating'>('idle');
+
+  async function handleGeneratePdf() {
+    if (!onGeneratePdf) return;
+    setSaveStatus('generating');
+    try {
+      await onGeneratePdf();
+      setSaveStatus('idle');
+    } catch (e) {
+      setSaveStatus('error');
+    }
+  }
+
   async function handleSave() {
     const data: PlantDesignData = {
       roofs, obstacles, siteImages, location, locationConfirmed, monthlyGHI,
@@ -2904,7 +2916,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         <div className={`pde-topbar-save-row${isMobile ? ' pde-topbar-save-row--mobile' : ''}`} style={{ marginLeft: isMobile ? 0 : 'auto' }}>
           {saveStatus === 'saved' && <span className="pde-save-status success">Saved</span>}
           {saveStatus === 'error' && <span className="pde-save-status error">Save failed - try again</span>}
-          <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving'}>
+          {linkedWorkOrderId && onGeneratePdf && (
+            <button className="pde-save-btn" onClick={handleGeneratePdf} disabled={saveStatus === 'saving' || saveStatus === 'generating'}>
+              {saveStatus === 'generating' ? 'Generating PDF...' : 'Attach PDF to Work Order'}
+            </button>
+          )}
+          <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving' || saveStatus === 'generating'}>
             {saveStatus === 'saving' ? 'Saving…' : 'Save'}
           </button>
         </div>
