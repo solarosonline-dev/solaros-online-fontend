@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { listPayments, createPayment, type Payment, type PaymentCreate, type PaymentMethod, type PaymentStatus } from "../../../api/payments";
+import { ApiError } from "../../../api/client";
 
 export function ProjectPaymentsTab({
   entityId,

@@ -236,7 +236,7 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, entityId, onGeneratePdf }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onGeneratePdf }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   const isMobile = useIsMobile();
 

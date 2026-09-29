@@ -59,6 +59,5 @@ export interface PlantDesignEditorProps {
   ) => Promise<PlantDesignData | void>;
   onCaptureSiteImage?: (blob: Blob, contentType: string) => Promise<{ s3Key: string; url: string }>;
   linkedWorkOrderId?: number | null;
-  entityId?: number;
   onGeneratePdf?: () => Promise<void>;
 }

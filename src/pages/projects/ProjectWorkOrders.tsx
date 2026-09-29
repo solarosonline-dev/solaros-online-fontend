@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listProjectWorkOrders, createProjectWorkOrder, type WorkOrderListItem } from "../../api/workOrders";
-import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus, type WorkOrderType } from "../../api/projects";
+import { listProjectWorkOrders, createProjectWorkOrder, type WorkOrderListItem, type WorkOrderType } from "../../api/workOrders";
+import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus } from "../../api/projects";
 import { ApiError } from "../../api/client";
 
 const TYPE_LABEL: Record<string, string> = {

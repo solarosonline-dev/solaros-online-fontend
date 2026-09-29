@@ -54,6 +54,10 @@ export function listPlantDesigns(
   return apiRequest<PlantDesignList>(`/entities/${entityId}/plant-designs${query ? `?${query}` : ""}`);
 }
 
+export function getPlantDesign(entityId: number, plantDesignId: number) {
+  return apiRequest<PlantDesignDetail>(`/entities/${entityId}/plant-designs/${plantDesignId}`);
+}
+
 export function createPlantDesign(
   entityId: number,
   body: {

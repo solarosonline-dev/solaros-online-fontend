@@ -174,7 +174,6 @@ export default function PlantDesignEditorPage() {
       onSave={handleSave}
       onCaptureSiteImage={handleCaptureSiteImage}
       linkedWorkOrderId={linkedWorkOrderId}
-      entityId={entityId}
       onGeneratePdf={handleGeneratePdf}
     />
   );
