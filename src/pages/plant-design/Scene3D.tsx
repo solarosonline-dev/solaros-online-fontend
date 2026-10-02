@@ -411,7 +411,7 @@ function efficiencyColor(pct) {
 
 function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct }) {
   const tiltRad = tilt * DEG;
-  const rotationY = -(azimuth + extraRotation + gridRotation) * DEG;
+  const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
   const color = efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
@@ -566,7 +566,7 @@ function StructureMember({ member }) {
 function StructureSegment({ segment, y, depth, azimuth, roofHeight, direction, grid }) {
   const centerY = y + depth / 2; // `y` is the rack's front edge, not its center
   const gridRotation = grid?.rotation || 0;
-  const rotationY = -(azimuth + gridRotation) * DEG;
+  const rotationY = (-azimuth + gridRotation) * DEG;
   const localWorld = toSlopeWorld({ x: segment.midX, y: centerY }, direction);
   const world = gridRotation ? rotateAroundPivot(localWorld, gridPivot(grid), gridRotation) : localWorld;
 

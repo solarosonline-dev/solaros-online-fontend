@@ -515,11 +515,21 @@ export function suggestMaxPanelsPerRow({ roof, footprintPolygon, panelSpec, loca
 // resolvedGridPanels/resolvedGridAzimuth below, which rotate around the
 // grid's own footprint center on the way out - a read-time transform, not a
 // stored one.
-export function gridPivot(grid) {
+export function gridPivot(grid: any): { x: number; y: number } {
+  if (!grid) return { x: 0, y: 0 };
+  const panels = grid.panels || [];
+  if (panels.length > 0) {
+    const cx = panels.reduce((s: number, p: any) => s + p.x, 0) / panels.length;
+    const cy = panels.reduce((s: number, p: any) => s + p.y, 0) / panels.length;
+    return { x: cx, y: cy };
+  }
   const poly = grid.footprintPolygon;
-  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
-  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
-  return { x: cx, y: cy };
+  if (poly && poly.length > 0) {
+    const cx = poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length;
+    const cy = poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length;
+    return { x: cx, y: cy };
+  }
+  return { x: 0, y: 0 };
 }
 
 export function rotateAroundPivot(pt, pivot, deg) {
