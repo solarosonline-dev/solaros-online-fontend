@@ -932,31 +932,45 @@ export function addGridRow(grid, roof, side) {
   const gap = PANEL_GAP;
   const footprintDepth = grid.footprintDepth;
   const panelsPerRow = Math.max(1, grid.panelsPerRow || 1);
-  // rowPitch is the single-panel-deep row-to-row pitch (see
-  // generateLayout); the extra shading clearance beyond one panel's own
-  // footprint is what still applies once between this new cluster and the
-  // existing one, same as between any two clusters.
-  const extraRowClearance = grid.rowPitch - footprintDepth;
-  const clusterDepth = panelsPerRow * footprintDepth + (panelsPerRow - 1) * gap;
+  const maxIntraRackGap = footprintDepth + gap + 0.05;
 
   const sortedRowYs = [...new Set<number>(grid.panels.map((p: any) => p.rackY))].sort((a: number, b: number) => a - b);
+  if (sortedRowYs.length === 0) return grid;
+
   const edgeRowY = side === 'front' ? sortedRowYs[0] : sortedRowYs[sortedRowYs.length - 1];
+
+  let edgeClusterSize = 1;
+  if (side === 'front') {
+    for (let i = 0; i < sortedRowYs.length - 1; i++) {
+      if (sortedRowYs[i + 1] - sortedRowYs[i] <= maxIntraRackGap) {
+        edgeClusterSize++;
+      } else {
+        break;
+      }
+    }
+  } else {
+    for (let i = sortedRowYs.length - 1; i > 0; i--) {
+      if (sortedRowYs[i] - sortedRowYs[i - 1] <= maxIntraRackGap) {
+        edgeClusterSize++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const isFullCluster = edgeClusterSize >= panelsPerRow;
+  const step = isFullCluster ? grid.rowPitch : (footprintDepth + gap);
+  const rowY = side === 'front' ? edgeRowY - step : edgeRowY + step;
+
   const columnXs = grid.panels.filter((p) => p.rackY === edgeRowY).map((p) => p.rackX);
   const w = grid.panels[0].w;
 
-  const clusterTop = side === 'front'
-    ? bounds.minY - extraRowClearance - clusterDepth
-    : bounds.maxY + extraRowClearance;
-
   let nextId = Math.max(...grid.panels.map((p) => p.id)) + 1;
   let newPanels: any[] = [];
-  for (let i = 0; i < panelsPerRow; i++) {
-    const rowY = clusterTop + footprintDepth / 2 + i * (footprintDepth + gap);
-    columnXs.forEach((rackX) => {
-      const world = toSlopeWorld({ x: rackX, y: rowY }, direction);
-      newPanels.push({ id: nextId++, x: world.x, y: world.y, rackX, rackY: rowY, w, d: footprintDepth });
-    });
-  }
+  columnXs.forEach((rackX) => {
+    const world = toSlopeWorld({ x: rackX, y: rowY }, direction);
+    newPanels.push({ id: nextId++, x: world.x, y: world.y, rackX, rackY: rowY, w, d: footprintDepth });
+  });
 
   const panels = [...grid.panels, ...newPanels];
   return {
@@ -1171,6 +1185,9 @@ const PANEL_PLANE_OFFSET = CHORD_THICKNESS / 2 + PURLIN_THICKNESS + PANEL_THICKN
 function* iterateRacks(layout) {
   const footprintDepth = layout.footprintDepth;
   const panelsPerRow = Math.max(1, layout.panelsPerRow || 1);
+  const gap = PANEL_GAP;
+  const maxIntraRackGap = footprintDepth + gap + 0.05;
+
   const rowMap = new Map();
   layout.panels.forEach((p) => {
     if (!rowMap.has(p.rackY)) rowMap.set(p.rackY, []);
@@ -1178,8 +1195,19 @@ function* iterateRacks(layout) {
   });
   const sortedYs = [...rowMap.keys()].sort((a, b) => a - b);
 
-  for (let ci = 0; ci * panelsPerRow < sortedYs.length; ci++) {
-    const rackYs = sortedYs.slice(ci * panelsPerRow, ci * panelsPerRow + panelsPerRow);
+  let i = 0;
+  while (i < sortedYs.length) {
+    const rackYs: number[] = [sortedYs[i]];
+    i++;
+    while (
+      i < sortedYs.length &&
+      rackYs.length < panelsPerRow &&
+      (sortedYs[i] - sortedYs[i - 1]) <= maxIntraRackGap
+    ) {
+      rackYs.push(sortedYs[i]);
+      i++;
+    }
+
     const rackTop = rackYs[0] - footprintDepth / 2;
     const rackDepth = rackYs[rackYs.length - 1] + footprintDepth / 2 - rackTop;
 
@@ -1189,14 +1217,14 @@ function* iterateRacks(layout) {
 
     let runs: any[] = [];
     let current = [sortedPanels[0]];
-    for (let i = 1; i < sortedPanels.length; i++) {
+    for (let pIdx = 1; pIdx < sortedPanels.length; pIdx++) {
       const prevMaxX = Math.max(...current.map((p) => p.rackX + p.w / 2));
-      const nextMinX = sortedPanels[i].rackX - sortedPanels[i].w / 2;
+      const nextMinX = sortedPanels[pIdx].rackX - sortedPanels[pIdx].w / 2;
       if (nextMinX - prevMaxX > 0.05) {
         runs.push(current);
-        current = [sortedPanels[i]];
+        current = [sortedPanels[pIdx]];
       } else {
-        current.push(sortedPanels[i]);
+        current.push(sortedPanels[pIdx]);
       }
     }
     runs.push(current);
