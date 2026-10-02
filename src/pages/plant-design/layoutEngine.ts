@@ -327,18 +327,24 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   // exactly the shared-width-per-cluster behavior below, untouched.
   const stepped = structureStrategy === 'steppedTruss';
 
+  const maxPanels = gridSettings.maxPanels ?? Infinity;
+  const maxRows = gridSettings.maxRows ?? Infinity;
+
   // Pre-calculate total depth consumed by all clusters that will fit in [minY, maxY]
   // so we can center the cluster stack vertically on the usable roof surface
   // instead of dumping all leftover space at the bottom.
   let simTop = minY;
   let totalUsedDepth = 0;
   let simClusterCount = 0;
-  while (simTop + footprintDepth <= maxY + 1e-9) {
+  let simRowCount = 0;
+  while (simTop + footprintDepth <= maxY + 1e-9 && simRowCount < maxRows) {
     const remainingDepth = maxY - simTop;
     const maxRowsThatFit = Math.max(1, Math.floor((remainingDepth + gap) / (footprintDepth + gap)));
-    let rowsHere = Math.min(panelsPerRow, maxRowsThatFit);
+    let rowsHere = Math.min(panelsPerRow, maxRowsThatFit, maxRows - simRowCount);
+    if (rowsHere <= 0) break;
     const thisClusterDepth = rowsHere * footprintDepth + (rowsHere - 1) * gap;
     simClusterCount++;
+    simRowCount += rowsHere;
     simTop += thisClusterDepth + extraRowClearance;
   }
   if (simClusterCount > 0) {
@@ -350,23 +356,12 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   let panels: any[] = [];
   let idc = 0;
   let clusterTop = minY + verticalOffset;
-  // Packs however many full clusters of `panelsPerRow` fit, then - unlike
-  // before - keeps going with a smaller *partial* final cluster for
-  // whatever depth is left over, rather than stopping the instant a full
-  // cluster no longer fits. Previously any leftover depth that couldn't
-  // hold a complete cluster was wasted outright: a footprint too shallow
-  // for even one full cluster packed zero panels at all, and a footprint
-  // with room for, say, 1.5 clusters only ever got the first 1. Each
-  // iteration recomputes how many rows actually fit in the depth that's
-  // left (`maxRowsThatFit`), capped at `panelsPerRow` - every cluster
-  // except possibly the last still comes out exactly `panelsPerRow` deep,
-  // so `clusterDepth`/`clusterPitch` above (still returned on the grid,
-  // e.g. for the "rack spacing (N-up)" summary text) keep describing the
-  // nominal full-size rack.
-  while (clusterTop + footprintDepth <= maxY + 1e-9) {
+  let currentRowCount = 0;
+  while (clusterTop + footprintDepth <= maxY + 1e-9 && currentRowCount < maxRows && panels.length < maxPanels) {
     const remainingDepth = maxY - clusterTop;
     const maxRowsThatFit = Math.max(1, Math.floor((remainingDepth + gap) / (footprintDepth + gap)));
-    let rowsHere = Math.min(panelsPerRow, maxRowsThatFit);
+    let rowsHere = Math.min(panelsPerRow, maxRowsThatFit, maxRows - currentRowCount);
+    if (rowsHere <= 0) break;
 
     if (stepped) {
       // "Roof mount (stepped)": each row packs to its own available width
@@ -388,7 +383,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
         while (x + Wp / 2 <= gridX1 + 1e-9) {
           rowYs.forEach((rowY, ri) => {
             const inSeg = rowSegmentsList[ri].some(([s0, s1]) => x - Wp / 2 >= s0 - 1e-9 && x + Wp / 2 <= s1 + 1e-9);
-            if (inSeg && !isBlockedAt(x, rowY)) {
+            if (inSeg && !isBlockedAt(x, rowY) && panels.length < maxPanels) {
               const world = toSlopeWorld({ x, y: rowY }, direction);
               panels.push({ id: idc++, x: world.x, y: world.y, rackX: x, rackY: rowY, w: Wp, d: footprintDepth });
             }
@@ -396,6 +391,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
           x += Wp + gap;
         }
       }
+      currentRowCount += rowsHere;
       clusterTop += rowsHere * footprintDepth + (rowsHere - 1) * gap + extraRowClearance;
       continue;
     }
@@ -424,13 +420,14 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
       if (clusterSegments.length > 0 || rowsHere <= 1) break;
       rowsHere -= 1;
     }
+    currentRowCount += rowsHere;
     const thisClusterDepth = rowsHere * footprintDepth + (rowsHere - 1) * gap;
 
     rowYs.forEach((rowY) => {
       clusterSegments.forEach(([segX0, segX1]) => {
         let x = segX0 + Wp / 2;
         while (x + Wp / 2 <= segX1 + 1e-9) {
-          if (!isBlockedAt(x, rowY)) {
+          if (!isBlockedAt(x, rowY) && panels.length < maxPanels) {
             // `x`/`rackY` stay in local space - the support structure
             // (computeStructure) groups/positions racks using these, so a
             // rack still reads as a straight east-west run regardless of

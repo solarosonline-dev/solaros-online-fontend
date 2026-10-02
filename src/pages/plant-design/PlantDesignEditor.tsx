@@ -617,12 +617,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       if (roof.id !== roofId) return roof;
       const grids = roof.grids.map((g) => {
         if (g.id !== gridId) return g;
+        const preserveCount = patch.panelsPerRow === undefined && patch.orientation === undefined;
         const gridSettings = {
           panelTiltDeg: patch.panelTiltDeg !== undefined ? patch.panelTiltDeg : g.panelTiltDeg,
           rowSpacing: patch.rowSpacing !== undefined ? patch.rowSpacing : g.rowSpacing,
           structureStrategy: patch.structureStrategy ?? g.structureStrategy,
           panelsPerRow: patch.panelsPerRow ?? g.panelsPerRow,
           orientation: patch.orientation ?? g.orientation,
+          maxPanels: preserveCount ? (g.panels ? g.panels.length : undefined) : undefined,
+          maxRows: preserveCount ? (g.panels ? new Set<number>(g.panels.map((p: any) => p.rackY)).size : undefined) : undefined,
         };
         const next = generateLayout({ roof, footprintPolygon: g.footprintPolygon, gridSettings, panelSpec, obstacles, location });
         // `source` isn't set by generateLayout itself - carry it over so a
