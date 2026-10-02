@@ -1,9 +1,6 @@
-import { useAuth } from "../lib/AuthContext";
 import "./TrialExpiredPage.css";
 
 export default function TrialExpiredPage() {
-  const { signOut } = useAuth();
-
   return (
     <div className="trial-expired-container">
       <div className="trial-expired-card">
@@ -15,9 +12,6 @@ export default function TrialExpiredPage() {
           <a href="mailto:connect@solaros.online" className="trial-expired-btn primary">
             Contact Support to Upgrade
           </a>
-          <button className="trial-expired-btn secondary" onClick={signOut}>
-            Sign Out
-          </button>
         </div>
       </div>
     </div>
