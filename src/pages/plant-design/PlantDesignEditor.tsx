@@ -2731,16 +2731,30 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     });
   }
 
-  // Output estimate (step 5) recalculates on its own - on arrival, and
-  // again whenever the user changes the period (day/month/year) or an
-  // assumption (system derate/diffuse fraction) while already there - so
-  // there's no separate "Recalculate" button to remember to press. Not
-  // keyed on the design itself (roofs/panels/pricing) since those can
-  // only change on other steps, which this effect isn't active on.
+  // Keep grid capacities and panel dimensions in sync whenever panelSpec changes
   useEffect(() => {
-    if (currentStep === 5 && totalPanelCount > 0) handleCalculate();
+    setRoofs((rs) => rs.map((roof) => {
+      let changed = false;
+      const grids = roof.grids.map((g) => {
+        const expectedKw = (g.count * panelSpec.wattage) / 1000;
+        const Wp = (g.orientation ?? 'portrait') === 'landscape' ? panelSpec.height : panelSpec.width;
+        const Ls = (g.orientation ?? 'portrait') === 'landscape' ? panelSpec.width : panelSpec.height;
+        if (Math.abs(g.capacityKW - expectedKw) > 1e-4) {
+          changed = true;
+          const updatedPanels = (g.panels || []).map((p: any) => ({ ...p, w: Wp, d: Ls }));
+          return { ...g, capacityKW: expectedKw, footprintDepth: Ls, panels: updatedPanels };
+        }
+        return g;
+      });
+      return changed ? { ...roof, grids } : roof;
+    }));
+  }, [panelSpec]);
+
+  // Output and cost estimates recalculate on arrival at steps >= 4 and whenever design/settings change
+  useEffect(() => {
+    if (currentStep >= 4 && totalPanelCount > 0) handleCalculate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, mode, assumptions, totalPanelCount]);
+  }, [currentStep, mode, assumptions, totalPanelCount, roofs, panelSpec, pricing, location, selectedDate, monthlyGHI]);
 
   // Persistence: gathers exactly the content state identified as the
   // round-trippable shape (see types.ts's PlantDesignData) and hands it to
