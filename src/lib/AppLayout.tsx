@@ -125,7 +125,7 @@ function AppLayoutInner() {
     <div className="app-shell">
       {showTrialBanner && (
         <div style={{ background: "#fef3c7", color: "#92400e", padding: "8px 16px", textAlign: "center", fontSize: 14 }}>
-          Your 7-day trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}. Contact support to upgrade to a paid account.
+          Your 7-day trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}. Contact <a href="mailto:connect@solaros.online" style={{ color: "#92400e", textDecoration: "underline", fontWeight: 500 }}>connect@solaros.online</a> to upgrade to a paid account.
         </div>
       )}
       <header className="app-topbar">

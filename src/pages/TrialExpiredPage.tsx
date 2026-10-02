@@ -12,7 +12,7 @@ export default function TrialExpiredPage() {
         <p>Your data is safe, but you'll need to upgrade to a paid account to continue using SolarOS.</p>
         
         <div className="trial-expired-actions">
-          <a href="mailto:support@solaros.online" className="trial-expired-btn primary">
+          <a href="mailto:connect@solaros.online" className="trial-expired-btn primary">
             Contact Support to Upgrade
           </a>
           <button className="trial-expired-btn secondary" onClick={signOut}>
