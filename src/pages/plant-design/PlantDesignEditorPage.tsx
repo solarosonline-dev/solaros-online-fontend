@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { getLead } from "../../api/leads";
 import { createPlantDesign, getPlantDesign, updatePlantDesign, uploadPlantDesignSiteImage } from "../../api/plantDesign";
 import { ApiError } from "../../api/client";
 import PlantDesignEditor from "./PlantDesignEditor";
@@ -22,36 +23,49 @@ export default function PlantDesignEditorPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const workOrderIdParam = searchParams.get("workOrderId");
+  const projectIdParam = searchParams.get("projectId");
+  const leadIdParam = searchParams.get("leadId");
+
   const [initialDesignData, setInitialDesignData] = useState<PlantDesignData | undefined>(undefined);
-  const [loading, setLoading] = useState(plantDesignId != null);
+  const [loading, setLoading] = useState(plantDesignId != null || leadIdParam != null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Tracks the id across the POST -> PATCH transition without waiting for
   // the route param to catch up (navigate() below is async-ish from
   // React's perspective within the same tick).
   const [savedId, setSavedId] = useState<number | null>(plantDesignId ? Number(plantDesignId) : null);
 
-  // New URL params when creating from a Work Order
-  const workOrderIdParam = searchParams.get("workOrderId");
-  const projectIdParam = searchParams.get("projectId");
-  const leadIdParam = searchParams.get("leadId");
-
   const [linkedWorkOrderId, setLinkedWorkOrderId] = useState<number | null>(workOrderIdParam ? Number(workOrderIdParam) : null);
 
   useEffect(() => {
-    if (!plantDesignId) return;
-    setLoading(true);
-    setLoadError(null);
-    getPlantDesign(entityId, Number(plantDesignId))
-      .then((detail) => {
-        setInitialDesignData(detail.design_data);
-        setSavedId(detail.plant_design_id);
-        if (detail.work_order_id) {
-          setLinkedWorkOrderId(detail.work_order_id);
-        }
-      })
-      .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load plant design"))
-      .finally(() => setLoading(false));
-  }, [entityId, plantDesignId]);
+    if (plantDesignId) {
+      setLoading(true);
+      setLoadError(null);
+      getPlantDesign(entityId, Number(plantDesignId))
+        .then((detail) => {
+          setInitialDesignData(detail.design_data);
+          setSavedId(detail.plant_design_id);
+          if (detail.work_order_id) {
+            setLinkedWorkOrderId(detail.work_order_id);
+          }
+        })
+        .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load plant design"))
+        .finally(() => setLoading(false));
+    } else if (leadIdParam) {
+      setLoading(true);
+      setLoadError(null);
+      getLead(entityId, Number(leadIdParam))
+        .then((lead) => {
+          if (lead.latitude != null && lead.longitude != null) {
+            setInitialDesignData({
+              location: { lat: lead.latitude, lon: lead.longitude, tz: 5.5 },
+            } as any);
+          }
+        })
+        .catch((err) => console.warn("Failed to load lead location", err))
+        .finally(() => setLoading(false));
+    }
+  }, [entityId, plantDesignId, leadIdParam]);
 
   async function handleGeneratePdf() {
     if (!linkedWorkOrderId) return;

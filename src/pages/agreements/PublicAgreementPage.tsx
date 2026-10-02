@@ -243,7 +243,6 @@ export default function PublicAgreementPage() {
             customerDiscom={getDiscomName(lead.discom)}
             customerMobile={lead.mobile}
             customerEmail={lead.email}
-            segment={lead.type}
             pricePerWatt={quote.price_per_watt ?? 0}
             taxRate={quote.tax_rate ?? 0}
             computed={computed}

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatINR as formatINRBase, type QuoteComputeResult } from "../../lib/quoteCalculations";
 import type { PaymentScheduleRow } from "../../api/entityPreferences";
-import { formatDate, SEGMENT_LABELS } from "../../lib/quoteDocumentCopy";
+import { formatDate } from "../../lib/quoteDocumentCopy";
 import { AGREEMENT_ACKNOWLEDGEMENT, AGREEMENT_SCOPE_ITEMS } from "../../lib/agreementDocumentCopy";
 import type { QuoteDocumentBranding } from "../quotes/QuoteDocument";
 import { formatAmcInclusion, type AmcInclusionItem } from "../../api/amcPlans";
@@ -52,7 +52,6 @@ export type AgreementDocumentProps = {
   customerDiscom: string | null;
   customerMobile: string | null;
   customerEmail: string | null;
-  segment: string | null;
   pricePerWatt: number;
   taxRate: number;
   computed: QuoteComputeResult;
@@ -79,10 +78,20 @@ export type AgreementDocumentProps = {
   branding: QuoteDocumentBranding;
   shareUrl?: string | null;
   signature: AgreementDocumentSignature;
-  /** Rendered above the signature line when unsigned — the public page's
-   * signature-pad + "Sign & accept" control. Omitted on the EPC-side
+  /** Rendered above the First Party signature block when unsigned -- the
+   * public page's signature-pad + "Sign & accept" control. Omitted on the EPC-side
    * builder preview, which has no visitor to sign. */
   signatureAction?: ReactNode;
+  /** Vendor / Second Party signature -- independent of the consumer's. */
+  vendorSignature?: {
+    signed?: boolean;
+    signerName?: string | null;
+    signatureImage?: string | null;
+    signedAt?: string | null;
+  };
+  /** Rendered above the Second Party signature block when unsigned -- the
+   * admin builder's vendor sign-pad control. */
+  vendorSignatureAction?: ReactNode;
   /** Which RHS sections just changed on the LHS form — used only by the
    * EPC-side live preview to briefly flash the affected section so edits
    * are easy to spot, same pattern as QuoteDocument. Omitted (or all-false)
@@ -109,7 +118,6 @@ export default function AgreementDocument({
   customerDiscom,
   customerMobile,
   customerEmail,
-  segment,
   pricePerWatt,
   taxRate,
   computed: c,
@@ -125,6 +133,8 @@ export default function AgreementDocument({
   shareUrl,
   signature,
   signatureAction,
+  vendorSignature,
+  vendorSignatureAction,
   highlightSections,
 }: AgreementDocumentProps) {
   // Shadow the INR-defaulted base formatter with one bound to this
@@ -161,7 +171,6 @@ export default function AgreementDocument({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightSections]);
 
-  const segLabel = SEGMENT_LABELS[segment ?? ""] ?? "Custom";
   const issuedOn = createdAt ? new Date(createdAt) : new Date();
 
   let paymentRunningTotal = 0;
@@ -282,30 +291,49 @@ export default function AgreementDocument({
         </div>
       </header>
 
-      <section className="qdoc-hero agr-hero">
-        <div>
-          <p className="qdoc-eyebrow">Between {branding.entityName} &amp; Customer · {segLabel}</p>
-          <h1>
-            <span className="qdoc-customer-name">{customerName || "Valued customer"}</span>
-            {customerCompany && <small> · {customerCompany}</small>}
-          </h1>
-          {customerAddress && <p className="qdoc-address">{customerAddress}</p>}
-          <p className="qdoc-address qdoc-address-muted">
-            {[customerDiscom, customerMobile, customerEmail].filter(Boolean).join(" · ")}
-          </p>
+      <section className="qdoc-hero agr-hero-legal">
+        <h1 className="agr-legal-title">SOLAR ROOFTOP INSTALLATION AGREEMENT</h1>
+        
+        <p className="agr-legal-preamble">
+          This Solar Rooftop Installation Agreement (the "Agreement") is made and entered into on <strong>{formatDate(issuedOn)}</strong> by and between:
+        </p>
+
+        <div className="agr-legal-parties">
+          <div className="agr-legal-party">
+            <p className="agr-party-label">(1) INSTALLER:</p>
+            <p><strong>{branding.entityName}</strong></p>
+            {branding.address && <p>{branding.address}</p>}
+            {branding.gstno && <p>{taxIdLabel}: {branding.gstno}</p>}
+            <p className="agr-party-desc"><i>(hereinafter referred to as the "Installer")</i></p>
+          </div>
+
+          <div className="agr-legal-party">
+            <p className="agr-party-label">(2) CUSTOMER:</p>
+            <p><strong>{customerName || "Valued customer"}</strong>{customerCompany ? ` · ${customerCompany}` : ""}</p>
+            {customerAddress && <p>{customerAddress}</p>}
+            <p className="qdoc-address qdoc-address-muted">
+              {[customerDiscom, customerMobile, customerEmail].filter(Boolean).join(" · ")}
+            </p>
+            <p className="agr-party-desc"><i>(hereinafter referred to as the "Customer")</i></p>
+          </div>
         </div>
-        <div className="qdoc-pitch">
-          <p>
-            This agreement covers the supply, installation, testing and commissioning of a{" "}
-            <strong>{capacityKw ? `${capacityKw} kWp` : "____ kWp"}</strong> rooftop solar system on a{" "}
-            <strong>RCC</strong> roof, at the price and terms set out below.
-          </p>
-        </div>
+
+        <p className="agr-legal-preamble">
+          <em>(The Installer and the Customer are hereinafter collectively referred to as the "Parties" and individually as a "Party".)</em>
+        </p>
+
+        <p className="agr-legal-whereas">
+          <strong>WHEREAS</strong>, the Customer desires to install a Solar Rooftop System of <strong>{capacityKw ? `${capacityKw} kWp` : "____ kWp"}</strong> capacity at the premises mentioned above; and the Installer is engaged in the business of designing, supplying, installing, and commissioning solar power systems.
+        </p>
+
+        <p className="agr-legal-whereas">
+          <strong>NOW, THEREFORE</strong>, in consideration of the mutual covenants contained herein, the Parties agree as follows:
+        </p>
       </section>
 
       <section className="qdoc-section">
         <h2>
-          {numProvides}. What {branding.entityName} provides <small className="qdoc-h2-sub">— turnkey scope</small>
+          {numProvides}. Scope of Work (Turnkey Execution)
         </h2>
         <ul className="qdoc-incl">
           {AGREEMENT_SCOPE_ITEMS.map((item, i) => (
@@ -321,7 +349,7 @@ export default function AgreementDocument({
       </section>
 
       <section className="qdoc-section">
-        <h2>{numPrice}. Agreed price</h2>
+        <h2>{numPrice}. Commercial Terms</h2>
         <div className="qdoc-table-wrap">
         <table className="qdoc-table">
           <thead>
@@ -386,7 +414,7 @@ export default function AgreementDocument({
       </section>
 
       <section ref={equipmentRef} className={`qdoc-section${flashClass("equipment")}`}>
-        <h2>{numEquipment}. Equipment — make, model &amp; warranty</h2>
+        <h2>{numEquipment}. System Specifications &amp; Equipment Warranty</h2>
         <div className="qdoc-table-wrap">
         <table className="qdoc-table">
           <thead>
@@ -425,7 +453,7 @@ export default function AgreementDocument({
       </section>
 
       <section className="qdoc-section">
-        <h2>{numPayment}. Payment schedule</h2>
+        <h2>{numPayment}. Payment Schedule</h2>
         <div className="qdoc-table-wrap">
         <table className="qdoc-table qdoc-table-pay">
           <tbody>
@@ -452,7 +480,7 @@ export default function AgreementDocument({
 
       <section ref={amcRef} className={`qdoc-section qdoc-amc${flashClass("amc")}`}>
         <h2>
-          {numAmc}. AMC{" "}
+          {numAmc}. Operation &amp; Maintenance (O&amp;M){" "}
           <small className="qdoc-h2-sub">
             {amcFromQuote ? "— included with your accepted quote" : "— recommended add-on"}
           </small>
@@ -610,14 +638,14 @@ export default function AgreementDocument({
 
       {notes && (
         <section ref={detailsRef} className={`qdoc-section${flashClass("details")}`}>
-          <h2>{numNotes}. Notes</h2>
+          <h2>{numNotes}. Special Conditions</h2>
           <p className="qdoc-notes">{notes}</p>
         </section>
       )}
 
       {terms.length > 0 && (
         <section ref={termsRef} className={`qdoc-section${flashClass("terms")}`}>
-          <h2>{numTerms}. Terms &amp; conditions</h2>
+          <h2>{numTerms}. General Terms &amp; Conditions</h2>
           <ol className="qdoc-terms">
             {terms.map((term, i) => (
               <li key={i}>{term}</li>
@@ -629,50 +657,75 @@ export default function AgreementDocument({
         </section>
       )}
 
-      <footer className="qdoc-footer agr-footer">
-        <div>
-          <strong>{branding.entityName}</strong>
-          {branding.address && <p>{branding.address}</p>}
-          {firmContact && <p>{firmContact}</p>}
-          {branding.gstno && <p>{taxIdLabel}: {branding.gstno}</p>}
-          {branding.footerTag && <p className="qdoc-footer-tag">{branding.footerTag}</p>}
-        </div>
-        <div className="qdoc-qr">
-          <div className="qdoc-qr-code">
-            {shareUrl ? (
-              <QRCodeSVG value={shareUrl} size={64} />
-            ) : (
-              <div className="agr-qr-pending" aria-label="QR code will appear once this agreement is shared">
-                QR pending
+      <footer className="agr-footer-legal">
+        <p className="agr-ack">{AGREEMENT_ACKNOWLEDGEMENT}</p>
+        <div className="agr-signatures">
+          <div className="agr-signature-block">
+            <p className="qdoc-sign-label">Customer Signature:</p>
+            {signature.signed ? (
+              <div className="agr-signed">
+                {signature.signatureImage && (
+                  <img className="agr-signed-img" src={signature.signatureImage} alt="Customer signature" />
+                )}
+                <p className="agr-signed-name">{signature.signerName}</p>
+                <p className="agr-signed-meta">
+                  Signed electronically on {signature.signedAt ? formatDate(new Date(signature.signedAt)) : "—"}
+                  {signature.signedIp ? ` · IP ${signature.signedIp}` : ""}
+                </p>
+                <p className="agr-signed-consent">✔ Consent recorded — the customer accepted the terms above.</p>
               </div>
+            ) : (
+              <>
+                {signatureAction && <div className="qdoc-sign-action no-print">{signatureAction}</div>}
+                <div className="qdoc-sign-line" />
+                <p>Name, Signature &amp; Date</p>
+              </>
             )}
           </div>
-          <p className="qdoc-powered-by">
-            Powered by <strong>SolarOS</strong>
-          </p>
+          <div className="agr-signature-block">
+            <p className="qdoc-sign-label">Installer Signature:</p>
+            {vendorSignature?.signed ? (
+              <div className="agr-signed">
+                {vendorSignature.signatureImage && (
+                  <img className="agr-signed-img" src={vendorSignature.signatureImage} alt="Installer signature" />
+                )}
+                <p className="agr-signed-name">{vendorSignature.signerName}</p>
+                <p className="agr-signed-meta">
+                  Signed electronically on {vendorSignature.signedAt ? formatDate(new Date(vendorSignature.signedAt)) : "—"}
+                </p>
+              </div>
+            ) : (
+              <>
+                {vendorSignatureAction && <div className="qdoc-sign-action no-print">{vendorSignatureAction}</div>}
+                <div className="qdoc-sign-line" />
+                <p>Name, Signature &amp; Date</p>
+              </>
+            )}
+          </div>
         </div>
-        <div className="qdoc-sign agr-sign-col">
-          {signature.signed ? (
-            <div className="agr-signed">
-              {signature.signatureImage && (
-                <img className="agr-signed-img" src={signature.signatureImage} alt="Customer signature" />
+
+        <div className="agr-footer-bottom">
+          <div className="agr-footer-company">
+            <strong>{branding.entityName}</strong>
+            {branding.address && <p>{branding.address}</p>}
+            {firmContact && <p>{firmContact}</p>}
+            {branding.gstno && <p>{taxIdLabel}: {branding.gstno}</p>}
+            {branding.footerTag && <p className="qdoc-footer-tag">{branding.footerTag}</p>}
+          </div>
+          <div className="qdoc-qr">
+            <div className="qdoc-qr-code">
+              {shareUrl ? (
+                <QRCodeSVG value={shareUrl} size={64} />
+              ) : (
+                <div className="agr-qr-pending" aria-label="QR code will appear once this agreement is shared">
+                  QR pending
+                </div>
               )}
-              <p className="agr-signed-name">{signature.signerName}</p>
-              <p className="agr-signed-meta">
-                Signed electronically on {signature.signedAt ? formatDate(new Date(signature.signedAt)) : "—"}
-                {signature.signedIp ? ` · IP ${signature.signedIp}` : ""}
-              </p>
-              <p className="agr-signed-consent">✔ Consent recorded — the customer accepted the terms above.</p>
             </div>
-          ) : (
-            <>
-              {signatureAction && <div className="qdoc-sign-action no-print">{signatureAction}</div>}
-              <p className="qdoc-sign-label">Customer acceptance</p>
-              <p className="agr-ack">{AGREEMENT_ACKNOWLEDGEMENT}</p>
-              <div className="qdoc-sign-line" />
-              <p>Name, Signature &amp; Date</p>
-            </>
-          )}
+            <p className="qdoc-powered-by">
+              Powered by <strong>SolarOS</strong>
+            </p>
+          </div>
         </div>
       </footer>
     </div>

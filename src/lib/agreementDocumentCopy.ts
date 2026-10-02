@@ -36,7 +36,7 @@ export const AGREEMENT_SCOPE_ITEMS = [
 /** The customer-facing acknowledgement shown just above the signature pad —
  * fixed copy, not part of the editable terms list. */
 export const AGREEMENT_ACKNOWLEDGEMENT =
-  "I confirm I have read and understood this agreement, including that without AMC, the installer is not responsible for warranty, service or system performance after 12 months.";
+  "IN WITNESS WHEREOF, the Parties hereto have caused this Agreement to be executed electronically on the date first above written. I, the Customer, confirm I have read, understood, and agreed to all terms, conditions, and specifications contained herein, including that without an active AMC, the Installer is not responsible for warranty, service or system performance after 12 months.";
 
 export type EquipmentRow = {
   label: string;

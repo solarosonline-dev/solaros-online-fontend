@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listProjectWorkOrders, createProjectWorkOrder, type WorkOrderListItem, type WorkOrderType } from "../../api/workOrders";
+import { listProjectWorkOrders, listLeadWorkOrders, createProjectWorkOrder, type WorkOrderListItem, type WorkOrderType } from "../../api/workOrders";
 import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus } from "../../api/projects";
 import { ApiError } from "../../api/client";
 
@@ -17,17 +17,19 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ProjectWorkOrders({
   entityId,
   projectId,
+  leadId,
   projectStatus,
   onProjectStatusChange,
 }: {
   entityId: number;
   projectId: number;
+  leadId: number | null;
   projectStatus: ProjectStatus;
   onProjectStatusChange: (status: ProjectStatus) => void;
 }) {
   const navigate = useNavigate();
 
-  const [items, setItems] = useState<WorkOrderListItem[]>([]);
+  const [items, setItems] = useState<(WorkOrderListItem & { _isLeadWo?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -42,13 +44,26 @@ export default function ProjectWorkOrders({
   function load() {
     setLoading(true);
     setLoadError(null);
-    listProjectWorkOrders(entityId, projectId)
-      .then((res) => setItems(res.items))
+    Promise.all([
+      listProjectWorkOrders(entityId, projectId),
+      leadId ? listLeadWorkOrders(entityId, leadId) : Promise.resolve({ items: [] }),
+    ])
+      .then(([projRes, leadRes]) => {
+        // Combine them. We want to avoid duplicates if a work order somehow is returned in both
+        // (though backend shouldn't). Also sort by opened_at if possible.
+        const combined = [
+          ...leadRes.items.map((i) => ({ ...i, _isLeadWo: true })),
+          ...projRes.items.map((i) => ({ ...i, _isLeadWo: false })),
+        ];
+        const unique = Array.from(new Map(combined.map((item) => [item.work_order_id, item])).values());
+        unique.sort((a, b) => new Date(a.opened_at).getTime() - new Date(b.opened_at).getTime());
+        setItems(unique);
+      })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load work orders"))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [entityId, projectId]);
+  useEffect(load, [entityId, projectId, leadId]);
 
   // Now returns an array of allowed Work Order types based on the project's current status
   const currentTypes = currentPhaseWorkOrderType(projectStatus);
@@ -69,7 +84,7 @@ export default function ProjectWorkOrders({
   const alreadyOpen = selectedType !== "" && openTypes.has(selectedType as WorkOrderType);
 
   const skip = skipStageFor(projectStatus);
-  const canSkip = skip != null && !items.some((i) => i.type === skip.workOrderType);
+  const canSkip = skip != null && !items.some((i) => i.type === skip.workOrderType && !i._isLeadWo);
 
   async function handleCreate() {
     if (!selectedType) return;

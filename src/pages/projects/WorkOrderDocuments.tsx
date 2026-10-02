@@ -23,7 +23,7 @@ const GEOTAG_SKIPPED_MESSAGES: Record<GeotagSkippedReason, string> = {
   canvas_unavailable: "your location was captured, but the photo couldn't be stamped.",
 };
 
-const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx";
+const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

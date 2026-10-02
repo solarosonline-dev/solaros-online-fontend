@@ -281,6 +281,7 @@ export default function ProjectDetailPage() {
           <ProjectWorkOrders
             entityId={entityId}
             projectId={project.project_id}
+            leadId={project.lead_id}
             projectStatus={project.status}
             onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
           />

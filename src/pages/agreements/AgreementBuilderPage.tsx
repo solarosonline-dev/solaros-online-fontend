@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead, type LeadDetail } from "../../api/leads";
-import { getQuote, listQuotes, type QuoteDetail } from "../../api/quotes";
+import { getQuote, listQuotes, type QuoteDetail, type QuoteComponentRow } from "../../api/quotes";
 import { listAmcPlans, type AmcPlan } from "../../api/amcPlans";
 import { getEntity, type Entity } from "../../api/entity";
 import { getEntityPreferences, DEFAULT_PAYMENT_SCHEDULE, type EntityPreferences } from "../../api/entityPreferences";
@@ -65,6 +65,40 @@ function equipmentFormFromSaved(saved: AgreementEquipmentRow[] | null): Equipmen
       make: existing?.make ?? "",
       model: existing?.model ?? "",
       warrantyYears: existing?.warranty_years != null ? String(existing.warranty_years) : "",
+    };
+  });
+}
+
+function equipmentFormFromQuote(quote: QuoteDetail): EquipmentFormRow[] {
+  const components = quote.components ?? [];
+  const findComp = (keywords: string[]) =>
+    components.find((c) => keywords.some((k) => (c.particular ?? "").toLowerCase().includes(k)));
+
+  return EQUIPMENT_ROWS.map((row) => {
+    let make = "";
+    let comp: QuoteComponentRow | undefined = undefined;
+
+    if (row.label === "Solar Panels") {
+      make = quote.panel_make ?? "";
+      comp = findComp(["panel"]);
+    } else if (row.label === "Inverter") {
+      make = quote.inverter_make ?? "";
+      comp = findComp(["inverter"]);
+    } else if (row.label === "DC & AC Cabling") {
+      comp = findComp(["cabl"]);
+    } else if (row.label === "ACDB") {
+      comp = findComp(["acdb"]);
+    } else if (row.label === "DCDB") {
+      comp = findComp(["dcdb"]);
+    } else if (row.label === "Surge Protection (SPD)") {
+      comp = findComp(["spd", "surge"]);
+    }
+
+    return {
+      label: row.label,
+      make: make,
+      model: comp?.specification ?? "",
+      warrantyYears: comp?.warranty_years != null ? String(comp.warranty_years) : "",
     };
   });
 }
@@ -218,6 +252,7 @@ export default function AgreementBuilderPage() {
           // it from in that case, so it starts blank either way.
           const fetchedForm: FormState = {
             ...DEFAULT_FORM,
+            equipment: equipmentFormFromQuote(quoteRes),
             // Same pattern as quotes: entity's document defaults are folded into
             // the editable terms list, not kept as separate free text.
             terms: [...prefs.document_customization.agreement_notes],
@@ -1020,7 +1055,6 @@ export default function AgreementBuilderPage() {
               customerDiscom={getDiscomName(lead.discom)}
               customerMobile={lead.mobile}
               customerEmail={lead.email}
-              segment={lead.type}
               pricePerWatt={quote.price_per_watt ?? 0}
               taxRate={quote.tax_rate ?? 0}
               computed={computed}
