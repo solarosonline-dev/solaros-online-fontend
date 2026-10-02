@@ -281,8 +281,8 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   // overrides against, so it just gets the roof's own flat default on
   // every edge instead.
   const edgeMargins = isWholeRoofFootprint
-    ? targetPolygon.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.5)
-    : targetPolygon.map(() => roof.edgeMargin ?? 0.5);
+    ? targetPolygon.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1)
+    : targetPolygon.map(() => roof.edgeMargin ?? 0.1);
   const usablePoly = insetPolygon(localPolygon, edgeMargins);
   const ys = usablePoly.map((p) => p.y);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -480,7 +480,7 @@ export function suggestMaxPanelsPerRow({ roof, footprintPolygon, panelSpec, loca
   const footprintDepth = type === 'flat' ? Ls * Math.cos(toRad(tilt)) : Ls;
 
   const localPolygon = footprintPolygon.map((p) => toSlopeLocal(p, direction));
-  const edgeMargins = footprintPolygon.map(() => roof.edgeMargin ?? 0.5);
+  const edgeMargins = footprintPolygon.map(() => roof.edgeMargin ?? 0.1);
   const usablePoly = insetPolygon(localPolygon, edgeMargins);
   const ys = usablePoly.map((p) => p.y);
   const availableDepth = Math.max(...ys) - Math.min(...ys);

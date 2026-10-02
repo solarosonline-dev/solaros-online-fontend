@@ -78,7 +78,7 @@ const TREE_CANOPIES = ['cone', 'round', 'bushy'];
 // (finishRoofDraw, mirrorRoof) rather than here, since this object is
 // shared by every new roof and an array literal on it would otherwise be
 // the same reference for all of them.
-const ROOF_DEFAULTS = { width: 14, length: 10, type: 'flat', pitchDeg: 15, slopeDirection: 'S', polygon: null, buildingHeight: 3, minPillarHeight: 0.15, structureStrategy: 'truss', boundaryHeight: 0, edgeMargin: 0.5, edgeMarginOverrides: {} };
+const ROOF_DEFAULTS = { width: 14, length: 10, type: 'flat', pitchDeg: 15, slopeDirection: 'S', polygon: null, buildingHeight: 3, minPillarHeight: 0.15, structureStrategy: 'truss', boundaryHeight: 0, edgeMargin: 0.1, edgeMarginOverrides: {} };
 
 function toDateInputValue(d) {
   const y = d.getFullYear();
@@ -4516,7 +4516,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </div>
                             <div style={labelStyle}>
                               <span>Default ({units})</span>
-                              <SliderInput unit={units} min={0} max={3} step={0.05} value={selectedRoof.edgeMargin ?? 0.5} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
+                              <SliderInput unit={units} min={0} max={3} step={0.05} value={selectedRoof.edgeMargin ?? 0.1} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
                             </div>
                             <button
                               onClick={() => {
@@ -4533,7 +4533,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             {marginEditRoofId === selectedRoof.id && selectedMarginEdges.size > 0 && (() => {
                               const overrides = selectedRoof.edgeMarginOverrides || {};
                               const firstIdx = [...selectedMarginEdges][0];
-                              const currentValue = overrides[firstIdx] ?? selectedRoof.edgeMargin ?? 0.5;
+                              const currentValue = overrides[firstIdx] ?? selectedRoof.edgeMargin ?? 0.1;
                               const hasOverride = [...selectedMarginEdges].some((i) => overrides[i] != null);
                               return (
                                 <div style={{ background: '#f6f0fb', borderRadius: 6, padding: 8, marginTop: 6 }}>

@@ -278,9 +278,9 @@ export function insetPolygon(poly, dist) {
 // rotation doesn't change offset distances). Used to draw a visual "this
 // band is margin, no panels go here" highlight between it and the roof's
 // own outer polygon (2D plan and 3D view both), not just for packing math.
-export function roofUsablePolygon(roof) {
+export function roofUsablePolygon(roof: any) {
   const poly = getRoofPolygon(roof);
-  const edgeMargins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.5);
+  const edgeMargins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1);
   return insetPolygon(poly, edgeMargins);
 }
 
