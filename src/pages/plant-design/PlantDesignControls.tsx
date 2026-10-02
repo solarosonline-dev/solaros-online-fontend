@@ -59,13 +59,31 @@ export function CollapsibleSection({ title, defaultOpen = false, open: openProp,
 export function SliderInput({ value, onChange, min, max, step = 1, disabled = false, numberWidth = 70, unit = 'm' }: any) {
   const numeric = Number.isFinite(value) ? value : 0;
   const isFeet = unit === 'ft';
-  const toDisplay = (m) => (isFeet ? metersToFeet(m) : m);
-  const toMeters = (d) => (isFeet ? feetToMeters(d) : d);
-  const displayMin = toDisplay(min);
-  const displayMax = toDisplay(max);
+  const toDisplay = (m: any) => (isFeet ? metersToFeet(m) : m);
+  const toMeters = (d: any) => (isFeet ? feetToMeters(d) : d);
+  const displayMin = min !== undefined ? toDisplay(min) : undefined;
+  const displayMax = max !== undefined ? toDisplay(max) : undefined;
   const displayStep = isFeet ? step * 3.28084 : step;
   const displayValue = toDisplay(numeric);
-  const sliderDisplayValue = Math.min(displayMax, Math.max(displayMin, displayValue));
+  const sliderDisplayValue = Math.min(
+    displayMax ?? Infinity,
+    Math.max(displayMin ?? -Infinity, displayValue)
+  );
+
+  const handleNumberChange = (e: any) => {
+    const valStr = e.target.value;
+    if (valStr === '') return;
+    let val = +valStr;
+    if (isNaN(val)) return;
+    if (displayMin !== undefined && val < displayMin) {
+      val = displayMin;
+    }
+    if (displayMax !== undefined && val > displayMax) {
+      val = displayMax;
+    }
+    onChange(toMeters(val));
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
       <input
@@ -74,8 +92,8 @@ export function SliderInput({ value, onChange, min, max, step = 1, disabled = fa
         style={{ flex: 1, minWidth: 0 }}
       />
       <input
-        type="number" step={displayStep} value={isFeet ? +displayValue.toFixed(2) : value} disabled={disabled}
-        onChange={(e) => onChange(toMeters(+e.target.value))}
+        type="number" min={displayMin} max={displayMax} step={displayStep} value={isFeet ? +displayValue.toFixed(2) : value} disabled={disabled}
+        onChange={handleNumberChange}
         className="pde-slider-num"
         style={{ width: numberWidth, flexShrink: 0 }}
       />
