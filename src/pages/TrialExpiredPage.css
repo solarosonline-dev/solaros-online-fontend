@@ -1,0 +1,64 @@
+.trial-expired-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-bg);
+  padding: 20px;
+}
+
+.trial-expired-card {
+  background: var(--app-surface);
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+
+.trial-expired-card h1 {
+  margin: 0 0 16px;
+  font-size: 24px;
+  color: var(--app-danger, #dc2626);
+}
+
+.trial-expired-card p {
+  color: var(--app-text);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.trial-expired-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.trial-expired-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.trial-expired-btn.primary {
+  background: var(--app-primary, #0ea5e9);
+  color: white;
+  border: none;
+}
+
+.trial-expired-btn.secondary {
+  background: transparent;
+  color: var(--app-text-muted);
+  border: 1px solid var(--app-border);
+}
+
+.trial-expired-btn:hover {
+  opacity: 0.9;
+}

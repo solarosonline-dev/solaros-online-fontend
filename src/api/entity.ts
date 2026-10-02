@@ -18,6 +18,7 @@ export type Entity = {
   // isn't needed since the backend backfills both via server_default.
   country: string;
   currency: string;
+  trial_ends_at: string | null;
   tax_label: string;
   tax_id_label: string;
 };

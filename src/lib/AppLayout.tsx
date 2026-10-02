@@ -113,8 +113,21 @@ function AppLayoutInner() {
   // on top of that would be redundant/distracting.
   const highlightEntitySettings = needsAmcSetup && location.pathname !== "/app/entity";
 
+  const trialEndsAt = user?.trial_ends_at ? new Date(user.trial_ends_at) : null;
+  const showTrialBanner = trialEndsAt !== null;
+  let trialDaysLeft = 0;
+  if (showTrialBanner) {
+    const diff = trialEndsAt.getTime() - Date.now();
+    trialDaysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }
+
   return (
     <div className="app-shell">
+      {showTrialBanner && (
+        <div style={{ background: "#fef3c7", color: "#92400e", padding: "8px 16px", textAlign: "center", fontSize: 14 }}>
+          Your 7-day trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}. Contact support to upgrade to a paid account.
+        </div>
+      )}
       <header className="app-topbar">
         <div className="app-topbar-logo">
           Solar<em>OS</em>

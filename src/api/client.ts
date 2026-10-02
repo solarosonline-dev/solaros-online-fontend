@@ -49,6 +49,9 @@ export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Pr
 
   if (!res.ok) {
     const err = data?.error ?? { code: "UNKNOWN_ERROR", message: "Request failed" };
+    if (err.code === "TRIAL_EXPIRED") {
+      window.location.href = "/trial-expired";
+    }
     throw new ApiError(res.status, err.code, err.message);
   }
 

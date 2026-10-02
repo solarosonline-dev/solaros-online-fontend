@@ -10,6 +10,7 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ActivatePage from "./pages/auth/ActivatePage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import TrialExpiredPage from "./pages/TrialExpiredPage";
 import LandingPage from "./pages/public/LandingPage";
 import HomeRedirect from "./pages/HomeRedirect";
 import EntitiesPage from "./pages/admin/EntitiesPage";
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/activate" element={<ActivatePage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/trial-expired" element={<TrialExpiredPage />} />
           <Route path="/q/:token" element={<PublicQuotePage />} />
           <Route path="/a/:token" element={<PublicAgreementPage />} />
           <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />

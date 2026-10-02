@@ -13,6 +13,7 @@ export type AdminEntity = {
   founder_phone: string;
   created_at: string;
   approved_at: string | null;
+  trial_ends_at: string | null;
 };
 
 export type AdminEntityList = {
@@ -35,5 +36,12 @@ export function updateEntityState(entityId: number, state: EntityState) {
   return apiRequest<{ entity_id: number; state: EntityState; approved_by: number | null; approved_at: string | null }>(
     `/admin/entities/${entityId}/state`,
     { method: "PATCH", body: { state } },
+  );
+}
+
+export function updateEntityTrial(entityId: number, data: { extend_days?: number; convert_to_paid?: boolean }) {
+  return apiRequest<{ entity_id: number; trial_ends_at: string | null }>(
+    `/admin/entities/${entityId}/trial`,
+    { method: "PATCH", body: data },
   );
 }

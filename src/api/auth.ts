@@ -13,6 +13,7 @@ export type LoginResponse = {
     // from the entity's role_labels preference merged with the built-in
     // defaults. Empty for SYSTEM-scope users.
     role_labels: Record<string, string>;
+    trial_ends_at: string | null;
   };
 };
 
