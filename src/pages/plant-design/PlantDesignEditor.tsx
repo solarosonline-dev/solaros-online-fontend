@@ -4061,7 +4061,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const overlapsObstacle = overlappingIds.has(p.id);
                 const gridAzimuth = g.azimuth != null ? g.azimuth : (roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 180);
                 const slopeRotation = gridAzimuth - 180;
-                const rotation = (p.rotation || 0) + (g.rotation || 0) + slopeRotation;
+                const rotation = -(p.rotation || 0) - (g.rotation || 0) + slopeRotation;
                 const pct = pctMap?.[p.id];
                 const w = p.w * scale, h = p.d * scale;
                 const isMultiRow = (g.panelsPerRow ?? 1) > 1;
