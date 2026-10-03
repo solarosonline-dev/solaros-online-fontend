@@ -484,6 +484,17 @@ mirror/margin mode on the 2D plan); clicking an edge stores
 the equator (outward normal on an exact N–S tie), kept to 2 decimals so
 rows line up with the edge exactly. "flip 180°" covers the other facing.
 
+Flat-roof auto azimuth considers *every* edge; only pitched roofs use
+`edgeFacingAzimuth`'s `preferLongPair` (long sides = eaves). Using it for
+flat roofs made a roof longer N–S than E–W auto-face east/west.
+
+Dimensions' width/length for a drawn roof are `orientedRoofExtents` along
+the roof's own auto-azimuth frame (width = along rows, length = across),
+not the compass-aligned `polygonBounds`, and editing them calls
+`resizeRoofPolygon` (stretch about that axis' midpoint; vertex order kept,
+so per-edge margin overrides survive). The frame is the *auto* azimuth on
+purpose, not a manual override, so the axes always follow the building.
+
 **An existing grid keeps its own frame: use `gridDirection(grid, roof)`
 (`layoutEngine.ts`), never the roof's current azimuth, for anything that
 reads or writes an already-packed grid's `rackX`/`rackY`** (add/delete

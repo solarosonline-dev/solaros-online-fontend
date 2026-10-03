@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, edgeAlignedAzimuth, azimuthOffset } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -424,6 +424,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const [marginEditRoofId, setMarginEditRoofId] = useState<any>(null);
   const [hoveredMarginEdge, setHoveredMarginEdge] = useState<any>(null);
   const [selectedMarginEdges, setSelectedMarginEdges] = useState<Set<any>>(new Set());
+  // Edge index whose row in the Panel margin popover's overrides list is
+  // hovered - highlights that edge on the plan so "Edge 3" is findable.
+  const [hoveredOverrideEdge, setHoveredOverrideEdge] = useState<any>(null);
   // The roof currently in "click an edge to align panel rows with it" mode
   // (the Azimuth popover's "align to edge…") - same pickable hit-line
   // pattern as mirror/margin mode above. A click sets that roof's azimuth
@@ -710,26 +713,42 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setCost(null);
   }
 
+  // Delete/Backspace removes whatever is selected, in either view: a
+  // pending row/column/panel delete first, then selected grids, then the
+  // selected obstacle, then the selected roof (most specific wins - a grid
+  // selection usually still has its roof selected underneath it). Only
+  // skipped while actually typing (text/number fields, not sliders or
+  // checkboxes - focus stays on a range input after dragging it, which
+  // used to swallow the key silently) or mid-draw/placement, where the
+  // selection isn't what the user is working on.
   useEffect(() => {
-    if (viewMode !== 'plan') return;
+    function isTypingTarget(el) {
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+      if (tag !== 'INPUT') return false;
+      const type = (el.getAttribute('type') || 'text').toLowerCase();
+      return !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file'].includes(type);
+    }
     function handleKeyDown(e) {
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (isTypingTarget(document.activeElement)) return;
       if (e.key === 'Escape') {
         if (addSideMode) { setAddSideMode(null); return; }
         if (gridDeleteMode) { setGridDeleteMode(null); setGridDeleteSelection(null); }
         return;
       }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (drawingRoof || placingGrid || placingShape || roofDrawPoints.length > 0 || obstacleDrawPoints.length > 0) return;
       if (gridDeleteSelection) { e.preventDefault(); applyGridDeleteSelection(); return; }
-      if (selectedGridKeys.size === 0) return;
-      e.preventDefault();
-      deleteSelectedGrids();
+      if (selectedGridKeys.size > 0) { e.preventDefault(); deleteSelectedGrids(); return; }
+      if (selectedObstacleId != null) { e.preventDefault(); removeObstacle(selectedObstacleId); return; }
+      if (selectedRoofId != null) { e.preventDefault(); cancelActiveModes(); removeRoof(selectedRoofId); }
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, selectedGridKeys, addSideMode, gridDeleteMode, gridDeleteSelection]);
+  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addSideMode, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints]);
   // Set right before closing a roof trace by clicking back on its own first
   // point (see onSvgClick) — a real double-click landing there fires a
   // second click event a moment later that would otherwise immediately
@@ -1663,6 +1682,26 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setCost(null);
   }
 
+  // Width/length from the Dimensions popover. A template rectangle (no
+  // polygon) just updates its own width/length fields; a drawn roof is
+  // stretched along its own sides instead (resizeRoofPolygon), since its
+  // shape lives entirely in `polygon`. Both go through the same repack
+  // path as any other footprint change ('width'/'length' are in
+  // ROOF_FIELDS_NEEDING_REPACK).
+  function resizeRoof(id, axis, value) {
+    const roof = roofs.find((r) => r.id === id);
+    if (!roof) return;
+    if (!roof.polygon) {
+      updateRoof(id, axis, value);
+      return;
+    }
+    const polygon = resizeRoofPolygon(roof.polygon, autoRoofAzimuth(roof, location), axis, value);
+    setRoofs((rs) => rs.map((r) => (r.id === id ? { ...r, polygon, grids: [] } : r)));
+    setSelectedGridKeys((keys) => new Set([...keys].filter((k) => parseGridKey(k).roofId !== id)));
+    setOutputResult(null);
+    setCost(null);
+  }
+
   // Sets `roof.edgeMarginOverrides[edgeIndex]` for every edge currently in
   // `edgeIndices` to `value` (or, when `value` is null, deletes those
   // entries so those edges fall back to the roof's own default margin) -
@@ -1779,6 +1818,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setSelectedMarginEdges(new Set());
     setAlignEdgeRoofId(null);
     setHoveredAlignEdge(null);
+    setHoveredOverrideEdge(null);
     setAddSideMode(null);
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
@@ -2848,6 +2888,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const inputStyle = { width: 62, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11, color: '#222', background: '#fff' };
   const sectionStyle = { background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10, marginBottom: 8 };
   const labelStyle = { fontSize: 11, color: '#555', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, gap: 6 };
+  // A stack of label + SliderInput rows that should line up as columns
+  // (e.g. the roof Dimensions popover). labelStyle's flex row lets each
+  // label's own width decide where its slider starts, so differently-long
+  // labels ("width" vs "building height") stagger the sliders and can push
+  // the number box past the popover's edge - a fixed label column fixes
+  // both. Use with a nowrap label span and a fixed SliderInput numberWidth.
+  const sliderRowStyle = { fontSize: 11, color: '#555', display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr)', alignItems: 'center', columnGap: 8, marginBottom: 8 };
+  const sliderRowLabel = (name, unit) => (
+    <span style={{ whiteSpace: 'nowrap' }}>{name}{unit ? <span style={{ color: '#999' }}> ({unit})</span> : null}</span>
+  );
   // These three return className strings (styled by PlantDesignEditor.css's
   // .pde-btn/.pde-icon-btn/.pde-compass-btn rules, which pull from the host
   // app's own tokens.css) rather than inline style objects, so hover/active/
@@ -3221,7 +3271,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         </CollapsibleSection>
         <button
           className="pde-primary-btn"
-          onClick={() => { advanceToStep(3); startRoofDraw(); }}
+          onClick={() => advanceToStep(3)}
         >
           Next: Roof setup →
         </button>
@@ -3963,6 +4013,58 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               });
             })()}
 
+            {/* Overridden-margin edges for the selected roof, shown whenever
+                it's selected (not only inside margin-edit mode, where the
+                pick block above already colors them): a purple edge line plus
+                a numbered badge with the override value, laid parallel to the
+                edge just outside the roof, matching the numbered rows in the
+                Panel margin popover. */}
+            {selectedRoof && !mirrorRoofId && !alignEdgeRoofId && (() => {
+              const overrides = selectedRoof.edgeMarginOverrides || {};
+              const poly = getRoofPolygon(selectedRoof);
+              const n = poly.length;
+              const idxs = Object.keys(overrides).map(Number).filter((i) => i < n && overrides[i] != null);
+              if (idxs.length === 0) return null;
+              const editing = marginEditRoofId === selectedRoof.id;
+              // Screen-space centroid (vertex average - plenty to tell which
+              // side of an edge is "inside" for picking the outward normal).
+              const pts = poly.map((p) => toScreen(p.x, p.y));
+              const cx = pts.reduce((a, p) => a + p.sx, 0) / n;
+              const cy = pts.reduce((a, p) => a + p.sy, 0) / n;
+              return idxs.map((i) => {
+                const s1 = pts[i];
+                const s2 = pts[(i + 1) % n];
+                const mid = { sx: (s1.sx + s2.sx) / 2, sy: (s1.sy + s2.sy) / 2 };
+                const dx = s2.sx - s1.sx, dy = s2.sy - s1.sy;
+                const len = Math.hypot(dx, dy) || 1;
+                // Unit normal pointing away from the roof, so the badge sits
+                // just outside the edge rather than over the usable area.
+                let nx = -dy / len, ny = dx / len;
+                if ((mid.sx - cx) * nx + (mid.sy - cy) * ny < 0) { nx = -nx; ny = -ny; }
+                const offset = 15;
+                const bx = mid.sx + nx * offset, by = mid.sy + ny * offset;
+                // Parallel to the edge, flipped by 180° when needed so the
+                // text never reads upside-down.
+                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                if (angle > 90) angle -= 180;
+                else if (angle < -90) angle += 180;
+                const hot = hoveredOverrideEdge === i;
+                const text = `${i + 1} · ${formatLength(overrides[i], units, 2)}`;
+                const w = text.length * 6.2 + 12;
+                return (
+                  <g key={`override-edge-${i}`} style={{ pointerEvents: 'none' }}>
+                    {!editing && (
+                      <line x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy} stroke="#8e44ad" strokeWidth={hot ? 6 : 3} strokeDasharray={hot ? undefined : '6 4'} />
+                    )}
+                    <g transform={`translate(${bx} ${by}) rotate(${angle})`}>
+                      <rect x={-w / 2} y={-9} width={w} height={18} rx={9} fill={hot ? '#8e44ad' : '#fff'} stroke="#8e44ad" strokeWidth={1.5} />
+                      <text x={0} y={4} textAnchor="middle" fontSize={11} fontWeight={600} fill={hot ? '#fff' : '#8e44ad'}>{text}</text>
+                    </g>
+                  </g>
+                );
+              });
+            })()}
+
             {/* Align-to-edge mode: same "visible sliver + wide invisible
                 hit-area" pattern as mirror/margin mode above. Hovering an
                 edge also draws an arrow from its midpoint in the direction
@@ -4574,7 +4676,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   : { display: 'contents' }}>
                 {selectedRoof && (() => {
                   const roofIdx = roofs.findIndex((r) => r.id === selectedRoof.id);
-                  const bounds = selectedRoof.polygon ? polygonBounds(selectedRoof.polygon) : null;
+                  // Drawn roofs measure/resize along their own sides (see
+                  // orientedRoofExtents), framed by the auto azimuth rather
+                  // than any manual override so the axes always follow the
+                  // building itself.
+                  const frameAz = selectedRoof.polygon ? autoRoofAzimuth(selectedRoof, location) : 0;
+                  const bounds = selectedRoof.polygon ? orientedRoofExtents(selectedRoof.polygon, frameAz) : null;
                   return (
                     <>
                       {/* A plain text label overflowed this rail's own
@@ -4597,59 +4704,122 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}><RulerIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'roofDims'}>
-                            <div style={labelStyle}><span>width ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => updateRoof(selectedRoof.id, 'width', v)} /></div>
-                            <div style={labelStyle}><span>length ({units})</span><SliderInput unit={units} min={1} max={150} step={0.5} disabled={!!selectedRoof.polygon} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => updateRoof(selectedRoof.id, 'length', v)} /></div>
-                            <div style={labelStyle}><span>building height ({units})</span><SliderInput unit={units} min={0} max={50} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
-                            <div style={labelStyle}><span>boundary ({units})</span><SliderInput unit={units} min={0} max={5} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
+                        <RailPopover open={rightPanelOpenGroup === 'roofDims'} width={300}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                              {selectedRoof.polygon?.length ?? 0} points. Drag its corner handles on the 2D plan to resize.
+                              {selectedRoof.polygon
+                                ? `${selectedRoof.polygon.length} points. Width runs along the panel rows, length across them — or drag corner handles on the 2D plan.`
+                                : 'Drag corner handles on the 2D plan to resize.'}
                             </div>
                         </RailPopover>
                       </div>
 
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Panel margin" aria-label="Panel margin" className={iconBtn(rightPanelOpenGroup === 'roofMargin')} onClick={() => toggleGroup('roofMargin')}><MarginIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'roofMargin'}>
-                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>
-                              Panel margin{marginEditRoofId === selectedRoof.id ? ' — click edges on the plan to override just those' : ''}
-                            </div>
-                            <div style={labelStyle}>
-                              <span>Default ({units})</span>
-                              <SliderInput unit={units} min={0} max={3} step={0.05} value={selectedRoof.edgeMargin ?? 0.1} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
-                            </div>
-                            <button
-                              onClick={() => {
-                                const isSelf = marginEditRoofId === selectedRoof.id;
-                                cancelActiveModes();
-                                if (!isSelf) {
-                                  setMarginEditRoofId(selectedRoof.id);
-                                }
-                              }}
-                              style={{ border: 'none', background: 'none', color: marginEditRoofId === selectedRoof.id ? '#8e44ad' : '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 2 }}
-                            >
-                              {marginEditRoofId === selectedRoof.id ? 'stop picking edges' : 'override edges…'}
-                            </button>
-                            {marginEditRoofId === selectedRoof.id && selectedMarginEdges.size > 0 && (() => {
+                        <RailPopover open={rightPanelOpenGroup === 'roofMargin'} width={300}>
+                            {(() => {
+                              const editing = marginEditRoofId === selectedRoof.id;
+                              const defaultMargin = selectedRoof.edgeMargin ?? 0.1;
                               const overrides = selectedRoof.edgeMarginOverrides || {};
-                              const firstIdx = [...selectedMarginEdges][0];
-                              const currentValue = overrides[firstIdx] ?? selectedRoof.edgeMargin ?? 0.1;
-                              const hasOverride = [...selectedMarginEdges].some((i) => overrides[i] != null);
+                              const edgeCount = getRoofPolygon(selectedRoof).length;
+                              // Only indices that still exist on the current outline -
+                              // a stale override on a since-removed vertex is ignored by
+                              // the packer too, so listing it would just confuse.
+                              const overrideList = Object.keys(overrides)
+                                .map(Number)
+                                .filter((i) => i < edgeCount && overrides[i] != null)
+                                .sort((x, y) => x - y);
+                              const sel = [...selectedMarginEdges];
+                              const selValue = sel.length ? (overrides[sel[0]] ?? defaultMargin) : defaultMargin;
+                              const selHasOverride = sel.some((i) => overrides[i] != null);
                               return (
-                                <div style={{ background: '#f6f0fb', borderRadius: 6, padding: 8, marginTop: 6 }}>
-                                  <div style={labelStyle}>
-                                    <span>{selectedMarginEdges.size} edge{selectedMarginEdges.size === 1 ? '' : 's'} ({units})</span>
-                                    <SliderInput unit={units} min={0} max={3} step={0.05} value={currentValue} onChange={(v) => setEdgeMarginOverrides(selectedRoof.id, [...selectedMarginEdges], v)} />
+                                <>
+                                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Panel margin</div>
+                                  <div style={sliderRowStyle}>
+                                    {sliderRowLabel('Default', units)}
+                                    <SliderInput unit={units} numberWidth={58} min={0} max={3} step={0.05} value={defaultMargin} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
                                   </div>
-                                  {hasOverride && (
-                                    <button
-                                      onClick={() => setEdgeMarginOverrides(selectedRoof.id, [...selectedMarginEdges], null)}
-                                      style={{ border: 'none', background: 'none', color: '#8e44ad', cursor: 'pointer', fontSize: 11, padding: 0 }}
-                                    >
-                                      reset to default
-                                    </button>
+
+                                  <button
+                                    className={btn(editing)}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 10px', marginTop: 2 }}
+                                    onClick={() => {
+                                      cancelActiveModes();
+                                      if (!editing) setMarginEditRoofId(selectedRoof.id);
+                                    }}
+                                  >
+                                    <MarginIcon size={14} />
+                                    {editing ? 'Done picking edges' : 'Override specific edges'}
+                                  </button>
+
+                                  {editing && (
+                                    <div style={{ background: '#f6f0fb', borderRadius: 6, padding: 8, marginTop: 8 }}>
+                                      {sel.length === 0 ? (
+                                        <div style={{ fontSize: 11, color: '#8e44ad', lineHeight: 1.4 }}>
+                                          Click edges on the 2D plan to select them (shift-click to add more).
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div style={sliderRowStyle}>
+                                            {sliderRowLabel(`${sel.length} edge${sel.length === 1 ? '' : 's'}`, units)}
+                                            <SliderInput unit={units} numberWidth={58} min={0} max={3} step={0.05} value={selValue} onChange={(v) => setEdgeMarginOverrides(selectedRoof.id, sel, v)} />
+                                          </div>
+                                          <button
+                                            className={btn(false)}
+                                            disabled={!selHasOverride}
+                                            style={{ width: '100%' }}
+                                            onClick={() => setEdgeMarginOverrides(selectedRoof.id, sel, null)}
+                                          >
+                                            ↺ Use default for selected
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   )}
-                                </div>
+
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 6 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: '#555' }}>Edge overrides</span>
+                                    {overrideList.length > 0 && (
+                                      <button
+                                        className={btn(false)}
+                                        style={{ padding: '2px 8px', fontSize: 10 }}
+                                        onClick={() => setEdgeMarginOverrides(selectedRoof.id, overrideList, null)}
+                                      >
+                                        Reset all
+                                      </button>
+                                    )}
+                                  </div>
+                                  {overrideList.length === 0 ? (
+                                    <div style={{ fontSize: 11, color: '#999' }}>None — every edge uses the default.</div>
+                                  ) : (
+                                    <div className="pde-override-list">
+                                      {overrideList.map((i) => (
+                                        <div
+                                          key={i}
+                                          className={`pde-override-row${hoveredOverrideEdge === i ? ' pde-hover' : ''}`}
+                                          onMouseEnter={() => setHoveredOverrideEdge(i)}
+                                          onMouseLeave={() => setHoveredOverrideEdge((h) => (h === i ? null : h))}
+                                        >
+                                          <span className="pde-override-dot">{i + 1}</span>
+                                          <span style={{ flex: 1 }}>Edge {i + 1}</span>
+                                          <span style={{ fontWeight: 600, color: '#8e44ad' }}>{formatLength(overrides[i], units, 2)}</span>
+                                          <button
+                                            aria-label={`Reset edge ${i + 1} to default`}
+                                            data-tooltip="Use default"
+                                            className="pde-override-remove"
+                                            onClick={() => setEdgeMarginOverrides(selectedRoof.id, [i], null)}
+                                          >
+                                            <CloseIcon size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
                               );
                             })()}
                         </RailPopover>
@@ -4658,16 +4828,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Roof type" aria-label="Roof type" className={iconBtn(rightPanelOpenGroup === 'roofType')} onClick={() => toggleGroup('roofType')}><PitchedRoofIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofType'}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: 12, color: '#555' }}>Type</span>
-                              <span style={{ display: 'flex', gap: 6 }}>
-                                <button data-tooltip="Flat" aria-label="Flat" className={iconBtn(selectedRoof.type === 'flat')} onClick={() => updateRoof(selectedRoof.id, 'type', 'flat')}><FlatRoofIcon /></button>
-                                <button data-tooltip="Pitched" aria-label="Pitched" className={iconBtn(selectedRoof.type === 'pitched')} onClick={() => updateRoof(selectedRoof.id, 'type', 'pitched')}><PitchedRoofIcon /></button>
-                              </span>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Roof type</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              {[
+                                { value: 'flat', label: 'Flat', Icon: FlatRoofIcon },
+                                { value: 'pitched', label: 'Pitched', Icon: PitchedRoofIcon },
+                              ].map(({ value, label, Icon }) => (
+                                <button
+                                  key={value}
+                                  aria-pressed={selectedRoof.type === value}
+                                  className={btn(selectedRoof.type === value)}
+                                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 8px', fontSize: 12 }}
+                                  onClick={() => updateRoof(selectedRoof.id, 'type', value)}
+                                >
+                                  <Icon size={22} />
+                                  {label}
+                                </button>
+                              ))}
                             </div>
                             {selectedRoof.type === 'pitched' && (
                               <>
-                                <div style={labelStyle}><span>pitch (°)</span><SliderInput min={0} max={60} step={1} value={selectedRoof.pitchDeg} onChange={(v) => updateRoof(selectedRoof.id, 'pitchDeg', v)} /></div>
+                                <div style={{ ...labelStyle, marginTop: 12 }}><span>pitch (°)</span><SliderInput min={0} max={60} step={1} value={selectedRoof.pitchDeg} onChange={(v) => updateRoof(selectedRoof.id, 'pitchDeg', v)} /></div>
                                 <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'flex-start' }}>
                                   <div>
                                     <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>Slope direction</div>

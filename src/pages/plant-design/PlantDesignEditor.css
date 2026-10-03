@@ -106,6 +106,56 @@
   background: #e8f0ff;
   color: var(--app-accent, #2563eb);
 }
+.plant-design-editor .pde-override-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.plant-design-editor .pde-override-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #444;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.plant-design-editor .pde-override-row.pde-hover {
+  background: #f6f0fb;
+  border-color: #8e44ad;
+}
+.plant-design-editor .pde-override-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #8e44ad;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.plant-design-editor .pde-override-remove {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #999;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.plant-design-editor .pde-override-remove:hover {
+  background: #f6f0fb;
+  color: #8e44ad;
+}
 .plant-design-editor .pde-btn:disabled {
   background: #f2f2f2;
   color: #bbb;

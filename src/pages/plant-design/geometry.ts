@@ -113,11 +113,14 @@ const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
 
 // Compass azimuth (0=N, 90=E, 180=S, 270=W) of the outward normal of
 // whichever roof edge faces most toward `targetVec` (a world-space unit
-// vector, +y = north). On a 4-sided roof whose opposite edge pairs differ
-// in length by more than 15%, only the longer pair is considered - the
-// eave/ridge of a rectangular-ish roof, rather than a short gable end that
-// happens to point a little closer to the target.
-function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x: number; y: number }): number | null {
+// vector, +y = north). With `preferLongPair` (pitched roofs only), a
+// 4-sided roof whose opposite edge pairs differ in length by more than 15%
+// only considers the longer pair - the eave/ridge of a rectangular-ish
+// roof, rather than a short gable end that happens to point a little
+// closer to the target. A flat roof has no eave, so it must not use this:
+// a roof longer north-south than east-west would otherwise auto-face east
+// or west.
+function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x: number; y: number }, preferLongPair = false): number | null {
   const n = poly ? poly.length : 0;
   if (n < 3) return null;
 
@@ -138,7 +141,7 @@ function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x
   });
 
   let candidateIndices = edges.map((e) => e.idx);
-  if (n === 4) {
+  if (preferLongPair && n === 4) {
     const len02 = (edges[0].len + edges[2].len) / 2;
     const len13 = (edges[1].len + edges[3].len) / 2;
     if (len02 > len13 * 1.15) {
@@ -169,7 +172,7 @@ export function getPitchedRoofSlopeAzimuth(roof: any): number {
   const defaultAz = (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
   if (!roof || roof.type !== 'pitched') return defaultAz;
   const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
-  return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec) ?? defaultAz;
+  return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec, true) ?? defaultAz;
 }
 
 // The roof's compass azimuth, shown in (and editable from) the roof's
@@ -237,6 +240,50 @@ export function getRoofAzimuth(roof: any, location: any): number {
     return ((roof.azimuth % 360) + 360) % 360;
   }
   return autoRoofAzimuth(roof, location);
+}
+
+// A drawn roof's own width/length, measured along its own orientation
+// rather than the compass-aligned bounding box (polygonBounds) - which
+// overstates both for a building not square to north, and can't be edited
+// without skewing it. `azimuthDeg` sets the frame (callers pass the roof's
+// auto azimuth, i.e. its equator-facing/slope edge): width runs along the
+// panel rows, length across them (the facing direction). For a roof drawn
+// square to north this is exactly polygonBounds' width/length.
+function roofFrame(azimuthDeg: number) {
+  const t = toRad(azimuthDeg);
+  return { r: { x: Math.cos(t), y: -Math.sin(t) }, f: { x: Math.sin(t), y: Math.cos(t) } };
+}
+
+export function orientedRoofExtents(poly: Array<{ x: number; y: number }>, azimuthDeg: number) {
+  const { r, f } = roofFrame(azimuthDeg);
+  const as = poly.map((p) => p.x * r.x + p.y * r.y);
+  const bs = poly.map((p) => p.x * f.x + p.y * f.y);
+  return {
+    width: Math.max(...as) - Math.min(...as),
+    length: Math.max(...bs) - Math.min(...bs),
+    centerA: (Math.max(...as) + Math.min(...as)) / 2,
+    centerB: (Math.max(...bs) + Math.min(...bs)) / 2,
+  };
+}
+
+// Stretches a drawn roof along one of orientedRoofExtents' own axes, about
+// that axis' own midpoint, so the shape stays centered and a rotated
+// rectangle stays a rectangle. Vertex order/count is unchanged, so per-edge
+// margin overrides (keyed by edge index) still point at the same edges.
+export function resizeRoofPolygon(poly: Array<{ x: number; y: number }>, azimuthDeg: number, axis: 'width' | 'length', value: number) {
+  const ext = orientedRoofExtents(poly, azimuthDeg);
+  const current = axis === 'width' ? ext.width : ext.length;
+  if (!(current > 1e-6) || !(value > 0)) return poly;
+  const k = value / current;
+  const { r, f } = roofFrame(azimuthDeg);
+  return poly.map((p) => {
+    let a = p.x * r.x + p.y * r.y;
+    let b = p.x * f.x + p.y * f.y;
+    if (axis === 'width') a = ext.centerA + (a - ext.centerA) * k;
+    else b = ext.centerB + (b - ext.centerB) * k;
+    const x = a * r.x + b * f.x, y = a * r.y + b * f.y;
+    return { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
+  });
 }
 
 export function slopeDirectionAzimuth(direction: any): number {
