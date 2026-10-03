@@ -5054,18 +5054,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 {selectedObstacle && (() => {
                   const isCutout = selectedObstacle.label === 'Cutout';
                   const isTree = selectedObstacle.label === 'Tree';
-                  const isElevation = selectedObstacle.label === 'Elevation';
+                  const isDrawn = selectedObstacle.shape === 'polygon';
+                  // Skylights/walkways sit (near-)flush with the deck - a
+                  // 0-30m slider would make their few-cm heights unsettable.
+                  const isFlush = selectedObstacle.label === 'Skylight' || selectedObstacle.label === 'Walkway';
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
-                      {/* Trees and elevations get a plain Dimensions popover
-                          (same aligned slider rows as the roof's own) instead
-                          of the generic x/y Properties grid - position comes
-                          from dragging on the plan (startObstacleDrag), not
-                          typed in, and an elevation's x/y were always
-                          disabled anyway since its shape is its polygon. */}
-                      {(isTree || isElevation) ? (
+                      {/* Trees and every drawn (polygon) obstacle get a plain
+                          Dimensions popover (same aligned slider rows as the
+                          roof's own) instead of the generic x/y Properties
+                          grid - position comes from dragging on the plan
+                          (startObstacleDrag), not typed in, and a drawn
+                          shape's x/y were always disabled anyway since its
+                          shape is its polygon. */}
+                      {(isTree || isDrawn) ? (
                         <div style={{ position: 'relative' }}>
                           <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'obstacleDims')} onClick={() => toggleGroup('obstacleDims')}><RulerIcon /></button>
                           <RailPopover open={rightPanelOpenGroup === 'obstacleDims'} width={300}>
@@ -5077,8 +5081,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 </>
                               ) : (
                                 <>
-                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                  <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
+                                  {/* A Cutout has no height of its own (see
+                                      OBSTACLE_PRESETS.cutout) - it removes the
+                                      full building height - so no sliders, just
+                                      a note, rather than an inert 0. */}
+                                  {isCutout ? (
+                                    <div style={{ fontSize: 11, color: '#555', lineHeight: 1.4, marginBottom: 4 }}>
+                                      A cutout removes this area through the full building height, so it has no height to set.
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
+                                    </>
+                                  )}
                                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{selectedObstacle.polygon?.length ?? 0} points. Drag it on the 2D plan to move it.</div>
                                 </>
                               )}
@@ -5088,26 +5104,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}><GearIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'obstacleProps'}>
-                            <div style={{ display: 'grid', gridTemplateColumns: isCutout ? '1fr 1fr' : selectedObstacle.shape === 'polygon' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
-                              <label style={{ fontSize: 12, color: '#555' }}>x<br /><input style={{ ...inputStyle, width: '100%' }} type="number" disabled={selectedObstacle.shape === 'polygon'} value={selectedObstacle.x} onChange={(e) => updateObstacle(selectedObstacle.id, 'x', +e.target.value)} /></label>
-                              <label style={{ fontSize: 12, color: '#555' }}>y<br /><input style={{ ...inputStyle, width: '100%' }} type="number" disabled={selectedObstacle.shape === 'polygon'} value={selectedObstacle.y} onChange={(e) => updateObstacle(selectedObstacle.id, 'y', +e.target.value)} /></label>
-                              {/* A Cutout has no height of its own (see
-                                  OBSTACLE_PRESETS.cutout) - it removes the full
-                                  building height, not a raised/settable amount -
-                                  so its own height/boundary fields are dropped
-                                  entirely rather than shown as an inert `0`. */}
-                              {!isCutout && (
-                                <label style={{ fontSize: 12, color: '#555' }}>height<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.height} onChange={(e) => updateObstacle(selectedObstacle.id, 'height', +e.target.value)} /></label>
-                              )}
+                            {/* Only cylinders and boxes reach here now - trees
+                                and drawn (polygon) obstacles use the Dimensions
+                                popover above. */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                              <label style={{ fontSize: 12, color: '#555' }}>x<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.x} onChange={(e) => updateObstacle(selectedObstacle.id, 'x', +e.target.value)} /></label>
+                              <label style={{ fontSize: 12, color: '#555' }}>y<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.y} onChange={(e) => updateObstacle(selectedObstacle.id, 'y', +e.target.value)} /></label>
+                              <label style={{ fontSize: 12, color: '#555' }}>height<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.height} onChange={(e) => updateObstacle(selectedObstacle.id, 'height', +e.target.value)} /></label>
                               {selectedObstacle.shape === 'cylinder' ? (
                                 <label style={{ fontSize: 12, color: '#555' }}>radius<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.radius} onChange={(e) => updateObstacle(selectedObstacle.id, 'radius', +e.target.value)} /></label>
-                              ) : selectedObstacle.shape === 'polygon' ? (
-                                <>
-                                  {!isCutout && (
-                                    <label style={{ fontSize: 12, color: '#555' }}>boundary (m)<br /><input style={{ ...inputStyle, width: '100%' }} type="number" step="0.1" min="0" value={selectedObstacle.boundaryHeight ?? 0} onChange={(e) => updateObstacle(selectedObstacle.id, 'boundaryHeight', +e.target.value)} /></label>
-                                  )}
-                                  <div style={{ fontSize: 11, color: '#888', paddingTop: 14 }}>{selectedObstacle.polygon.length} points</div>
-                                </>
                               ) : (
                                 <label style={{ fontSize: 12, color: '#555' }}>rotation<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.rotation} onChange={(e) => updateObstacle(selectedObstacle.id, 'rotation', +e.target.value)} /></label>
                               )}
