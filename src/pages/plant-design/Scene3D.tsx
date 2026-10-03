@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { getRoofPolygon, isOnRoof, insetPolygon, subtractPolygons, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
+import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -795,9 +795,22 @@ function WideMapGround({ placement }) {
 // Which roof (if any) an obstacle is resting on, so its shadow-casting base
 // and ground obstacles' baseHeight agree with the same multi-roof logic
 // layoutEngine.js's shading math uses.
-function obstacleBaseHeight(obstacle, roofs) {
-  const onRoof = roofs.find((r) => isOnRoof(obstacle, r.polygon));
-  return onRoof ? onRoof.buildingHeight + DECK_THICKNESS : 0;
+// Where an obstacle actually sits: its base at the lowest roof-surface
+// point under its footprint, and its body extended by the surface's own
+// rise across that footprint so its top is still `height` above the
+// highest point (see obstacleRoofSurfaceRange). Flat roofs add the deck
+// slab; a pitched roof's surface already is the building's sloped top.
+// This used to be a flat buildingHeight + deck for every roof, so on a
+// pitched roof an obstacle sank into the slope wherever the roof climbed.
+function placeObstacle(obstacle, roofs) {
+  const { min, max, roof } = obstacleRoofSurfaceRange(obstacle, roofs);
+  if (!roof) return { baseHeight: 0, obstacle };
+  const deck = roof.type === 'pitched' ? 0 : DECK_THICKNESS;
+  const rise = max - min;
+  return {
+    baseHeight: min + deck,
+    obstacle: rise > 1e-6 ? { ...obstacle, height: obstacle.height + rise } : obstacle,
+  };
 }
 
 // How far (in degrees, clockwise on screen) the compass needle should turn
@@ -1112,16 +1125,19 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           );
         })}
 
-        {obstacles.map((o) => (
+        {obstacles.map((o) => {
+          const placed = placeObstacle(o, roofs);
+          return (
           <Obstacle
             key={o.id}
-            obstacle={o}
-            baseHeight={obstacleBaseHeight(o, roofs)}
+            obstacle={placed.obstacle}
+            baseHeight={placed.baseHeight}
             selected={selectedObstacleId === o.id}
             onSelect={onSelectObstacle}
             isDragClick={isDragClick}
           />
-        ))}
+          );
+        })}
 
         <OrbitControls
           ref={orbitControlsRef}

@@ -354,6 +354,80 @@ export function longEdgeAngle(poly: Array<{ x: number; y: number }>): number {
   return ((-t % 180) + 180) % 180;
 }
 
+// Height of a roof's own top surface at plan point `pt`. Flat roofs are
+// just buildingHeight (Scene3D adds its deck slab on top). Pitched roofs
+// mirror Scene3D's polygonToSlopedBuildingGeometry exactly, so whatever
+// sits on the roof lines up with the sloped building actually drawn: a
+// 4-sided roof climbs from its eave edge (the edge facing the slope
+// direction) toward the opposite ridge edge, clamped to [eave, ridge];
+// any other outline climbs by its local slope-Y above its own lowest point.
+// `direction` is the roof's azimuth (roof.azimuth if the caller already
+// resolved it, else the slope edge from getPitchedRoofSlopeAzimuth).
+export function roofSurfaceHeightAt(roof: any, pt: { x: number; y: number }): number {
+  const base = roof.buildingHeight || 0;
+  if (roof.type !== 'pitched') return base;
+  const poly = getRoofPolygon(roof);
+  const n = poly.length;
+  const tanPitch = Math.tan(toRad(roof.pitchDeg || 0));
+  const direction = typeof roof.azimuth === 'number' ? roof.azimuth : getPitchedRoofSlopeAzimuth(roof);
+  if (n === 4) {
+    const az = slopeDirectionAzimuth(direction);
+    const sv = { x: Math.sin(toRad(az)), y: Math.cos(toRad(az)) };
+    let area = 0;
+    for (let i = 0; i < n; i++) { const a = poly[i], b = poly[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
+    const ccw = area > 0;
+    let best = 0, bestDot = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const a = poly[i], b = poly[(i + 1) % n];
+      const ex = b.x - a.x, ey = b.y - a.y, len = Math.hypot(ex, ey) || 1e-9;
+      const nx = ccw ? ey / len : -ey / len, ny = ccw ? -ex / len : ex / len;
+      const d = nx * sv.x + ny * sv.y;
+      if (d > bestDot) { bestDot = d; best = i; }
+    }
+    const e1 = poly[best], e2 = poly[(best + 1) % n], r1 = poly[(best + 2) % n], r2 = poly[(best + 3) % n];
+    const ex = e2.x - e1.x, ey = e2.y - e1.y, len = Math.hypot(ex, ey) || 1e-9;
+    const up = { x: ccw ? -ey / len : ey / len, y: ccw ? ex / len : -ex / len };
+    const eaveMid = { x: (e1.x + e2.x) / 2, y: (e1.y + e2.y) / 2 };
+    const ridgeMid = { x: (r1.x + r2.x) / 2, y: (r1.y + r2.y) / 2 };
+    let depth = (ridgeMid.x - eaveMid.x) * up.x + (ridgeMid.y - eaveMid.y) * up.y;
+    if (depth <= 1e-3) depth = Math.hypot(ridgeMid.x - eaveMid.x, ridgeMid.y - eaveMid.y) || 1;
+    const t = Math.max(0, Math.min(1, ((pt.x - eaveMid.x) * up.x + (pt.y - eaveMid.y) * up.y) / depth));
+    return base + t * depth * tanPitch;
+  }
+  const front = Math.min(...poly.map((p) => toSlopeLocal(p, direction).y));
+  return base + Math.max(0, toSlopeLocal(pt, direction).y - front) * tanPitch;
+}
+
+// Plan points covering an obstacle's own footprint - a box's rotated
+// corners, a ring around a cylinder, a drawn shape's own vertices - plus
+// its center, for sampling the roof surface underneath it.
+export function obstacleFootprintPoints(o: any): Array<{ x: number; y: number }> {
+  const c = { x: o.x, y: o.y };
+  if (o.shape === 'polygon' && o.polygon?.length) return [c, ...o.polygon];
+  if (o.shape === 'box') {
+    const a = toRad(o.rotation || 0), cos = Math.cos(a), sin = Math.sin(a);
+    const hw = (o.width || 0) / 2, hd = (o.depth || 0) / 2;
+    return [c, ...[[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => ({ x: o.x + lx * cos - ly * sin, y: o.y + lx * sin + ly * cos }))];
+  }
+  const r = o.radius || 0;
+  return [c, ...[0, 45, 90, 135, 180, 225, 270, 315].map((d) => ({ x: o.x + r * Math.cos(toRad(d)), y: o.y + r * Math.sin(toRad(d)) }))];
+}
+
+// Lowest and highest roof-surface height under an obstacle's footprint (on
+// whichever roof its center sits on; 0/0 for one on the ground). On a flat
+// roof both are buildingHeight. On a slope they differ: callers seat the
+// obstacle's base at `min` (embedded, like a real chimney, never floating
+// off the downhill side) and measure its own height up from `max` (so it
+// always stands clear of the roof - previously every obstacle used the
+// flat buildingHeight, so on a pitched roof anything uphill of the eave
+// sank into the slope).
+export function obstacleRoofSurfaceRange(o: any, roofs: any[]): { min: number; max: number; roof: any } {
+  const roof = roofs.find((r) => pointInPolygon({ x: o.x, y: o.y }, getRoofPolygon(r)));
+  if (!roof) return { min: 0, max: 0, roof: null };
+  const hs = obstacleFootprintPoints(o).map((p) => roofSurfaceHeightAt(roof, p));
+  return { min: Math.min(...hs), max: Math.max(...hs), roof };
+}
+
 export function slopeDirectionAzimuth(direction: any): number {
   if (typeof direction === 'number') return direction;
   return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;

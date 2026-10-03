@@ -525,6 +525,19 @@ don't overlap) rather than filtering by centroid, since an edge-crossing
 cutout's center is often outside the roof. Parapets follow each remaining
 piece's outer ring. Pitched roofs still don't render cutouts in 3D.
 
+## Obstacles on pitched roofs
+
+Obstacle height is measured from the real roof surface, not a flat
+`buildingHeight`: `roofSurfaceHeightAt(roof, pt)` (geometry.ts) mirrors
+Scene3D's `polygonToSlopedBuildingGeometry` (4-sided eave→ridge climb, or
+local-slope-Y climb for other outlines), and `obstacleRoofSurfaceRange`
+samples it under the obstacle's footprint (`obstacleFootprintPoints`).
+Scene3D's `placeObstacle` seats the base at the lowest point and stretches
+the body by the rise so its top is `height` above the highest point
+(embedded like a real chimney, never buried or floating); layoutEngine's
+`obstacleBaseHeight` (shadow casting) uses that same highest point. Keep
+`roofSurfaceHeightAt` in sync if the pitched building geometry changes.
+
 ## Pitched roof deck
 
 For a flat roof, `BuildingBlock` (flat-topped walls) and `RoofDeck` (thin

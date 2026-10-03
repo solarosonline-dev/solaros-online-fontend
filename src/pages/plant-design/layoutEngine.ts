@@ -2,6 +2,7 @@ import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
   slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, getRoofAzimuth,
+  obstacleRoofSurfaceRange,
 } from './geometry.js';
 
 // ============================================================
@@ -1756,9 +1757,12 @@ export function computeStructure({ roof, layout }) {
 // panels. `roofs` is every roof on site (not just the one being shaded) so
 // an obstacle's own resting height can be found regardless of which roof,
 // if any, it's actually sitting on.
+// The surface height the obstacle's own `height` is measured up from -
+// the highest roof point under its footprint (obstacleRoofSurfaceRange),
+// matching where Scene3D draws its top. Used to be a flat buildingHeight,
+// which under-counted the shadow of anything uphill on a pitched roof.
 function obstacleBaseHeight(o, roofs) {
-  const onRoof = roofs.find((r) => isOnRoof(o, getRoofPolygon(r)));
-  return onRoof ? onRoof.buildingHeight : 0;
+  return obstacleRoofSurfaceRange(o, roofs).max;
 }
 function shadowCastingHeight(o, roofs, targetBuildingHeight) {
   return obstacleBaseHeight(o, roofs) + o.height - targetBuildingHeight;
