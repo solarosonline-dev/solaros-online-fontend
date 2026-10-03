@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
@@ -37,58 +37,68 @@ import EmailCampaignDetailPage from "./pages/admin/EmailCampaignDetailPage";
 import PlantDesignListPage from "./pages/plant-design/PlantDesignListPage";
 import PlantDesignEditorPage from "./pages/plant-design/PlantDesignEditorPage";
 
+// A data router (createBrowserRouter) rather than <BrowserRouter>, so
+// pages can use useBlocker - the plant-design editor relies on it to ask
+// before in-app navigation (sidebar links, Back, redirects) throws away
+// unsaved changes. Same route tree as before, just built with
+// createRoutesFromElements. Created once at module scope, as the API
+// expects.
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/activate" element={<ActivatePage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/trial-expired" element={<TrialExpiredPage />} />
+      <Route path="/q/:token" element={<PublicQuotePage />} />
+      <Route path="/a/:token" element={<PublicAgreementPage />} />
+      <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+          <Route path="/app" element={<HomeRedirect />} />
+          <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
+          <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
+          <Route element={<RequireEntityAdmin />}>
+            <Route path="/app/dashboard" element={<EntityDashboardPage />} />
+            <Route path="/app/entity" element={<EntityManagementPage />} />
+            <Route path="/app/users" element={<UsersPage />} />
+            <Route path="/app/leads" element={<LeadsPage />} />
+            <Route path="/app/leads/new" element={<AddLeadPage />} />
+            <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
+            <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+            <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
+            <Route path="/app/projects" element={<ProjectsPage />} />
+            <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+            <Route path="/app/plant-design" element={<PlantDesignListPage />} />
+            <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
+            <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
+          </Route>
+          <Route element={<RequireSystemAdmin />}>
+            <Route path="/app/admin/entities" element={<EntitiesPage />} />
+            <Route path="/app/admin/users" element={<AdminUsersPage />} />
+            <Route path="/app/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/app/admin/entities/:entityId/metrics" element={<EntityMetricsDrilldownPage />} />
+            {/* SYSTEM_SUPER_ADMIN only -- stricter than the rest of this
+                block, which also admits SYSTEM_ADMIN. See
+                RequireSystemSuperAdmin.tsx. */}
+            <Route element={<RequireSystemSuperAdmin />}>
+              <Route path="/app/admin/email" element={<EmailPage />} />
+              <Route path="/app/admin/email/campaigns/:campaignId" element={<EmailCampaignDetailPage />} />
+            </Route>
+          </Route>
+        </Route>
+      </Route>
+    </>
+  )
+);
+
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/activate" element={<ActivatePage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/trial-expired" element={<TrialExpiredPage />} />
-          <Route path="/q/:token" element={<PublicQuotePage />} />
-          <Route path="/a/:token" element={<PublicAgreementPage />} />
-          <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/app" element={<HomeRedirect />} />
-              <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
-              <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
-              <Route element={<RequireEntityAdmin />}>
-                <Route path="/app/dashboard" element={<EntityDashboardPage />} />
-                <Route path="/app/entity" element={<EntityManagementPage />} />
-                <Route path="/app/users" element={<UsersPage />} />
-                <Route path="/app/leads" element={<LeadsPage />} />
-                <Route path="/app/leads/new" element={<AddLeadPage />} />
-                <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
-                <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
-                <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
-                <Route path="/app/projects" element={<ProjectsPage />} />
-                <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
-                <Route path="/app/plant-design" element={<PlantDesignListPage />} />
-                <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
-                <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
-              </Route>
-              <Route element={<RequireSystemAdmin />}>
-                <Route path="/app/admin/entities" element={<EntitiesPage />} />
-                <Route path="/app/admin/users" element={<AdminUsersPage />} />
-                <Route path="/app/admin/dashboard" element={<AdminDashboardPage />} />
-                <Route path="/app/admin/entities/:entityId/metrics" element={<EntityMetricsDrilldownPage />} />
-                {/* SYSTEM_SUPER_ADMIN only -- stricter than the rest of this
-                    block, which also admits SYSTEM_ADMIN. See
-                    RequireSystemSuperAdmin.tsx. */}
-                <Route element={<RequireSystemSuperAdmin />}>
-                  <Route path="/app/admin/email" element={<EmailPage />} />
-                  <Route path="/app/admin/email/campaigns/:campaignId" element={<EmailCampaignDetailPage />} />
-                </Route>
-              </Route>
-            </Route>
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
 import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle } from './geometry.js';
@@ -3580,12 +3581,68 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
   }
 
-  async function handleSave() {
-    const data: PlantDesignData = {
+  // Everything a Save persists (handleSave) - also what the unsaved-changes
+  // check below compares.
+  function savablePayload(): PlantDesignData {
+    return {
       roofs, obstacles, siteImages, location, locationConfirmed, monthlyGHI,
       projectName, capacityNote, gridConnection, panelSpec, inverterChoice,
       designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, currentStep, maxUnlockedStep,
     };
+  }
+
+  // Unsaved-changes guard: refreshing or closing the tab with edits since
+  // the last save (or since the design was opened) gets the browser's own
+  // "Leave site? Changes you made may not be saved" prompt. Compares a
+  // fingerprint of savablePayload() against one taken at the last save,
+  // only when the page is actually being left - so it costs nothing while
+  // editing. Left out of the fingerprint: currentStep/maxUnlockedStep
+  // (moving between steps isn't an edit) and each site image's url/s3Key
+  // (a save swaps in a presigned url and records an s3Key for the very same
+  // capture - see handleSave), keeping only which capture it is. The
+  // opening baseline is taken a moment after mount so load-time
+  // normalization (e.g. the panelSpec sync effect) doesn't count as an edit.
+  function unsavedFingerprint(data) {
+    const capture = (img) => (img ? { centerLat: img.centerLat, centerLon: img.centerLon, zoom: img.zoom, sizePx: img.sizePx, scale: img.scale } : null);
+    return JSON.stringify({
+      ...data,
+      currentStep: undefined,
+      maxUnlockedStep: undefined,
+      siteImages: { locationImage: capture(data.siteImages?.locationImage), locationImageWide: capture(data.siteImages?.locationImageWide) },
+    });
+  }
+  const currentFingerprintRef = useRef<() => string>(() => '');
+  currentFingerprintRef.current = () => unsavedFingerprint(savablePayload());
+  const savedFingerprintRef = useRef<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => { savedFingerprintRef.current = currentFingerprintRef.current(); }, 800);
+    function onBeforeUnload(e) {
+      if (savedFingerprintRef.current == null) return;
+      if (currentFingerprintRef.current() === savedFingerprintRef.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => { clearTimeout(t); window.removeEventListener('beforeunload', onBeforeUnload); };
+  }, []);
+
+  // In-app navigation guard (sidebar links, Dashboard, Back, redirects) -
+  // beforeunload above only covers refresh/close; client-side route
+  // changes never fire it. useBlocker (needs the data router - see App.tsx)
+  // holds the navigation and the ConfirmDialog below asks. Not while a save
+  // is in flight: a first save itself navigates /new -> /:id before this
+  // editor has recorded the new baseline. Same-path changes (query string
+  // only) aren't "leaving" either.
+  const savingRef = useRef(false);
+  const leaveBlocker = useBlocker(({ currentLocation, nextLocation }) =>
+    !savingRef.current
+    && currentLocation.pathname !== nextLocation.pathname
+    && savedFingerprintRef.current != null
+    && currentFingerprintRef.current() !== savedFingerprintRef.current);
+
+  async function handleSave() {
+    const data: PlantDesignData = savablePayload();
+    savingRef.current = true;
     setSaveStatus('saving');
     try {
       const saved = await onSave(data, {
@@ -3603,11 +3660,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       // save keeps pointing at S3); only a genuinely different capture
       // (another location/zoom) takes the server's entry wholesale.
       if (saved?.siteImages) setSiteImages((prev) => mergeSavedSiteImages(prev, saved.siteImages));
+      // What was just saved is the new "no unsaved changes" baseline.
+      savedFingerprintRef.current = unsavedFingerprint(data);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 3000);
     } catch (err) {
       console.error('Failed to save plant design', err);
       setSaveStatus('error');
+    } finally {
+      savingRef.current = false;
     }
   }
 
@@ -6443,6 +6504,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       )}
     </div>
 
+    <ConfirmDialog
+      open={leaveBlocker.state === 'blocked'}
+      title="Leave without saving?"
+      message="This design has changes that haven't been saved. If you leave now, they'll be lost."
+      confirmLabel="Leave without saving"
+      cancelLabel="Stay on this page"
+      onConfirm={() => leaveBlocker.proceed?.()}
+      onCancel={() => leaveBlocker.reset?.()}
+    />
     <ConfirmDialog
       open={pendingLocationChange !== null}
       title="Change location?"

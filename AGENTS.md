@@ -26,7 +26,10 @@ src/pages/<domain>/   one folder per feature area, each with its own page compon
 src/styles/tokens.css  shared design tokens, imported once in main.tsx
 src/App.tsx            all routing — public routes, /login|/register|/activate,
                        /app/* behind ProtectedRoute, /app/admin/* additionally behind
-                       RequireSystemAdmin
+                       RequireSystemAdmin. A data router (createBrowserRouter +
+                       createRoutesFromElements), not <BrowserRouter> — needed for
+                       useBlocker (the plant-design editor's unsaved-changes guard);
+                       keep it a data router
 ```
 
 `src/pages/teams/` exists as an empty directory from the initial scaffold — Phase 10 hasn't been built yet, don't assume anything lives there. `src/pages/projects/` now holds Phase 8 (`ProjectsPage`, `ProjectDetailPage`).
