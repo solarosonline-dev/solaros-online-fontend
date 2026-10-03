@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getPitchedRoofSlopeAzimuth } from './geometry.js';
+import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getPitchedRoofSlopeAzimuth, getRoofAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -12,7 +12,7 @@ import {
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
-  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon,
+  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -78,7 +78,7 @@ const TREE_CANOPIES = ['cone', 'round', 'bushy'];
 // (finishRoofDraw, mirrorRoof) rather than here, since this object is
 // shared by every new roof and an array literal on it would otherwise be
 // the same reference for all of them.
-const ROOF_DEFAULTS = { width: 14, length: 10, type: 'flat', pitchDeg: 15, slopeDirection: 'S', polygon: null, buildingHeight: 3, minPillarHeight: 0.15, structureStrategy: 'truss', boundaryHeight: 0, edgeMargin: 0.1, edgeMarginOverrides: {} };
+const ROOF_DEFAULTS = { width: 14, length: 10, type: 'flat', pitchDeg: 15, slopeDirection: 'S', polygon: null, buildingHeight: 3, minPillarHeight: 0.15, structureStrategy: 'truss', boundaryHeight: 0, edgeMargin: 0.1, edgeMarginOverrides: {}, azimuth: null };
 
 function toDateInputValue(d) {
   const y = d.getFullYear();
@@ -1643,7 +1643,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // moment that slider (exposed in the grid's own popup, even though
     // it's a roof-level field) was touched.
     const needsRepack = ROOF_FIELDS_NEEDING_REPACK.has(field);
-    setRoofs((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value, ...(needsRepack ? { grids: [] } : {}) } : r)));
+    // A manual azimuth override (roof.azimuth - see getRoofAzimuth) was set
+    // against the roof's old type/slope facing; drop it so the Azimuth
+    // control falls back to auto for the new one instead of going stale.
+    const resetsAzimuth = field === 'type' || field === 'slopeDirection';
+    setRoofs((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value, ...(needsRepack ? { grids: [] } : {}), ...(resetsAzimuth ? { azimuth: null } : {}) } : r)));
     if (needsRepack) {
       setSelectedGridKeys((keys) => new Set([...keys].filter((k) => parseGridKey(k).roofId !== id)));
     }
@@ -1724,6 +1728,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       id: Date.now(),
       polygon: mirroredPolygon,
       slopeDirection: mirroredSlopeDirection,
+      // The source roof's azimuth override (if any) doesn't apply to its
+      // reflection - fall back to auto for the new roof's own facing.
+      azimuth: null,
       label: `${baseLabel}-right`,
       grids: [],
     };
@@ -4619,6 +4626,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                   </div>
                                 </div>
                               </>
+                            )}
+                        </RailPopover>
+                      </div>
+
+                      <div style={{ position: 'relative' }}>
+                        <button data-tooltip="Azimuth" aria-label="Azimuth" className={iconBtn(rightPanelOpenGroup === 'roofAzimuth')} onClick={() => toggleGroup('roofAzimuth')}><CompassIcon /></button>
+                        <RailPopover open={rightPanelOpenGroup === 'roofAzimuth'}>
+                            <div style={labelStyle}>
+                              <span>azimuth (°){selectedRoof.azimuth == null ? ' · auto' : ''}</span>
+                              <SliderInput min={0} max={359} step={1} value={getRoofAzimuth(selectedRoof, location)} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
+                            </div>
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                              0° = N, 90° = E, 180° = S, 270° = W. Doesn't change the panel layout.
+                            </div>
+                            {selectedRoof.azimuth != null && (
+                              <button
+                                onClick={() => updateRoof(selectedRoof.id, 'azimuth', null)}
+                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 2 }}
+                              >
+                                reset to auto
+                              </button>
                             )}
                         </RailPopover>
                       </div>

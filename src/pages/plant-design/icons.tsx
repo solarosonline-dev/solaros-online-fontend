@@ -506,3 +506,13 @@ export function EfficiencyIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+export function CompassIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <circle {...base} cx="12" cy="12" r="9" />
+      <path {...base} d="M15.5 8.5 L13.4 13.4 L8.5 15.5 L10.6 10.6 Z" />
+      <line {...base} x1="12" y1="3" x2="12" y2="5" />
+    </svg>
+  );
+}

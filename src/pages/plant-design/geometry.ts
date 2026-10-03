@@ -111,16 +111,15 @@ const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
   W: { x: -1, y: 0 },
 };
 
-export function getPitchedRoofSlopeAzimuth(roof: any): number {
-  const direction = roof?.slopeDirection || 'S';
-  const defaultAz = (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
-  if (!roof || roof.type !== 'pitched') return defaultAz;
-
-  const poly = getRoofPolygon(roof);
-  const n = poly.length;
-  if (n < 3) return defaultAz;
-
-  const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
+// Compass azimuth (0=N, 90=E, 180=S, 270=W) of the outward normal of
+// whichever roof edge faces most toward `targetVec` (a world-space unit
+// vector, +y = north). On a 4-sided roof whose opposite edge pairs differ
+// in length by more than 15%, only the longer pair is considered - the
+// eave/ridge of a rectangular-ish roof, rather than a short gable end that
+// happens to point a little closer to the target.
+function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x: number; y: number }): number | null {
+  const n = poly ? poly.length : 0;
+  if (n < 3) return null;
 
   let area = 0;
   for (let i = 0; i < n; i++) {
@@ -151,10 +150,9 @@ export function getPitchedRoofSlopeAzimuth(roof: any): number {
 
   let bestEdgeIdx = candidateIndices[0];
   let bestDot = -Infinity;
-
   for (const idx of candidateIndices) {
     const e = edges[idx];
-    const dot = e.nx * slopeVec.x + e.ny * slopeVec.y;
+    const dot = e.nx * targetVec.x + e.ny * targetVec.y;
     if (dot > bestDot) {
       bestDot = dot;
       bestEdgeIdx = idx;
@@ -162,9 +160,40 @@ export function getPitchedRoofSlopeAzimuth(roof: any): number {
   }
 
   const bestEdge = edges[bestEdgeIdx];
-  const azRad = Math.atan2(bestEdge.nx, bestEdge.ny);
-  const azDeg = (azRad * (180 / Math.PI) + 360) % 360;
+  const azDeg = (Math.atan2(bestEdge.nx, bestEdge.ny) * (180 / Math.PI) + 360) % 360;
   return Math.round(azDeg * 100) / 100;
+}
+
+export function getPitchedRoofSlopeAzimuth(roof: any): number {
+  const direction = roof?.slopeDirection || 'S';
+  const defaultAz = (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
+  if (!roof || roof.type !== 'pitched') return defaultAz;
+  const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
+  return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec) ?? defaultAz;
+}
+
+// The roof's compass azimuth as shown in (and editable from) the roof's
+// Azimuth rail control. Purely informational: nothing in panel packing,
+// the 2D plan or Scene3D reads it - those still face flat roofs due
+// equator-ward and pitched roofs down their slope direction exactly as
+// before, so editing it never moves or repacks a panel.
+//
+// `roof.azimuth` is the admin's manual override (null = auto). Auto is a
+// pitched roof's own slope-facing edge (getPitchedRoofSlopeAzimuth), or
+// for a flat roof the edge facing most toward the equator (south in the
+// northern hemisphere, north in the southern).
+export function autoRoofAzimuth(roof: any, location: any): number {
+  if (roof?.type === 'pitched') return Math.round(getPitchedRoofSlopeAzimuth(roof)) % 360;
+  const equatorVec = (location?.lat ?? 0) >= 0 ? CARDINAL_SLOPE_VECTORS.S : CARDINAL_SLOPE_VECTORS.N;
+  const az = edgeFacingAzimuth(getRoofPolygon(roof), equatorVec);
+  return az == null ? ((location?.lat ?? 0) >= 0 ? 180 : 0) : Math.round(az) % 360;
+}
+
+export function getRoofAzimuth(roof: any, location: any): number {
+  if (typeof roof?.azimuth === 'number' && Number.isFinite(roof.azimuth)) {
+    return ((roof.azimuth % 360) + 360) % 360;
+  }
+  return autoRoofAzimuth(roof, location);
 }
 
 export function slopeDirectionAzimuth(direction: any): number {
