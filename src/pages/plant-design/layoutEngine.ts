@@ -1286,12 +1286,30 @@ function pitchedRoofRidgeY(layout) {
 //    deck further back (the panels ending up buried in the roof) - the
 //    ridge is the tightest point instead, so the stand is anchored there
 //    and gets *taller* toward the eave rather than the ridge.
-function pitchedHeightAtY(y, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad }) {
+//
+// Heights are relative to the roof's *eave* (its lowest point along the
+// slope, `roofFrontY` - see pitchedRoofDeckFrontY), the same plane Scene3D
+// draws the pitched building's top as: deck(y) = (y - roofFrontY)*tan(pitch).
+// This used to treat the deck as being at eave height right under the
+// *front panel row* - but that row sits up the slope by the edge margin (or
+// more, past an obstacle), so every panel was buried by that distance ×
+// tan(pitch) minus its stand height.
+function pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) {
+  const deck = (yy) => (yy - roofFrontY) * Math.tan(pitchRad);
   if (tiltRad >= pitchRad) {
-    return minPillarHeight + (y - frontY) * Math.tan(tiltRad);
+    return minPillarHeight + deck(frontY) + (y - frontY) * Math.tan(tiltRad);
   }
-  const totalDepth = ridgeY - frontY;
-  return minPillarHeight + totalDepth * Math.tan(pitchRad) - (ridgeY - y) * Math.tan(tiltRad);
+  return minPillarHeight + deck(ridgeY) - (ridgeY - y) * Math.tan(tiltRad);
+}
+
+// The pitched roof's eave in this grid's own local (rackY) frame - the
+// lowest point of the roof outline along the slope - which is where the
+// sloped deck starts climbing (see roofSurfaceHeightAt in geometry.ts and
+// Scene3D's polygonToSlopedBuildingGeometry, which climb along the same
+// direction from the same point).
+function pitchedRoofDeckFrontY(roof, layout) {
+  const direction = gridDirection(layout, roof);
+  return Math.min(...getRoofPolygon(roof).map((p) => toSlopeLocal(p, direction).y));
 }
 
 // Every panel on a rack shares the one continuous tilted plane, so a panel
@@ -1310,6 +1328,7 @@ function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
   const panelHeights = new Map();
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
+  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
 
   for (const { rackTop, panels } of groups) {
     panels.forEach((p) => {
@@ -1317,8 +1336,8 @@ function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
       const footprintBackY = footprintFrontY + footprintDepth;
       if (isPitched) {
         panelHeights.set(p.id, {
-          frontHeight: pitchedHeightAtY(footprintFrontY, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
-          backHeight: pitchedHeightAtY(footprintBackY, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
+          frontHeight: pitchedHeightAtY(footprintFrontY, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
+          backHeight: pitchedHeightAtY(footprintBackY, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
         });
         return;
       }
@@ -1412,8 +1431,9 @@ function computeTrussStructure({ roof, layout }) {
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
+  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
   const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad })
+    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
@@ -1497,8 +1517,9 @@ function computeGroundMountStructure({ roof, layout }) {
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
+  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
   const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad })
+    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
@@ -1673,8 +1694,9 @@ function computeSteppedTrussStructure({ roof, layout }) {
   // correct for this strategy's grids too.
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
+  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
   const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, minPillarHeight, tiltRad, pitchRad })
+    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];

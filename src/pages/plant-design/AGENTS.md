@@ -529,14 +529,30 @@ piece's outer ring. Pitched roofs still don't render cutouts in 3D.
 
 Obstacle height is measured from the real roof surface, not a flat
 `buildingHeight`: `roofSurfaceHeightAt(roof, pt)` (geometry.ts) mirrors
-Scene3D's `polygonToSlopedBuildingGeometry` (4-sided eave→ridge climb, or
-local-slope-Y climb for other outlines), and `obstacleRoofSurfaceRange`
+Scene3D's `polygonToSlopedBuildingGeometry`, and `obstacleRoofSurfaceRange`
 samples it under the obstacle's footprint (`obstacleFootprintPoints`).
 Scene3D's `placeObstacle` seats the base at the lowest point and stretches
 the body by the rise so its top is `height` above the highest point
 (embedded like a real chimney, never buried or floating); layoutEngine's
 `obstacleBaseHeight` (shadow casting) uses that same highest point. Keep
 `roofSurfaceHeightAt` in sync if the pitched building geometry changes.
+
+## One pitched-roof plane for deck, walls, panels and obstacles
+
+A pitched roof's top is **one flat plane climbing along the roof's azimuth
+from the outline's lowest point** (`toSlopeLocal(p, direction).y` above its
+minimum, × tan(pitch)). Four places must agree on it, and do:
+`polygonToSlopedBuildingGeometry` + `boundaryRingGeometry` (Scene3D),
+`roofSurfaceHeightAt` (geometry.ts, obstacles), and `computeStructure`'s
+`pitchedHeightAtY` (layoutEngine, panels/structure - measured from
+`pitchedRoofDeckFrontY`, the eave in the grid's own frame). Panels on a
+pitched roof render from `buildingHeight` (no flat-roof deck slab).
+Two earlier bugs this replaced: a 4-sided roof's deck climbed perpendicular
+to its *eave edge* (so any azimuth ≠ that edge's normal tilted panels across
+the roof), and panel heights treated the deck as eave-height under the
+*front panel row* (burying every panel by margin × tan(pitch)). Known gap:
+a grid's presentation-only `rotation` still isn't reflected in pitched
+panel heights (heights use the unrotated packed rackY).
 
 ## Pitched roof deck
 

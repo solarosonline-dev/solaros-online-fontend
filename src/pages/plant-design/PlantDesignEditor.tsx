@@ -257,6 +257,52 @@ function RailPopover({ open, width = 260, children }) {
   );
 }
 
+// Roof chooser shown when an action could apply to more than one roof -
+// "Fill roof" (with an "All roofs" option) and "Add grid by size" (after
+// picking rows × cols). Each row names the roof with its type, area and
+// current panel count; hovering one highlights that roof on the 2D plan
+// (via `onHover`) so "Roof 2" is never a guess.
+function RoofPickerList({ title, subtitle = null as any, rows, allOption = null as any, onPick, onHover, onClose, onBack = null as any }) {
+  return (
+    <div
+      style={{ padding: 10, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.22)', border: '1px solid #dcdcdc', width: 240, boxSizing: 'border-box', zIndex: 1000 }}
+      onMouseLeave={() => onHover(null)}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: subtitle ? 2 : 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{title}</span>
+        <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#888', display: 'flex' }}>
+          <CloseIcon size={12} />
+        </button>
+      </div>
+      {subtitle && <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>{subtitle}</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {allOption && (
+          <button className="pde-btn" style={{ textAlign: 'left', padding: '7px 10px', fontWeight: 600 }} onClick={allOption.onPick} onMouseEnter={() => onHover('all')}>
+            {allOption.label}
+          </button>
+        )}
+        {rows.map((r) => (
+          <button
+            key={r.id}
+            className={`pde-btn${r.selected ? ' pde-active' : ''}`}
+            style={{ textAlign: 'left', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 1 }}
+            onClick={() => onPick(r.id)}
+            onMouseEnter={() => onHover(r.id)}
+          >
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{r.name}</span>
+            <span style={{ fontSize: 10, color: '#888', fontWeight: 400 }}>{r.detail}</span>
+          </button>
+        ))}
+      </div>
+      {onBack && (
+        <button onClick={onBack} style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 8 }}>
+          ← Change size
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) {
   const [hover, setHover] = useState({ rows: 1, cols: 1 });
 
@@ -379,6 +425,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // that failure isn't silent, cleared on the next attempt.
   const [gridPlacementError, setGridPlacementError] = useState<any>(null);
   const [gridTablePickerOpen, setGridTablePickerOpen] = useState(false);
+  // Multi-roof choosers (see RoofPickerList): the Fill roof one, and the
+  // rows × cols picked in the table picker while its roof is being chosen
+  // (null = still on the size grid). `hoveredPickRoofId` is the roof (or
+  // 'all') currently hovered in either list, highlighted on the 2D plan.
+  const [fillPickerOpen, setFillPickerOpen] = useState(false);
+  const [tablePickSize, setTablePickSize] = useState<any>(null);
+  const [hoveredPickRoofId, setHoveredPickRoofId] = useState<any>(null);
   // Whether the map picker is currently shown in place of the center pane
   // ('location' — the only map mode now; shape tracing happens on the 2D
   // plan itself, see startRoofDraw).
@@ -2005,6 +2058,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setAlignEdgeRoofId(null);
     setHoveredAlignEdge(null);
     setHoveredOverrideEdge(null);
+    setFillPickerOpen(false);
+    setTablePickSize(null);
+    setHoveredPickRoofId(null);
     setAddSideMode(null);
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
@@ -3135,8 +3191,54 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setCost(null);
   }
 
-  function handleAddFixedGrid(rows: number, cols: number) {
-    const roof = roofs.find((r) => r.id === selectedRoofId) || roofs[0];
+  // Roof rows for RoofPickerList - name, type, area and current panel count.
+  function roofPickerRows() {
+    return roofs.map((r, i) => {
+      const poly = getRoofPolygon(r);
+      let area = 0;
+      for (let k = 0; k < poly.length; k++) { const a = poly[k], b = poly[(k + 1) % poly.length]; area += a.x * b.y - b.x * a.y; }
+      area = Math.abs(area) / 2;
+      const panels = r.grids.reduce((n, g) => n + (g.count || 0), 0);
+      const areaText = units === 'ft' ? `${Math.round(area * 10.7639)} ft²` : `${Math.round(area)} m²`;
+      return {
+        id: r.id,
+        name: roofLabel(r, i),
+        detail: `${r.type === 'pitched' ? 'Pitched' : 'Flat'} · ${areaText} · ${panels} panel${panels === 1 ? '' : 's'}`,
+        selected: r.id === selectedRoofId,
+      };
+    });
+  }
+
+  function closeRoofPickers() {
+    setFillPickerOpen(false);
+    setTablePickSize(null);
+    setHoveredPickRoofId(null);
+  }
+
+  // Fill roof: with one roof there's nothing to ask - fill it. With more,
+  // open the chooser (All roofs or one specific roof).
+  function handleFillClick() {
+    if (roofs.length <= 1) { regenerateAllGrids(); return; }
+    setGridTablePickerOpen(false);
+    setTablePickSize(null);
+    setFillPickerOpen((o) => !o);
+    setHoveredPickRoofId(null);
+  }
+
+  function fillRoofs(roofIds?: any[]) {
+    regenerateAllGrids(undefined, roofIds);
+    closeRoofPickers();
+  }
+
+  // A size picked in the table picker: straight onto the only roof, or on
+  // to choosing which roof when there's more than one.
+  function handleTableSizePicked(rows: number, cols: number) {
+    if (roofs.length <= 1) { handleAddFixedGrid(rows, cols, roofs[0]?.id); return; }
+    setTablePickSize({ rows, cols });
+  }
+
+  function handleAddFixedGrid(rows: number, cols: number, roofId?: any) {
+    const roof = roofs.find((r) => r.id === roofId) || roofs[0];
     if (!roof) {
       setGridPlacementError("Add a roof first before placing a grid.");
       return;
@@ -3146,6 +3248,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setRoofs((rs) => rs.map((r) => (r.id === roof.id ? { ...r, grids: [...r.grids, grid] } : r)));
     setSelectedGridKeys(new Set([gridKey(roof.id, grid.id)]));
     setGridTablePickerOpen(false);
+    closeRoofPickers();
     setOutputResult(null);
     setCost(null);
   }
@@ -3159,9 +3262,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // keeps its own tilt/row-spacing/structure/panels-per-row settings rather
   // than resetting them, since this is also what re-packs a roof after an
   // obstacle moved or a roof was resized, not just a first-time run.
-  function regenerateAllGrids(specOverride?: any) {
+  function regenerateAllGrids(specOverride?: any, onlyRoofIds?: any[]) {
     const spec = specOverride ?? panelSpec;
     setRoofs((rs) => rs.map((roof) => {
+      // Fill roof → one specific roof leaves every other roof's grids alone.
+      if (onlyRoofIds && !onlyRoofIds.includes(roof.id)) return roof;
       const existing = roof.grids.find((g) => g.source === 'wholeRoof');
       const gridSettings = existing
         ? { panelTiltDeg: existing.panelTiltDeg, rowSpacing: existing.rowSpacing, structureStrategy: existing.structureStrategy, panelsPerRow: existing.panelsPerRow, orientation: existing.orientation }
@@ -3175,10 +3280,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setSelectedGridKeys(new Set());
     setOutputResult(null);
     setCost(null);
-  }
-
-  function handleGenerate() {
-    regenerateAllGrids();
   }
 
   function handleCalculate() {
@@ -3973,29 +4074,55 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
             {currentStep === 4 && (
             <>
-              <button
-                data-tooltip="Fill the whole roof with panels"
-                aria-label="Fill the whole roof with panels"
-                onClick={handleGenerate} disabled={roofs.length === 0}
-                className={iconBtn(false, roofs.length === 0)}
-              >
-                <FillGridIcon />
-              </button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  data-tooltip={roofs.length > 1 ? 'Fill a roof (or all roofs) with panels' : 'Fill the whole roof with panels'}
+                  aria-label="Fill roof with panels"
+                  onClick={handleFillClick} disabled={roofs.length === 0}
+                  className={iconBtn(fillPickerOpen, roofs.length === 0)}
+                >
+                  <FillGridIcon />
+                </button>
+                {fillPickerOpen && (
+                  <div style={{ position: 'absolute', left: 42, top: 0, zIndex: 1000 }}>
+                    <RoofPickerList
+                      title="Fill which roof?"
+                      rows={roofPickerRows()}
+                      allOption={{ label: `All roofs (${roofs.length})`, onPick: () => fillRoofs() }}
+                      onPick={(id) => fillRoofs([id])}
+                      onHover={setHoveredPickRoofId}
+                      onClose={closeRoofPickers}
+                    />
+                  </div>
+                )}
+              </div>
               <div style={{ position: 'relative' }}>
                 <button
                   data-tooltip={gridTablePickerOpen ? "Close table picker" : "Add grid by size (rows × cols)"}
                   aria-label="Add grid by size"
-                  onClick={() => setGridTablePickerOpen(!gridTablePickerOpen)} disabled={roofs.length === 0}
+                  onClick={() => { closeRoofPickers(); setGridTablePickerOpen(!gridTablePickerOpen); }} disabled={roofs.length === 0}
                   className={iconBtn(gridTablePickerOpen, roofs.length === 0)}
                 >
                   <TableGridIcon />
                 </button>
                 {gridTablePickerOpen && (
                   <div style={{ position: 'absolute', left: 42, top: 0, zIndex: 1000 }}>
-                    <TablePickerGrid
-                      onSelect={(r, c) => handleAddFixedGrid(r, c)}
-                      onClose={() => setGridTablePickerOpen(false)}
-                    />
+                    {tablePickSize ? (
+                      <RoofPickerList
+                        title="Place grid on which roof?"
+                        subtitle={`${tablePickSize.rows} × ${tablePickSize.cols} (${tablePickSize.rows * tablePickSize.cols} panels)`}
+                        rows={roofPickerRows()}
+                        onPick={(id) => handleAddFixedGrid(tablePickSize.rows, tablePickSize.cols, id)}
+                        onHover={setHoveredPickRoofId}
+                        onClose={() => { closeRoofPickers(); setGridTablePickerOpen(false); }}
+                        onBack={() => { setTablePickSize(null); setHoveredPickRoofId(null); }}
+                      />
+                    ) : (
+                      <TablePickerGrid
+                        onSelect={(r, c) => handleTableSizePicked(r, c)}
+                        onClose={() => setGridTablePickerOpen(false)}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -4079,6 +4206,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 selectedRoofId={selectedRoofId}
                 onSelectRoof={selectRoof}
                 canSelectRoofs={currentStep === 3}
+                highlightRoofId={hoveredPickRoofId}
                 // Same step the 2D plan's panels are clickable in (see the
                 // panel <g>'s pointerEvents there).
                 canSelectGrids={currentStep === 4}
@@ -4771,6 +4899,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               });
             }))}
             </g>
+
+            {/* Roof hovered in a RoofPickerList (Fill roof / Add grid by
+                size) - drawn above the panels, since a roof's own fill sits
+                underneath them and would be hidden on an already-filled roof. */}
+            {hoveredPickRoofId != null && roofPolygons
+              .filter((rp) => hoveredPickRoofId === 'all' || rp.id === hoveredPickRoofId)
+              .map((rp) => (
+                <polygon
+                  key={`pick-highlight-${rp.id}`}
+                  points={rp.polygon.map((p) => { const sp = toScreen(p.x, p.y); return `${sp.sx},${sp.sy}`; }).join(' ')}
+                  fill="rgba(47,111,237,0.18)" stroke="#2f6fed" strokeWidth={3}
+                  style={{ pointerEvents: 'none' }}
+                />
+              ))}
 
             {/* Rotate mode (the grid rail's Rotate popover is open): a
                 curved double-arrow handle just outside each corner of the

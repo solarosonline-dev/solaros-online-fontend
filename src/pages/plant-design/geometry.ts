@@ -355,45 +355,19 @@ export function longEdgeAngle(poly: Array<{ x: number; y: number }>): number {
 }
 
 // Height of a roof's own top surface at plan point `pt`. Flat roofs are
-// just buildingHeight (Scene3D adds its deck slab on top). Pitched roofs
-// mirror Scene3D's polygonToSlopedBuildingGeometry exactly, so whatever
-// sits on the roof lines up with the sloped building actually drawn: a
-// 4-sided roof climbs from its eave edge (the edge facing the slope
-// direction) toward the opposite ridge edge, clamped to [eave, ridge];
-// any other outline climbs by its local slope-Y above its own lowest point.
-// `direction` is the roof's azimuth (roof.azimuth if the caller already
-// resolved it, else the slope edge from getPitchedRoofSlopeAzimuth).
+// just buildingHeight (Scene3D adds its deck slab on top). A pitched roof
+// is one flat plane climbing along its azimuth (the direction panels are
+// packed in) from the lowest point of its outline - exactly what Scene3D's
+// polygonToSlopedBuildingGeometry draws, and what computeStructure's panel
+// heights are measured from, so panels, obstacles and the roof all agree.
+// `direction` is roof.azimuth if the caller already resolved it, else the
+// slope edge from getPitchedRoofSlopeAzimuth.
 export function roofSurfaceHeightAt(roof: any, pt: { x: number; y: number }): number {
   const base = roof.buildingHeight || 0;
   if (roof.type !== 'pitched') return base;
   const poly = getRoofPolygon(roof);
-  const n = poly.length;
   const tanPitch = Math.tan(toRad(roof.pitchDeg || 0));
   const direction = typeof roof.azimuth === 'number' ? roof.azimuth : getPitchedRoofSlopeAzimuth(roof);
-  if (n === 4) {
-    const az = slopeDirectionAzimuth(direction);
-    const sv = { x: Math.sin(toRad(az)), y: Math.cos(toRad(az)) };
-    let area = 0;
-    for (let i = 0; i < n; i++) { const a = poly[i], b = poly[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
-    const ccw = area > 0;
-    let best = 0, bestDot = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const a = poly[i], b = poly[(i + 1) % n];
-      const ex = b.x - a.x, ey = b.y - a.y, len = Math.hypot(ex, ey) || 1e-9;
-      const nx = ccw ? ey / len : -ey / len, ny = ccw ? -ex / len : ex / len;
-      const d = nx * sv.x + ny * sv.y;
-      if (d > bestDot) { bestDot = d; best = i; }
-    }
-    const e1 = poly[best], e2 = poly[(best + 1) % n], r1 = poly[(best + 2) % n], r2 = poly[(best + 3) % n];
-    const ex = e2.x - e1.x, ey = e2.y - e1.y, len = Math.hypot(ex, ey) || 1e-9;
-    const up = { x: ccw ? -ey / len : ey / len, y: ccw ? ex / len : -ex / len };
-    const eaveMid = { x: (e1.x + e2.x) / 2, y: (e1.y + e2.y) / 2 };
-    const ridgeMid = { x: (r1.x + r2.x) / 2, y: (r1.y + r2.y) / 2 };
-    let depth = (ridgeMid.x - eaveMid.x) * up.x + (ridgeMid.y - eaveMid.y) * up.y;
-    if (depth <= 1e-3) depth = Math.hypot(ridgeMid.x - eaveMid.x, ridgeMid.y - eaveMid.y) || 1;
-    const t = Math.max(0, Math.min(1, ((pt.x - eaveMid.x) * up.x + (pt.y - eaveMid.y) * up.y) / depth));
-    return base + t * depth * tanPitch;
-  }
   const front = Math.min(...poly.map((p) => toSlopeLocal(p, direction).y));
   return base + Math.max(0, toSlopeLocal(pt, direction).y - front) * tanPitch;
 }

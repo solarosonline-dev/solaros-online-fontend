@@ -135,76 +135,6 @@ function RoofMarginBand({ polygon, usablePolygon, cutouts, buildingHeight }) {
 // edge follows the roofline all the way around instead of stopping flat at
 // the eave height and leaving a gap under wherever the roof climbs above
 // it (what a separate flat-topped building + a floating sloped cap did).
-const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
-  N: { x: 0, y: 1 },
-  S: { x: 0, y: -1 },
-  E: { x: 1, y: 0 },
-  W: { x: -1, y: 0 },
-};
-
-function computeQuadSlopeOffsets(polygon: { x: number; y: number }[], direction: any, pitchRad: number) {
-  const n = polygon.length;
-  const slopeVec = typeof direction === 'number'
-    ? { x: Math.sin(direction * DEG), y: Math.cos(direction * DEG) }
-    : (CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S);
-
-  let area = 0;
-  for (let i = 0; i < n; i++) {
-    const a = polygon[i], b = polygon[(i + 1) % n];
-    area += a.x * b.y - b.x * a.y;
-  }
-  const isCcw = area > 0;
-
-  let bestEdgeIdx = 0;
-  let bestDot = -Infinity;
-
-  for (let i = 0; i < n; i++) {
-    const a = polygon[i], b = polygon[(i + 1) % n];
-    const ex = b.x - a.x, ey = b.y - a.y;
-    const len = Math.hypot(ex, ey) || 1e-9;
-    const nx = isCcw ? ey / len : -ey / len;
-    const ny = isCcw ? -ex / len : ex / len;
-    const dot = nx * slopeVec.x + ny * slopeVec.y;
-    if (dot > bestDot) {
-      bestDot = dot;
-      bestEdgeIdx = i;
-    }
-  }
-
-  const eave1 = bestEdgeIdx;
-  const eave2 = (bestEdgeIdx + 1) % n;
-  const ridge1 = (bestEdgeIdx + 2) % n;
-  const ridge2 = (bestEdgeIdx + 3) % n;
-
-  const ex = polygon[eave2].x - polygon[eave1].x;
-  const ey = polygon[eave2].y - polygon[eave1].y;
-  const len = Math.hypot(ex, ey) || 1e-9;
-  const upSlopeVec = {
-    x: isCcw ? -ey / len : ey / len,
-    y: isCcw ? ex / len : -ex / len,
-  };
-
-  const eaveMid = {
-    x: (polygon[eave1].x + polygon[eave2].x) / 2,
-    y: (polygon[eave1].y + polygon[eave2].y) / 2,
-  };
-  const ridgeMid = {
-    x: (polygon[ridge1].x + polygon[ridge2].x) / 2,
-    y: (polygon[ridge1].y + polygon[ridge2].y) / 2,
-  };
-
-  let depth = (ridgeMid.x - eaveMid.x) * upSlopeVec.x + (ridgeMid.y - eaveMid.y) * upSlopeVec.y;
-  if (depth <= 1e-3) depth = Math.hypot(ridgeMid.x - eaveMid.x, ridgeMid.y - eaveMid.y) || 1;
-
-  const cornerOffset = new Array<number>(n);
-  cornerOffset[eave1] = 0;
-  cornerOffset[eave2] = 0;
-  cornerOffset[ridge1] = depth * Math.tan(pitchRad);
-  cornerOffset[ridge2] = depth * Math.tan(pitchRad);
-
-  return { eaveMid, depth, cornerOffset, slopeVec: upSlopeVec };
-}
-
 function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchRad, eaveHeight) {
   const shape = new THREE.Shape();
   polygon.forEach((p, i) => {
@@ -213,48 +143,23 @@ function polygonToSlopedBuildingGeometry(polygon, direction, frontLocalY, pitchR
   });
   shape.closePath();
 
-  const n = polygon.length;
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: eaveHeight, bevelEnabled: false });
   const pos = geometry.attributes.position;
   const tanPitch = Math.tan(pitchRad);
 
-  if (n === 4) {
-    const { eaveMid, depth, cornerOffset, slopeVec } = computeQuadSlopeOffsets(polygon, direction, pitchRad);
-    for (let i = 0; i < pos.count; i++) {
-      if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
-        const vx = pos.getX(i);
-        const vy = pos.getY(i);
-        let minSq = Infinity;
-        let nearestIdx = 0;
-        for (let j = 0; j < n; j++) {
-          const dx = vx - polygon[j].x;
-          const dy = vy - polygon[j].y;
-          const sq = dx * dx + dy * dy;
-          if (sq < minSq) {
-            minSq = sq;
-            nearestIdx = j;
-          }
-        }
-        let offset: number;
-        if (minSq < 1e-1) {
-          offset = cornerOffset[nearestIdx];
-        } else {
-          const pProj = (vx - eaveMid.x) * slopeVec.x + (vy - eaveMid.y) * slopeVec.y;
-          const t = Math.max(0, Math.min(1, pProj / depth));
-          offset = t * depth * tanPitch;
-        }
-        pos.setZ(i, eaveHeight + offset);
-      }
-    }
-  } else {
-    for (let i = 0; i < pos.count; i++) {
-      if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
-        const vx = pos.getX(i);
-        const vy = pos.getY(i);
-        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
-        const offset = Math.max(0, ly - frontLocalY) * tanPitch;
-        pos.setZ(i, eaveHeight + offset);
-      }
+  // One flat plane climbing along `direction` from the outline's lowest
+  // point - the same surface roofSurfaceHeightAt (geometry.ts) and the
+  // panel heights in computeStructure use. A 4-sided roof used to climb
+  // perpendicular to its eave edge instead, which only matched the panels
+  // when the azimuth equalled that edge's normal exactly; any difference
+  // (a typed/rounded azimuth) tilted the panels across the roof.
+  for (let i = 0; i < pos.count; i++) {
+    if (Math.abs(pos.getZ(i) - eaveHeight) < 1e-6) {
+      const vx = pos.getX(i);
+      const vy = pos.getY(i);
+      const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+      const offset = Math.max(0, ly - frontLocalY) * tanPitch;
+      pos.setZ(i, eaveHeight + offset);
     }
   }
 
@@ -359,44 +264,15 @@ function boundaryRingGeometry(polygon, height, slope: any = null) {
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
   if (slope) {
     const { direction, frontLocalY, pitchRad } = slope;
-    const n = polygon.length;
     const tanPitch = Math.tan(pitchRad);
     const pos = geometry.attributes.position;
 
-    if (n === 4) {
-      const { eaveMid, depth, cornerOffset, slopeVec } = computeQuadSlopeOffsets(polygon, direction, pitchRad);
-      for (let i = 0; i < pos.count; i++) {
-        const vx = pos.getX(i);
-        const vy = pos.getY(i);
-        let minSq = Infinity;
-        let nearestIdx = 0;
-        for (let j = 0; j < n; j++) {
-          const dx = vx - polygon[j].x;
-          const dy = vy - polygon[j].y;
-          const sq = dx * dx + dy * dy;
-          if (sq < minSq) {
-            minSq = sq;
-            nearestIdx = j;
-          }
-        }
-        let offset: number;
-        if (minSq < 1e-1) {
-          offset = cornerOffset[nearestIdx];
-        } else {
-          const pProj = (vx - eaveMid.x) * slopeVec.x + (vy - eaveMid.y) * slopeVec.y;
-          const t = Math.max(0, Math.min(1, pProj / depth));
-          offset = t * depth * tanPitch;
-        }
-        pos.setZ(i, pos.getZ(i) + offset);
-      }
-    } else {
-      for (let i = 0; i < pos.count; i++) {
-        const vx = pos.getX(i);
-        const vy = pos.getY(i);
-        const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
-        const offset = Math.max(0, ly - frontLocalY) * tanPitch;
-        pos.setZ(i, pos.getZ(i) + offset);
-      }
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i);
+      const vy = pos.getY(i);
+      const ly = toSlopeLocal({ x: vx, y: vy }, direction).y;
+      const offset = Math.max(0, ly - frontLocalY) * tanPitch;
+      pos.setZ(i, pos.getZ(i) + offset);
     }
 
     pos.needsUpdate = true;
@@ -830,7 +706,7 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1025,8 +901,14 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
         )}
 
         {roofs.map((roof) => {
-          const deckTop = roof.buildingHeight + DECK_THICKNESS;
-          const selected = selectedRoofId === roof.id;
+          // A pitched building's own sloped top *is* the roof surface (no
+          // separate deck slab like a flat roof's) - panel/structure heights
+          // from computeStructure are measured from it at the eave.
+          const deckTop = roof.type === 'pitched' ? roof.buildingHeight : roof.buildingHeight + DECK_THICKNESS;
+          // Also tinted while hovered in the editor's Fill roof / Add grid
+          // roof chooser (`highlightRoofId` - a roof id, or 'all'), same as
+          // the 2D plan's outline, so the choice is clear in either view.
+          const selected = selectedRoofId === roof.id || highlightRoofId === 'all' || highlightRoofId === roof.id;
           // A Cutout obstacle (see OBSTACLE_PRESETS.cutout) punches a real
           // full-height hole through BuildingBlock + RoofDeck via their
           // `cutouts` prop - flat roofs only (see PitchedBuilding's own
