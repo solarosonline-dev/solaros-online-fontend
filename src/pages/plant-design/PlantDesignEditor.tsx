@@ -571,6 +571,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const [alignEdgeRoofId, setAlignEdgeRoofId] = useState<any>(null);
   const [hoveredAlignEdge, setHoveredAlignEdge] = useState<any>(null);
   const [viewMode, setViewMode] = useState('plan');
+  // Short-lived banner explaining an automatic 3D -> 2D switch (see
+  // switchToPlanFor) - null when nothing to say.
+  const [viewNotice, setViewNotice] = useState<any>(null);
+  const viewNoticeTimerRef = useRef<any>(null);
   // How far the 3D compass needle should currently be rotated to keep
   // pointing at true north (see Scene3D.jsx's compassAngleDeg) - the 2D
   // plan view needs no equivalent state since north is always screen-up
@@ -827,6 +831,67 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function cancelAddSideMode() {
     setAddSideMode(null);
   }
+  // The two pickable sides for Add row/column, in world plan coords - the
+  // grid's real (rotated) outline's front/back sides for a row, left/right
+  // for a column. Shared by the 2D plan's slivers and the 3D view's bars.
+  function addSideEdges() {
+    if (!addSideMode) return [];
+    const roof = roofs.find((r) => r.id === addSideMode.roofId);
+    const grid = findGrid(addSideMode.roofId, addSideMode.gridId);
+    if (!roof || !grid) return [];
+    const bounds = gridLocalBounds(grid);
+    if (!bounds) return [];
+    const direction = gridDirection(grid, roof);
+    const pivot = gridPivot(grid);
+    const rot = grid.rotation || 0;
+    const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
+    const fl = toWorld({ x: bounds.minX, y: bounds.minY }), fr = toWorld({ x: bounds.maxX, y: bounds.minY });
+    const bl = toWorld({ x: bounds.minX, y: bounds.maxY }), br = toWorld({ x: bounds.maxX, y: bounds.maxY });
+    return addSideMode.axis === 'row'
+      ? [{ side: 'front', a: fl, b: fr }, { side: 'back', a: bl, b: br }]
+      : [{ side: 'left', a: fl, b: bl }, { side: 'right', a: fr, b: br }];
+  }
+
+  // Delete-mode picking (row/column/panel), shared by a panel click on the
+  // 2D plan and in the 3D view: row/column pick by the clicked panel,
+  // panel mode toggles it with Cmd/Ctrl (`multi`) or replaces the pick.
+  function pickPanelForDelete(p, multi) {
+    if (gridDeleteMode === 'row') setGridDeleteSelection({ rackY: p.rackY });
+    else if (gridDeleteMode === 'column') setGridDeleteSelection({ panelId: p.id });
+    else {
+      setGridDeleteSelection((prev) => {
+        if (!multi) return { panelIds: [p.id] };
+        const existing: any[] = prev?.panelIds || [];
+        return existing.includes(p.id)
+          ? { panelIds: existing.filter((id) => id !== p.id) }
+          : { panelIds: [...existing, p.id] };
+      });
+    }
+  }
+
+  // Panel ids currently picked for deletion in `grid` (empty unless it's
+  // the grid whose own delete mode is active) - drives the solid-red
+  // highlight in both views.
+  function deletePickedIdsFor(roofId, grid) {
+    const out = new Set<any>();
+    if (!gridDeleteMode || !gridDeleteSelection || selectedGrid?.id !== grid.id || gridOwnerRoof?.id !== roofId) return out;
+    if (gridDeleteMode === 'row') grid.panels.forEach((p) => { if (p.rackY === gridDeleteSelection.rackY) out.add(p.id); });
+    else if (gridDeleteMode === 'column' && gridDeleteSelection.panelId != null) columnIndexMatch(grid, gridDeleteSelection.panelId).matches.forEach((p) => out.add(p.id));
+    else (gridDeleteSelection.panelIds || []).forEach((id) => out.add(id));
+    return out;
+  }
+
+  // Align-to-edge pick (Azimuth popover), shared by both views.
+  function pickAlignEdge(roofId, edgeIndex) {
+    const roof = roofs.find((r) => r.id === roofId);
+    if (roof) {
+      const picked = edgeAlignedAzimuth(getRoofPolygon(roof), edgeIndex, location);
+      if (picked != null) updateRoof(roofId, 'azimuth', picked);
+    }
+    setAlignEdgeRoofId(null);
+    setHoveredAlignEdge(null);
+  }
+
   function handleAddSide(side) {
     if (!addSideMode) return;
     const { roofId, gridId, axis } = addSideMode;
@@ -2066,9 +2131,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setGridDeleteSelection(null);
   }
 
+  // Tracing a shape point by point (roof outline, a drawn obstacle, a
+  // custom panel area) only works on the 2D plan - clicking points onto a
+  // perspective 3D view while orbit controls also react to the mouse is
+  // error-prone. Starting one of those tools from the 3D view switches to
+  // the plan instead of leaving clicks that silently do nothing, with a
+  // brief banner saying why.
+  function switchToPlanFor(message) {
+    if (viewMode !== '3d') return;
+    setViewMode('plan');
+    setViewNotice(message);
+    clearTimeout(viewNoticeTimerRef.current);
+    viewNoticeTimerRef.current = setTimeout(() => setViewNotice(null), 3500);
+  }
+
   function startRoofDraw() {
     resetClickSuppression();
     cancelActiveModes();
+    switchToPlanFor('Switched to the 2D plan to draw the roof outline.');
     setDrawingRoof(true);
   }
 
@@ -3148,6 +3228,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function startGridPlacement() {
     resetClickSuppression();
     cancelActiveModes();
+    switchToPlanFor('Switched to the 2D plan to draw the panel area.');
     setPlacingGrid(true);
   }
 
@@ -4039,6 +4120,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                               const isSelf = placingShape === k;
                               cancelActiveModes();
                               if (!isSelf) {
+                                if ((p as any).drawable) switchToPlanFor(`Switched to the 2D plan to trace the ${(p as any).label.toLowerCase()}.`);
                                 setPlacingShape(k);
                               }
                             }}
@@ -4161,6 +4243,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           </div>
           </div>
 
+          {viewNotice && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 8, background: '#1c2b4a', color: '#fff', fontSize: 12, padding: '6px 12px', borderRadius: 999, boxShadow: '0 2px 10px rgba(0,0,0,0.2)', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+              {viewNotice}
+            </div>
+          )}
           {viewMode === '3d' && (
             <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: '1px solid #d5d5d5', overflow: 'hidden', position: 'relative' }}>
               <React.Suspense fallback={<div style={{ padding: 16, fontSize: 13, color: '#888' }}>Loading 3D view…</div>}>
@@ -4185,6 +4272,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     grids: roof.grids.map((g) => ({
                       id: g.id,
                       selected: selectedGridKeys.has(gridKey(roof.id, g.id)),
+                      // Delete row/column/panel mode for this grid: panel
+                      // clicks pick (onPickPanelForDelete) instead of
+                      // selecting, picked ones render solid red.
+                      deleteMode: !!gridDeleteMode && selectedGrid?.id === g.id && gridOwnerRoof?.id === roof.id,
+                      deletePickedIds: deletePickedIdsFor(roof.id, g),
                       layout: g,
                       structure: structuresByGrid[gridKey(roof.id, g.id)],
                       shadedIds: instantByGrid[gridKey(roof.id, g.id)]?.shadedIds,
@@ -4207,6 +4299,28 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 onSelectRoof={selectRoof}
                 canSelectRoofs={currentStep === 3}
                 highlightRoofId={hoveredPickRoofId}
+                onPickPanelForDelete={(p, multi) => pickPanelForDelete(p, multi)}
+                onBackgroundClick={cancelActiveModes}
+                // One roof's edges as clickable bars in 3D, for whichever
+                // edge-picking mode is active (mirror / margin override /
+                // align to edge) - same handlers as the 2D plan's slivers.
+                edgePick={
+                  mirrorRoofId != null ? {
+                    roofId: mirrorRoofId, hovered: hoveredMirrorEdge, picked: [],
+                    onHover: setHoveredMirrorEdge, onPick: (i) => mirrorRoof(mirrorRoofId, i),
+                  } : marginEditRoofId != null ? {
+                    roofId: marginEditRoofId, hovered: hoveredMarginEdge, picked: [...selectedMarginEdges],
+                    onHover: setHoveredMarginEdge, onPick: (i, additive) => toggleMarginEdge(i, additive),
+                  } : alignEdgeRoofId != null ? {
+                    roofId: alignEdgeRoofId, hovered: hoveredAlignEdge, picked: [],
+                    onHover: setHoveredAlignEdge, onPick: (i) => pickAlignEdge(alignEdgeRoofId, i),
+                  } : null
+                }
+                // Add row/column side picking - same two sides as the 2D plan.
+                addSidePick={addSideMode ? {
+                  roofId: addSideMode.roofId, edges: addSideEdges(), hovered: hoveredAddSide,
+                  onHover: setHoveredAddSide, onPick: handleAddSide,
+                } : null}
                 // Same step the 2D plan's panels are clickable in (see the
                 // panel <g>'s pointerEvents there).
                 canSelectGrids={currentStep === 4}
@@ -4661,13 +4775,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredAlignEdge(i)}
                       onMouseLeave={() => setHoveredAlignEdge((h) => (h === i ? null : h))}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const picked = edgeAlignedAzimuth(poly, i, location);
-                        if (picked != null) updateRoof(alignEdgeRoofId, 'azimuth', picked);
-                        setAlignEdgeRoofId(null);
-                        setHoveredAlignEdge(null);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); pickAlignEdge(alignEdgeRoofId, i); }}
                     />
                   </g>
                 );
@@ -4864,22 +4972,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       onMouseDown={(e) => {
                         if (deleteModeActive) {
                           e.stopPropagation();
-                          if (gridDeleteMode === 'row') setGridDeleteSelection({ rackY: p.rackY });
-                          else if (gridDeleteMode === 'column') setGridDeleteSelection({ panelId: p.id });
-                          else {
-                            // Panel mode: Cmd(Mac)/Ctrl(Win)+click toggles
-                            // the clicked panel in/out of a multi-selection;
-                            // a plain click replaces it with just this one,
-                            // same as row/column mode's single-pick.
-                            const isMulti = e.metaKey || e.ctrlKey;
-                            setGridDeleteSelection((prev) => {
-                              if (!isMulti) return { panelIds: [p.id] };
-                              const existing: any[] = prev?.panelIds || [];
-                              return existing.includes(p.id)
-                                ? { panelIds: existing.filter((id) => id !== p.id) }
-                                : { panelIds: [...existing, p.id] };
-                            });
-                          }
+                          // Panel mode: Cmd(Mac)/Ctrl(Win)+click toggles the
+                          // panel in/out of a multi-pick (pickPanelForDelete).
+                          pickPanelForDelete(p, e.metaKey || e.ctrlKey);
                           return;
                         }
                         startGridDrag(e, roof.id, g.id);
@@ -5081,24 +5176,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 boundary - doesn't have its hit-lines stolen by the roof's
                 own edit handles underneath. */}
             {addSideMode && (() => {
-              const roof = roofs.find((r) => r.id === addSideMode.roofId);
-              const grid = findGrid(addSideMode.roofId, addSideMode.gridId);
-              if (!roof || !grid) return null;
-              const bounds = gridLocalBounds(grid);
-              if (!bounds) return null;
-              const direction = gridDirection(grid, roof);
-              const pivot = gridPivot(grid);
-              const rot = grid.rotation || 0;
-              const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
-              const corners = {
-                frontLeft: toWorld({ x: bounds.minX, y: bounds.minY }),
-                frontRight: toWorld({ x: bounds.maxX, y: bounds.minY }),
-                backLeft: toWorld({ x: bounds.minX, y: bounds.maxY }),
-                backRight: toWorld({ x: bounds.maxX, y: bounds.maxY }),
-              };
-              const edges = addSideMode.axis === 'row'
-                ? [{ side: 'front', a: corners.frontLeft, b: corners.frontRight }, { side: 'back', a: corners.backLeft, b: corners.backRight }]
-                : [{ side: 'left', a: corners.frontLeft, b: corners.backLeft }, { side: 'right', a: corners.frontRight, b: corners.backRight }];
+              const edges = addSideEdges();
               return edges.map(({ side, a, b }) => {
                 const s1 = toScreen(a.x, a.y);
                 const s2 = toScreen(b.x, b.y);
@@ -5703,7 +5781,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 </>
                               )}
                               <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.4 }}>
-                                Or drag any of the curved-arrow handles at its corners on the 2D plan. Hold Shift to snap to 15°.
+                                {viewMode === '3d'
+                                  ? 'Use the slider here, or switch to the 2D plan to drag the curved-arrow handles.'
+                                  : 'Or drag any of the curved-arrow handles at its corners on the 2D plan. Hold Shift to snap to 15°.'}
                               </div>
                           </RailPopover>
                         </div>
@@ -6001,7 +6081,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                               ↺ Reset to 0°
                             </button>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.4 }}>
-                              Or drag any of the curved-arrow handles at the grid's corners on the 2D plan. Hold Shift to snap to 15°.
+                              {viewMode === '3d'
+                                ? 'Use the slider here, or switch to the 2D plan to drag the curved-arrow handles.'
+                                : 'Or drag any of the curved-arrow handles at the grid\'s corners on the 2D plan. Hold Shift to snap to 15°.'}
                             </div>
                         </RailPopover>
                       </div>

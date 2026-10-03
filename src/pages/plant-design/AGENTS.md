@@ -911,6 +911,27 @@ obstacle to be selected first — press-and-drag selects and moves it in one
 gesture, since an obstacle has no box-select role like a roof's body does.
 It's the only way to reposition a tree (its popover is size-only).
 
+## Controls in the 3D view
+
+Every rail control is visible in 3D too, so each one either works there or
+hands off to the 2D plan - never silently does nothing:
+- **Single-click picks work natively in 3D** through the same handlers as
+  2D: roof-edge picking for mirror / margin override / align to edge
+  (`edgePick` prop → `PickBar`s riding the roof surface), Add row/column
+  sides (`addSidePick`, built from `addSideEdges()`), and delete
+  row/column/panel picks (`grid.deleteMode` + `onPickPanelForDelete` →
+  `pickPanelForDelete`, picked panels red via `deletePickedIdsFor`). An
+  empty-ground click calls `onBackgroundClick` (= `cancelActiveModes`), like
+  an empty-plan click in 2D.
+- **Point-by-point drawing switches to 2D** (`switchToPlanFor` + a short
+  `viewNotice` banner): Draw roof, drawn obstacles (elevation, skylight,
+  walkway, cutout), Draw custom panel area.
+- **Drag interactions stay 2D-only** (roof/obstacle/grid moves, vertex/edge
+  drags, rotate arrows); the Rotate popovers say so in 3D and their sliders
+  work in either view.
+When adding a new canvas-picking mode, add its 3D counterpart (or a
+`switchToPlanFor`) in the same change.
+
 ## Panel grids & selection
 
 **Grid rotation** is a rail control, not an always-on handle: the grid's

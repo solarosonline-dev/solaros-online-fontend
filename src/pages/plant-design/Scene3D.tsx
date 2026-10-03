@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
+import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -86,6 +86,22 @@ function piecesExtrudeGeometry(pieces, depth) {
 }
 
 const DECK_THICKNESS = 0.15;
+
+// polygonExtrudeGeometry, but with every vertex (bottom and top alike)
+// lifted by `offsetAt(x, y)` - so a `depth`-thick slab lies parallel to a
+// sloped surface instead of level. Used for flush features (skylight,
+// walkway) on a pitched roof, with offsetAt = roof surface height there
+// minus the slab's own base height.
+function slopedPolygonGeometry(polygon, depth, offsetAt) {
+  const geometry = polygonExtrudeGeometry(polygon, depth);
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setZ(i, pos.getZ(i) + offsetAt(pos.getX(i), pos.getY(i)));
+  }
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 function RoofDeck({ pieces, buildingHeight, selected, onClick }) {
   const geometry = useMemo(() => piecesExtrudeGeometry(pieces, DECK_THICKNESS), [pieces]);
@@ -308,8 +324,14 @@ const SKYLIGHT_FRAME_HEIGHT = 0.04;
 // small fixed height so every skylight reads as a real glazed unit rather
 // than a flat colored patch, independent of its own (user-adjustable, and
 // by default zero) boundaryHeight.
-function SkylightFrame({ polygon, baseHeight }) {
-  const geometry = useMemo(() => boundaryRingGeometry(polygon, SKYLIGHT_FRAME_HEIGHT), [polygon]);
+function SkylightFrame({ polygon, baseHeight, direction = null as any, pitchDeg = null as any }) {
+  // On a pitched roof the frame climbs with the slope too (same `slope`
+  // option BoundaryWall uses), measured from the skylight's own lowest point.
+  const geometry = useMemo(() => {
+    if (pitchDeg == null) return boundaryRingGeometry(polygon, SKYLIGHT_FRAME_HEIGHT);
+    const frontLocalY = Math.min(...polygon.map((p) => toSlopeLocal(p, direction).y));
+    return boundaryRingGeometry(polygon, SKYLIGHT_FRAME_HEIGHT, { direction, frontLocalY, pitchRad: pitchDeg * DEG });
+  }, [polygon, direction, pitchDeg]);
   return (
     <group position={[0, baseHeight, 0]}>
       <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow>
@@ -332,13 +354,49 @@ function efficiencyColor(pct) {
   return `hsl(${hue}, 75%, 45%)`;
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false, selected = false, onClick = undefined as any }) {
+// A clickable bar between two plan points `a`/`b` at heights `ha`/`hb` -
+// the 3D stand-in for the 2D plan's "visible sliver + wide invisible hit
+// line" picking (roof edges for mirror/margin/align, grid sides for add
+// row/column). A thin visible rod, plus a fatter invisible one that takes
+// the pointer so it's easy to hit from any camera angle. Colors match 2D:
+// blue idle, orange hovered, purple picked.
+function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick }) {
+  const { mid, len, quat } = useMemo(() => {
+    const A = new THREE.Vector3(...toThree(a.x, a.y, ha));
+    const B = new THREE.Vector3(...toThree(b.x, b.y, hb));
+    const d = new THREE.Vector3().subVectors(B, A);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+    return { mid: new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5), len: d.length(), quat: q };
+  }, [a.x, a.y, b.x, b.y, ha, hb]);
+  const color = state === 'picked' ? '#8e44ad' : state === 'hover' ? '#e0873c' : '#2f6fed';
+  const r = state === 'idle' ? 0.07 : 0.12;
+  return (
+    <group position={mid} quaternion={quat}>
+      <mesh>
+        <cylinderGeometry args={[r, r, len, 10]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <mesh
+        onPointerOver={(e) => { e.stopPropagation(); onHover(true); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { onHover(false); document.body.style.cursor = ''; }}
+        onClick={(e) => { if (isDragClick?.(e)) return; e.stopPropagation(); document.body.style.cursor = ''; onPick(e); }}
+      >
+        <cylinderGeometry args={[0.35, 0.35, len, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, onClick = undefined as any }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
   // Selected wins over shading/efficiency tint - same "blue = selected"
   // rule as obstacles (SELECTED_COLOR).
-  const color = selected ? SELECTED_COLOR : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
+  // Picked for deletion (delete row/column/panel mode) wins over everything
+  // - the same solid red the 2D plan uses for a pick.
+  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>
@@ -535,17 +593,23 @@ function LightningArrestor({ obstacle, baseHeight, selected = false }) {
   );
 }
 
-function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
+function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick, slopeRoof = null as any }) {
   const h = obstacle.height;
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
   const centerY = baseHeight + h / 2;
   // A freeform-drawn obstacle (see OBSTACLE_PRESETS' `drawable` flag) is
   // its own traced polygon, not a fixed box - extruded the same way a
   // roof/building's own footprint is (see polygonExtrudeGeometry).
+  // `slopeRoof` (a flush skylight/walkway on a pitched roof, see
+  // placeObstacle): built parallel to that roof's surface instead of level.
   const polygonGeometry = useMemo(
-    () => (obstacle.shape === 'polygon' ? polygonExtrudeGeometry(obstacle.polygon, h) : null),
-    [obstacle.shape, obstacle.polygon, h]
+    () => (obstacle.shape !== 'polygon' ? null
+      : slopeRoof ? slopedPolygonGeometry(obstacle.polygon, h, (x, y) => roofSurfaceHeightAt(slopeRoof, { x, y }) - baseHeight)
+      : polygonExtrudeGeometry(obstacle.polygon, h)),
+    [obstacle.shape, obstacle.polygon, h, slopeRoof, baseHeight]
   );
+  const slopeDirection = slopeRoof ? slopeRoof.azimuth : null;
+  const slopePitch = slopeRoof ? slopeRoof.pitchDeg : null;
 
   // A Cutout has no 3D body of its own - on a flat roof it's already
   // represented by the real hole punched through BuildingBlock/RoofDeck
@@ -580,8 +644,8 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
           )}
         </mesh>
       </group>
-      {obstacle.label === 'Skylight' && <SkylightFrame polygon={obstacle.polygon} baseHeight={baseHeight} />}
-      <BoundaryWall polygon={obstacle.polygon} baseHeight={baseHeight + h} height={obstacle.boundaryHeight} />
+      {obstacle.label === 'Skylight' && <SkylightFrame polygon={obstacle.polygon} baseHeight={baseHeight} direction={slopeDirection} pitchDeg={slopePitch} />}
+      <BoundaryWall polygon={obstacle.polygon} baseHeight={baseHeight + h} height={obstacle.boundaryHeight} direction={slopeDirection ?? undefined} pitchDeg={slopePitch ?? undefined} />
     </>
   ) : (
     // +rotation: a box's `rotation` is counter-clockwise in plan view (the
@@ -678,10 +742,18 @@ function WideMapGround({ placement }) {
 // slab; a pitched roof's surface already is the building's sloped top.
 // This used to be a flat buildingHeight + deck for every roof, so on a
 // pitched roof an obstacle sank into the slope wherever the roof climbed.
+// Flush, drawn roof features that lie *on* the roof rather than standing
+// up from it - on a pitched roof they're built parallel to the slope (see
+// slopedPolygonGeometry) instead of as a level slab stretched by the rise.
+const FLUSH_DRAWN_LABELS = new Set(['Skylight', 'Walkway']);
+
 function placeObstacle(obstacle, roofs) {
   const { min, max, roof } = obstacleRoofSurfaceRange(obstacle, roofs);
   if (!roof) return { baseHeight: 0, obstacle };
   const deck = roof.type === 'pitched' ? 0 : DECK_THICKNESS;
+  if (roof.type === 'pitched' && obstacle.shape === 'polygon' && FLUSH_DRAWN_LABELS.has(obstacle.label)) {
+    return { baseHeight: min, obstacle, slopeRoof: roof };
+  }
   const rise = max - min;
   return {
     baseHeight: min + deck,
@@ -706,7 +778,7 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -858,6 +930,9 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     onSelectObstacle?.(null);
     onSelectRoof?.(null);
     onSelectGrid?.(null);
+    // Empty-ground click also exits any picking mode (edge pick, add
+    // row/column, delete picks), the same as clicking empty plan in 2D.
+    onBackgroundClick?.();
   }
 
   return (
@@ -974,12 +1049,20 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       efficiencyPct={grid.efficiencyPct?.[p.id]}
                       ghost={ghostPanels}
                       selected={!ghostPanels && grid.selected}
+                      deletePicked={!ghostPanels && !!grid.deletePickedIds?.has(p.id)}
                       // A click on any panel selects its whole grid (shift
                       // toggles it in/out of a multi-selection), matching
                       // the 2D plan - only in Panel/Grid setup.
                       onClick={canSelectGrids ? (e) => {
                         if (isDragClick(e)) return;
                         e.stopPropagation();
+                        // In this grid's own delete row/column/panel mode a
+                        // click picks (Cmd/Ctrl adds in panel mode), same as
+                        // the 2D plan - otherwise it selects the grid.
+                        if (grid.deleteMode) {
+                          onPickPanelForDelete?.(p, !!(e.nativeEvent?.metaKey || e.nativeEvent?.ctrlKey));
+                          return;
+                        }
                         onSelectGrid?.(roof.id, grid.id, !!(e.nativeEvent?.shiftKey ?? e.shiftKey));
                       } : undefined}
                     />
@@ -1003,6 +1086,41 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                   ))
                 )
               )}
+              {/* Edge picking (mirror / margin override / align to edge) on
+                  this roof - each outline edge as a PickBar riding the roof
+                  surface (slightly lifted so it isn't z-fighting it). */}
+              {edgePick && edgePick.roofId === roof.id && roofPoly.map((p, i) => {
+                const q = roofPoly[(i + 1) % roofPoly.length];
+                const lift = (roof.type === 'pitched' ? 0 : DECK_THICKNESS) + 0.06;
+                return (
+                  <PickBar
+                    key={`edge-pick-${i}`}
+                    a={p} b={q}
+                    ha={roofSurfaceHeightAt(roof, p) + lift} hb={roofSurfaceHeightAt(roof, q) + lift}
+                    state={edgePick.picked?.includes(i) ? 'picked' : edgePick.hovered === i ? 'hover' : 'idle'}
+                    onHover={(on) => edgePick.onHover((h) => (on ? i : (h === i ? null : h)))}
+                    onPick={(e) => edgePick.onPick(i, !!e.nativeEvent?.shiftKey)}
+                    isDragClick={isDragClick}
+                  />
+                );
+              })}
+
+              {/* Add row/column: the grid's two pickable sides as PickBars
+                  at roughly panel height above the roof surface. */}
+              {addSidePick && addSidePick.roofId === roof.id && addSidePick.edges.map(({ side, a, b }) => {
+                const lift = (roof.type === 'pitched' ? 0 : DECK_THICKNESS) + 0.35;
+                return (
+                  <PickBar
+                    key={`add-side-${side}`}
+                    a={a} b={b}
+                    ha={roofSurfaceHeightAt(roof, a) + lift} hb={roofSurfaceHeightAt(roof, b) + lift}
+                    state={addSidePick.hovered === side ? 'hover' : 'idle'}
+                    onHover={(on) => addSidePick.onHover((h) => (on ? side : (h === side ? null : h)))}
+                    onPick={() => addSidePick.onPick(side)}
+                    isDragClick={isDragClick}
+                  />
+                );
+              })}
             </group>
           );
         })}
@@ -1014,6 +1132,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             key={o.id}
             obstacle={placed.obstacle}
             baseHeight={placed.baseHeight}
+            slopeRoof={placed.slopeRoof}
             selected={selectedObstacleId === o.id}
             onSelect={onSelectObstacle}
             isDragClick={isDragClick}
