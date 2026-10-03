@@ -459,14 +459,35 @@ math, which already handles arbitrary azimuths natively.
 `generateLayout` transforms the roof polygon (and obstacles, for the
 blocking check) into local space, packs panels exactly as it always did,
 then transforms each panel's final position back to world — see `x`/`y`
-vs `rackX`/`rackY` on each panel object. Flat roofs always use `'S'`
-(identity transform), so this costs them nothing.
+vs `rackX`/`rackY` on each panel object.
 
-**Scope note:** only the four cardinal directions are supported, not an
-arbitrary angle — a documented simplification, not an oversight: the
-panel-packing grid itself doesn't rotate continuously, and N/E/S/W work by
-literally repacking in a rotated local space, which only cleanly
-generalizes to 90° multiples.
+**The packing direction is the roof's azimuth, for flat and pitched roofs
+alike** — `getRoofAzimuth(roof, location)` in `geometry.ts`: the admin's
+`roof.azimuth` override from the Azimuth rail control if set, else auto
+(pitched: `getPitchedRoofSlopeAzimuth`, the slope-facing edge's outward
+normal; flat: the edge facing the equator). `toSlopeLocal`/`toSlopeWorld`
+take any angle, not just the four cardinal shortcuts above. Flat roofs
+used to always pack in the `'S'` identity frame and face due south/north,
+which left rows skewed on any building not aligned to the compass — so a
+flat roof drawn square to north still gets exactly the old result (auto =
+180), but a rotated one now gets rows parallel to its own edges. A pitched
+roof's deck (`PitchedBuilding`/`BoundaryWall`) slopes along the same
+azimuth (passed to Scene3D as `roof.azimuth`). `azimuth` is in
+`ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
+resets the override to auto.
+
+**An existing grid keeps its own frame: use `gridDirection(grid, roof)`
+(`layoutEngine.ts`), never the roof's current azimuth, for anything that
+reads or writes an already-packed grid's `rackX`/`rackY`** (add/delete
+row/column/panel, move, copy, add-side preview, Scene3D's structure, the
+2D plan's panel rotation). Every grid packed by
+`generateLayout`/`generateFixedGrid`/`reparentGridToRoof` stores its exact
+packing angle as `grid.azimuth`, so a later roof-outline or azimuth edit
+can't re-frame its panels underneath it. The fallback (flat → `'S'`,
+pitched → slope edge) only covers a grid with no stored azimuth. Known
+legacy gap: a southern-hemisphere flat-roof grid packed before this change
+stored `azimuth: 0` but was framed in `'S'` — re-fill it if editing it
+misbehaves.
 
 ## Pitched roof deck
 

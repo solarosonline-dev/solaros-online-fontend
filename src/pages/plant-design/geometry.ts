@@ -172,18 +172,21 @@ export function getPitchedRoofSlopeAzimuth(roof: any): number {
   return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec) ?? defaultAz;
 }
 
-// The roof's compass azimuth as shown in (and editable from) the roof's
-// Azimuth rail control. Purely informational: nothing in panel packing,
-// the 2D plan or Scene3D reads it - those still face flat roofs due
-// equator-ward and pitched roofs down their slope direction exactly as
-// before, so editing it never moves or repacks a panel.
+// The roof's compass azimuth, shown in (and editable from) the roof's
+// Azimuth rail control - and the direction every *newly packed* grid on
+// this roof faces, flat or pitched (see generateLayout). A pitched roof's
+// deck slopes this way too. An already-packed grid keeps facing whatever
+// it was packed at (its own `azimuth` - see layoutEngine's gridDirection),
+// so this changing later never silently re-frames existing panels.
 //
 // `roof.azimuth` is the admin's manual override (null = auto). Auto is a
 // pitched roof's own slope-facing edge (getPitchedRoofSlopeAzimuth), or
 // for a flat roof the edge facing most toward the equator (south in the
 // northern hemisphere, north in the southern).
 export function autoRoofAzimuth(roof: any, location: any): number {
-  if (roof?.type === 'pitched') return Math.round(getPitchedRoofSlopeAzimuth(roof)) % 360;
+  // Left unrounded for a pitched roof so an un-overridden roof keeps packing
+  // at exactly the angle it always has (the UI rounds for display).
+  if (roof?.type === 'pitched') return getPitchedRoofSlopeAzimuth(roof);
   const equatorVec = (location?.lat ?? 0) >= 0 ? CARDINAL_SLOPE_VECTORS.S : CARDINAL_SLOPE_VECTORS.N;
   const az = edgeFacingAzimuth(getRoofPolygon(roof), equatorVec);
   return az == null ? ((location?.lat ?? 0) >= 0 ? 180 : 0) : Math.round(az) % 360;

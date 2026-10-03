@@ -3,7 +3,7 @@ import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { getRoofPolygon, isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
-import { gridPivot, rotateAroundPivot } from './layoutEngine.js';
+import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
 // CORS) — texture loading throws inside the R3F render tree, which
@@ -970,8 +970,8 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             <group key={roof.id}>
               {roof.type === 'pitched' ? (
                 <>
-                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={getPitchedRoofSlopeAzimuth(roof)} pitchDeg={roof.pitchDeg} />
+                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={roof.azimuth ?? getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={roof.azimuth ?? getPitchedRoofSlopeAzimuth(roof)} pitchDeg={roof.pitchDeg} />
                 </>
               ) : (
                 <>
@@ -1026,7 +1026,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       depth={rack.depth}
                       azimuth={grid.layout.azimuth}
                       roofHeight={deckTop}
-                      direction={roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S'}
+                      direction={gridDirection(grid.layout, roof)}
                       grid={grid.layout}
                     />
                   ))

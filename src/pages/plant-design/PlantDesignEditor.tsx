@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getPitchedRoofSlopeAzimuth, getRoofAzimuth } from './geometry.js';
+import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -40,6 +40,7 @@ import {
   columnIndexMatch,
   bestRoofForGrid,
   reparentGridToRoof,
+  gridDirection,
 } from './layoutEngine.js';
 import SiteMap from '../../components/map/SiteMap.js';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -583,10 +584,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     idsByRoof.forEach((ids, roofId) => {
       const roof = roofs.find((r) => r.id === roofId);
       if (!roof) return;
-      const direction = roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
       const clones = ids.map((gridId) => {
         const g = roof.grids.find((gg) => gg.id === gridId);
         if (!g) return null;
+        const direction = gridDirection(g, roof);
         const offsetX = (g.panels[0]?.w || 1) + 0.5;
         const newId = Date.now() + Math.floor(Math.random() * 1000);
         const panels = g.panels.map((p) => {
@@ -1294,7 +1295,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       }
       if (points.length === 0) return;
       const tilt = roof.type === 'pitched' ? roof.pitchDeg : computeAutoTilt(location);
-      const azimuth = roof.type === 'pitched' ? slopeDirectionAzimuth(roof.slopeDirection || 'S') : (location.lat >= 0 ? 180 : 0);
+      const azimuth = getRoofAzimuth(roof, location);
       const r = computeOutput({
         layout: { tilt, azimuth, panels: points },
         obstacles, location, mode: 'year', date: selectedDate,
@@ -1629,7 +1630,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // boundaryHeight, minPillarHeight - is read fresh off the roof at
   // render time by Scene3D/computeStructure, never baked into a grid, so
   // changing it doesn't invalidate any existing grid at all.
-  const ROOF_FIELDS_NEEDING_REPACK = new Set(['width', 'length', 'type', 'pitchDeg', 'slopeDirection', 'edgeMargin']);
+  const ROOF_FIELDS_NEEDING_REPACK = new Set(['width', 'length', 'type', 'pitchDeg', 'slopeDirection', 'edgeMargin', 'azimuth']);
 
   function updateRoof(id, field, value) {
     // A whole-roof grid's footprint/packing is derived from *some* of the
@@ -2377,9 +2378,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       // (see README's "Panel grids" entry).
       start.origins.forEach((o) => {
         const roof = roofs.find((r) => r.id === o.roofId);
-        const direction = roof?.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
         updateRoofGrids(o.roofId, (grids) => grids.map((g) => {
           if (g.id !== o.gridId) return g;
+          const direction = gridDirection(g, roof);
           const panelById = new Map(o.panels.map((p) => [p.id, p]) as [any, any][]);
           const panels = g.panels.map((p) => {
             const origin: any = panelById.get(p.id);
@@ -2491,11 +2492,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
       setRoofs((rs) => rs.map((r) => {
         if (r.id !== start.roofId) return r;
-        const direction = r.type === 'pitched' ? getPitchedRoofSlopeAzimuth(r) : 'S';
         const gridById = new Map(start.grids.map((g) => [g.id, g]) as [any, any][]);
         const grids = r.grids.map((g) => {
           const origin: any = gridById.get(g.id);
           if (!origin) return g;
+          const direction = gridDirection(g, r);
           const panelById = new Map(origin.panels.map((p) => [p.id, p]) as [any, any][]);
           const panels = g.panels.map((p) => {
             const o: any = panelById.get(p.id);
@@ -3561,6 +3562,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     type: roof.type,
                     pitchDeg: roof.pitchDeg,
                     slopeDirection: roof.slopeDirection,
+                    azimuth: getRoofAzimuth(roof, location),
                     // A roof can (eventually) hold more than one grid (see
                     // README's "Panel grids" entry) - each carries its own
                     // packed layout/structure/shading/efficiency, plus its
@@ -4083,7 +4085,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const center = toScreen(p.x, p.y);
                 const shaded = shadedIds.has(p.id);
                 const overlapsObstacle = overlappingIds.has(p.id);
-                const gridAzimuth = g.azimuth != null ? g.azimuth : (roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 180);
+                const gridAzimuth = slopeDirectionAzimuth(gridDirection(g, roof));
                 const slopeRotation = gridAzimuth - 180;
                 const rotation = -(p.rotation || 0) - (g.rotation || 0) + slopeRotation;
                 const pct = pctMap?.[p.id];
@@ -4278,7 +4280,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               if (!roof || !grid) return null;
               const bounds = gridLocalBounds(grid);
               if (!bounds) return null;
-              const direction = roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
+              const direction = gridDirection(grid, roof);
               const pivot = gridPivot(grid);
               const rot = grid.rotation || 0;
               const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
@@ -4635,10 +4637,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         <RailPopover open={rightPanelOpenGroup === 'roofAzimuth'}>
                             <div style={labelStyle}>
                               <span>azimuth (°){selectedRoof.azimuth == null ? ' · auto' : ''}</span>
-                              <SliderInput min={0} max={359} step={1} value={getRoofAzimuth(selectedRoof, location)} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
+                              <SliderInput min={0} max={359} step={1} value={Math.round(getRoofAzimuth(selectedRoof, location)) % 360} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
                             </div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                              0° = N, 90° = E, 180° = S, 270° = W. Doesn't change the panel layout.
+                              0° = N, 90° = E, 180° = S, 270° = W. Panels face this way — changing it clears this roof's grids so you can re-fill.
                             </div>
                             {selectedRoof.azimuth != null && (
                               <button

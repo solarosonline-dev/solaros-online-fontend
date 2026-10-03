@@ -1,7 +1,7 @@
 import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
-  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth,
+  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, getRoofAzimuth,
 } from './geometry.js';
 
 // ============================================================
@@ -186,11 +186,12 @@ export function computeAutoRowSpacing({ location, tilt, Ls }) {
 // hold more than one independently configured grid.
 export function generateLayout({ roof, footprintPolygon, gridSettings = {} as any, panelSpec, obstacles, location }: any): any {
   const { type } = roof;
-  // A flat roof always packs/faces in world coordinates directly ('S' is
-  // the identity transform below); a pitched roof packs in local
-  // "south-facing" space and gets rotated into whichever direction it's
-  // actually set to face (see toSlopeLocal/toSlopeWorld in geometry.js).
-  const direction = type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
+  // Both roof types pack in local "south-facing" space and get rotated
+  // into the roof's own azimuth (see getRoofAzimuth, and toSlopeLocal/
+  // toSlopeWorld in geometry.js) - a flat roof used to always face due
+  // south/north regardless of how the building sat, leaving rows skewed
+  // against a roof not aligned to the compass.
+  const direction = getRoofAzimuth(roof, location);
   // Row-to-row spacing is separate and unaffected by PANEL_GAP - the
   // shading-derived rowPitch for flat roofs, or the flush-mounted Ls for
   // pitched roofs.
@@ -227,7 +228,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     // solar_layout_engine.jsx, which shows this same computeAutoTilt value
     // whenever no override is set rather than leaving the field blank.
     tilt = panelTiltDeg ?? computeAutoTilt(location);
-    azimuth = location.lat >= 0 ? 180 : 0;
+    azimuth = direction;
     rowPitch = typeof rowSpacing === 'number' && rowSpacing > 0
       ? rowSpacing
       : (rowSpacing === 'recommended' ? computeAutoRowSpacing({ location, tilt, Ls }) : 1.0);
@@ -469,7 +470,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
 // much depth is available.
 export function suggestMaxPanelsPerRow({ roof, footprintPolygon, panelSpec, location }) {
   const { type } = roof;
-  const direction = type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
+  const direction = getRoofAzimuth(roof, location);
   const gap = PANEL_GAP;
   // Called before the grid this footprint is destined for actually exists
   // (see startGridPlacement in solar_layout_engine.jsx) - orientation is a
@@ -634,7 +635,7 @@ export function bestRoofForGrid(grid, roofs) {
 // which by then reads the grid's new owning roof anyway and gets them
 // right without this function needing to guess at them now.
 export function reparentGridToRoof(grid, newRoof, location) {
-  const direction = roofDirection(newRoof);
+  const direction = getRoofAzimuth(newRoof, location);
   const panels = grid.panels.map((p) => {
     const local = toSlopeLocal({ x: p.x, y: p.y }, direction);
     return { ...p, rackX: local.x, rackY: local.y };
@@ -643,7 +644,7 @@ export function reparentGridToRoof(grid, newRoof, location) {
   const tilt = grid.panelTiltDeg != null
     ? grid.panelTiltDeg
     : (isPitched ? newRoof.pitchDeg : computeAutoTilt(location));
-  const azimuth = isPitched ? slopeDirectionAzimuth(direction) : (location.lat >= 0 ? 180 : 0);
+  const azimuth = direction;
   return {
     ...grid,
     panels,
@@ -822,8 +823,17 @@ function footprintPolygonFromPanels(panels, direction) {
   return bounds ? rectFootprintFromBounds(bounds, direction) : null;
 }
 
-function roofDirection(roof) {
-  return roof.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
+// The local packing frame an *existing* grid's rackX/rackY live in. Every
+// grid packed since roof azimuth became the packing direction stores that
+// exact angle as its own `azimuth` (generateLayout/generateFixedGrid/
+// reparentGridToRoof), so edits to it (add/delete row/column, move, copy)
+// keep using that frame even if the roof's own azimuth or outline has
+// changed since - re-reading the roof would re-frame its panels. The
+// fallback only covers a grid with no stored azimuth at all, matching how
+// such a grid was packed before (flat: 'S' identity; pitched: slope edge).
+export function gridDirection(grid, roof) {
+  if (typeof grid?.azimuth === 'number' && Number.isFinite(grid.azimuth)) return grid.azimuth;
+  return roof?.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
 }
 
 function withRecomputedTotals(grid, panels) {
@@ -833,16 +843,14 @@ function withRecomputedTotals(grid, panels) {
 
 export function generateFixedGrid({ roof, rows, cols, panelSpec, location, center }: any): any {
   const isPitched = roof.type === 'pitched';
-  const direction = roofDirection(roof);
+  const direction = getRoofAzimuth(roof, location);
   const gap = PANEL_GAP;
   const orientation: 'portrait' | 'landscape' = panelSpec?.orientation === 'landscape' ? 'landscape' : 'portrait';
   const Wp = orientation === 'landscape' ? panelSpec.height : panelSpec.width;
   const Ls = orientation === 'landscape' ? panelSpec.width : panelSpec.height;
 
   const tilt = isPitched ? roof.pitchDeg : computeAutoTilt(location);
-  const azimuth = isPitched
-    ? (typeof direction === 'number' ? direction : slopeDirectionAzimuth(direction))
-    : (location.lat >= 0 ? 180 : 0);
+  const azimuth = direction;
 
   const footprintDepth = isPitched
     ? Ls * Math.cos(toRad(roof.pitchDeg || 15))
@@ -925,7 +933,7 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
 export function addGridRow(grid, roof, side) {
   const bounds = gridLocalBounds(grid);
   if (!bounds) return grid;
-  const direction = roofDirection(roof);
+  const direction = gridDirection(grid, roof);
   const gap = PANEL_GAP;
   const footprintDepth = grid.footprintDepth;
   const panelsPerRow = Math.max(1, grid.panelsPerRow || 1);
@@ -993,7 +1001,7 @@ export function addGridRow(grid, roof, side) {
 // be - no cross-row matching needed at all.
 export function addGridColumn(grid, roof, side) {
   if (grid.panels.length === 0) return grid;
-  const direction = roofDirection(roof);
+  const direction = gridDirection(grid, roof);
   const gap = PANEL_GAP;
   const w = grid.panels[0].w;
   const footprintDepth = grid.footprintDepth;
@@ -1038,7 +1046,7 @@ export function addGridColumn(grid, roof, side) {
 // applyGridDeleteSelection is responsible for giving whichever piece
 // isn't first a fresh id before it goes into `roofs` state.
 export function deleteGridRow(grid, rackY, roof) {
-  const direction = roofDirection(roof);
+  const direction = gridDirection(grid, roof);
   const sortedYs = [...new Set(grid.panels.map((p) => p.rackY) as any[])].sort((a, b) => a - b);
   const panels = grid.panels.filter((p) => p.rackY !== rackY);
   const idx = sortedYs.indexOf(rackY);
@@ -1095,7 +1103,7 @@ export function columnIndexMatch(grid, panelId) {
 // it, splitting left/right on an interior position the same way deleteGridRow
 // splits front/back on an interior row.
 export function deleteGridColumn(grid, panelId, roof) {
-  const direction = roofDirection(roof);
+  const direction = gridDirection(grid, roof);
   const { index, matches, rowGroups } = columnIndexMatch(grid, panelId);
   if (index < 0) return [grid];
 
@@ -1124,7 +1132,7 @@ export function deleteGridColumn(grid, panelId, roof) {
 // Removes just the one panel.
 export function deleteGridPanel(grid, panelId, roof) {
   const panels = grid.panels.filter((p) => p.id !== panelId);
-  return { ...withRecomputedTotals(grid, panels), footprintPolygon: footprintPolygonFromPanels(panels, roofDirection(roof)) ?? grid.footprintPolygon };
+  return { ...withRecomputedTotals(grid, panels), footprintPolygon: footprintPolygonFromPanels(panels, gridDirection(grid, roof)) ?? grid.footprintPolygon };
 }
 
 // ============================================================
