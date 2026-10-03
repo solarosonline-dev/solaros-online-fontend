@@ -82,6 +82,27 @@ const TREE_CANOPIES = ['cone', 'round', 'bushy'];
 // the same reference for all of them.
 const ROOF_DEFAULTS = { width: 14, length: 10, type: 'flat', pitchDeg: 15, slopeDirection: 'S', polygon: null, buildingHeight: 3, minPillarHeight: 0.15, structureStrategy: 'truss', boundaryHeight: 0, edgeMargin: 0.1, edgeMarginOverrides: {}, azimuth: null };
 
+// See handleSave's own comment: keep each on-screen image url when the
+// server's entry is the same capture, only taking its s3Key. Returns `prev`
+// itself when nothing actually changed, so nothing downstream re-renders.
+function sameSiteCapture(a, b) {
+  return !!a && !!b && a.centerLat === b.centerLat && a.centerLon === b.centerLon
+    && a.zoom === b.zoom && a.sizePx === b.sizePx && a.scale === b.scale;
+}
+function mergeSavedSiteImages(prev, saved) {
+  let changed = false;
+  const next = { ...prev };
+  for (const key of ['locationImage', 'locationImageWide']) {
+    const cur = prev?.[key] ?? null, srv = saved?.[key] ?? null;
+    let merged;
+    if (sameSiteCapture(cur, srv)) merged = srv.s3Key && srv.s3Key !== cur.s3Key ? { ...cur, s3Key: srv.s3Key } : cur;
+    else merged = srv;
+    if (merged !== cur) changed = true;
+    next[key] = merged;
+  }
+  return changed ? next : prev;
+}
+
 function toDateInputValue(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -3456,11 +3477,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         longitude: location.lon,
       });
       // The server may have just captured one/both site images to S3 (see
-      // SiteImageCapture) - pick up its resolved urls (a fresh presigned
-      // S3 url once captured, otherwise unchanged) so the 2D/3D backdrop
-      // stops depending on the live Google url this session built, without
-      // needing a full reload to notice.
-      if (saved?.siteImages) setSiteImages(saved.siteImages);
+      // SiteImageCapture), and returns a *freshly presigned* url for every
+      // S3-backed image on every save - same picture, new url. Adopting it
+      // made the 2D backdrop and the 3D texture re-download and redraw on
+      // each save. For an image that's still the same capture, keep the url
+      // already on screen and just record the server's s3Key (so the next
+      // save keeps pointing at S3); only a genuinely different capture
+      // (another location/zoom) takes the server's entry wholesale.
+      if (saved?.siteImages) setSiteImages((prev) => mergeSavedSiteImages(prev, saved.siteImages));
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 3000);
     } catch (err) {

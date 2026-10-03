@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead } from "../../api/leads";
@@ -35,9 +35,20 @@ export default function PlantDesignEditorPage() {
   // React's perspective within the same tick).
   const [savedId, setSavedId] = useState<number | null>(plantDesignId ? Number(plantDesignId) : null);
 
+  // Id of a design this page just created (first save). Navigating from
+  // /new to /:id changes the route param, which would otherwise re-run the
+  // load effect below - showing "Loading…" (unmounting the whole editor:
+  // undo history, open panels, view mode) and refetching what the editor
+  // already has, which also reloaded every site image.
+  const justCreatedIdRef = useRef<number | null>(null);
+
   const [linkedWorkOrderId, setLinkedWorkOrderId] = useState<number | null>(workOrderIdParam ? Number(workOrderIdParam) : null);
 
   useEffect(() => {
+    if (plantDesignId && justCreatedIdRef.current === Number(plantDesignId)) {
+      justCreatedIdRef.current = null;
+      return;
+    }
     if (plantDesignId) {
       setLoading(true);
       setLoadError(null);
@@ -156,6 +167,7 @@ export default function PlantDesignEditorPage() {
 
       const created = await createPlantDesign(entityId, body);
       setSavedId(created.plant_design_id);
+      justCreatedIdRef.current = created.plant_design_id;
       
       // Preserve the query params if we came from a work order so the UI knows we are still linked
       const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
