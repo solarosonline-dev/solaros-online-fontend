@@ -1267,6 +1267,10 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
         <OrbitControls
           ref={orbitControlsRef}
           target={orbitTarget as any}
+          // With nothing selected, wheel-zoom heads toward whatever's under
+          // the cursor; with a selection, zoom works around it instead (the
+          // target is glided onto it - see glideToFocusOnWheel).
+          zoomToCursor={!focusPoint}
           maxPolarAngle={Math.PI / 2 - 0.02}
           minDistance={minOrbitDistance}
           maxDistance={maxOrbitDistance}

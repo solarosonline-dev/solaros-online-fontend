@@ -1302,7 +1302,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // selected obstacle's position, the selected roof's centroid, or the
   // selected grid(s)' combined pivot - in world plan coords, plus a rough
   // height (`h`) for the 3D view's camera target. null with no selection
-  // (zoom then centers on contentCentroid as before).
+  // (zoom then follows the cursor instead - see onPlanWheel).
   const selectionFocus = useMemo(() => {
     const roofAt = (pt) => roofs.find((r) => pointInPolygon(pt, getRoofPolygon(r)));
     if (selectedObstacleId != null) {
@@ -1352,13 +1352,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const nextZoom = Math.min(6, Math.max(minPlanZoom, planZoom * factor));
     setPlanZoom(nextZoom);
     // Zooms around the current selection when there is one (selectionFocus),
-    // otherwise contentCentroid (see its own comment), keeping that point
-    // fixed on screen. Zooming *in* on a selection also eases it a quarter
+    // otherwise around the point under the cursor (the usual map/design-tool
+    // behavior), keeping that point fixed on screen. Zooming *in* on a selection also eases it a quarter
     // of the way toward the view's center each step, so a few scrolls bring
     // you to it instead of it sliding off toward an edge. The result is
     // re-clamped either way - zooming out shrinks the backdrop image toward
     // the view's center too.
-    const anchor = selectionFocus ?? contentCentroid;
+    const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+    const anchor = selectionFocus ?? { x: worldX, y: worldY };
     let next = panOffsetZoomingToward(anchor, panOffset, planZoom, nextZoom);
     if (selectionFocus && nextZoom > planZoom) {
       const nextScale = (520 / (halfExtent * 2)) * nextZoom;
