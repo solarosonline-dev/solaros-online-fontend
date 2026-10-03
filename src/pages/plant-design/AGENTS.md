@@ -857,6 +857,14 @@ editing too. Any *new* drag-driven state change on this `<svg>` needs the
 same guard if a roof polygon or the background could plausibly end up
 under the pointer when it releases.
 
+**Obstacle drag** (`startObstacleDrag`/`obstacleMoveRef`/`movingObstacle`)
+follows the roof-drag pattern (3px click-vs-drag threshold, one undo step
+via `suspendHistoryRef`, `frozenExtentRef` to stop auto-fit rescaling,
+`swallowClickAfterDragRef` for the trailing click) but doesn't require the
+obstacle to be selected first — press-and-drag selects and moves it in one
+gesture, since an obstacle has no box-select role like a roof's body does.
+It's the only way to reposition a tree (its popover is size-only).
+
 ## Panel grids & selection
 
 Panels are grouped into **grids** (`roof.grids`, an array): each grid is

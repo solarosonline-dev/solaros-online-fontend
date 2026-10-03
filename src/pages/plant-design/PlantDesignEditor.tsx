@@ -521,6 +521,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // geometry.js).
   const roofMoveRef = useRef<any>(null);
   const [movingRoof, setMovingRoof] = useState(false);
+  // Live drag state for moving a single obstacle - same shape as
+  // roofMoveRef (screen-space start for the click-vs-drag threshold, plus
+  // the obstacle's own starting x/y/polygon so every mousemove re-applies
+  // one delta from origin instead of accumulating rounding error).
+  const obstacleMoveRef = useRef<any>(null);
+  const [movingObstacle, setMovingObstacle] = useState(false);
   // Holds the auto-fit view span (see combinedExtent below) frozen for the
   // duration of a roof drag, so the plan doesn't rescale live as the
   // dragged roof moves toward or away from the origin.
@@ -1000,7 +1006,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // from the origin mid-drag. Freeze it to whatever it was the instant the
   // drag started (see startRoofDrag) and hold that until the drag ends, so
   // panning the roof around never rescales the view out from under it.
-  const combinedExtent = (movingRoof && frozenExtentRef.current != null) ? frozenExtentRef.current : liveCombinedExtent;
+  const combinedExtent = ((movingRoof || movingObstacle) && frozenExtentRef.current != null) ? frozenExtentRef.current : liveCombinedExtent;
   const halfExtent = combinedExtent / 2 + 8;
   const scale = (520 / (halfExtent * 2)) * planZoom;
   const centerX = planViewBoxWidth / 2;
@@ -2598,6 +2604,73 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movingRoof]);
+
+  // Starts dragging one obstacle. Unlike a roof (which must be selected
+  // first, since its body is also the box-select surface for its grids),
+  // an obstacle is small and has nothing else on it to drag, so press-and-
+  // drag on any obstacle selects it and moves it in one gesture; a plain
+  // click (no movement past the threshold) still just selects it via its
+  // own onClick. Off while drawing/placing anything, where a mousedown
+  // belongs to that tool.
+  function startObstacleDrag(e, obstacleId) {
+    if (drawingRoof || placingShape || placingGrid || e.button !== 0) return;
+    const o = obstacles.find((ob) => ob.id === obstacleId);
+    if (!o) return;
+    e.stopPropagation();
+    obstacleMoveRef.current = {
+      clientX: e.clientX, clientY: e.clientY, moved: false,
+      id: o.id, x: o.x, y: o.y, polygon: o.polygon ? o.polygon.map((p) => ({ ...p })) : null,
+    };
+    suspendHistoryRef.current = true;
+    frozenExtentRef.current = liveCombinedExtent;
+    setMovingObstacle(true);
+  }
+
+  useEffect(() => {
+    if (!movingObstacle) return;
+
+    function handleMouseMove(e) {
+      const start = obstacleMoveRef.current;
+      if (!start) return;
+      if (!start.moved && Math.hypot(e.clientX - start.clientX, e.clientY - start.clientY) > 3) {
+        start.moved = true;
+        selectObstacle(start.id);
+      }
+      if (!start.moved) return;
+      const { worldX: curX, worldY: curY } = clientToWorld(e.clientX, e.clientY);
+      const { worldX: startX, worldY: startY } = clientToWorld(start.clientX, start.clientY);
+      const dx = curX - startX, dy = curY - startY;
+      setObstacles((obs) => obs.map((o) => (o.id !== start.id ? o : {
+        ...o,
+        x: Number((start.x + dx).toFixed(2)),
+        y: Number((start.y + dy).toFixed(2)),
+        polygon: start.polygon ? start.polygon.map((p) => ({ x: Number((p.x + dx).toFixed(2)), y: Number((p.y + dy).toFixed(2)) })) : o.polygon,
+      })));
+    }
+
+    function handleMouseUp() {
+      const start = obstacleMoveRef.current;
+      if (start?.moved) {
+        swallowClickAfterDragRef.current = true;
+        // Moving an obstacle changes which panels it shades/overlaps, so
+        // any computed output/cost is stale - same as editing it.
+        setOutputResult(null);
+        setCost(null);
+      }
+      obstacleMoveRef.current = null;
+      frozenExtentRef.current = null;
+      setMovingObstacle(false);
+      suspendHistoryRef.current = false;
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movingObstacle]);
 
   // The rotate handle's own drag - `pivot` is the (single) selected grid's
   // own footprint center, `startAngle` the pointer's angle from it when the
@@ -4390,6 +4463,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 if (swallowClickAfterDragRef.current) { swallowClickAfterDragRef.current = false; return; }
                 if (!placingShape && !drawingRoof) selectObstacle(o.id);
               };
+              const obstacleCursor = (drawingRoof || placingShape || placingGrid) ? 'inherit' : (movingObstacle && selected ? 'grabbing' : 'grab');
               if (o.shape === 'cylinder') {
                 // A lightning arrestor's real radius is a few cm - too thin
                 // to see at most zoom levels - so it gets a fixed, larger
@@ -4403,7 +4477,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     key={o.id} cx={s.sx} cy={s.sy} r={isArrestor ? Math.max(o.radius * scale, 5) : o.radius * scale}
                     fill={isArrestor ? '#b0261e' : o.label === 'Tree' ? '#3f6b3a' : '#7d7d7d'} opacity={0.85}
                     stroke={selected ? '#2f6fed' : 'none'} strokeWidth={selected ? 3 : 0}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: obstacleCursor }}
+                    onMouseDown={(e) => startObstacleDrag(e, o.id)}
                     onClick={handleSelectObstacle}
                   />
                 );
@@ -4424,7 +4499,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     points={o.polygon.map((p) => { const ps = toScreen(p.x, p.y); return `${ps.sx},${ps.sy}`; }).join(' ')}
                     fill={fill} opacity={isCutout ? 0.9 : isSkylight ? 0.75 : isWalkway ? 0.8 : 0.85}
                     stroke={selected ? '#2f6fed' : strokeColor} strokeWidth={selected ? 3 : (isCutout || isSkylight || isWalkway ? 1 : 0)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: obstacleCursor }}
+                    onMouseDown={(e) => startObstacleDrag(e, o.id)}
                     onClick={handleSelectObstacle}
                   />
                 );
@@ -4436,8 +4512,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   width={o.width * scale} height={o.depth * scale}
                   fill="#8a6d5b" opacity={0.85}
                   stroke={selected ? '#2f6fed' : 'none'} strokeWidth={selected ? 3 : 0}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: obstacleCursor }}
                   transform={`rotate(${-o.rotation} ${s.sx} ${s.sy})`}
+                  onMouseDown={(e) => startObstacleDrag(e, o.id)}
                   onClick={handleSelectObstacle}
                 />
               );
