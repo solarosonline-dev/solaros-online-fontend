@@ -286,6 +286,24 @@ export function resizeRoofPolygon(poly: Array<{ x: number; y: number }>, azimuth
   });
 }
 
+// Frame angle (in orientedRoofExtents/resizeRoofPolygon's terms) whose
+// "along rows" axis runs parallel to the polygon's longest edge - for a
+// drawn obstacle, which has no azimuth of its own to frame by. With this
+// frame, extents.width is the size *along* that edge (shown as Length) and
+// extents.length the size across it (shown as Width): the natural reading
+// for a walkway strip or a rectangular skylight.
+export function longestEdgeFrameAzimuth(poly: Array<{ x: number; y: number }>): number {
+  let best = { len: -1, ex: 1, ey: 0 };
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len > best.len) best = { len, ex, ey };
+  }
+  // r = (cos t, -sin t) parallel to the edge (see roofFrame).
+  return Math.atan2(-best.ey, best.ex) * (180 / Math.PI);
+}
+
 export function slopeDirectionAzimuth(direction: any): number {
   if (typeof direction === 'number') return direction;
   return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;

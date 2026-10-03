@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -1636,6 +1636,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   function updateObstacle(id, field, value) {
     setObstacles((obs) => obs.map((o) => (o.id === id ? { ...o, [field]: value } : o)));
+  }
+
+  // Length/Width from a drawn obstacle's Dimensions popover - stretched
+  // along/across its own longest edge (longestEdgeFrameAzimuth) with the
+  // same resizeRoofPolygon the roof uses, so a rotated rectangle stays a
+  // rectangle and vertex order (and so its corner handles) is kept. In
+  // that frame the along-edge size is the frame's 'width' axis.
+  function resizeObstacle(id, dim, value) {
+    setObstacles((obs) => obs.map((o) => {
+      if (o.id !== id || !o.polygon) return o;
+      const az = longestEdgeFrameAzimuth(o.polygon);
+      const polygon = resizeRoofPolygon(o.polygon, az, dim === 'length' ? 'width' : 'length', value);
+      const cx = polygon.reduce((a, p) => a + p.x, 0) / polygon.length;
+      const cy = polygon.reduce((a, p) => a + p.y, 0) / polygon.length;
+      return { ...o, polygon, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) };
+    }));
+    setOutputResult(null);
+    setCost(null);
   }
 
   function removeObstacle(id) {
@@ -5158,6 +5176,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 </>
                             ) : isDrawn ? (
                               <>
+                                  {(() => {
+                                    const ext = orientedRoofExtents(selectedObstacle.polygon, longestEdgeFrameAzimuth(selectedObstacle.polygon));
+                                    return (
+                                      <>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                      </>
+                                    );
+                                  })()}
                                   {/* A Cutout has no height of its own (see
                                       OBSTACLE_PRESETS.cutout) - it removes the
                                       full building height - so no sliders, just
@@ -5172,7 +5199,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                       <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
                                     </>
                                   )}
-                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{selectedObstacle.polygon?.length ?? 0} points. Drag it on the 2D plan to move it.</div>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4 }}>Length runs along its longest edge. {selectedObstacle.polygon?.length ?? 0} points — drag corners on the 2D plan to reshape, or the shape to move it.</div>
                                 </>
                             ) : selectedObstacle.shape === 'cylinder' ? (
                               <>
