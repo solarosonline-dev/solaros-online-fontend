@@ -708,7 +708,12 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
       <BoundaryWall polygon={obstacle.polygon} baseHeight={baseHeight + h} height={obstacle.boundaryHeight} />
     </>
   ) : (
-    <mesh position={[tx, centerY, tz]} rotation={[0, -(obstacle.rotation || 0) * DEG, 0]} castShadow receiveShadow>
+    // +rotation: a box's `rotation` is counter-clockwise in plan view (the
+    // 2D plan draws it with an SVG rotate(-rotation), y-down), and plan-CCW
+    // maps to a positive Y rotation here (plan +y is three's -z, see
+    // toThree) - the same sign grid rotation already uses for panels. This
+    // used to be negated, mirroring every rotated box in 3D.
+    <mesh position={[tx, centerY, tz]} rotation={[0, (obstacle.rotation || 0) * DEG, 0]} castShadow receiveShadow>
       <boxGeometry args={[obstacle.width, h, obstacle.depth]} />
       <meshStandardMaterial color={selColor(selected, '#8a6d5b')} />
     </mesh>

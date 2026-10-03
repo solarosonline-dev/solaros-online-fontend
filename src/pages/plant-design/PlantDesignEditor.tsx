@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -110,6 +110,88 @@ function formatLength(meters, units, decimals = 1) {
 // either (a popover taller than the viewport itself still scroll
 // internally - see the `overflowY: 'auto'` this keeps from the old inline
 // style).
+// Rotate affordance shared by grids and obstacles (shown while that
+// object's Rotate popover is open): a dashed outline through `corners`
+// (screen coords, in order) plus a slim curved double-arrow wrapped around
+// the outside of each corner - centered a few px out along the diagonal
+// from `center` so it clears the corner, white halo underneath so it reads
+// over satellite imagery. Pressing any arrow calls `onStart` (the caller's
+// own rotate drag); `angleLabel` shows at `center` while `dragging`. A long,
+// thin outline (one side 3x+ the other - a walkway, a single-row grid) gets
+// just two arrows, at the middle of each short end, instead of four corner
+// ones crowding each other.
+function RotateHandles({ corners, center, dragging, angleLabel, onStart }) {
+  const [hovered, setHovered] = useState<any>(null);
+  const side = (a, b) => Math.hypot(b.sx - a.sx, b.sy - a.sy);
+  const mid = (a, b) => ({ sx: (a.sx + b.sx) / 2, sy: (a.sy + b.sy) / 2 });
+  let handlePoints = corners;
+  if (corners.length === 4) {
+    const s01 = side(corners[0], corners[1]), s12 = side(corners[1], corners[2]);
+    if (Math.max(s01, s12) >= 3 * Math.min(s01, s12)) {
+      handlePoints = s01 < s12
+        ? [mid(corners[0], corners[1]), mid(corners[2], corners[3])]
+        : [mid(corners[1], corners[2]), mid(corners[3], corners[0])];
+    }
+  }
+  return (
+    <g>
+      <polygon
+        points={corners.map((pt) => `${pt.sx},${pt.sy}`).join(' ')}
+        fill="none" stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="5 4"
+        style={{ pointerEvents: 'none' }}
+      />
+      {handlePoints.map((pt, i) => {
+        const phi = Math.atan2(pt.sy - center.sy, pt.sx - center.sx);
+        const R = 18, span = 55 * Math.PI / 180;
+        const t0 = phi - span, t1 = phi + span;
+        const ox = pt.sx + 4 * Math.cos(phi), oy = pt.sy + 4 * Math.sin(phi);
+        const at = (t) => ({ x: ox + R * Math.cos(t), y: oy + R * Math.sin(t) });
+        const p0 = at(t0), p1 = at(t1);
+        const arc = `M ${p0.x} ${p0.y} A ${R} ${R} 0 0 1 ${p1.x} ${p1.y}`;
+        // Arrowhead at an arc end, along the tangent, pointing away from the
+        // arc's middle.
+        const head = (t, sign) => {
+          const tip = at(t);
+          const tx = -Math.sin(t) * sign, ty = Math.cos(t) * sign;
+          const nx = Math.cos(t), ny = Math.sin(t);
+          const L = 7, W = 4.5;
+          const f = { x: tip.x + tx * 2.5, y: tip.y + ty * 2.5 };
+          return `${f.x},${f.y} ${f.x - tx * L + nx * W},${f.y - ty * L + ny * W} ${f.x - tx * L - nx * W},${f.y - ty * L - ny * W}`;
+        };
+        const hot = dragging || hovered === i;
+        const grab = at(phi);
+        return (
+          <g key={`rotate-handle-${i}`}>
+            <g style={{ pointerEvents: 'none' }}>
+              <path d={arc} fill="none" stroke="#fff" strokeWidth={hot ? 7 : 5.5} strokeLinecap="round" />
+              <polygon points={head(t0, -1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
+              <polygon points={head(t1, 1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
+              <path d={arc} fill="none" stroke="#2f6fed" strokeWidth={hot ? 3.2 : 2.4} strokeLinecap="round" />
+              <polygon points={head(t0, -1)} fill="#2f6fed" />
+              <polygon points={head(t1, 1)} fill="#2f6fed" />
+            </g>
+            <circle
+              cx={grab.x} cy={grab.y} r={14}
+              fill="transparent"
+              style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
+              onMouseDown={onStart}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </g>
+        );
+      })}
+      {dragging && (
+        <g style={{ pointerEvents: 'none' }}>
+          <rect x={center.sx - 26} y={center.sy - 12} width={52} height={24} rx={12} fill="#2f6fed" />
+          <text x={center.sx} y={center.sy + 4.5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#fff">{angleLabel}</text>
+        </g>
+      )}
+    </g>
+  );
+}
+
 function RailPopover({ open, width = 260, children }) {
   const ref = useRef<any>(null);
   const isMobile = useIsMobile();
@@ -528,6 +610,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // one delta from origin instead of accumulating rounding error).
   const obstacleMoveRef = useRef<any>(null);
   const [movingObstacle, setMovingObstacle] = useState(false);
+  // Live drag state for rotating the selected box/drawn obstacle from its
+  // Rotate popover's corner handles - same shape as rotateDragRef (pivot +
+  // starting pointer angle), plus the obstacle's own starting rotation
+  // (box) or outline (drawn shape) to re-apply one delta from every move.
+  const obstacleRotateRef = useRef<any>(null);
+  const [rotatingObstacle, setRotatingObstacle] = useState(false);
   // Vertex handles for the selected drawn (polygon) obstacle - elevation,
   // skylight, walkway, cutout - same idea as the roof's own corner handles
   // (draggingVertexIndex/hoveredVertexIndex), but kept separate since a
@@ -547,9 +635,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the delta.
   const rotateDragRef = useRef<any>(null);
   const [rotatingGrids, setRotatingGrids] = useState(false);
-  // Which corner's rotate arrow the pointer is over (Rotate popover open) -
-  // just thickens that arrow so it reads as grabbable.
-  const [hoveredRotateCorner, setHoveredRotateCorner] = useState<any>(null);
   // "Add row"/"Add column" side-picking (see README's "Panel grids"
   // entry) - while set, the selected grid's own front/back (row) or
   // left/right (column) edges become pickable on the 2D plan, same
@@ -2783,6 +2868,113 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movingObstacle]);
 
+  // Which obstacles have a meaningful orientation: boxes (AC unit, chimney)
+  // via their own `rotation`, and drawn shapes (walkway, skylight,
+  // elevation, cutout) by turning their outline. Round ones (tanks, vents,
+  // trees...) look the same at any angle, so they get no Rotate control.
+  function isRotatableObstacle(o) {
+    return !!o && (o.shape === 'box' || (o.shape === 'polygon' && o.polygon?.length >= 3));
+  }
+
+  // World-space pivot + the four corners the rotate handles sit on: a box's
+  // own rotated rectangle, or a drawn shape's oriented bounding box along
+  // its longest edge (the same frame its Length/Width use).
+  function obstacleRotateFrame(o) {
+    if (o.shape === 'box') {
+      const a = (o.rotation || 0) * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+      const hw = o.width / 2, hd = o.depth / 2;
+      const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => ({ x: o.x + lx * cos - ly * sin, y: o.y + lx * sin + ly * cos }));
+      return { pivot: { x: o.x, y: o.y }, corners };
+    }
+    const t = longestEdgeFrameAzimuth(o.polygon) * Math.PI / 180;
+    const r = { x: Math.cos(t), y: -Math.sin(t) }, f = { x: Math.sin(t), y: Math.cos(t) };
+    const ext = orientedRoofExtents(o.polygon, longestEdgeFrameAzimuth(o.polygon));
+    const at = (a, b) => ({ x: a * r.x + b * f.x, y: a * r.y + b * f.y });
+    const hw = ext.width / 2, hl = ext.length / 2;
+    const corners = [at(ext.centerA - hw, ext.centerB - hl), at(ext.centerA + hw, ext.centerB - hl), at(ext.centerA + hw, ext.centerB + hl), at(ext.centerA - hw, ext.centerB + hl)];
+    return { pivot: at(ext.centerA, ext.centerB), corners };
+  }
+
+  // Sets a drawn obstacle's long-edge angle (Rotate popover slider) by
+  // turning its outline about its own frame center by the difference.
+  function setDrawnObstacleAngle(id, deg) {
+    setObstacles((obs) => obs.map((o) => {
+      if (o.id !== id || !o.polygon) return o;
+      const { pivot } = obstacleRotateFrame(o);
+      let delta = deg - longEdgeAngle(o.polygon);
+      delta = ((((delta + 90) % 180) + 180) % 180) - 90;
+      const polygon = rotatePoints(o.polygon, pivot, delta);
+      const cx = polygon.reduce((a, p) => a + p.x, 0) / polygon.length;
+      const cy = polygon.reduce((a, p) => a + p.y, 0) / polygon.length;
+      return { ...o, polygon, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) };
+    }));
+    setOutputResult(null);
+    setCost(null);
+  }
+
+  function startObstacleRotate(e) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const o = obstacles.find((ob) => ob.id === selectedObstacleId);
+    if (!isRotatableObstacle(o)) return;
+    const { pivot } = obstacleRotateFrame(o);
+    const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+    obstacleRotateRef.current = {
+      id: o.id, pivot,
+      startAngle: Math.atan2(worldY - pivot.y, worldX - pivot.x),
+      rotation: o.rotation || 0,
+      polygon: o.polygon ? o.polygon.map((p) => ({ ...p })) : null,
+    };
+    suspendHistoryRef.current = true;
+    setRotatingObstacle(true);
+  }
+
+  useEffect(() => {
+    if (!rotatingObstacle) return;
+
+    function handleMouseMove(e) {
+      const start = obstacleRotateRef.current;
+      if (!start) return;
+      const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+      let delta = ((Math.atan2(worldY - start.pivot.y, worldX - start.pivot.x) - start.startAngle) * 180) / Math.PI;
+      setObstacles((obs) => obs.map((o) => {
+        if (o.id !== start.id) return o;
+        if (o.shape === 'box') {
+          // Shift snaps the box's own total rotation to 15° steps.
+          let next = start.rotation + delta;
+          if (e.shiftKey) next = Math.round(next / 15) * 15;
+          next = ((((next + 180) % 360) + 360) % 360) - 180;
+          return { ...o, rotation: Number(next.toFixed(1)) };
+        }
+        // A drawn shape has no stored angle of its own - Shift snaps how
+        // far this drag has turned it instead.
+        if (e.shiftKey) delta = Math.round(delta / 15) * 15;
+        const polygon = rotatePoints(start.polygon, start.pivot, delta);
+        const cx = polygon.reduce((a, p) => a + p.x, 0) / polygon.length;
+        const cy = polygon.reduce((a, p) => a + p.y, 0) / polygon.length;
+        return { ...o, polygon, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) };
+      }));
+    }
+    function handleMouseUp() {
+      if (obstacleRotateRef.current) {
+        swallowClickAfterDragRef.current = true;
+        setOutputResult(null);
+        setCost(null);
+      }
+      obstacleRotateRef.current = null;
+      setRotatingObstacle(false);
+      suspendHistoryRef.current = false;
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rotatingObstacle]);
+
   function startObstacleVertexDrag(e, index) {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -4598,71 +4790,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
                 { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
               ].map((c) => toScreen(toWorld(c).x, toWorld(c).y));
-              const c = toScreen(pivot.x, pivot.y);
               return (
-                <g>
-                  <polygon
-                    points={corners.map((pt) => `${pt.sx},${pt.sy}`).join(' ')}
-                    fill="none" stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="5 4"
-                    style={{ pointerEvents: 'none' }}
-                  />
-                  {corners.map((pt, i) => {
-                    // A slim arc wrapping the *outside* of the corner (centered
-                    // on the corner itself, spanning ±55° around the outward
-                    // diagonal) with a filled arrowhead at each end - the usual
-                    // design-tool rotate affordance. White halo underneath so it
-                    // stays legible over satellite imagery.
-                    const phi = Math.atan2(pt.sy - c.sy, pt.sx - c.sx);
-                    const R = 18, span = 55 * Math.PI / 180;
-                    const t0 = phi - span, t1 = phi + span;
-                    // Arc centered a few px out along the diagonal so it clears
-                    // the corner (and the dashed outline) instead of touching it.
-                    const ox = pt.sx + 4 * Math.cos(phi), oy = pt.sy + 4 * Math.sin(phi);
-                    const at = (t) => ({ x: ox + R * Math.cos(t), y: oy + R * Math.sin(t) });
-                    const p0 = at(t0), p1 = at(t1);
-                    const arc = `M ${p0.x} ${p0.y} A ${R} ${R} 0 0 1 ${p1.x} ${p1.y}`;
-                    // Arrowhead at an arc end, pointing along the arc's tangent
-                    // in the direction of travel away from the arc's middle.
-                    const head = (t, sign) => {
-                      const tip = at(t);
-                      const tx = -Math.sin(t) * sign, ty = Math.cos(t) * sign;
-                      const nx = Math.cos(t), ny = Math.sin(t);
-                      const L = 7, W = 4.5;
-                      const tipF = { x: tip.x + tx * 2.5, y: tip.y + ty * 2.5 };
-                      return `${tipF.x},${tipF.y} ${tipF.x - tx * L + nx * W},${tipF.y - ty * L + ny * W} ${tipF.x - tx * L - nx * W},${tipF.y - ty * L - ny * W}`;
-                    };
-                    const hot = rotatingGrids || hoveredRotateCorner === i;
-                    const grab = at(phi);
-                    return (
-                      <g key={`rotate-handle-${i}`}>
-                        <g style={{ pointerEvents: 'none' }}>
-                          <path d={arc} fill="none" stroke="#fff" strokeWidth={hot ? 7 : 5.5} strokeLinecap="round" />
-                          <polygon points={head(t0, -1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
-                          <polygon points={head(t1, 1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
-                          <path d={arc} fill="none" stroke="#2f6fed" strokeWidth={hot ? 3.2 : 2.4} strokeLinecap="round" />
-                          <polygon points={head(t0, -1)} fill="#2f6fed" />
-                          <polygon points={head(t1, 1)} fill="#2f6fed" />
-                        </g>
-                        {/* Generous invisible grab target over the arc. */}
-                        <circle
-                          cx={grab.x} cy={grab.y} r={14}
-                          fill="transparent"
-                          style={{ cursor: rotatingGrids ? 'grabbing' : 'grab' }}
-                          onMouseEnter={() => setHoveredRotateCorner(i)}
-                          onMouseLeave={() => setHoveredRotateCorner((h) => (h === i ? null : h))}
-                          onMouseDown={startGridRotate}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </g>
-                    );
-                  })}
-                  {rotatingGrids && (
-                    <g style={{ pointerEvents: 'none' }}>
-                      <rect x={c.sx - 26} y={c.sy - 12} width={52} height={24} rx={12} fill="#2f6fed" />
-                      <text x={c.sx} y={c.sy + 4.5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#fff">{Math.round(rot)}°</text>
-                    </g>
-                  )}
-                </g>
+                <RotateHandles
+                  corners={corners}
+                  center={toScreen(pivot.x, pivot.y)}
+                  dragging={rotatingGrids}
+                  angleLabel={`${Math.round(rot)}°`}
+                  onStart={startGridRotate}
+                />
               );
             })()}
 
@@ -4774,6 +4909,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 </g>
               );
             })}
+
+            {/* Obstacle rotate mode (its Rotate popover is open) - same
+                corner-arrow handles as a grid's (RotateHandles). */}
+            {rightPanelOpenGroup === 'obstacleRotate' && isRotatableObstacle(selectedObstacle) && !drawingRoof && !placingShape && !placingGrid && (() => {
+              const { pivot, corners } = obstacleRotateFrame(selectedObstacle);
+              const angle = selectedObstacle.shape === 'box'
+                ? Math.round(selectedObstacle.rotation || 0)
+                : Math.round(longEdgeAngle(selectedObstacle.polygon));
+              return (
+                <RotateHandles
+                  corners={corners.map((c) => toScreen(c.x, c.y))}
+                  center={toScreen(pivot.x, pivot.y)}
+                  dragging={rotatingObstacle}
+                  angleLabel={`${angle}°`}
+                  onStart={startObstacleRotate}
+                />
+              );
+            })()}
 
             {/* "Add row"/"Add column" side-picking - same "visible sliver +
                 wide invisible hit-area" pattern as mirror/margin mode above,
@@ -5372,14 +5525,47 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.width} onChange={(v) => updateObstacle(selectedObstacle.id, 'width', v)} /></div>
                                 <div style={sliderRowStyle}>{sliderRowLabel('Depth', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.depth} onChange={(v) => updateObstacle(selectedObstacle.id, 'depth', v)} /></div>
                                 <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                {/* Degrees, not a length - no `unit`, so the
-                                    m/ft toggle never converts it. */}
-                                <div style={sliderRowStyle}>{sliderRowLabel('Rotation', '°')}<SliderInput numberWidth={58} min={0} max={359} step={1} value={selectedObstacle.rotation ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'rotation', v)} /></div>
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                               </>
                             )}
                         </RailPopover>
                       </div>
+
+                      {isRotatableObstacle(selectedObstacle) && (
+                        <div style={{ position: 'relative' }}>
+                          <button data-tooltip="Rotate" aria-label="Rotate" className={iconBtn(rightPanelOpenGroup === 'obstacleRotate')} onClick={() => toggleGroup('obstacleRotate')}><RotateIcon /></button>
+                          <RailPopover open={rightPanelOpenGroup === 'obstacleRotate'} width={300}>
+                              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Rotate</div>
+                              {/* Degrees, not a length - no `unit`, so the m/ft
+                                  toggle never converts it. */}
+                              {selectedObstacle.shape === 'box' ? (
+                                <>
+                                  <div style={sliderRowStyle}>
+                                    {sliderRowLabel('Rotation', '°')}
+                                    <SliderInput numberWidth={58} min={-180} max={180} step={1} value={Math.round((((selectedObstacle.rotation || 0) + 180) % 360 + 360) % 360 - 180)} onChange={(v) => updateObstacle(selectedObstacle.id, 'rotation', v)} />
+                                  </div>
+                                  <button className={btn(false)} disabled={!selectedObstacle.rotation} style={{ width: '100%', marginTop: 2 }} onClick={() => updateObstacle(selectedObstacle.id, 'rotation', 0)}>
+                                    ↺ Reset to 0°
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={sliderRowStyle}>
+                                    {sliderRowLabel('Angle', '°')}
+                                    <SliderInput numberWidth={58} min={0} max={179} step={1} value={Math.round(longEdgeAngle(selectedObstacle.polygon)) % 180} onChange={(v) => setDrawnObstacleAngle(selectedObstacle.id, v)} />
+                                  </div>
+                                  <button className={btn(false)} disabled={Math.round(longEdgeAngle(selectedObstacle.polygon)) % 180 === 0} style={{ width: '100%', marginTop: 2 }} onClick={() => setDrawnObstacleAngle(selectedObstacle.id, 0)}>
+                                    ⇆ Square to east–west
+                                  </button>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>Angle of its longest edge from east–west.</div>
+                                </>
+                              )}
+                              <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.4 }}>
+                                Or drag any of the curved-arrow handles at its corners on the 2D plan. Hold Shift to snap to 15°.
+                              </div>
+                          </RailPopover>
+                        </div>
+                      )}
 
                       {isTree && (
                         <div style={{ position: 'relative' }}>

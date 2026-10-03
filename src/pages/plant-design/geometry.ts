@@ -353,6 +353,24 @@ export function subtractPolygons(subject: Pt[], cutters: Pt[][]): Array<{ outer:
   }
 }
 
+// `points` turned counter-clockwise (plan view, +y = north) by `deg`
+// about `center` - for rotating a drawn obstacle's own outline in place.
+export function rotatePoints(points: Array<{ x: number; y: number }>, center: { x: number; y: number }, deg: number) {
+  const a = toRad(deg), cos = Math.cos(a), sin = Math.sin(a);
+  return points.map((p) => {
+    const dx = p.x - center.x, dy = p.y - center.y;
+    return { x: Number((center.x + dx * cos - dy * sin).toFixed(3)), y: Number((center.y + dx * sin + dy * cos).toFixed(3)) };
+  });
+}
+
+// Direction of a polygon's longest edge, in degrees counter-clockwise from
+// east, folded into [0, 180) since an edge has no head/tail - the "Angle" a
+// drawn obstacle's Rotate popover shows (0 = running east-west).
+export function longEdgeAngle(poly: Array<{ x: number; y: number }>): number {
+  const t = longestEdgeFrameAzimuth(poly);
+  return ((-t % 180) + 180) % 180;
+}
+
 export function slopeDirectionAzimuth(direction: any): number {
   if (typeof direction === 'number') return direction;
   return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;

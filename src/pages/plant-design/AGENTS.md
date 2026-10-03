@@ -891,6 +891,16 @@ shows at the pivot. Closing the popover (or opening any other) exits rotate
 mode — there's no separate mode flag. Single-grid only, like every other
 grid rail control.
 
+The corner arrows are the shared `RotateHandles` component, also used for
+**obstacles** (`rightPanelOpenGroup === 'obstacleRotate'`,
+`isRotatableObstacle`): boxes (AC unit, chimney) rotate their own
+`rotation` (absolute, Shift snaps the total); drawn shapes (walkway,
+skylight, elevation, cutout) have no stored angle, so the drag turns their
+outline with `rotatePoints` (Shift snaps the drag's delta) and the popover's
+"Angle" is `longEdgeAngle` (longest edge from east–west, 0–179°). Round
+obstacles and trees get no Rotate control. A box's `rotation` is CCW in plan
+view in both views — Scene3D used to negate it, mirroring rotated boxes.
+
 Panels are grouped into **grids** (`roof.grids`, an array): each grid is
 one output of `generateLayout` plus a few editable-in-place fields
 (`panelTiltDeg`, `rowSpacing`, `structureStrategy`, `panelsPerRow`,
