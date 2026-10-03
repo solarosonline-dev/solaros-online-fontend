@@ -5054,22 +5054,34 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 {selectedObstacle && (() => {
                   const isCutout = selectedObstacle.label === 'Cutout';
                   const isTree = selectedObstacle.label === 'Tree';
+                  const isElevation = selectedObstacle.label === 'Elevation';
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
-                      {/* Trees get a plain Dimensions popover (height + canopy
-                          radius, same aligned slider rows as the roof's own)
-                          instead of the generic x/y/height/radius Properties
-                          grid - position is where it was placed on the plan,
-                          not something typed in. */}
-                      {isTree ? (
+                      {/* Trees and elevations get a plain Dimensions popover
+                          (same aligned slider rows as the roof's own) instead
+                          of the generic x/y Properties grid - position comes
+                          from dragging on the plan (startObstacleDrag), not
+                          typed in, and an elevation's x/y were always
+                          disabled anyway since its shape is its polygon. */}
+                      {(isTree || isElevation) ? (
                         <div style={{ position: 'relative' }}>
                           <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'obstacleDims')} onClick={() => toggleGroup('obstacleDims')}><RulerIcon /></button>
                           <RailPopover open={rightPanelOpenGroup === 'obstacleDims'} width={300}>
                               <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
-                              <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                              <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                              {isTree ? (
+                                <>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{selectedObstacle.polygon?.length ?? 0} points. Drag it on the 2D plan to move it.</div>
+                                </>
+                              )}
                           </RailPopover>
                         </div>
                       ) : (
