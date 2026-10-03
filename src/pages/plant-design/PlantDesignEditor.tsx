@@ -3591,6 +3591,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 selectedRoofId={selectedRoofId}
                 onSelectRoof={selectRoof}
                 showPanels={showPanels}
+                ghostPanels={currentStep === 3}
                 mapImagePlacement={backdropPlacement}
                 mapImageWidePlacement={backdropWidePlacement}
                 onCompassAngleChange={setCompass3DAngleDeg}
@@ -4045,6 +4046,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               );
             })()}
 
+            {/* Roof setup (step 3) is about the roof outline itself - any
+                grids already packed on it are faded to a faint, non-
+                interactive ghost so they don't hide the roof being edited,
+                while still showing that they exist (several roof edits
+                clear them - see ROOF_FIELDS_NEEDING_REPACK). Scene3D does
+                the same via its ghostPanels prop. */}
+            <g opacity={currentStep === 3 ? 0.15 : 1} style={currentStep === 3 ? { pointerEvents: 'none' } : undefined}>
             {roofs.flatMap((roof) => roof.grids.flatMap((g) =>
               (instantByGrid[gridKey(roof.id, g.id)]?.shadowPolys || []).map((poly, i) => (
                 <polygon
@@ -4157,13 +4165,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 );
               });
             }))}
+            </g>
 
             {/* Rotate handle - a small offset circle above the selected
                 grid(s)' own combined footprint-center, connected by a thin
                 guide line (same pivot startGridRotate itself uses). Only
                 shown once a grid is actually selected; dragging it feeds
                 startGridRotate/the rotatingGrids effect above. */}
-            {selectedGridKeys.size > 0 && (() => {
+            {currentStep !== 3 && selectedGridKeys.size > 0 && (() => {
               const grids = [...selectedGridKeys].map((k) => {
                 const { roofId, gridId } = parseGridKey(k);
                 return findGrid(roofId, gridId);

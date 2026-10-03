@@ -409,7 +409,7 @@ function efficiencyColor(pct) {
   return `hsl(${hue}, 75%, 45%)`;
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct }) {
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
@@ -417,7 +417,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]}>
-      <mesh rotation={[-tiltRad, 0, 0]} castShadow receiveShadow>
+      <mesh rotation={[-tiltRad, 0, 0]} castShadow={!ghost} receiveShadow={!ghost}>
         <boxGeometry args={[w, 0.03, len]} />
         {/* A real panel's glass surface glints as the sun moves across the
             sky - clearcoat (a thin glossy layer over the tinted base) gets
@@ -425,12 +425,15 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
             tied to selectedHour via sunElevation/sunAzimuth), no
             environment map needed since a direct specular highlight comes
             from the light itself, not a reflected scene. */}
-        <meshPhysicalMaterial color={color} roughness={0.35} metalness={0.15} clearcoat={1} clearcoatRoughness={0.12} />
+        {/* `ghost` (Roof setup step - see Scene3D's ghostPanels prop):
+            faint and see-through, no depth write so the roof deck beneath
+            still reads clearly through it, no edges/shadows. */}
+        <meshPhysicalMaterial color={color} roughness={0.35} metalness={0.15} clearcoat={1} clearcoatRoughness={0.12} transparent={ghost} opacity={ghost ? 0.15 : 1} depthWrite={!ghost} />
         {/* A white edge per panel so adjacent panels in the same grid/rack
             read as separate modules instead of blurring into one solid
             slab, especially once every panel's own tint is close to
             identical (the common case, no shading/efficiency view active). */}
-        <Edges color="white" />
+        {!ghost && <Edges color="white" />}
       </mesh>
     </group>
   );
@@ -765,7 +768,7 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1011,12 +1014,13 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       backHeight={h?.backHeight ?? 0}
                       shaded={grid.shadedIds?.has(p.id)}
                       efficiencyPct={grid.efficiencyPct?.[p.id]}
+                      ghost={ghostPanels}
                     />
                   );
                 });
               })}
 
-              {roof.grids.flatMap((grid) =>
+              {!ghostPanels && roof.grids.flatMap((grid) =>
                 (grid.structure?.racks || []).flatMap((rack) =>
                   rack.segments.map((segment, i) => (
                     <StructureSegment
