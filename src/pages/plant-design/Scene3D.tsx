@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { getRoofPolygon, isOnRoof, insetPolygon, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
+import { getRoofPolygon, isOnRoof, insetPolygon, subtractPolygons, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -64,10 +64,31 @@ function polygonExtrudeGeometry(polygon, depth, holes: any[] = []) {
   return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
 }
 
+// Same as polygonExtrudeGeometry, but for several pieces at once (each an
+// outer ring + its own holes) - the shape subtractPolygons returns once
+// cutouts have been taken out of a roof. ExtrudeGeometry accepts an array
+// of shapes directly, so it's still one geometry/mesh.
+function piecesExtrudeGeometry(pieces, depth) {
+  const shapes = pieces.filter((pc) => pc.outer.length >= 3).map((pc) => {
+    const shape = new THREE.Shape();
+    pc.outer.forEach((p, i) => (i === 0 ? shape.moveTo(p.x, p.y) : shape.lineTo(p.x, p.y)));
+    shape.closePath();
+    pc.holes.forEach((hole) => {
+      if (hole.length < 3) return;
+      const path = new THREE.Path();
+      hole.forEach((p, i) => (i === 0 ? path.moveTo(p.x, p.y) : path.lineTo(p.x, p.y)));
+      path.closePath();
+      shape.holes.push(path);
+    });
+    return shape;
+  });
+  return new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+}
+
 const DECK_THICKNESS = 0.15;
 
-function RoofDeck({ polygon, buildingHeight, cutouts, selected, onClick }) {
-  const geometry = useMemo(() => polygonExtrudeGeometry(polygon, DECK_THICKNESS, cutouts), [polygon, cutouts]);
+function RoofDeck({ pieces, buildingHeight, selected, onClick }) {
+  const geometry = useMemo(() => piecesExtrudeGeometry(pieces, DECK_THICKNESS), [pieces]);
 
   return (
     <group position={[0, buildingHeight, 0]}>
@@ -90,10 +111,12 @@ function RoofDeck({ polygon, buildingHeight, cutouts, selected, onClick }) {
 // accurate sloped version is Phase 5 roof-plane territory, same as the
 // rest of this view's already-accepted flat-panel-above-flat-deck
 // simplification (see this file's very first comment).
-function RoofMarginBand({ polygon, usablePolygon, buildingHeight }) {
+function RoofMarginBand({ polygon, usablePolygon, cutouts, buildingHeight }) {
+  // Roof minus the usable area minus any cutouts - so the band never
+  // floats over a notch a cutout has taken out of the roof.
   const geometry = useMemo(
-    () => (usablePolygon.length >= 3 ? polygonExtrudeGeometry(polygon, DECK_THICKNESS + 0.03, [usablePolygon]) : null),
-    [polygon, usablePolygon],
+    () => (usablePolygon.length >= 3 ? piecesExtrudeGeometry(subtractPolygons(polygon, [usablePolygon, ...cutouts]), DECK_THICKNESS + 0.03) : null),
+    [polygon, usablePolygon, cutouts],
   );
   if (!geometry) return null;
   return (
@@ -270,13 +293,37 @@ function PitchedBuilding({ polygon, buildingHeight, pitchDeg, direction, selecte
 // ground — a simplification (real buildings aren't usually shaped exactly
 // like their roof footprint at every floor), but enough to visually ground
 // the roof deck at the right height.
-function BuildingBlock({ polygon, buildingHeight, cutouts, selected, onClick }) {
-  const geometry = useMemo(() => polygonExtrudeGeometry(polygon, buildingHeight, cutouts), [polygon, buildingHeight, cutouts]);
+function BuildingBlock({ pieces, buildingHeight, selected, onClick }) {
+  const geometry = useMemo(() => piecesExtrudeGeometry(pieces, buildingHeight), [pieces, buildingHeight]);
 
   return (
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow onClick={onClick}>
       <meshStandardMaterial color={selected ? '#a9bfec' : '#c9c4ba'} />
     </mesh>
+  );
+}
+
+// A flat roof's whole building: block, deck, margin band and parapet, all
+// built from the roof outline *minus* its cutouts (subtractPolygons) so a
+// Cutout obstacle really removes roof in 3D - including one crossing the
+// roof edge, which three.js's own Shape.holes can't do. The parapet follows
+// each remaining piece's outer edge, so a notch gets walls along its own
+// sides rather than one spanning the gap. Pieces are memoized on the
+// cutouts' actual coordinates (a fresh array arrives every render).
+function FlatBuilding({ polygon, usablePolygon, buildingHeight, boundaryHeight, cutouts, selected, onClick }) {
+  const cutoutKey = JSON.stringify(cutouts);
+  const stableCutouts = useMemo(() => cutouts, [cutoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pieces = useMemo(() => subtractPolygons(polygon, stableCutouts), [polygon, stableCutouts]);
+  const deckTop = buildingHeight + DECK_THICKNESS;
+  return (
+    <>
+      <BuildingBlock pieces={pieces} buildingHeight={buildingHeight} selected={selected} onClick={onClick} />
+      <RoofDeck pieces={pieces} buildingHeight={buildingHeight} selected={selected} onClick={onClick} />
+      <RoofMarginBand polygon={polygon} usablePolygon={usablePolygon} cutouts={stableCutouts} buildingHeight={buildingHeight} />
+      {pieces.map((pc, i) => (
+        <BoundaryWall key={i} polygon={pc.outer} baseHeight={deckTop} height={boundaryHeight} />
+      ))}
+    </>
   );
 }
 
@@ -969,9 +1016,12 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           // for v1; Cutout still blocks panel placement and shows in the 2D
           // plan there, it just doesn't carve a real 3D shaft).
           const roofPoly = getRoofPolygon(roof);
+          // Every cutout, not just ones whose center is on this roof - the
+          // subtraction itself is a no-op where they don't overlap, and a
+          // cutout crossing the roof edge often has its center outside it.
           const roofCutouts = roof.type === 'pitched'
             ? []
-            : obstacles.filter((o) => o.label === 'Cutout' && isOnRoof(o, roofPoly)).map((o) => o.polygon);
+            : obstacles.filter((o) => o.label === 'Cutout' && o.polygon?.length >= 3).map((o) => o.polygon);
           return (
             <group key={roof.id}>
               {roof.type === 'pitched' ? (
@@ -981,10 +1031,15 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                 </>
               ) : (
                 <>
-                  <BuildingBlock polygon={roofPoly} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <RoofDeck polygon={roofPoly} buildingHeight={roof.buildingHeight} cutouts={roofCutouts} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <RoofMarginBand polygon={roofPoly} usablePolygon={roof.usablePolygon || []} buildingHeight={roof.buildingHeight} />
-                  <BoundaryWall polygon={roofPoly} baseHeight={deckTop} height={roof.boundaryHeight} />
+                  <FlatBuilding
+                    polygon={roofPoly}
+                    usablePolygon={roof.usablePolygon || []}
+                    buildingHeight={roof.buildingHeight}
+                    boundaryHeight={roof.boundaryHeight}
+                    cutouts={roofCutouts}
+                    selected={selected}
+                    onClick={(e) => handleClick(e, roof.id)}
+                  />
                 </>
               )}
 

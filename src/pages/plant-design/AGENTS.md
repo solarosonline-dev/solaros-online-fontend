@@ -508,6 +508,19 @@ legacy gap: a southern-hemisphere flat-roof grid packed before this change
 stored `azimuth: 0` but was framed in `'S'` — re-fill it if editing it
 misbehaves.
 
+## Cutouts in 3D
+
+A Cutout removes roof in 3D on **flat roofs** by boolean difference, not
+three.js `Shape.holes`: `FlatBuilding` (Scene3D.tsx) builds block, deck,
+margin band and parapet from `subtractPolygons(roofPoly, cutouts)`
+(geometry.ts, backed by the `polygon-clipping` npm package). `Shape.holes`
+only works for a hole fully inside the outline — a cutout crossing the roof
+edge (the usual notch) was silently dropped and the roof stayed solid. Every
+cutout is passed to every flat roof (the difference is a no-op where they
+don't overlap) rather than filtering by centroid, since an edge-crossing
+cutout's center is often outside the roof. Parapets follow each remaining
+piece's outer ring. Pitched roofs still don't render cutouts in 3D.
+
 ## Pitched roof deck
 
 For a flat roof, `BuildingBlock` (flat-topped walls) and `RoofDeck` (thin

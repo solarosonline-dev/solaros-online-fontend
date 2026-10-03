@@ -1,3 +1,4 @@
+import polygonClipping from 'polygon-clipping';
 import { toRad } from './solarMath.js';
 
 // ============================================================
@@ -320,6 +321,36 @@ export function convexPolygonsOverlap(a: Array<{ x: number; y: number }>, b: Arr
     }
   }
   return true;
+}
+
+type Pt = { x: number; y: number };
+
+// `subject` minus every polygon in `cutters`, as a list of pieces (each an
+// outer ring plus any interior holes) - for the 3D view's flat roofs, where
+// a Cutout obstacle has to actually remove roof. three.js's own Shape.holes
+// only works for a hole fully *inside* the outline; a cutout crossing the
+// roof edge (the usual way to notch an L-shaped building) was silently
+// dropped and the roof rendered solid. A true boolean difference handles
+// that, plus a cutout that splits the roof into separate pieces. Rings
+// come back without the closing duplicate point. Falls back to the
+// untouched subject if the clipper throws on degenerate input (e.g. a
+// zero-area cutout mid-drag), so a bad cutout never blanks the roof.
+export function subtractPolygons(subject: Pt[], cutters: Pt[][]): Array<{ outer: Pt[]; holes: Pt[][] }> {
+  const valid = (cutters || []).filter((c) => c && c.length >= 3);
+  if (!subject || subject.length < 3) return [];
+  if (valid.length === 0) return [{ outer: subject, holes: [] }];
+  const toRing = (poly: Pt[]) => poly.map((p) => [p.x, p.y] as [number, number]);
+  const fromRing = (ring: [number, number][]) => {
+    const pts = ring.map(([x, y]) => ({ x, y }));
+    const first = pts[0], last = pts[pts.length - 1];
+    return pts.length > 1 && first.x === last.x && first.y === last.y ? pts.slice(0, -1) : pts;
+  };
+  try {
+    const result = polygonClipping.difference([toRing(subject)], ...valid.map((c) => [toRing(c)]));
+    return result.map((poly) => ({ outer: fromRing(poly[0]), holes: poly.slice(1).map(fromRing) }));
+  } catch {
+    return [{ outer: subject, holes: [] }];
+  }
 }
 
 export function slopeDirectionAzimuth(direction: any): number {
