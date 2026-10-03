@@ -441,6 +441,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // lines up straight or at a clean angle with the segment before it -
   // before committing to it. null whenever no draw tool is active.
   const [drawCursorWorld, setDrawCursorWorld] = useState<any>(null);
+  // Obstacle copy/paste. `obstacleClipboard` is the copied obstacle (a
+  // snapshot, set by Cmd/Ctrl+C or the right rail's Copy button); while the
+  // Copy button's click-to-place is active, `placingShape` is the sentinel
+  // 'copy' so every existing click-to-place path (2D click, 3D click,
+  // crosshair, roof/panel click guards) handles it - see addObstacle.
+  // `pasteCountRef` steps repeated keyboard pastes further from the source.
+  const [obstacleClipboard, setObstacleClipboard] = useState<any>(null);
+  const pasteCountRef = useRef(0);
   // Set when a just-closed grid polygon didn't land on any roof (see
   // addGridFromPolygon) - shown inline near the "+ Place grid" button so
   // that failure isn't silent, cleared on the next attempt.
@@ -981,8 +989,25 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     function handleKeyDown(e) {
       if (isTypingTarget(document.activeElement)) return;
       if (e.key === 'Escape') {
+        if (placingShape === 'copy') { setPlacingShape(null); return; }
         if (addSideMode) { setAddSideMode(null); return; }
         if (gridDeleteMode) { setGridDeleteMode(null); setGridDeleteSelection(null); }
+        return;
+      }
+      // Cmd/Ctrl+C copies the selected obstacle; Cmd/Ctrl+V drops a copy
+      // just beside the original (pasteObstacleNearby). Obstacles only -
+      // grids have their own Duplicate, roofs aren't copyable.
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c') {
+        if (selectedObstacleId == null) return;
+        e.preventDefault();
+        copyObstacle(obstacles.find((o) => o.id === selectedObstacleId));
+        return;
+      }
+      if (meta && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+        if (!obstacleClipboard || drawingRoof || placingGrid || placingShape) return;
+        e.preventDefault();
+        pasteObstacleNearby();
         return;
       }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
@@ -995,7 +1020,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addSideMode, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints]);
+  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addSideMode, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints, obstacles, obstacleClipboard]);
   // Set right before closing a roof trace by clicking back on its own first
   // point (see onSvgClick) — a real double-click landing there fires a
   // second click event a moment later that would otherwise immediately
@@ -1755,7 +1780,52 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     return totals;
   }, [structuresByGrid]);
 
+  // A copy of `src` centred on (x, y): new id, drawn outline moved along
+  // with it, every other setting (size, rotation, canopy, height,
+  // boundary...) kept. Selected afterwards, with the same "overlaps
+  // panels?" prompt a freshly placed obstacle gets.
+  function pasteObstacle(src, x, y) {
+    if (!src) return;
+    const dx = x - src.x, dy = y - src.y;
+    const id = Date.now();
+    const copy = {
+      ...src,
+      id,
+      x: Number(x.toFixed(2)),
+      y: Number(y.toFixed(2)),
+      ...(src.polygon ? { polygon: src.polygon.map((p) => ({ x: Number((p.x + dx).toFixed(3)), y: Number((p.y + dy).toFixed(3)) })) } : {}),
+    };
+    setObstacles((obs) => [...obs, copy]);
+    selectObstacle(id);
+    setOutputResult(null);
+    setCost(null);
+    promptOverlapRemovalIfNeeded(copy);
+  }
+
+  // Keyboard paste: drop the copy just east of the source, one obstacle-
+  // width (plus a gap) further for each repeated paste so they don't stack.
+  function pasteObstacleNearby() {
+    const src = obstacleClipboard;
+    if (!src) return;
+    const size = src.shape === 'box' ? Math.max(src.width || 0, src.depth || 0)
+      : src.shape === 'polygon' && src.polygon ? (Math.max(...src.polygon.map((p) => p.x)) - Math.min(...src.polygon.map((p) => p.x)))
+      : 2 * (src.radius || 0.5);
+    pasteCountRef.current += 1;
+    pasteObstacle(src, src.x + pasteCountRef.current * (size + 0.5), src.y);
+  }
+
+  function copyObstacle(o) {
+    if (!o) return;
+    setObstacleClipboard(JSON.parse(JSON.stringify(o)));
+    pasteCountRef.current = 0;
+  }
+
   function addObstacle(kind, x, y) {
+    if (kind === 'copy') {
+      pasteObstacle(obstacleClipboard, x, y);
+      setPlacingShape(null);
+      return;
+    }
     const preset = OBSTACLE_PRESETS[kind];
     const extra = kind === 'tree' ? { canopy: TREE_CANOPIES[Math.floor(Math.random() * TREE_CANOPIES.length)] } : {};
     const id = Date.now();
@@ -2388,7 +2458,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function onSvgDrawMouseMove(e) {
     onSunHeatmapMouseMove(e);
     const drawingObstacle = placingShape && OBSTACLE_PRESETS[placingShape]?.drawable;
-    if (!drawingRoof && !drawingObstacle && !placingGrid) {
+    if (!drawingRoof && !drawingObstacle && !placingGrid && placingShape !== 'copy') {
       if (drawCursorWorld) setDrawCursorWorld(null);
       return;
     }
@@ -5081,6 +5151,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               const s = toScreen(o.x, o.y);
               const selected = selectedObstacleId === o.id;
               const handleSelectObstacle = (e) => {
+                // While placing/drawing anything, a click landing on an
+                // existing obstacle belongs to that tool (e.g. pasting a
+                // copy right on top of / next to its original) - let it
+                // bubble to the plan instead of swallowing it here.
+                if (placingShape || drawingRoof || placingGrid) return;
                 e.stopPropagation();
                 if (swallowClickAfterDragRef.current) { swallowClickAfterDragRef.current = false; return; }
                 if (!placingShape && !drawingRoof) selectObstacle(o.id);
@@ -5170,6 +5245,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 </g>
               );
             })}
+
+            {/* Copy click-to-place preview: the copied obstacle's outline,
+                dashed, centred on the pointer. */}
+            {placingShape === 'copy' && obstacleClipboard && drawCursorWorld && (() => {
+              const src = obstacleClipboard;
+              const dx = drawCursorWorld.x - src.x, dy = drawCursorWorld.y - src.y;
+              const style = { fill: 'rgba(47,111,237,0.18)', stroke: '#2f6fed', strokeWidth: 1.5, strokeDasharray: '5 4', pointerEvents: 'none' as const };
+              if (src.shape === 'polygon' && src.polygon) {
+                return <polygon points={src.polygon.map((p) => { const sp = toScreen(p.x + dx, p.y + dy); return `${sp.sx},${sp.sy}`; }).join(' ')} {...style} style={{ pointerEvents: 'none' }} />;
+              }
+              const c = toScreen(drawCursorWorld.x, drawCursorWorld.y);
+              if (src.shape === 'box') {
+                const w = src.width * scale, d = src.depth * scale;
+                return <rect x={c.sx - w / 2} y={c.sy - d / 2} width={w} height={d} transform={`rotate(${-(src.rotation || 0)} ${c.sx} ${c.sy})`} {...style} style={{ pointerEvents: 'none' }} />;
+              }
+              return <circle cx={c.sx} cy={c.sy} r={Math.max((src.radius || 0.5) * scale, 5)} {...style} style={{ pointerEvents: 'none' }} />;
+            })()}
 
             {/* Obstacle rotate mode (its Rotate popover is open) - same
                 corner-arrow handles as a grid's (RotateHandles). */}
@@ -5860,6 +5952,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                           </button>
                         );
                       })()}
+                      <button
+                        data-tooltip={placingShape === 'copy' ? 'Click on the plan to place the copy (Esc to cancel)' : 'Copy - then click where to place it (or Cmd/Ctrl+C, Cmd/Ctrl+V)'}
+                        aria-label="Copy this obstacle"
+                        className={iconBtn(placingShape === 'copy')}
+                        onClick={() => {
+                          if (placingShape === 'copy') { setPlacingShape(null); return; }
+                          resetClickSuppression();
+                          cancelActiveModes();
+                          copyObstacle(selectedObstacle);
+                          setPlacingShape('copy');
+                        }}
+                      ><DuplicateIcon /></button>
                       <button data-tooltip="Remove this obstacle" aria-label="Remove this obstacle" className={`${iconBtn(false)} pde-danger`} onClick={() => removeObstacle(selectedObstacle.id)}><TrashIcon /></button>
                       <button data-tooltip="Deselect" aria-label="Deselect" className={iconBtn(false)} onClick={() => setSelectedObstacleId(null)}><CloseIcon /></button>
                     </>

@@ -666,7 +666,10 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick, slope
   );
 
   return (
-    <group onClick={(e) => { if (isDragClick?.(e)) return; e.stopPropagation(); onSelect(obstacle.id); }}>
+    // No onSelect while something's being placed (a new obstacle or a
+    // pasted copy): the click is left to fall through to the roof/ground
+    // behind this obstacle, whose handler does the placing.
+    <group onClick={(e) => { if (!onSelect || isDragClick?.(e)) return; e.stopPropagation(); onSelect(obstacle.id); }}>
       {body}
     </group>
   );
@@ -1059,7 +1062,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       // A click on any panel selects its whole grid (shift
                       // toggles it in/out of a multi-selection), matching
                       // the 2D plan - only in Panel/Grid setup.
-                      onClick={canSelectGrids ? (e) => {
+                      onClick={canSelectGrids && !placingShape ? (e) => {
                         if (isDragClick(e)) return;
                         e.stopPropagation();
                         // In this grid's own delete row/column/panel mode a
@@ -1140,7 +1143,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             baseHeight={placed.baseHeight}
             slopeRoof={placed.slopeRoof}
             selected={selectedObstacleId === o.id}
-            onSelect={onSelectObstacle}
+            onSelect={placingShape ? null : onSelectObstacle}
             isDragClick={isDragClick}
           />
           );
