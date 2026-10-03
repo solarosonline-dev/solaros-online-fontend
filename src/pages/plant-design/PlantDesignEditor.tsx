@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth } from './geometry.js';
+import { getRoofPolygon, polygonBounds, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, edgeAlignedAzimuth, azimuthOffset } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -12,7 +12,7 @@ import {
   CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
-  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon,
+  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -424,6 +424,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const [marginEditRoofId, setMarginEditRoofId] = useState<any>(null);
   const [hoveredMarginEdge, setHoveredMarginEdge] = useState<any>(null);
   const [selectedMarginEdges, setSelectedMarginEdges] = useState<Set<any>>(new Set());
+  // The roof currently in "click an edge to align panel rows with it" mode
+  // (the Azimuth popover's "align to edge…") - same pickable hit-line
+  // pattern as mirror/margin mode above. A click sets that roof's azimuth
+  // override via edgeAlignedAzimuth and exits the mode; the hovered edge
+  // previews the facing it would produce as an arrow.
+  const [alignEdgeRoofId, setAlignEdgeRoofId] = useState<any>(null);
+  const [hoveredAlignEdge, setHoveredAlignEdge] = useState<any>(null);
   const [viewMode, setViewMode] = useState('plan');
   // How far the 3D compass needle should currently be rotated to keep
   // pointing at true north (see Scene3D.jsx's compassAngleDeg) - the 2D
@@ -1770,6 +1777,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setHoveredMirrorEdge(null);
     setMarginEditRoofId(null);
     setSelectedMarginEdges(new Set());
+    setAlignEdgeRoofId(null);
+    setHoveredAlignEdge(null);
     setAddSideMode(null);
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
@@ -2195,6 +2204,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       setMarginEditRoofId(null);
       setHoveredMarginEdge(null);
       setSelectedMarginEdges(new Set());
+      return;
+    }
+
+    if (alignEdgeRoofId) {
+      setAlignEdgeRoofId(null);
+      setHoveredAlignEdge(null);
       return;
     }
 
@@ -3948,6 +3963,59 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               });
             })()}
 
+            {/* Align-to-edge mode: same "visible sliver + wide invisible
+                hit-area" pattern as mirror/margin mode above. Hovering an
+                edge also draws an arrow from its midpoint in the direction
+                panels would face (edgeAlignedAzimuth) so the pick is
+                unambiguous before clicking. */}
+            {alignEdgeRoofId && (() => {
+              const rp = roofPolygons.find((r) => r.id === alignEdgeRoofId);
+              if (!rp) return null;
+              const poly = rp.polygon;
+              const n = poly.length;
+              return poly.map((p, i) => {
+                const next = poly[(i + 1) % n];
+                const s1 = toScreen(p.x, p.y);
+                const s2 = toScreen(next.x, next.y);
+                const hovered = hoveredAlignEdge === i;
+                const az = hovered ? edgeAlignedAzimuth(poly, i, location) : null;
+                const mid = { sx: (s1.sx + s2.sx) / 2, sy: (s1.sy + s2.sy) / 2 };
+                // World +y is north, screen +y is down - hence -cos.
+                const tip = az != null ? { sx: mid.sx + Math.sin(az * Math.PI / 180) * 36, sy: mid.sy - Math.cos(az * Math.PI / 180) * 36 } : null;
+                return (
+                  <g key={`align-edge-${i}`}>
+                    <line
+                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
+                      stroke={hovered ? '#e0873c' : '#2f6fed'}
+                      strokeWidth={hovered ? 6 : 3}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    {tip && (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <line x1={mid.sx} y1={mid.sy} x2={tip.sx} y2={tip.sy} stroke="#e0873c" strokeWidth={2.5} />
+                        <circle cx={tip.sx} cy={tip.sy} r={4} fill="#e0873c" />
+                        <text x={tip.sx + 6} y={tip.sy - 6} fontSize={11} fontWeight={600} fill="#e0873c" stroke="#fff" strokeWidth={3} paintOrder="stroke">{Math.round(az!) % 360}°</text>
+                      </g>
+                    )}
+                    <line
+                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
+                      stroke="transparent" strokeWidth={16}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredAlignEdge(i)}
+                      onMouseLeave={() => setHoveredAlignEdge((h) => (h === i ? null : h))}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const picked = edgeAlignedAzimuth(poly, i, location);
+                        if (picked != null) updateRoof(alignEdgeRoofId, 'azimuth', picked);
+                        setAlignEdgeRoofId(null);
+                        setHoveredAlignEdge(null);
+                      }}
+                    />
+                  </g>
+                );
+              });
+            })()}
+
             {/* The in-progress point count used to float in the left icon
                 rail as its own text badge - it shifted every button below
                 it up/down each time a point was added (or the badge itself
@@ -4644,21 +4712,66 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Azimuth" aria-label="Azimuth" className={iconBtn(rightPanelOpenGroup === 'roofAzimuth')} onClick={() => toggleGroup('roofAzimuth')}><CompassIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofAzimuth'}>
-                            <div style={labelStyle}>
-                              <span>azimuth (°){selectedRoof.azimuth == null ? ' · auto' : ''}</span>
-                              <SliderInput min={0} max={359} step={1} value={Math.round(getRoofAzimuth(selectedRoof, location)) % 360} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
-                            </div>
-                            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                              0° = N, 90° = E, 180° = S, 270° = W. Panels face this way — changing it clears this roof's grids so you can re-fill.
-                            </div>
-                            {selectedRoof.azimuth != null && (
-                              <button
-                                onClick={() => updateRoof(selectedRoof.id, 'azimuth', null)}
-                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginTop: 2 }}
-                              >
-                                reset to auto
-                              </button>
-                            )}
+                            {(() => {
+                              const az = getRoofAzimuth(selectedRoof, location);
+                              const equatorAz = location.lat >= 0 ? 180 : 0;
+                              const off = Math.round(azimuthOffset(az, equatorAz));
+                              const aligning = alignEdgeRoofId === selectedRoof.id;
+                              const isManual = selectedRoof.azimuth != null;
+                              const dirWord = equatorAz === 180 ? 'south' : 'north';
+                              return (
+                                <>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontWeight: 600, fontSize: 12 }}>Azimuth</span>
+                                    <span className={`pde-azimuth-badge${isManual ? ' pde-manual' : ''}`}>{isManual ? 'Manual' : 'Auto'}</span>
+                                  </div>
+                                  <div style={labelStyle}>
+                                    <span style={{ whiteSpace: 'nowrap' }}>facing (°)</span>
+                                    <SliderInput min={0} max={359} step={1} value={Math.round(az) % 360} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
+                                  </div>
+                                  <div style={{ fontSize: 11, color: off > 45 ? '#c0392b' : '#888', marginBottom: 10 }}>
+                                    {off === 0 ? `Due ${dirWord}` : `${off}° off ${dirWord}`}
+                                    {off > 45 ? ' — expect noticeably lower yield' : ''}
+                                  </div>
+                                  <button
+                                    className={btn(aligning)}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 10px' }}
+                                    onClick={() => {
+                                      // Cancels any other active mode first, but leaves this
+                                      // popover open so the hint below stays visible.
+                                      cancelActiveModes();
+                                      if (!aligning) setAlignEdgeRoofId(selectedRoof.id);
+                                    }}
+                                  >
+                                    <AlignEdgeIcon size={14} />
+                                    {aligning ? 'Picking edge… click to cancel' : 'Align to roof edge'}
+                                  </button>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 }}>
+                                    <button
+                                      className={btn(false)}
+                                      disabled={!isManual}
+                                      title={isManual ? 'Face the opposite side of the same rows' : 'Set an azimuth first'}
+                                      onClick={() => updateRoof(selectedRoof.id, 'azimuth', Math.round(((az + 180) % 360) * 100) / 100)}
+                                    >
+                                      ⇅ Flip 180°
+                                    </button>
+                                    <button
+                                      className={btn(false)}
+                                      disabled={!isManual}
+                                      title={isManual ? 'Go back to the auto-calculated azimuth' : 'Already on auto'}
+                                      onClick={() => updateRoof(selectedRoof.id, 'azimuth', null)}
+                                    >
+                                      ↺ Reset to auto
+                                    </button>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.4 }}>
+                                    {aligning
+                                      ? 'Click a roof edge on the 2D plan — panel rows will run parallel to it.'
+                                      : '0° N · 90° E · 180° S · 270° W. Changing it clears this roof\'s panels so you can re-fill.'}
+                                  </div>
+                                </>
+                              );
+                            })()}
                         </RailPopover>
                       </div>
 

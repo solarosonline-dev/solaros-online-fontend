@@ -94,6 +94,18 @@
   color: var(--app-accent, #2563eb);
   font-weight: 600;
 }
+.plant-design-editor .pde-azimuth-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--app-bg, #f3f4f6);
+  color: var(--app-text-muted, #666);
+}
+.plant-design-editor .pde-azimuth-badge.pde-manual {
+  background: #e8f0ff;
+  color: var(--app-accent, #2563eb);
+}
 .plant-design-editor .pde-btn:disabled {
   background: #f2f2f2;
   color: #bbb;

@@ -516,3 +516,13 @@ export function CompassIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+export function AlignEdgeIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <line {...base} x1="3" y1="7" x2="21" y2="7" strokeWidth={2.4} />
+      <line {...base} x1="12" y1="7" x2="12" y2="20" />
+      <path {...base} d="M8.5 16.5 L12 20 L15.5 16.5" />
+    </svg>
+  );
+}

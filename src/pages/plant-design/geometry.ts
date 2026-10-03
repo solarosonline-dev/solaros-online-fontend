@@ -192,6 +192,46 @@ export function autoRoofAzimuth(roof: any, location: any): number {
   return az == null ? ((location?.lat ?? 0) >= 0 ? 180 : 0) : Math.round(az) % 360;
 }
 
+// Azimuth that makes panel rows run parallel to edge `edgeIndex` of
+// `poly` (the edge from poly[i] to poly[i+1]) - for the Azimuth control's
+// "align to edge" pick. Rows parallel to an edge can face either of its
+// two normals; this picks whichever is closer to the equator (due south in
+// the northern hemisphere). An edge running exactly north-south leaves
+// both normals equally far off (east vs west), so that tie goes to the
+// roof's outward normal - the popover's "flip" link covers the other one.
+// Kept to 2 decimals, not rounded to whole degrees like the auto value's
+// display, so rows line up with the edge exactly - half a degree off is
+// ~17cm of drift over a 20m edge.
+export function edgeAlignedAzimuth(poly: Array<{ x: number; y: number }>, edgeIndex: number, location: any): number | null {
+  const n = poly ? poly.length : 0;
+  if (n < 3 || edgeIndex < 0 || edgeIndex >= n) return null;
+  const a = poly[edgeIndex], b = poly[(edgeIndex + 1) % n];
+  const ex = b.x - a.x, ey = b.y - a.y;
+  const len = Math.hypot(ex, ey);
+  if (len < 1e-9) return null;
+
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const p = poly[i], q = poly[(i + 1) % n];
+    area += p.x * q.y - q.x * p.y;
+  }
+  const outward = area > 0 ? { x: ey / len, y: -ex / len } : { x: -ey / len, y: ex / len };
+  const toAz = (v) => (Math.atan2(v.x, v.y) * (180 / Math.PI) + 360) % 360;
+  const outAz = toAz(outward);
+  const inAz = (outAz + 180) % 360;
+
+  const equatorAz = (location?.lat ?? 0) >= 0 ? 180 : 0;
+  const offEquator = (az) => azimuthOffset(az, equatorAz);
+  const pick = offEquator(inAz) < offEquator(outAz) - 0.5 ? inAz : outAz;
+  return Math.round(pick * 100) / 100;
+}
+
+// Smallest absolute angle (0-180) between two compass azimuths.
+export function azimuthOffset(a: number, b: number): number {
+  const d = Math.abs((((a - b) % 360) + 360) % 360);
+  return d > 180 ? 360 - d : d;
+}
+
 export function getRoofAzimuth(roof: any, location: any): number {
   if (typeof roof?.azimuth === 'number' && Number.isFinite(roof.azimuth)) {
     return ((roof.azimuth % 360) + 360) % 360;

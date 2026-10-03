@@ -476,6 +476,14 @@ azimuth (passed to Scene3D as `roof.azimuth`). `azimuth` is in
 `ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
 resets the override to auto.
 
+The Azimuth popover's "align to edge…" link is just another way to set
+that same `roof.azimuth` override — not a separate fill-direction field.
+It enters `alignEdgeRoofId` mode (same pickable hit-line pattern as
+mirror/margin mode on the 2D plan); clicking an edge stores
+`edgeAlignedAzimuth(poly, i, location)`, the normal of that edge closer to
+the equator (outward normal on an exact N–S tie), kept to 2 decimals so
+rows line up with the edge exactly. "flip 180°" covers the other facing.
+
 **An existing grid keeps its own frame: use `gridDirection(grid, roof)`
 (`layoutEngine.ts`), never the roof's current azimuth, for anything that
 reads or writes an already-packed grid's `rackX`/`rackY`** (add/delete
