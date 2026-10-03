@@ -411,7 +411,13 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
         {/* `ghost` (Roof setup step - see Scene3D's ghostPanels prop):
             faint and see-through, no depth write so the roof deck beneath
             still reads clearly through it, no edges/shadows. */}
-        <meshPhysicalMaterial color={color} roughness={0.35} metalness={0.15} clearcoat={1} clearcoatRoughness={0.12} transparent={ghost} opacity={ghost ? 0.15 : 1} depthWrite={!ghost} />
+        {/* Keyed on `ghost`: three.js only picks up a change to `transparent`
+            when the material is recompiled (material.needsUpdate), which a
+            plain prop update doesn't trigger - so toggling ghost on an
+            existing panel (Panel/Grid setup -> Roof setup while in 3D) left
+            it rendering dark and opaque until the view was remounted. A
+            fresh material per mode sidesteps that. */}
+        <meshPhysicalMaterial key={ghost ? 'ghost' : 'solid'} color={color} roughness={0.35} metalness={0.15} clearcoat={1} clearcoatRoughness={0.12} transparent={ghost} opacity={ghost ? 0.15 : 1} depthWrite={!ghost} />
         {/* A white edge per panel so adjacent panels in the same grid/rack
             read as separate modules instead of blurring into one solid
             slab, especially once every panel's own tint is close to
