@@ -5402,22 +5402,54 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 boundary - doesn't have its hit-lines stolen by the roof's
                 own edit handles underneath. */}
             {addSideMode && (() => {
+              // Bright orange "add here" targets (red on hover), deliberately
+              // not blue: a selected grid's panels are blue, and blue side
+              // lines sitting right on the panel edge disappeared into them. Each side is drawn
+              // pushed ~9px outside the grid (away from its center), dashed
+              // until hovered, with a "+" badge at its middle.
               const edges = addSideEdges();
+              const pts = edges.flatMap(({ a, b }) => [toScreen(a.x, a.y), toScreen(b.x, b.y)]);
+              const gc = { sx: pts.reduce((t, p) => t + p.sx, 0) / pts.length, sy: pts.reduce((t, p) => t + p.sy, 0) / pts.length };
               return edges.map(({ side, a, b }) => {
-                const s1 = toScreen(a.x, a.y);
-                const s2 = toScreen(b.x, b.y);
+                const p1 = toScreen(a.x, a.y);
+                const p2 = toScreen(b.x, b.y);
+                const mid = { sx: (p1.sx + p2.sx) / 2, sy: (p1.sy + p2.sy) / 2 };
+                let nx = mid.sx - gc.sx, ny = mid.sy - gc.sy;
+                const nl = Math.hypot(nx, ny) || 1;
+                nx /= nl; ny /= nl;
+                const off = 9;
+                const s1 = { sx: p1.sx + nx * off, sy: p1.sy + ny * off };
+                const s2 = { sx: p2.sx + nx * off, sy: p2.sy + ny * off };
+                const m = { sx: mid.sx + nx * off, sy: mid.sy + ny * off };
                 const hovered = hoveredAddSide === side;
+                const sideColor = hovered ? '#dc2626' : '#f97316';
                 return (
                   <g key={`add-side-${side}`}>
                     <line
                       x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
-                      stroke={hovered ? '#e0873c' : '#2f6fed'}
-                      strokeWidth={hovered ? 6 : 3}
+                      stroke="#fff" strokeWidth={hovered ? 8 : 6} strokeLinecap="round"
                       style={{ pointerEvents: 'none' }}
                     />
                     <line
                       x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
-                      stroke="transparent" strokeWidth={16}
+                      stroke={sideColor} strokeWidth={hovered ? 5 : 3.5} strokeLinecap="round"
+                      strokeDasharray={hovered ? undefined : '7 5'}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                    <g style={{ pointerEvents: 'none' }}>
+                      <circle cx={m.sx} cy={m.sy} r={hovered ? 11 : 9.5} fill={sideColor} stroke="#fff" strokeWidth={2} />
+                      <path d={`M ${m.sx - 4.5} ${m.sy} H ${m.sx + 4.5} M ${m.sx} ${m.sy - 4.5} V ${m.sy + 4.5}`} stroke="#fff" strokeWidth={2.2} strokeLinecap="round" />
+                    </g>
+                    <line
+                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
+                      stroke="transparent" strokeWidth={22}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredAddSide(side)}
+                      onMouseLeave={() => setHoveredAddSide((h) => (h === side ? null : h))}
+                      onClick={(e) => { e.stopPropagation(); handleAddSide(side); }}
+                    />
+                    <circle
+                      cx={m.sx} cy={m.sy} r={13} fill="transparent"
                       style={{ cursor: 'pointer' }}
                       onMouseEnter={() => setHoveredAddSide(side)}
                       onMouseLeave={() => setHoveredAddSide((h) => (h === side ? null : h))}

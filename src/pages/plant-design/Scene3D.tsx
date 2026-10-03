@@ -360,7 +360,7 @@ function efficiencyColor(pct) {
 // row/column). A thin visible rod, plus a fatter invisible one that takes
 // the pointer so it's easy to hit from any camera angle. Colors match 2D:
 // blue idle, orange hovered, purple picked.
-function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick }) {
+function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick, palette = 'edge' }) {
   const { mid, len, quat } = useMemo(() => {
     const A = new THREE.Vector3(...toThree(a.x, a.y, ha));
     const B = new THREE.Vector3(...toThree(b.x, b.y, hb));
@@ -368,7 +368,12 @@ function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick }) {
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
     return { mid: new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5), len: d.length(), quat: q };
   }, [a.x, a.y, b.x, b.y, ha, hb]);
-  const color = state === 'picked' ? '#8e44ad' : state === 'hover' ? '#e0873c' : '#2f6fed';
+  // 'add' (Add row/column sides) is bright orange (red on hover), not the
+  // edge-pick blue - the selected grid's own panels are blue, so blue bars
+  // beside them vanished.
+  const color = palette === 'add'
+    ? (state === 'hover' ? '#dc2626' : '#f97316')
+    : state === 'picked' ? '#8e44ad' : state === 'hover' ? '#e0873c' : '#2f6fed';
   const r = state === 'idle' ? 0.07 : 0.12;
   return (
     <group position={mid} quaternion={quat}>
@@ -1239,6 +1244,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                     a={a} b={b}
                     ha={roofSurfaceHeightAt(roof, a) + lift} hb={roofSurfaceHeightAt(roof, b) + lift}
                     state={addSidePick.hovered === side ? 'hover' : 'idle'}
+                    palette="add"
                     onHover={(on) => addSidePick.onHover((h) => (on ? side : (h === side ? null : h)))}
                     onPick={() => addSidePick.onPick(side)}
                     isDragClick={isDragClick}
