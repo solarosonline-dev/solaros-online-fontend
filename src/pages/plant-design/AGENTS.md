@@ -484,9 +484,13 @@ mirror/margin mode on the 2D plan); clicking an edge stores
 the equator (outward normal on an exact N–S tie), kept to 2 decimals so
 rows line up with the edge exactly. "flip 180°" covers the other facing.
 
-Flat-roof auto azimuth considers *every* edge; only pitched roofs use
-`edgeFacingAzimuth`'s `preferLongPair` (long sides = eaves). Using it for
-flat roofs made a roof longer N–S than E–W auto-face east/west.
+`edgeFacingAzimuth` considers *every* edge, for flat and pitched roofs. It
+used to restrict pitched roofs to their longer edge pair (as eaves), which
+made two of the N/E/S/W slope buttons resolve to the same edge (E/W on a
+wide roof, N/S on a tall one); a tie-breaker version still collided on roofs
+rotated ~40–50°. A rectangle's four normals are 90° apart, so plain
+"closest-facing edge" gives each button its own edge — don't reintroduce a
+long-side preference.
 
 Dimensions' width/length for a drawn roof are `orientedRoofExtents` along
 the roof's own auto-azimuth frame (width = along rows, length = across),

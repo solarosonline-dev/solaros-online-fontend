@@ -114,14 +114,14 @@ const CARDINAL_SLOPE_VECTORS: Record<string, { x: number; y: number }> = {
 
 // Compass azimuth (0=N, 90=E, 180=S, 270=W) of the outward normal of
 // whichever roof edge faces most toward `targetVec` (a world-space unit
-// vector, +y = north). With `preferLongPair` (pitched roofs only), a
-// 4-sided roof whose opposite edge pairs differ in length by more than 15%
-// only considers the longer pair - the eave/ridge of a rectangular-ish
-// roof, rather than a short gable end that happens to point a little
-// closer to the target. A flat roof has no eave, so it must not use this:
-// a roof longer north-south than east-west would otherwise auto-face east
-// or west.
-function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x: number; y: number }, preferLongPair = false): number | null {
+// vector, +y = north). Every edge is a candidate. A pitched roof used to
+// consider only its longer edge pair (as eave/ridge) - first as a hard
+// filter, then as a tie-breaker - and both made slope-direction buttons
+// collide: on a wide roof E/W both resolved to a long N/S edge, on a tall
+// one N/S both resolved to E/W, and on a roof rotated ~40-50° two adjacent
+// buttons picked the same edge. With all edges in play, a rectangle's four
+// outward normals sit 90° apart, so each of N/E/S/W lands on its own edge.
+function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x: number; y: number }): number | null {
   const n = poly ? poly.length : 0;
   if (n < 3) return null;
 
@@ -141,27 +141,10 @@ function edgeFacingAzimuth(poly: Array<{ x: number; y: number }>, targetVec: { x
     return { idx: i, len, nx, ny };
   });
 
-  let candidateIndices = edges.map((e) => e.idx);
-  if (preferLongPair && n === 4) {
-    const len02 = (edges[0].len + edges[2].len) / 2;
-    const len13 = (edges[1].len + edges[3].len) / 2;
-    if (len02 > len13 * 1.15) {
-      candidateIndices = [0, 2];
-    } else if (len13 > len02 * 1.15) {
-      candidateIndices = [1, 3];
-    }
-  }
+  const dotOf = (e) => e.nx * targetVec.x + e.ny * targetVec.y;
+  const bestOf = (indices: number[]) => indices.reduce((best, idx) => (dotOf(edges[idx]) > dotOf(edges[best]) ? idx : best), indices[0]);
 
-  let bestEdgeIdx = candidateIndices[0];
-  let bestDot = -Infinity;
-  for (const idx of candidateIndices) {
-    const e = edges[idx];
-    const dot = e.nx * targetVec.x + e.ny * targetVec.y;
-    if (dot > bestDot) {
-      bestDot = dot;
-      bestEdgeIdx = idx;
-    }
-  }
+  const bestEdgeIdx = bestOf(edges.map((e) => e.idx));
 
   const bestEdge = edges[bestEdgeIdx];
   const azDeg = (Math.atan2(bestEdge.nx, bestEdge.ny) * (180 / Math.PI) + 360) % 360;
@@ -173,7 +156,7 @@ export function getPitchedRoofSlopeAzimuth(roof: any): number {
   const defaultAz = (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
   if (!roof || roof.type !== 'pitched') return defaultAz;
   const slopeVec = CARDINAL_SLOPE_VECTORS[direction] || CARDINAL_SLOPE_VECTORS.S;
-  return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec, true) ?? defaultAz;
+  return edgeFacingAzimuth(getRoofPolygon(roof), slopeVec) ?? defaultAz;
 }
 
 // The roof's compass azimuth, shown in (and editable from) the roof's
