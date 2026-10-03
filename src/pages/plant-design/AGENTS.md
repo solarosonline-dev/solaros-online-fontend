@@ -880,6 +880,17 @@ It's the only way to reposition a tree (its popover is size-only).
 
 ## Panel grids & selection
 
+**Grid rotation** is a rail control, not an always-on handle: the grid's
+**Rotate** button opens a popover (`rightPanelOpenGroup === 'gridRotate'`)
+with a −180..180° slider and "Reset to 0°", and *while that popover is open*
+the 2D plan draws the grid's rotated outline plus a curved-arrow handle
+outside each corner. Dragging a handle runs the existing
+`startGridRotate`/`rotatingGrids` drag (one undo step); Shift snaps the
+total to 15°, rotation is normalized to (−180, 180], and the live angle
+shows at the pivot. Closing the popover (or opening any other) exits rotate
+mode — there's no separate mode flag. Single-grid only, like every other
+grid rail control.
+
 Panels are grouped into **grids** (`roof.grids`, an array): each grid is
 one output of `generateLayout` plus a few editable-in-place fields
 (`panelTiltDeg`, `rowSpacing`, `structureStrategy`, `panelsPerRow`,

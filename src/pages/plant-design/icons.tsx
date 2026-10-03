@@ -526,3 +526,12 @@ export function AlignEdgeIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+export function RotateIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path {...base} d="M20 4v5h-5" />
+    </svg>
+  );
+}

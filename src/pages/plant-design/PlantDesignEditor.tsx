@@ -12,7 +12,7 @@ import {
   CloseIcon, PlusIcon, TrashIcon, RulerIcon, MirrorIcon,
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
-  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon,
+  SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon, RotateIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -547,6 +547,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the delta.
   const rotateDragRef = useRef<any>(null);
   const [rotatingGrids, setRotatingGrids] = useState(false);
+  // Which corner's rotate arrow the pointer is over (Rotate popover open) -
+  // just thickens that arrow so it reads as grabbable.
+  const [hoveredRotateCorner, setHoveredRotateCorner] = useState<any>(null);
   // "Add row"/"Add column" side-picking (see README's "Panel grids"
   // entry) - while set, the selected grid's own front/back (row) or
   // left/right (column) edges become pickable on the 2D plan, same
@@ -2867,7 +2870,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       const byRoof = new Map();
       start.origins.forEach((o) => {
         if (!byRoof.has(o.roofId)) byRoof.set(o.roofId, new Map());
-        byRoof.get(o.roofId).set(o.gridId, o.rotation + deltaDeg);
+        // Normalized to (-180, 180] so the readout/slider never shows 400°;
+        // Shift snaps the grid's own total rotation to 15° steps.
+        let next = o.rotation + deltaDeg;
+        if (e.shiftKey) next = Math.round(next / 15) * 15;
+        next = ((((next + 180) % 360) + 360) % 360) - 180;
+        byRoof.get(o.roofId).set(o.gridId, next);
       });
       byRoof.forEach((rotations, roofId) => {
         updateRoofGrids(roofId, (grids) => grids.map((g) => (rotations.has(g.id) ? { ...g, rotation: rotations.get(g.id) } : g)));
@@ -4492,8 +4500,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const shaded = shadedIds.has(p.id);
                 // Overlapping (an obstacle or another grid) is a light red
                 // with a red outline; a panel picked for deletion stays the
-                // solid red - so the two never read as the same state.
+                // solid red - so the two never read as the same state. In a
+                // selected grid every panel goes blue (the whole grid reads
+                // as selected), and an overlapping one keeps just the red
+                // outline so the clash is still visible.
                 const overlaps = overlappingIds.has(p.id);
+                const overlapFill = overlaps && !gSelected;
                 const gridAzimuth = slopeDirectionAzimuth(gridDirection(g, roof));
                 const slopeRotation = gridAzimuth - 180;
                 const rotation = -(p.rotation || 0) - (g.rotation || 0) + slopeRotation;
@@ -4512,14 +4524,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
                       x={s.sx} y={rectY} width={w} height={rectH}
-                      fill={deletePicked ? '#c0392b' : overlaps ? '#f5b7b1' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
+                      fill={deletePicked ? '#c0392b' : overlapFill ? '#f5b7b1' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
                       // White at every state now (previously '#0a1428' when
                       // idle - nearly the same navy as the fill it sat on,
                       // so adjacent panels blurred into one slab instead of
                       // reading as separate modules; matches the white
                       // <Edges> the 3D view's own Panel now draws for the
                       // same reason).
-                      stroke={!deletePicked && overlaps ? '#d9534f' : '#fff'} strokeWidth={deletePicked ? 2 : overlaps ? 1.2 : gSelected ? 1.5 : 0.6}
+                      stroke={!deletePicked && overlaps ? (gSelected ? '#e74c3c' : '#d9534f') : '#fff'} strokeWidth={deletePicked ? 2 : overlaps ? (gSelected ? 2 : 1.2) : gSelected ? 1.5 : 0.6}
                       // Editing a grid (drag/select/delete-mode picking)
                       // only belongs to Panel/Grid setup (step 4) - outside
                       // it (Roof setup in particular, where panels from an
@@ -4557,7 +4569,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     {pct != null && w > 10 && h > 8 && (
                       <text
                         x={s.sx + w / 2} y={s.sy + h / 2} textAnchor="middle" dominantBaseline="middle"
-                        fontSize={Math.min(w, h) * 0.4} fill={!deletePicked && overlaps ? '#922b21' : '#fff'} style={{ pointerEvents: 'none', fontWeight: 600 }}
+                        fontSize={Math.min(w, h) * 0.4} fill={!deletePicked && overlapFill ? '#922b21' : '#fff'} style={{ pointerEvents: 'none', fontWeight: 600 }}
                       >
                         {pct}%
                       </text>
@@ -4568,32 +4580,88 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             }))}
             </g>
 
-            {/* Rotate handle - a small offset circle above the selected
-                grid(s)' own combined footprint-center, connected by a thin
-                guide line (same pivot startGridRotate itself uses). Only
-                shown once a grid is actually selected; dragging it feeds
-                startGridRotate/the rotatingGrids effect above. */}
-            {currentStep !== 3 && selectedGridKeys.size > 0 && (() => {
-              const grids = [...selectedGridKeys].map((k) => {
-                const { roofId, gridId } = parseGridKey(k);
-                return findGrid(roofId, gridId);
-              }).filter(Boolean);
-              if (grids.length === 0) return null;
-              const pivots = grids.map((g) => gridPivot(g));
-              const cx = pivots.reduce((s, p) => s + p.x, 0) / pivots.length;
-              const cy = pivots.reduce((s, p) => s + p.y, 0) / pivots.length;
-              const center = toScreen(cx, cy);
-              const handle = { sx: center.sx, sy: center.sy - 28 };
+            {/* Rotate mode (the grid rail's Rotate popover is open): a
+                curved double-arrow handle just outside each corner of the
+                selected grid's real (rotated) outline - grab any of them to
+                rotate about the grid's own pivot (startGridRotate, Shift
+                snaps to 15°), with the live angle shown at the pivot while
+                dragging. Replaces the old always-on single dot above the
+                grid's center, which was easy to miss and gave no feedback. */}
+            {currentStep === 4 && rightPanelOpenGroup === 'gridRotate' && selectedGrid && gridOwnerRoof && (() => {
+              const bounds = gridLocalBounds(selectedGrid);
+              if (!bounds) return null;
+              const direction = gridDirection(selectedGrid, gridOwnerRoof);
+              const pivot = gridPivot(selectedGrid);
+              const rot = selectedGrid.rotation || 0;
+              const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
+              const corners = [
+                { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+                { x: bounds.maxX, y: bounds.maxY }, { x: bounds.minX, y: bounds.maxY },
+              ].map((c) => toScreen(toWorld(c).x, toWorld(c).y));
+              const c = toScreen(pivot.x, pivot.y);
               return (
                 <g>
-                  <line x1={center.sx} y1={center.sy} x2={handle.sx} y2={handle.sy} stroke="#2f6fed" strokeWidth={1.5} />
-                  <circle
-                    cx={handle.sx} cy={handle.sy} r={7}
-                    fill={rotatingGrids ? '#2f6fed' : '#fff'} stroke="#2f6fed" strokeWidth={2}
-                    style={{ cursor: 'grab' }}
-                    onMouseDown={startGridRotate}
-                    onClick={(e) => e.stopPropagation()}
+                  <polygon
+                    points={corners.map((pt) => `${pt.sx},${pt.sy}`).join(' ')}
+                    fill="none" stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="5 4"
+                    style={{ pointerEvents: 'none' }}
                   />
+                  {corners.map((pt, i) => {
+                    // A slim arc wrapping the *outside* of the corner (centered
+                    // on the corner itself, spanning ±55° around the outward
+                    // diagonal) with a filled arrowhead at each end - the usual
+                    // design-tool rotate affordance. White halo underneath so it
+                    // stays legible over satellite imagery.
+                    const phi = Math.atan2(pt.sy - c.sy, pt.sx - c.sx);
+                    const R = 18, span = 55 * Math.PI / 180;
+                    const t0 = phi - span, t1 = phi + span;
+                    // Arc centered a few px out along the diagonal so it clears
+                    // the corner (and the dashed outline) instead of touching it.
+                    const ox = pt.sx + 4 * Math.cos(phi), oy = pt.sy + 4 * Math.sin(phi);
+                    const at = (t) => ({ x: ox + R * Math.cos(t), y: oy + R * Math.sin(t) });
+                    const p0 = at(t0), p1 = at(t1);
+                    const arc = `M ${p0.x} ${p0.y} A ${R} ${R} 0 0 1 ${p1.x} ${p1.y}`;
+                    // Arrowhead at an arc end, pointing along the arc's tangent
+                    // in the direction of travel away from the arc's middle.
+                    const head = (t, sign) => {
+                      const tip = at(t);
+                      const tx = -Math.sin(t) * sign, ty = Math.cos(t) * sign;
+                      const nx = Math.cos(t), ny = Math.sin(t);
+                      const L = 7, W = 4.5;
+                      const tipF = { x: tip.x + tx * 2.5, y: tip.y + ty * 2.5 };
+                      return `${tipF.x},${tipF.y} ${tipF.x - tx * L + nx * W},${tipF.y - ty * L + ny * W} ${tipF.x - tx * L - nx * W},${tipF.y - ty * L - ny * W}`;
+                    };
+                    const hot = rotatingGrids || hoveredRotateCorner === i;
+                    const grab = at(phi);
+                    return (
+                      <g key={`rotate-handle-${i}`}>
+                        <g style={{ pointerEvents: 'none' }}>
+                          <path d={arc} fill="none" stroke="#fff" strokeWidth={hot ? 7 : 5.5} strokeLinecap="round" />
+                          <polygon points={head(t0, -1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
+                          <polygon points={head(t1, 1)} fill="#fff" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
+                          <path d={arc} fill="none" stroke="#2f6fed" strokeWidth={hot ? 3.2 : 2.4} strokeLinecap="round" />
+                          <polygon points={head(t0, -1)} fill="#2f6fed" />
+                          <polygon points={head(t1, 1)} fill="#2f6fed" />
+                        </g>
+                        {/* Generous invisible grab target over the arc. */}
+                        <circle
+                          cx={grab.x} cy={grab.y} r={14}
+                          fill="transparent"
+                          style={{ cursor: rotatingGrids ? 'grabbing' : 'grab' }}
+                          onMouseEnter={() => setHoveredRotateCorner(i)}
+                          onMouseLeave={() => setHoveredRotateCorner((h) => (h === i ? null : h))}
+                          onMouseDown={startGridRotate}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </g>
+                    );
+                  })}
+                  {rotatingGrids && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x={c.sx - 26} y={c.sy - 12} width={52} height={24} rx={12} fill="#2f6fed" />
+                      <text x={c.sx} y={c.sy + 4.5} textAnchor="middle" fontSize={13} fontWeight={700} fill="#fff">{Math.round(rot)}°</text>
+                    </g>
+                  )}
                 </g>
               );
             })()}
@@ -5578,6 +5646,34 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 value={gridOwnerRoof.minPillarHeight ?? 0}
                                 onChange={(v) => updateRoof(gridOwnerRoof.id, 'minPillarHeight', v)}
                               />
+                            </div>
+                        </RailPopover>
+                      </div>
+
+                      <div style={{ position: 'relative' }}>
+                        <button data-tooltip="Rotate" aria-label="Rotate" className={iconBtn(rightPanelOpenGroup === 'gridRotate')} onClick={() => toggleGroup('gridRotate')}><RotateIcon /></button>
+                        <RailPopover open={rightPanelOpenGroup === 'gridRotate'} width={300}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Rotate</div>
+                            {/* Degrees, not a length - no `unit`, so the m/ft
+                                toggle never converts it. */}
+                            <div style={sliderRowStyle}>
+                              {sliderRowLabel('Rotation', '°')}
+                              <SliderInput
+                                numberWidth={58} min={-180} max={180} step={1}
+                                value={Math.round(selectedGrid.rotation || 0)}
+                                onChange={(v) => updateRoofGrids(gridOwnerRoof.id, (grids) => grids.map((g) => (g.id === selectedGrid.id ? { ...g, rotation: v } : g)))}
+                              />
+                            </div>
+                            <button
+                              className={btn(false)}
+                              disabled={!selectedGrid.rotation}
+                              style={{ width: '100%', marginTop: 2 }}
+                              onClick={() => updateRoofGrids(gridOwnerRoof.id, (grids) => grids.map((g) => (g.id === selectedGrid.id ? { ...g, rotation: 0 } : g)))}
+                            >
+                              ↺ Reset to 0°
+                            </button>
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.4 }}>
+                              Or drag any of the curved-arrow handles at the grid's corners on the 2D plan. Hold Shift to snap to 15°.
                             </div>
                         </RailPopover>
                       </div>
