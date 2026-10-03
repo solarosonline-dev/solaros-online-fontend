@@ -4976,10 +4976,26 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
                 {selectedObstacle && (() => {
                   const isCutout = selectedObstacle.label === 'Cutout';
+                  const isTree = selectedObstacle.label === 'Tree';
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
+                      {/* Trees get a plain Dimensions popover (height + canopy
+                          radius, same aligned slider rows as the roof's own)
+                          instead of the generic x/y/height/radius Properties
+                          grid - position is where it was placed on the plan,
+                          not something typed in. */}
+                      {isTree ? (
+                        <div style={{ position: 'relative' }}>
+                          <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'obstacleDims')} onClick={() => toggleGroup('obstacleDims')}><RulerIcon /></button>
+                          <RailPopover open={rightPanelOpenGroup === 'obstacleDims'} width={300}>
+                              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
+                              <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                              <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                          </RailPopover>
+                        </div>
+                      ) : (
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}><GearIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'obstacleProps'}>
@@ -5009,17 +5025,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </div>
                         </RailPopover>
                       </div>
+                      )}
 
-                      {selectedObstacle.label === 'Tree' && (
+                      {isTree && (
                         <div style={{ position: 'relative' }}>
                           <button data-tooltip="Canopy" aria-label="Canopy" className={iconBtn(rightPanelOpenGroup === 'obstacleCanopy')} onClick={() => toggleGroup('obstacleCanopy')}><TreeIcon /></button>
-                          <RailPopover open={rightPanelOpenGroup === 'obstacleCanopy'} width={200}>
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <RailPopover open={rightPanelOpenGroup === 'obstacleCanopy'} width={280}>
+                              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Canopy</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${TREE_CANOPIES.length}, 1fr)`, gap: 8 }}>
                                 {TREE_CANOPIES.map((c) => {
                                   const CanopyIcon = CANOPY_ICONS[c];
+                                  const name = c[0].toUpperCase() + c.slice(1);
                                   return (
-                                    <button key={c} data-tooltip={c[0].toUpperCase() + c.slice(1)} aria-label={c} className={iconBtn(selectedObstacle.canopy === c)} onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}>
-                                      {CanopyIcon ? <CanopyIcon /> : c}
+                                    <button
+                                      key={c}
+                                      aria-pressed={selectedObstacle.canopy === c}
+                                      className={btn(selectedObstacle.canopy === c)}
+                                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', fontSize: 12 }}
+                                      onClick={() => updateObstacle(selectedObstacle.id, 'canopy', c)}
+                                    >
+                                      {CanopyIcon ? <CanopyIcon size={22} /> : null}
+                                      {name}
                                     </button>
                                   );
                                 })}
