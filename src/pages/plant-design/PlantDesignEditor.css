@@ -156,6 +156,24 @@
   background: #f6f0fb;
   color: #8e44ad;
 }
+.plant-design-editor .pde-btn.pde-danger-btn:not(:disabled) {
+  color: var(--app-danger, #c0392b);
+}
+.plant-design-editor .pde-btn.pde-danger-btn:hover:not(:disabled) {
+  border-color: var(--app-danger, #c0392b);
+  background: var(--app-danger-bg, #fdecea);
+}
+/* Same light red as overlapping panels on the 2D plan, so the button
+   visibly matches what it removes. */
+.plant-design-editor .pde-btn.pde-overlap-btn:not(:disabled) {
+  background: #fdecea;
+  border-color: #f5b7b1;
+  color: #922b21;
+}
+.plant-design-editor .pde-btn.pde-overlap-btn:hover:not(:disabled) {
+  background: #f9d6d2;
+  border-color: #d9534f;
+}
 .plant-design-editor .pde-btn:disabled {
   background: #f2f2f2;
   color: #bbb;

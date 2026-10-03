@@ -72,7 +72,7 @@ function RoofDeck({ polygon, buildingHeight, cutouts, selected, onClick }) {
   return (
     <group position={[0, buildingHeight, 0]}>
       <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow onClick={onClick}>
-        <meshStandardMaterial color={selected ? '#e4dcc4' : '#d8d2c4'} />
+        <meshStandardMaterial color={selected ? '#bcd0f7' : '#d8d2c4'} />
       </mesh>
     </group>
   );
@@ -261,7 +261,7 @@ function PitchedBuilding({ polygon, buildingHeight, pitchDeg, direction, selecte
 
   return (
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow onClick={onClick}>
-      <meshStandardMaterial color={selected ? '#e4dcc4' : '#d8d2c4'} />
+      <meshStandardMaterial color={selected ? '#bcd0f7' : '#d8d2c4'} />
     </mesh>
   );
 }
@@ -275,7 +275,7 @@ function BuildingBlock({ polygon, buildingHeight, cutouts, selected, onClick }) 
 
   return (
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} receiveShadow castShadow onClick={onClick}>
-      <meshStandardMaterial color={selected ? '#d4cfc2' : '#c9c4ba'} />
+      <meshStandardMaterial color={selected ? '#a9bfec' : '#c9c4ba'} />
     </mesh>
   );
 }
@@ -409,14 +409,16 @@ function efficiencyColor(pct) {
   return `hsl(${hue}, 75%, 45%)`;
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false }) {
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false, selected = false, onClick = undefined as any }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
-  const color = efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
+  // Selected wins over shading/efficiency tint - same "blue = selected"
+  // rule as obstacles (SELECTED_COLOR).
+  const color = selected ? SELECTED_COLOR : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
   return (
-    <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]}>
+    <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>
       <mesh rotation={[-tiltRad, 0, 0]} castShadow={!ghost} receiveShadow={!ghost}>
         <boxGeometry args={[w, 0.03, len]} />
         {/* A real panel's glass surface glints as the sun moves across the
@@ -443,7 +445,14 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
 // tree rather than a tank. Total height still matches obstacle.height, so
 // shading/geometry elsewhere that treats the tree as a simple cylinder
 // (shadowPolygon math, etc.) stays consistent with what's drawn here.
-function Tree({ obstacle, baseHeight }) {
+// A selected obstacle is tinted this blue all over (replacing the old flat
+// ring drawn on the ground around it) - the same accent the 2D plan uses
+// for its own selection outline, so "blue = selected" reads the same in
+// both views. `sel(normal)` picks it per material.
+const SELECTED_COLOR = '#2f6fed';
+const selColor = (selected, normal) => (selected ? SELECTED_COLOR : normal);
+
+function Tree({ obstacle, baseHeight, selected = false }) {
   const h = obstacle.height;
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
   const trunkHeight = h * 0.35;
@@ -457,20 +466,20 @@ function Tree({ obstacle, baseHeight }) {
     <group>
       <mesh position={[tx, baseHeight + trunkHeight / 2, tz]} castShadow receiveShadow>
         <cylinderGeometry args={[trunkRadius, trunkRadius * 1.3, trunkHeight, 8]} />
-        <meshStandardMaterial color="#6b4a2f" />
+        <meshStandardMaterial color={selColor(selected, '#6b4a2f')} />
       </mesh>
 
       {canopy === 'cone' && (
         <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
           <coneGeometry args={[foliageRadius, foliageHeight, 10]} />
-          <meshStandardMaterial color="#3f6b3a" />
+          <meshStandardMaterial color={selColor(selected, '#3f6b3a')} />
         </mesh>
       )}
 
       {canopy === 'round' && (
         <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
           <sphereGeometry args={[foliageHeight / 2, 12, 10]} />
-          <meshStandardMaterial color="#4a7a3f" />
+          <meshStandardMaterial color={selColor(selected, '#4a7a3f')} />
         </mesh>
       )}
 
@@ -491,7 +500,7 @@ function Tree({ obstacle, baseHeight }) {
         return lobes.map((l) => (
           <mesh key={l.key} position={[l.x, l.y, l.z]} castShadow receiveShadow>
             <sphereGeometry args={[l.r, 10, 8]} />
-            <meshStandardMaterial color="#4f7d44" />
+            <meshStandardMaterial color={selColor(selected, '#4f7d44')} />
           </mesh>
         ));
       })()}
@@ -586,18 +595,18 @@ function StructureSegment({ segment, y, depth, azimuth, roofHeight, direction, g
 // OBSTACLE_PRESETS.lightningArrestor's `marker: true`), not a real
 // keep-out volume, so it's deliberately much slimmer than every other
 // cylinder obstacle rather than sharing their plain-rod rendering.
-function LightningArrestor({ obstacle, baseHeight }) {
+function LightningArrestor({ obstacle, baseHeight, selected = false }) {
   const h = obstacle.height;
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
   return (
     <group>
       <mesh position={[tx, baseHeight + h / 2, tz]} castShadow>
         <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 8]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial color={selColor(selected, '#3a3a3a')} metalness={0.6} roughness={0.4} />
       </mesh>
       <mesh position={[tx, baseHeight + h, tz]} castShadow>
         <sphereGeometry args={[obstacle.radius * 2.5, 12, 12]} />
-        <meshStandardMaterial color="#b0261e" metalness={0.3} roughness={0.5} />
+        <meshStandardMaterial color={selColor(selected, '#b0261e')} metalness={0.3} roughness={0.5} />
       </mesh>
     </group>
   );
@@ -627,24 +636,24 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
   if (obstacle.label === 'Cutout') return null;
 
   const body = obstacle.label === 'Tree' ? (
-    <Tree obstacle={obstacle} baseHeight={baseHeight} />
+    <Tree obstacle={obstacle} baseHeight={baseHeight} selected={selected} />
   ) : obstacle.label === 'Lightning Arrestor' ? (
-    <LightningArrestor obstacle={obstacle} baseHeight={baseHeight} />
+    <LightningArrestor obstacle={obstacle} baseHeight={baseHeight} selected={selected} />
   ) : obstacle.shape === 'cylinder' ? (
     <mesh position={[tx, centerY, tz]} castShadow receiveShadow>
       <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 16]} />
-      <meshStandardMaterial color="#7d7d7d" />
+      <meshStandardMaterial color={selColor(selected, '#7d7d7d')} />
     </mesh>
   ) : obstacle.shape === 'polygon' ? (
     <>
       <group position={[0, baseHeight, 0]}>
         <mesh geometry={polygonGeometry as any} rotation={[-Math.PI / 2, 0, 0]} castShadow={obstacle.label !== 'Skylight' && obstacle.label !== 'Walkway'} receiveShadow>
           {obstacle.label === 'Skylight' ? (
-            <meshStandardMaterial color="#bcdff2" transparent opacity={0.55} roughness={0.15} metalness={0.4} />
+            <meshStandardMaterial color={selColor(selected, '#bcdff2')} transparent opacity={0.55} roughness={0.15} metalness={0.4} />
           ) : obstacle.label === 'Walkway' ? (
-            <meshStandardMaterial color="#a8a8a0" roughness={0.9} />
+            <meshStandardMaterial color={selColor(selected, '#a8a8a0')} roughness={0.9} />
           ) : (
-            <meshStandardMaterial color="#8a6d5b" />
+            <meshStandardMaterial color={selColor(selected, '#8a6d5b')} />
           )}
         </mesh>
       </group>
@@ -654,25 +663,13 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick }) {
   ) : (
     <mesh position={[tx, centerY, tz]} rotation={[0, -(obstacle.rotation || 0) * DEG, 0]} castShadow receiveShadow>
       <boxGeometry args={[obstacle.width, h, obstacle.depth]} />
-      <meshStandardMaterial color="#8a6d5b" />
+      <meshStandardMaterial color={selColor(selected, '#8a6d5b')} />
     </mesh>
   );
-
-  const ringRadius = obstacle.shape === 'cylinder'
-    ? obstacle.radius
-    : obstacle.shape === 'polygon'
-      ? Math.max(...obstacle.polygon.map((p) => Math.hypot(p.x - obstacle.x, p.y - obstacle.y)))
-      : Math.max(obstacle.width, obstacle.depth) / 2;
 
   return (
     <group onClick={(e) => { if (isDragClick?.(e)) return; e.stopPropagation(); onSelect(obstacle.id); }}>
       {body}
-      {selected && (
-        <mesh position={[tx, baseHeight + 0.01, tz]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[ringRadius * 1.15, ringRadius * 1.3, 32]} />
-          <meshBasicMaterial color="#2f6fed" />
-        </mesh>
-      )}
     </group>
   );
 }
@@ -768,7 +765,7 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -906,14 +903,20 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     }
     if (isDragClick(e)) return;
     e.stopPropagation();
+    // In Roof setup (`canSelectRoofs`) clicking a roof selects it here just
+    // like on the 2D plan, so its rail controls can be used straight from
+    // the 3D view (the editor's selectRoof also clears any obstacle
+    // selection). Past Roof setup a roof click isn't a roof selection (same
+    // rule as the 2D plan) - it just clears the obstacle selection, like
+    // clicking empty ground, leaving any roof selection as it was.
+    if (roofId) {
+      if (canSelectRoofs) onSelectRoof?.(roofId);
+      else onSelectObstacle?.(null);
+      return;
+    }
     onSelectObstacle?.(null);
-    // Roofs aren't click-selectable in 3D (unlike the 2D plan) - clicking
-    // one still clears any selected obstacle, same as clicking empty
-    // ground, but doesn't select the roof itself. A roof already selected
-    // from the 2D plan still renders highlighted here (`selected` below),
-    // this only disables *starting* a selection by clicking in this view.
-    if (roofId) return;
     onSelectRoof?.(null);
+    onSelectGrid?.(null);
   }
 
   return (
@@ -1015,6 +1018,15 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       shaded={grid.shadedIds?.has(p.id)}
                       efficiencyPct={grid.efficiencyPct?.[p.id]}
                       ghost={ghostPanels}
+                      selected={!ghostPanels && grid.selected}
+                      // A click on any panel selects its whole grid (shift
+                      // toggles it in/out of a multi-selection), matching
+                      // the 2D plan - only in Panel/Grid setup.
+                      onClick={canSelectGrids ? (e) => {
+                        if (isDragClick(e)) return;
+                        e.stopPropagation();
+                        onSelectGrid?.(roof.id, grid.id, !!(e.nativeEvent?.shiftKey ?? e.shiftKey));
+                      } : undefined}
                     />
                   );
                 });

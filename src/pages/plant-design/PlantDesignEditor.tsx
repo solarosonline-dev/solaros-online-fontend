@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -668,12 +668,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // Force-added (no roof-boundary/obstacle checks - see README's "Panel
   // grids" entry): addGridRow/addGridColumn don't call generateLayout, so
   // this never touches the roof's own obstacle list or edge margin at all.
+  // Also closes whichever rail popover is open (e.g. Delete) - its mode is
+  // already cleared by cancelActiveModes, but an open Delete popover kept
+  // its rail icon highlighted, so delete still looked active alongside
+  // add row/column.
   function startAddRowMode(roofId, gridId) {
     cancelActiveModes();
+    setRightPanelOpenGroup(null);
     setAddSideMode({ roofId, gridId, axis: 'row' });
   }
   function startAddColumnMode(roofId, gridId) {
     cancelActiveModes();
+    setRightPanelOpenGroup(null);
     setAddSideMode({ roofId, gridId, axis: 'column' });
   }
   function cancelAddSideMode() {
@@ -1602,6 +1608,66 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     return hits;
   }
 
+  // A placed panel's real plan-view footprint (rotated rectangle) - same
+  // angle the 2D plan draws it at (grid rotation + per-panel rotation +
+  // the grid's facing; see the panel <g>'s own `rotation` below, which is
+  // the screen-space, y-down negation of this), shrunk by `inset` on each
+  // side so panels that merely touch don't count as overlapping.
+  function panelFootprint(p, grid, roof, inset = 0.02) {
+    const gridAz = slopeDirectionAzimuth(gridDirection(grid, roof));
+    const a = ((p.rotation || 0) + (grid.rotation || 0) - (gridAz - 180)) * Math.PI / 180;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const hw = Math.max(0, p.w / 2 - inset), hd = Math.max(0, p.d / 2 - inset);
+    return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([lx, ly]) => ({
+      x: p.x + lx * cos - ly * sin,
+      y: p.y + lx * sin + ly * cos,
+    }));
+  }
+
+  // Per grid (keyed by gridKey), the panels that overlap something they
+  // shouldn't: an obstacle (overlappingPanelIdsByGrid - same test as before)
+  // or a panel of any *other* grid - e.g. "Fill roof" regenerating the
+  // whole-roof grid over a table/drawn grid already on that roof (it only
+  // ever replaces its own wholeRoof grid, see regenerateAllGrids). Drives
+  // both the light-red on-plan highlight and the Delete popover's
+  // "Overlapping" count/removal, so what's highlighted is exactly what that
+  // button removes. Every footprint is built once per change and checked
+  // with a cheap bounding-box prefilter before the exact SAT test.
+  const overlapPanelIdsByGrid = useMemo(() => {
+    const all: any[] = [];
+    roofs.forEach((r) => r.grids.forEach((g) => {
+      const key = gridKey(r.id, g.id);
+      resolvedGridPanels(g).forEach((p) => {
+        const poly = panelFootprint(p, g, r);
+        const xs = poly.map((v) => v.x), ys = poly.map((v) => v.y);
+        all.push({ key, id: p.id, poly, minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) });
+      });
+    }));
+    const m: Record<string, Set<any>> = {};
+    roofs.forEach((r) => r.grids.forEach((g) => {
+      const key = gridKey(r.id, g.id);
+      m[key] = new Set(overlappingPanelIdsByGrid[key] || []);
+    }));
+    for (let i = 0; i < all.length; i++) {
+      const a = all[i];
+      for (let j = i + 1; j < all.length; j++) {
+        const b = all[j];
+        if (a.key === b.key) continue;
+        if (b.maxX <= a.minX || b.minX >= a.maxX || b.maxY <= a.minY || b.minY >= a.maxY) continue;
+        if (convexPolygonsOverlap(a.poly, b.poly)) {
+          m[a.key].add(a.id);
+          m[b.key].add(b.id);
+        }
+      }
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roofs, overlappingPanelIdsByGrid]);
+
+  function findOverlappingPanelsInGrid(roofId, gridId) {
+    return [...(overlapPanelIdsByGrid[gridKey(roofId, gridId)] || [])];
+  }
+
   // Adding an obstacle never used to touch already-placed panels - they'd
   // only ever get excluded from a spot once the grid was regenerated (e.g.
   // clicking "Fill roof" again), easy to miss and easy to end up with a
@@ -2404,6 +2470,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // and only falls back to selecting just that one grid if the drag never
   // actually moved (see the box-select mouseup handler's
   // `clickFallbackGridKey` branch).
+  // Grid selection from the 3D view (Scene3D's onSelectGrid) - same result
+  // as a plain/shift click on the 2D plan's panels (see startGridDrag
+  // below), minus the drag/box-select, which 3D doesn't do. null clears.
+  function selectGridFrom3D(roofId, gridId, additive) {
+    if (roofId == null) { setSelectedGridKeys(new Set()); return; }
+    const key = gridKey(roofId, gridId);
+    setSelectedRoofId(null);
+    setSelectedObstacleId(null);
+    setSelectedGridKeys((prev) => {
+      if (!additive) return new Set([key]);
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
   function startGridDrag(e, roofId, gridId) {
     e.stopPropagation();
     const key = gridKey(roofId, gridId);
@@ -3774,6 +3856,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     // transform (see layoutEngine.js's gridPivot comment).
                     grids: roof.grids.map((g) => ({
                       id: g.id,
+                      selected: selectedGridKeys.has(gridKey(roof.id, g.id)),
                       layout: g,
                       structure: structuresByGrid[gridKey(roof.id, g.id)],
                       shadedIds: instantByGrid[gridKey(roof.id, g.id)]?.shadedIds,
@@ -3794,6 +3877,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 onSelectObstacle={selectObstacle}
                 selectedRoofId={selectedRoofId}
                 onSelectRoof={selectRoof}
+                canSelectRoofs={currentStep === 3}
+                // Same step the 2D plan's panels are clickable in (see the
+                // panel <g>'s pointerEvents there).
+                canSelectGrids={currentStep === 4}
+                onSelectGrid={selectGridFrom3D}
                 showPanels={showPanels}
                 ghostPanels={currentStep === 3}
                 mapImagePlacement={backdropPlacement}
@@ -4374,7 +4462,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
             {roofs.flatMap((roof) => roof.grids.flatMap((g) => {
               const shadedIds = instantByGrid[gridKey(roof.id, g.id)]?.shadedIds || new Set();
-              const overlappingIds = overlappingPanelIdsByGrid[gridKey(roof.id, g.id)] || new Set();
+              const overlappingIds = overlapPanelIdsByGrid[gridKey(roof.id, g.id)] || new Set();
               const pctMap = efficiencyView ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined;
               const gSelected = selectedGridKeys.has(gridKey(roof.id, g.id));
               // Delete row/column/panel mode is only ever active for the
@@ -4401,7 +4489,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const s = toScreen(p.x - p.w / 2, p.y + p.d / 2);
                 const center = toScreen(p.x, p.y);
                 const shaded = shadedIds.has(p.id);
-                const overlapsObstacle = overlappingIds.has(p.id);
+                // Overlapping (an obstacle or another grid) is a light red
+                // with a red outline; a panel picked for deletion stays the
+                // solid red - so the two never read as the same state.
+                const overlaps = overlappingIds.has(p.id);
                 const gridAzimuth = slopeDirectionAzimuth(gridDirection(g, roof));
                 const slopeRotation = gridAzimuth - 180;
                 const rotation = -(p.rotation || 0) - (g.rotation || 0) + slopeRotation;
@@ -4420,14 +4511,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
                       x={s.sx} y={rectY} width={w} height={rectH}
-                      fill={deletePicked || overlapsObstacle ? '#c0392b' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
+                      fill={deletePicked ? '#c0392b' : overlaps ? '#f5b7b1' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
                       // White at every state now (previously '#0a1428' when
                       // idle - nearly the same navy as the fill it sat on,
                       // so adjacent panels blurred into one slab instead of
                       // reading as separate modules; matches the white
                       // <Edges> the 3D view's own Panel now draws for the
                       // same reason).
-                      stroke="#fff" strokeWidth={deletePicked ? 2 : gSelected ? 1.5 : 0.6}
+                      stroke={!deletePicked && overlaps ? '#d9534f' : '#fff'} strokeWidth={deletePicked ? 2 : overlaps ? 1.2 : gSelected ? 1.5 : 0.6}
                       // Editing a grid (drag/select/delete-mode picking)
                       // only belongs to Panel/Grid setup (step 4) - outside
                       // it (Roof setup in particular, where panels from an
@@ -4465,7 +4556,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     {pct != null && w > 10 && h > 8 && (
                       <text
                         x={s.sx + w / 2} y={s.sy + h / 2} textAnchor="middle" dominantBaseline="middle"
-                        fontSize={Math.min(w, h) * 0.4} fill="#fff" style={{ pointerEvents: 'none', fontWeight: 600 }}
+                        fontSize={Math.min(w, h) * 0.4} fill={!deletePicked && overlaps ? '#922b21' : '#fff'} style={{ pointerEvents: 'none', fontWeight: 600 }}
                       >
                         {pct}%
                       </text>
@@ -5316,42 +5407,69 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             deleting immediately on click since there's
                             nothing further to pick on the canvas for it. */}
                         <button data-tooltip="Delete row / column / panel / grid" aria-label="Delete row, column, panel, or grid" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={220}>
-                            {/* The label used to share the same flex row as
-                                the buttons - fine for 3, but a 4th (Grid)
-                                pushed the row past the popover's own width
-                                and wrapped just that one button onto its
-                                own line, landing it somewhere unexpected.
-                                Its own row now, so the buttons always get
-                                the full width to themselves. */}
-                            <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>Delete:</div>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                              {['row', 'column', 'panel', 'grid'].map((mode) => {
-                                const ModeIcon = DELETE_MODE_ICONS[mode];
-                                return (
-                                  <button
-                                    key={mode}
-                                    data-tooltip={mode === 'grid' ? 'Delete the whole grid' : mode[0].toUpperCase() + mode.slice(1)} aria-label={mode === 'grid' ? 'Delete the whole grid' : mode}
-                                    onClick={() => {
-                                      if (mode === 'grid') { deleteSelectedGrids(); return; }
-                                      const isSelf = gridDeleteMode === mode;
-                                      cancelActiveModes();
-                                      if (!isSelf) setGridDeleteMode(mode);
-                                    }}
-                                    className={mode === 'grid' ? `${iconBtn(false)} pde-danger` : iconBtn(gridDeleteMode === mode)}
-                                  >
-                                    {ModeIcon ? <ModeIcon /> : mode}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {gridDeleteMode && (
-                              <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 6 }}>
-                                {gridDeleteMode === 'panel'
-                                  ? 'Click a panel to pick it (Cmd/Ctrl+click to pick more than one), then press Delete/Backspace to remove it. Esc to exit.'
-                                  : `Click a panel to pick its ${gridDeleteMode}, then press Delete/Backspace to remove it. Esc to exit.`}
-                              </div>
-                            )}
+                        <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={280}>
+                            {(() => {
+                              // Only computed while this popover is open - the
+                              // panel-vs-panel test isn't free on a big site.
+                              const overlapIds = findOverlappingPanelsInGrid(gridOwnerRoof.id, selectedGrid.id);
+                              const card = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', fontSize: 12 } as const;
+                              return (
+                                <>
+                                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Delete</div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                                    {['row', 'column', 'panel'].map((mode) => {
+                                      const ModeIcon = DELETE_MODE_ICONS[mode];
+                                      return (
+                                        <button
+                                          key={mode}
+                                          aria-pressed={gridDeleteMode === mode}
+                                          className={btn(gridDeleteMode === mode)}
+                                          style={card}
+                                          onClick={() => {
+                                            const isSelf = gridDeleteMode === mode;
+                                            cancelActiveModes();
+                                            if (!isSelf) setGridDeleteMode(mode);
+                                          }}
+                                        >
+                                          {ModeIcon ? <ModeIcon size={20} /> : null}
+                                          {mode[0].toUpperCase() + mode.slice(1)}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  {gridDeleteMode && (
+                                    <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 8, lineHeight: 1.4 }}>
+                                      {gridDeleteMode === 'panel'
+                                        ? 'Click a panel to pick it (Cmd/Ctrl+click to pick more than one), then press Delete/Backspace to remove it. Esc to exit.'
+                                        : `Click a panel to pick its ${gridDeleteMode}, then press Delete/Backspace to remove it. Esc to exit.`}
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                                    <button
+                                      className={`${btn(false)} pde-overlap-btn`}
+                                      style={card}
+                                      disabled={overlapIds.length === 0}
+                                      title={overlapIds.length === 0 ? 'No panels in this grid overlap an obstacle or another grid' : `Remove ${overlapIds.length} panel${overlapIds.length === 1 ? '' : 's'} overlapping an obstacle or another grid`}
+                                      onClick={() => {
+                                        cancelActiveModes();
+                                        removeOverlappingPanels(overlapIds.map((panelId) => ({ roofId: gridOwnerRoof.id, gridId: selectedGrid.id, panelId })));
+                                      }}
+                                    >
+                                      <DeletePanelIcon size={20} />
+                                      Overlapping{overlapIds.length > 0 ? ` (${overlapIds.length})` : ''}
+                                    </button>
+                                    <button
+                                      className={`${btn(false)} pde-danger-btn`}
+                                      style={card}
+                                      onClick={() => deleteSelectedGrids()}
+                                    >
+                                      <TrashIcon size={20} />
+                                      Whole grid
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
                         </RailPopover>
                       </div>
 
@@ -5428,30 +5546,34 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       </div>
 
                       <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Structure" aria-label="Structure" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><GroundMountIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'gridStructure'}>
-                            <div style={labelStyle}>
-                              <span>Mounting</span>
-                              <span style={{ display: 'flex', gap: 6 }}>
-                                {Object.entries(STRUCTURE_STRATEGIES).map(([key, s]) => {
-                                  const StrategyIcon = STRUCTURE_ICONS[key];
-                                  return (
-                                    <button
-                                      key={key}
-                                      data-tooltip={(s as any).label} aria-label={(s as any).label}
-                                      className={iconBtn(selectedGrid.structureStrategy === key)}
-                                      onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { structureStrategy: key })}
-                                    >
-                                      {StrategyIcon ? <StrategyIcon /> : (s as any).label}
-                                    </button>
-                                  );
-                                })}
-                              </span>
+                        <button data-tooltip="Mounting" aria-label="Mounting" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><GroundMountIcon /></button>
+                        <RailPopover open={rightPanelOpenGroup === 'gridStructure'} width={300}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Mounting</div>
+                            {/* Full-width rows rather than side-by-side cards -
+                                the strategy names ("Ground mount (min.
+                                pillars)") are too long to fit three across. */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {Object.entries(STRUCTURE_STRATEGIES).map(([key, s]) => {
+                                const StrategyIcon = STRUCTURE_ICONS[key];
+                                const active = (selectedGrid.structureStrategy ?? 'truss') === key;
+                                return (
+                                  <button
+                                    key={key}
+                                    aria-pressed={active}
+                                    className={btn(active)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', fontSize: 12, textAlign: 'left', width: '100%' }}
+                                    onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { structureStrategy: key })}
+                                  >
+                                    {StrategyIcon ? <StrategyIcon size={20} /> : null}
+                                    {(s as any).label}
+                                  </button>
+                                );
+                              })}
                             </div>
-                            <div style={labelStyle}>
-                              <span>Min pillar height ({units})</span>
+                            <div style={{ ...sliderRowStyle, marginTop: 12 }}>
+                              {sliderRowLabel('Min pillar', units)}
                               <SliderInput
-                                unit={units} min={0} max={2} step={0.05}
+                                unit={units} numberWidth={58} min={0} max={5} step={0.05}
                                 value={gridOwnerRoof.minPillarHeight ?? 0}
                                 onChange={(v) => updateRoof(gridOwnerRoof.id, 'minPillarHeight', v)}
                               />

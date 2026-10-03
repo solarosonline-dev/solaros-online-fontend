@@ -304,6 +304,24 @@ export function longestEdgeFrameAzimuth(poly: Array<{ x: number; y: number }>): 
   return Math.atan2(-best.ey, best.ex) * (180 / Math.PI);
 }
 
+// Separating-axis test for two convex polygons (any winding) - true when
+// their interiors overlap. Touching edges/corners don't count, so two
+// panels butted edge-to-edge (or sharing a grid's own small gap) never
+// read as overlapping.
+export function convexPolygonsOverlap(a: Array<{ x: number; y: number }>, b: Array<{ x: number; y: number }>): boolean {
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const nx = -(q.y - p.y), ny = q.x - p.x;
+      let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
+      for (const v of a) { const d = v.x * nx + v.y * ny; if (d < minA) minA = d; if (d > maxA) maxA = d; }
+      for (const v of b) { const d = v.x * nx + v.y * ny; if (d < minB) minB = d; if (d > maxB) maxB = d; }
+      if (maxA <= minB + 1e-9 || maxB <= minA + 1e-9) return false;
+    }
+  }
+  return true;
+}
+
 export function slopeDirectionAzimuth(direction: any): number {
   if (typeof direction === 'number') return direction;
   return (SLOPE_DIRECTIONS[direction] || SLOPE_DIRECTIONS.S).azimuthDeg;
