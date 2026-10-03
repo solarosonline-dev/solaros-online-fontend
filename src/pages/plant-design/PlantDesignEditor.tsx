@@ -28,6 +28,7 @@ import {
   computeAutoRowSpacing,
   resolvedGridPanels,
   resolvedGrid,
+  resolvedGridAzimuth,
   gridPivot,
   rotateAroundPivot,
   suggestMaxPanelsPerRow,
@@ -5647,6 +5648,48 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <label>Module</label>
                   <div className="pde-stat-value">{panelSpec.make} {panelSpec.model} · {panelSpec.wattage} W</div>
                 </div>
+                {/* The facing each grid's output was actually computed with
+                    (its packed azimuth + any manual grid rotation -
+                    resolvedGridAzimuth, the same value computeOutput reads
+                    via resolvedGrid), so the estimate never silently reads
+                    as "assumed due south". */}
+                {(() => {
+                  const equatorAz = location.lat >= 0 ? 180 : 0;
+                  const dirWord = equatorAz === 180 ? 'south' : 'north';
+                  const rows = roofs.flatMap((roof, roofIdx) => {
+                    const withPanels = roof.grids.filter((g) => g.count > 0);
+                    return withPanels.map((g, gi) => {
+                      const az = ((resolvedGridAzimuth(g) % 360) + 360) % 360;
+                      return {
+                        key: gridKey(roof.id, g.id),
+                        name: roofLabel(roof, roofIdx) + (withPanels.length > 1 ? ` · Grid ${gi + 1}` : ''),
+                        az: Math.round(az) % 360,
+                        off: Math.round(azimuthOffset(az, equatorAz)),
+                        tilt: Math.round(g.tilt ?? 0),
+                        kw: g.capacityKW ?? 0,
+                      };
+                    });
+                  });
+                  if (rows.length === 0) return null;
+                  return (
+                    <div className="pde-field-sm">
+                      <label>Orientation</label>
+                      <div className="pde-orientation-list">
+                        {rows.map((r) => (
+                          <div key={r.key} className="pde-orientation-row">
+                            <span className="pde-orientation-name">{r.name}</span>
+                            <span>
+                              <strong>{r.az}°</strong>
+                              <span style={{ color: r.off > 45 ? '#c0392b' : '#888' }}>{r.off === 0 ? ` · due ${dirWord}` : ` · ${r.off}° off ${dirWord}`}</span>
+                            </span>
+                            <span style={{ color: '#888' }}>tilt {r.tilt}°</span>
+                            <span style={{ fontWeight: 600 }}>{r.kw.toFixed(1)} kW</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {outputResult && (
                   <div className="pde-field-sm">
                     <label>Overall efficiency</label>
