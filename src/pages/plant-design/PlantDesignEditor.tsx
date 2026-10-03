@@ -9,7 +9,7 @@ import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
 import {
   OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
-  CloseIcon, PlusIcon, TrashIcon, GearIcon, RulerIcon, MirrorIcon,
+  CloseIcon, PlusIcon, TrashIcon, RulerIcon, MirrorIcon,
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
   SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon,
@@ -527,6 +527,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // one delta from origin instead of accumulating rounding error).
   const obstacleMoveRef = useRef<any>(null);
   const [movingObstacle, setMovingObstacle] = useState(false);
+  // Vertex handles for the selected drawn (polygon) obstacle - elevation,
+  // skylight, walkway, cutout - same idea as the roof's own corner handles
+  // (draggingVertexIndex/hoveredVertexIndex), but kept separate since a
+  // roof and an obstacle are never selected at the same time and their
+  // drag ends differently (an obstacle has no grids to invalidate).
+  const [draggingObstacleVertex, setDraggingObstacleVertex] = useState<any>(null);
+  const [hoveredObstacleVertex, setHoveredObstacleVertex] = useState<any>(null);
   // Holds the auto-fit view span (see combinedExtent below) frozen for the
   // duration of a roof drag, so the plan doesn't rescale live as the
   // dragged roof moves toward or away from the origin.
@@ -2064,7 +2071,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // whether the mouseup that follows actually moved the view, and only
   // then treats it as a pan instead of a click.
   function onSvgMouseDown(e) {
-    if (drawingRoof || placingShape || placingGrid || draggingVertexIndex !== null || draggingEdgeIndex !== null) return;
+    if (drawingRoof || placingShape || placingGrid || draggingVertexIndex !== null || draggingEdgeIndex !== null || draggingObstacleVertex !== null) return;
 
     // Starting a drag inside a roof that actually has grids marquee-selects
     // them instead of panning the view - panning the background is still
@@ -2671,6 +2678,47 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movingObstacle]);
+
+  function startObstacleVertexDrag(e, index) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    suspendHistoryRef.current = true;
+    setDraggingObstacleVertex(index);
+  }
+
+  useEffect(() => {
+    if (draggingObstacleVertex === null || selectedObstacleId === null) return;
+
+    function handleMouseMove(e) {
+      const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+      setObstacles((obs) => obs.map((o) => {
+        if (o.id !== selectedObstacleId || !o.polygon) return o;
+        const polygon = o.polygon.slice();
+        polygon[draggingObstacleVertex] = { x: Number(worldX.toFixed(2)), y: Number(worldY.toFixed(2)) };
+        // x/y is the vertex average (see addDrawnObstacle) - keep it in step
+        // so anything keyed off an obstacle's center (e.g. which roof a
+        // roof-drag carries it along with) still sees the reshaped one.
+        const cx = polygon.reduce((a, p) => a + p.x, 0) / polygon.length;
+        const cy = polygon.reduce((a, p) => a + p.y, 0) / polygon.length;
+        return { ...o, polygon, x: Number(cx.toFixed(1)), y: Number(cy.toFixed(1)) };
+      }));
+    }
+    function handleMouseUp() {
+      setDraggingObstacleVertex(null);
+      // Reshaping changes what it shades/blocks - computed output is stale.
+      setOutputResult(null);
+      setCost(null);
+      suspendHistoryRef.current = false;
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draggingObstacleVertex, selectedObstacleId]);
 
   // The rotate handle's own drag - `pivot` is the (single) selected grid's
   // own footprint center, `startAngle` the pointer's angle from it when the
@@ -4520,6 +4568,35 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               );
             })}
 
+            {/* Corner handles for the selected drawn obstacle, drawn right
+                after the obstacles themselves so they sit on top - same
+                look/feel as the roof's own vertex handles (wide invisible
+                hit-circle + small visible dot that fills on hover/drag). */}
+            {selectedObstacle?.shape === 'polygon' && selectedObstacle.polygon && !drawingRoof && !placingShape && !placingGrid && selectedObstacle.polygon.map((p, i) => {
+              const s = toScreen(p.x, p.y);
+              const dragging = draggingObstacleVertex === i;
+              const hovered = hoveredObstacleVertex === i;
+              return (
+                <g key={`obstacle-vertex-${i}`}>
+                  <circle
+                    cx={s.sx} cy={s.sy} r={12}
+                    fill="transparent"
+                    style={{ cursor: dragging ? 'grabbing' : 'pointer' }}
+                    onMouseDown={(e) => startObstacleVertexDrag(e, i)}
+                    onMouseEnter={() => setHoveredObstacleVertex(i)}
+                    onMouseLeave={() => setHoveredObstacleVertex((h) => (h === i ? null : h))}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <circle
+                    cx={s.sx} cy={s.sy} r={dragging ? 6 : 4.5}
+                    fill={dragging || hovered ? '#2f6fed' : '#fff'}
+                    stroke="#2f6fed" strokeWidth={2}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                </g>
+              );
+            })}
+
             {/* "Add row"/"Add column" side-picking - same "visible sliver +
                 wide invisible hit-area" pattern as mirror/margin mode above,
                 but the two pickable edges come from the grid's own local
@@ -5062,25 +5139,25 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>{selectedObstacle.label}</div>
 
-                      {/* Trees and every drawn (polygon) obstacle get a plain
-                          Dimensions popover (same aligned slider rows as the
-                          roof's own) instead of the generic x/y Properties
-                          grid - position comes from dragging on the plan
-                          (startObstacleDrag), not typed in, and a drawn
-                          shape's x/y were always disabled anyway since its
-                          shape is its polygon. */}
-                      {(isTree || isDrawn) ? (
-                        <div style={{ position: 'relative' }}>
-                          <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'obstacleDims')} onClick={() => toggleGroup('obstacleDims')}><RulerIcon /></button>
-                          <RailPopover open={rightPanelOpenGroup === 'obstacleDims'} width={300}>
-                              <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
-                              {isTree ? (
-                                <>
+                      {/* Every obstacle sizes through one Dimensions popover
+                          (same aligned slider rows as the roof's own), with
+                          fields per shape: tree height + canopy radius, other
+                          cylinders height + radius, boxes width/depth/height/
+                          rotation, drawn (polygon) shapes height + boundary.
+                          Position comes from dragging on the plan
+                          (startObstacleDrag), never typed-in x/y. */}
+                      <div style={{ position: 'relative' }}>
+                        <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'obstacleDims')} onClick={() => toggleGroup('obstacleDims')}><RulerIcon /></button>
+                        <RailPopover open={rightPanelOpenGroup === 'obstacleDims'} width={300}>
+                            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
+                            {isTree ? (
+                              <>
                                   <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                   <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                                 </>
-                              ) : (
-                                <>
+                            ) : isDrawn ? (
+                              <>
                                   {/* A Cutout has no height of its own (see
                                       OBSTACLE_PRESETS.cutout) - it removes the
                                       full building height - so no sliders, just
@@ -5097,29 +5174,25 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                   )}
                                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{selectedObstacle.polygon?.length ?? 0} points. Drag it on the 2D plan to move it.</div>
                                 </>
-                              )}
-                          </RailPopover>
-                        </div>
-                      ) : (
-                      <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Properties" aria-label="Properties" className={iconBtn(rightPanelOpenGroup === 'obstacleProps')} onClick={() => toggleGroup('obstacleProps')}><GearIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'obstacleProps'}>
-                            {/* Only cylinders and boxes reach here now - trees
-                                and drawn (polygon) obstacles use the Dimensions
-                                popover above. */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                              <label style={{ fontSize: 12, color: '#555' }}>x<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.x} onChange={(e) => updateObstacle(selectedObstacle.id, 'x', +e.target.value)} /></label>
-                              <label style={{ fontSize: 12, color: '#555' }}>y<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.y} onChange={(e) => updateObstacle(selectedObstacle.id, 'y', +e.target.value)} /></label>
-                              <label style={{ fontSize: 12, color: '#555' }}>height<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.height} onChange={(e) => updateObstacle(selectedObstacle.id, 'height', +e.target.value)} /></label>
-                              {selectedObstacle.shape === 'cylinder' ? (
-                                <label style={{ fontSize: 12, color: '#555' }}>radius<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.radius} onChange={(e) => updateObstacle(selectedObstacle.id, 'radius', +e.target.value)} /></label>
-                              ) : (
-                                <label style={{ fontSize: 12, color: '#555' }}>rotation<br /><input style={{ ...inputStyle, width: '100%' }} type="number" value={selectedObstacle.rotation} onChange={(e) => updateObstacle(selectedObstacle.id, 'rotation', +e.target.value)} /></label>
-                              )}
-                            </div>
+                            ) : selectedObstacle.shape === 'cylinder' ? (
+                              <>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Radius', units)}<SliderInput unit={units} numberWidth={58} min={0.01} max={5} step={0.01} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
+                              </>
+                            ) : (
+                              <>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.width} onChange={(v) => updateObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Depth', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.depth} onChange={(v) => updateObstacle(selectedObstacle.id, 'depth', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                {/* Degrees, not a length - no `unit`, so the
+                                    m/ft toggle never converts it. */}
+                                <div style={sliderRowStyle}>{sliderRowLabel('Rotation', '°')}<SliderInput numberWidth={58} min={0} max={359} step={1} value={selectedObstacle.rotation ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'rotation', v)} /></div>
+                                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
+                              </>
+                            )}
                         </RailPopover>
                       </div>
-                      )}
 
                       {isTree && (
                         <div style={{ position: 'relative' }}>
