@@ -871,7 +871,7 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -923,6 +923,36 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Scroll-zoom with something selected (`focusPoint`, world plan x/y + a
+  // height): on the first wheel tick where the orbit target isn't already
+  // on it, glide the camera over to it - target and camera move by the same
+  // offset, so the view angle and distance are kept - and let OrbitControls'
+  // own dolly then zoom toward it (and orbit around it). Nothing moves until
+  // the user actually zooms, and with no selection zoom is unchanged.
+  const focusAnimRef = useRef<any>(null);
+  function glideToFocusOnWheel() {
+    const controls = orbitControlsRef.current;
+    if (!controls || !focusPoint || focusAnimRef.current) return;
+    const goal = new THREE.Vector3(...toThree(focusPoint.x, focusPoint.y, focusPoint.h || 0));
+    const delta = goal.clone().sub(controls.target);
+    if (delta.length() < 0.3) return;
+    const startTarget = controls.target.clone();
+    const t0 = performance.now(), dur = 280;
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      // Keep whatever dolly the wheel already applied: offset from the
+      // current camera->target vector rather than snapping to the start.
+      const camToTarget = controls.object.position.clone().sub(controls.target);
+      controls.target.copy(startTarget).addScaledVector(delta, e);
+      controls.object.position.copy(controls.target).add(camToTarget);
+      controls.update();
+      if (k < 1) focusAnimRef.current = requestAnimationFrame(step);
+      else focusAnimRef.current = null;
+    };
+    focusAnimRef.current = requestAnimationFrame(step);
+  }
 
   // Holding Shift swaps the left button from orbit to pan for as long as
   // it's held, on top of the right button always panning - a common
@@ -1032,6 +1062,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     <div
       style={{ width: '100%', height: '100%', cursor: placingShape ? 'crosshair' : 'default' }}
       onPointerDown={(e) => { pointerDownRef.current = { x: e.clientX, y: e.clientY }; }}
+      onWheelCapture={glideToFocusOnWheel}
     >
       {/* logarithmicDepthBuffer: the ground stacks three nearly-coplanar
           planes only 1-2cm apart (the flat fallback color, WideMapGround,

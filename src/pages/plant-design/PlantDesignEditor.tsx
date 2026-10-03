@@ -1298,6 +1298,42 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     };
   }, [roofPolygons, obstacles]);
 
+  // What scroll-zoom should home in on when something's selected - the
+  // selected obstacle's position, the selected roof's centroid, or the
+  // selected grid(s)' combined pivot - in world plan coords, plus a rough
+  // height (`h`) for the 3D view's camera target. null with no selection
+  // (zoom then centers on contentCentroid as before).
+  const selectionFocus = useMemo(() => {
+    const roofAt = (pt) => roofs.find((r) => pointInPolygon(pt, getRoofPolygon(r)));
+    if (selectedObstacleId != null) {
+      const o = obstacles.find((ob) => ob.id === selectedObstacleId);
+      if (o) {
+        const r = roofAt({ x: o.x, y: o.y });
+        return { x: o.x, y: o.y, h: (r?.buildingHeight ?? 0) + (o.height || 0) / 2 };
+      }
+    }
+    if (selectedGridKeys.size > 0) {
+      const pts: any[] = [];
+      let h = 0;
+      selectedGridKeys.forEach((k) => {
+        const { roofId, gridId } = parseGridKey(k);
+        const g = findGrid(roofId, gridId);
+        const r = roofs.find((rr) => rr.id === roofId);
+        if (g) { pts.push(gridPivot(g)); h = Math.max(h, (r?.buildingHeight ?? 0) + 0.5); }
+      });
+      if (pts.length) return { x: pts.reduce((a, p) => a + p.x, 0) / pts.length, y: pts.reduce((a, p) => a + p.y, 0) / pts.length, h };
+    }
+    if (selectedRoofId != null) {
+      const r = roofs.find((rr) => rr.id === selectedRoofId);
+      if (r) {
+        const poly = getRoofPolygon(r);
+        return { x: poly.reduce((a, p) => a + p.x, 0) / poly.length, y: poly.reduce((a, p) => a + p.y, 0) / poly.length, h: r.buildingHeight || 0 };
+      }
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedObstacleId, selectedGridKeys, selectedRoofId, obstacles, roofs]);
+
   // Adjusts panOffset so that whichever world point stays fixed on screen
   // across a zoom change is `anchor` (contentCentroid, normally) rather
   // than world (0,0) - i.e. solves toScreen(anchor) at the old zoom ==
@@ -1315,11 +1351,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
     const nextZoom = Math.min(6, Math.max(minPlanZoom, planZoom * factor));
     setPlanZoom(nextZoom);
-    // Re-anchored to contentCentroid (see its own comment) rather than a
-    // plain re-clamp of the existing offset - zooming out shrinks the
-    // backdrop image toward the view's center too, so the offset still
-    // needs clamping back onto the image afterward either way.
-    setPanOffset(clampPanOffsetForZoom(panOffsetZoomingToward(contentCentroid, panOffset, planZoom, nextZoom), nextZoom));
+    // Zooms around the current selection when there is one (selectionFocus),
+    // otherwise contentCentroid (see its own comment), keeping that point
+    // fixed on screen. Zooming *in* on a selection also eases it a quarter
+    // of the way toward the view's center each step, so a few scrolls bring
+    // you to it instead of it sliding off toward an edge. The result is
+    // re-clamped either way - zooming out shrinks the backdrop image toward
+    // the view's center too.
+    const anchor = selectionFocus ?? contentCentroid;
+    let next = panOffsetZoomingToward(anchor, panOffset, planZoom, nextZoom);
+    if (selectionFocus && nextZoom > planZoom) {
+      const nextScale = (520 / (halfExtent * 2)) * nextZoom;
+      const sx = centerX + next.x + anchor.x * nextScale;
+      const sy = centerY + next.y - anchor.y * nextScale;
+      next = { x: next.x + (centerX - sx) * 0.25, y: next.y + (centerY - sy) * 0.25 };
+    }
+    setPanOffset(clampPanOffsetForZoom(next, nextZoom));
   }
 
   // Where the site-wide satellite captures (see handleLocationConfirm) sit
@@ -4393,6 +4440,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 onSelectRoof={selectRoof}
                 canSelectRoofs={currentStep === 3}
                 highlightRoofId={hoveredPickRoofId}
+                focusPoint={selectionFocus}
                 onPickPanelForDelete={(p, multi) => pickPanelForDelete(p, multi)}
                 onBackgroundClick={cancelActiveModes}
                 // One roof's edges as clickable bars in 3D, for whichever
