@@ -393,7 +393,7 @@ function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick, palette = 
   );
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, crossSlope = 0, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, onClick = undefined as any }) {
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, crossSlope = 0, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, overlaps = false, onClick = undefined as any }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
@@ -406,7 +406,10 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
   // rule as obstacles (SELECTED_COLOR).
   // Picked for deletion (delete row/column/panel mode) wins over everything
   // - the same solid red the 2D plan uses for a pick.
-  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
+  // Overlapping an obstacle / another grid (`overlaps`): the 2D plan's light
+  // red fill and red edge - in a selected grid the panel stays blue and
+  // keeps just the red edge, also as in 2D.
+  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : overlaps ? '#f5b7b1' : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>
@@ -432,7 +435,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
             read as separate modules instead of blurring into one solid
             slab, especially once every panel's own tint is close to
             identical (the common case, no shading/efficiency view active). */}
-        {!ghost && <Edges color="white" />}
+        {!ghost && <Edges color={overlaps && !deletePicked ? '#d9534f' : 'white'} />}
       </mesh>
     </group>
   );
@@ -1260,6 +1263,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       ghost={ghostPanels}
                       selected={!ghostPanels && grid.selected}
                       deletePicked={!ghostPanels && !!grid.deletePickedIds?.has(p.id)}
+                      overlaps={!ghostPanels && !!grid.overlapIds?.has(p.id)}
                       // A click on any panel selects its whole grid (shift
                       // toggles it in/out of a multi-selection), matching
                       // the 2D plan - only in Panel/Grid setup.

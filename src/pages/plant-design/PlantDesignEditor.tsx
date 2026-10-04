@@ -4645,6 +4645,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       // selecting, picked ones render solid red.
                       deleteMode: !!gridDeleteMode && selectedGrid?.id === g.id && gridOwnerRoof?.id === roof.id,
                       deletePickedIds: deletePickedIdsFor(roof.id, g),
+                      // Same set the 2D plan highlights (obstacle or
+                      // other-grid overlap) - light red in 3D too.
+                      overlapIds: overlapPanelIdsByGrid[gridKey(roof.id, g.id)],
                       layout: g,
                       structure: structuresByGrid[gridKey(roof.id, g.id)],
                       shadedIds: instantByGrid[gridKey(roof.id, g.id)]?.shadedIds,
