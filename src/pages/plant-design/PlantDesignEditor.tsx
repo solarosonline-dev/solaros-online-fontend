@@ -6517,7 +6517,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           />
           </div>
           <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="pde-primary-btn" onClick={() => advanceToStep(8)}>
+            <button className="pde-primary-btn" style={{ width: 'auto', padding: '10px 20px' }} onClick={() => advanceToStep(8)}>
               Continue to Design Report →
             </button>
           </div>
@@ -6563,13 +6563,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 <div className="pde-step1-heading" style={{ marginBottom: 0 }}>Design Report</div>
                 <div className="pde-field-sm-hint">Customer-ready summary of this design. What you see below is exactly what gets downloaded or attached.</div>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="pde-save-btn" onClick={handleDownloadReport} disabled={busy || totalPanelCount === 0}>
+              <div className="pde-report-toolbar-actions">
+                {rendering3D && totalPanelCount > 0 && <span className="pde-field-sm-hint">Preparing 3D views…</span>}
+                <button className={`pde-save-btn${linkedWorkOrderId && onAttachPdf ? ' pde-save-btn--secondary' : ''}`} onClick={handleDownloadReport} disabled={busy || totalPanelCount === 0}>
                   {reportBusy === 'download' ? 'Generating PDF…' : 'Download PDF'}
                 </button>
-                {rendering3D && totalPanelCount > 0 && <span className="pde-field-sm-hint" style={{ alignSelf: 'center' }}>Preparing 3D views…</span>}
                 {linkedWorkOrderId && onAttachPdf && (
-                  <button className="pde-primary-btn" style={{ marginTop: 0 }} onClick={handleAttachReport} disabled={busy || totalPanelCount === 0}>
+                  <button className="pde-save-btn" onClick={handleAttachReport} disabled={busy || totalPanelCount === 0}>
                     {reportBusy === 'attach' ? 'Attaching…' : 'Attach to Work Order'}
                   </button>
                 )}

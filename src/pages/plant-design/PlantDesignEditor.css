@@ -766,3 +766,19 @@
   background: var(--app-surface, #fff);
   border-bottom: 1px solid var(--app-border, #e2e5ea);
 }
+.plant-design-editor .pde-report-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* Outlined variant - the less important of two side-by-side actions (e.g.
+   Download PDF beside Attach to Work Order). */
+.plant-design-editor .pde-save-btn--secondary {
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  box-shadow: inset 0 0 0 1px var(--app-border, #d1d5db);
+}
+.plant-design-editor .pde-save-btn--secondary:hover:not(:disabled) {
+  background: var(--app-bg, #f3f4f6);
+}
