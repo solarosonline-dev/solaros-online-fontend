@@ -1281,10 +1281,13 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
               )}
               {/* Edge picking (mirror / margin override / align to edge) on
                   this roof - each outline edge as a PickBar riding the roof
-                  surface (slightly lifted so it isn't z-fighting it). */}
+                  surface (slightly lifted so it isn't z-fighting it) - or
+                  along the top of the boundary wall when the roof has one,
+                  since the wall stands on that same edge and would
+                  otherwise swallow the bar and its highlight. */}
               {edgePick && edgePick.roofId === roof.id && roofPoly.map((p, i) => {
                 const q = roofPoly[(i + 1) % roofPoly.length];
-                const lift = (roof.type === 'pitched' ? 0 : DECK_THICKNESS) + 0.06;
+                const lift = (roof.type === 'pitched' ? 0 : DECK_THICKNESS) + Math.max(0, roof.boundaryHeight || 0) + 0.06;
                 return (
                   <PickBar
                     key={`edge-pick-${i}`}
