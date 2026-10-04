@@ -38,6 +38,7 @@ import {
   previewGridAdd,
   gridAddCandidates,
   gridAddRun,
+  gridAddBlock,
   gridPanelFitsRoof,
   appendGridPanels,
   gridRackToWorld,
@@ -775,6 +776,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // Add -> Panels: the slot under the pointer - the run from the grid out to
   // it (gridAddRun) is highlighted and added on click.
   const [hoveredSlotKey, setHoveredSlotKey] = useState<string | null>(null);
+  // Press-and-drag across slots on the 2D plan: the rectangle of free slots
+  // from the pressed slot to the one under the pointer (gridAddBlock),
+  // added on release. A press released on the same slot is a plain click.
+  const [slotDrag, setSlotDrag] = useState<{ start: string; cur: string } | null>(null);
+  const slotDragRef = useRef<{ start: string; cur: string } | null>(null);
+  const slotDragJustAddedRef = useRef(false);
   // Delete row/column/panel mode for the currently selected (single) grid
   // - a mode button in the grid popup arms one of these, which changes
   // what clicking a panel in that grid does (select a row/column/panel
@@ -995,12 +1002,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // that whole run at once.
   function startAddPanels(roofId, gridId) {
     cancelActiveModes();
+    setRightPanelOpenGroup(null);
     setAddPanelsMode({ roofId, gridId });
     setHoveredSlotKey(null);
   }
   function exitAddPanels() {
     setAddPanelsMode(null);
     setHoveredSlotKey(null);
+    setSlotDrag(null);
+    slotDragRef.current = null;
   }
   function addSlotRun(key) {
     if (!addPanelsMode) return;
@@ -1876,11 +1886,30 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGrid?.id, selectedRoofId, selectedObstacleId]);
 
-  // Add -> Panels only lives while its popover is open.
+  // Opening any rail popover leaves Add -> Panels (the rail's "+" toggles
+  // the mode directly - it has no popover of its own).
   useEffect(() => {
-    if (addPanelsMode && rightPanelOpenGroup !== 'gridAdd') exitAddPanels();
+    if (addPanelsMode && rightPanelOpenGroup) exitAddPanels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rightPanelOpenGroup]);
+
+  // A slot drag ends wherever the pointer is released: a block spanning
+  // more than the pressed slot is added; the slot's own click is skipped.
+  useEffect(() => {
+    if (!slotDrag) return;
+    function onUp() {
+      const d = slotDragRef.current;
+      slotDragRef.current = null;
+      setSlotDrag(null);
+      if (!d || d.start === d.cur || !addPanelsMode) return;
+      slotDragJustAddedRef.current = true;
+      addToGrid(addPanelsMode.roofId, addPanelsMode.gridId, gridAddBlock(addPanelSlots.cands, d.start, d.cur));
+      setHoveredSlotKey(null);
+    }
+    document.addEventListener('pointerup', onUp);
+    return () => document.removeEventListener('pointerup', onUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotDrag, addPanelsMode, roofs, obstacles]);
 
 
   // "+" handle drag, tracked across the whole page (the pointer leaves the
@@ -1956,13 +1985,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addPanelsMode, roofs, obstacles]);
 
-  // The run the hovered slot would add (highlighted in both views).
+  // What a click/release would add, highlighted in both views: the block
+  // being dragged out, else the hovered slot's run.
   const hoveredSlotRun = useMemo(() => {
     const grid = addPanelsGrid();
-    if (!grid || !hoveredSlotKey) return new Set<string>();
+    if (!grid) return new Set<string>();
+    if (slotDrag && slotDrag.start !== slotDrag.cur) {
+      return new Set<string>(gridAddBlock(addPanelSlots.cands, slotDrag.start, slotDrag.cur).map((c) => c.key));
+    }
+    if (!hoveredSlotKey) return new Set<string>();
     return new Set<string>(gridAddRun(grid, addPanelSlots.cands, hoveredSlotKey).map((c) => c.key));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hoveredSlotKey, addPanelSlots]);
+  }, [hoveredSlotKey, slotDrag, addPanelSlots]);
 
   // The selected grid's "+" handles - only while nothing else is being done
   // to it (delete/add-panels picking, moving, rotating, placing a grid).
@@ -5839,10 +5873,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   fill={inRun ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.07)'}
                   stroke="#16a34a" strokeWidth={inRun ? 1.6 : 1} strokeDasharray={inRun ? undefined : '4 3'}
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                  onMouseEnter={() => setHoveredSlotKey(slot.key)}
+                  onMouseDown={(e) => {
+                    e.stopPropagation(); e.preventDefault();
+                    slotDragRef.current = { start: slot.key, cur: slot.key };
+                    setSlotDrag(slotDragRef.current);
+                  }}
+                  onMouseEnter={() => {
+                    setHoveredSlotKey(slot.key);
+                    if (slotDragRef.current) {
+                      slotDragRef.current = { ...slotDragRef.current, cur: slot.key };
+                      setSlotDrag(slotDragRef.current);
+                    }
+                  }}
                   onMouseLeave={() => setHoveredSlotKey((cur) => (cur === slot.key ? null : cur))}
-                  onClick={(e) => { e.stopPropagation(); addSlotRun(slot.key); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (slotDragJustAddedRef.current) { slotDragJustAddedRef.current = false; return; }
+                    addSlotRun(slot.key);
+                  }}
                 />
               );
             })}
@@ -6592,31 +6640,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         {(selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'P' : 'L'}
                       </button>
 
-                      <div style={{ position: 'relative' }}>
-                        <button data-tooltip="Add rows, columns or panels" aria-label="Add rows, columns or panels" className={iconBtn(rightPanelOpenGroup === 'gridAdd' || !!addPanelsMode)} onClick={() => toggleGroup('gridAdd')}><PlusIcon /></button>
-                        <RailPopover open={rightPanelOpenGroup === 'gridAdd'} width={280}>
-                          <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>Add</div>
-                          <div style={{ fontSize: 11, color: '#555', lineHeight: 1.45, marginBottom: 10 }}>
-                            <b>Rows &amp; columns:</b> drag a green <b>+</b> on any side of the grid outward - or click it to add just one.
-                            Panels that wouldn't fit on the roof or would hit an obstacle are skipped.
-                          </div>
-                          <button
-                            aria-pressed={!!addPanelsMode}
-                            className={btn(!!addPanelsMode)}
-                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px' }}
-                            onClick={() => (addPanelsMode ? exitAddPanels() : startAddPanels(gridOwnerRoof.id, selectedGrid.id))}
-                          >
-                            <DeletePanelIcon size={18} /> Panels
-                          </button>
-                          {addPanelsMode && (
-                            <>
-                              <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 8, lineHeight: 1.4 }}>
-                                Hover a free slot around the grid - the panels from the grid out to it light up green. Click to add them. Esc exits.
-                              </div>
-                            </>
-                          )}
-                        </RailPopover>
-                      </div>
+                      {/* Add panels: toggles slot mode directly (rows/columns
+                          are the on-canvas "+" handles). Hover a free slot to
+                          light up its run, click to add it; drag across slots
+                          on the 2D plan to add a block. Esc exits. */}
+                      <button
+                        data-tooltip={addPanelsMode ? 'Adding panels - hover a slot, click to add (drag for a block). Click to stop' : 'Add panels'}
+                        aria-label="Add panels" aria-pressed={!!addPanelsMode}
+                        className={iconBtn(!!addPanelsMode)}
+                        onClick={() => (addPanelsMode ? exitAddPanels() : startAddPanels(gridOwnerRoof.id, selectedGrid.id))}
+                      >
+                        <PlusIcon />
+                      </button>
 
                       <div style={{ position: 'relative' }}>
                         {/* One delete button instead of two identical-looking

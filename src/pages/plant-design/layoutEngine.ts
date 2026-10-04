@@ -1263,6 +1263,17 @@ export function gridAddCandidates(grid, roof, ext = 3) {
   return [...out.values()];
 }
 
+// Every free slot (in `candidates`) inside the rectangle spanned by slots
+// `keyA` and `keyB`, in the grid's rack frame - Add -> Panels' drag-a-block.
+export function gridAddBlock(candidates, keyA, keyB) {
+  const a = candidates.find((c) => c.key === keyA);
+  const b = candidates.find((c) => c.key === keyB);
+  if (!a || !b) return [];
+  const x0 = Math.min(a.rackX, b.rackX) - 1e-3, x1 = Math.max(a.rackX, b.rackX) + 1e-3;
+  const y0 = Math.min(a.rackY, b.rackY) - 1e-3, y1 = Math.max(a.rackY, b.rackY) + 1e-3;
+  return candidates.filter((c) => c.rackX >= x0 && c.rackX <= x1 && c.rackY >= y0 && c.rackY <= y1);
+}
+
 // The run of slots Add -> Panels adds when the slot `key` is hovered: every
 // free slot from the grid out to it. In a row that already has panels, the
 // run goes along the row from that row's nearest panel; in a new row (in

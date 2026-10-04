@@ -694,8 +694,14 @@ projected through the camera on pointer-down, so one editor code path
 (`startAddDrag` + a document pointer listener) serves both. Handles share
 one size, scaled to the smaller on-screen row/column step (capped), so
 they don't dwarf a zoomed-out grid; hover shows "Add row"/"Add column".
-The rail's "+" popover hosts **Add → Panels**: free slots around the grid
-(`gridAddCandidates`, filtered by `fittingAdditions`) to add individually.
+The rail's "+" button toggles **Add → Panels** directly (no popover;
+opening another rail popover or Esc exits): free slots around the grid
+(`gridAddCandidates` - row ends, holes, up to 3 new rows front/back -
+filtered by `fittingAdditions`). Hovering a slot highlights its run from
+the grid (`gridAddRun`) and a click adds it; on the 2D plan, press and drag
+across slots to add the rectangle between them (`gridAddBlock`), with the
+end slot's trailing click skipped. 3D supports hover/click runs only
+(dragging there orbits the camera).
 This replaced separate Add row / Add column buttons that armed a mode
 where you then clicked one of two edges.
 
