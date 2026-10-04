@@ -2,7 +2,7 @@ import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { Edges, Html, Line, OrbitControls, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
-import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
+import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, treeTrunkHeight } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
@@ -455,7 +455,8 @@ const selColor = (selected, normal) => (selected ? SELECTED_COLOR : normal);
 function Tree({ obstacle, baseHeight, selected = false }) {
   const h = obstacle.height;
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
-  const trunkHeight = h * 0.35;
+  // Hand-set or auto (35% of height) - see treeTrunkHeight.
+  const trunkHeight = treeTrunkHeight(obstacle).trunk;
   const trunkRadius = Math.max(obstacle.radius * 0.15, 0.08);
   const foliageHeight = h - trunkHeight;
   const foliageRadius = obstacle.radius;

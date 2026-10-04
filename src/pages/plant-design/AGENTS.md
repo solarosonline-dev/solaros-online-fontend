@@ -630,6 +630,21 @@ captures (`capture`). **A pitched roof's Building height is its eave** (the
 lowest edge - see roofSurfaceHeightAt); the popover labels it "(eave)" and
 shows the derived ridge height read-only.
 
+## Tree trunk height
+
+A tree's `trunkHeight` is optional: unset/`null` = auto
+(`TREE_AUTO_TRUNK_FRACTION`, 35% of height - the proportion trees were
+always drawn with); a number = set by hand, capped at 90% of the height
+(`treeTrunkHeight` in geometry.ts - use it, never read `trunkHeight`
+directly). Canopy height is height − trunk, shown read-only in the tree's
+Dimensions popover. **Only a hand-set trunk changes shading**:
+`shadowCastingBottom` (layoutEngine) then lifts the shadow-casting body to
+the trunk top, and `shadowPolygon`'s `relativeBottom` projects the canopy
+footprint from both its bottom and top heights - low sun passes under a
+high canopy. Auto trees keep the old solid-from-the-base shadow, so designs
+whose trees were never adjusted produce identical output. The trunk's own
+thin shadow is ignored.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

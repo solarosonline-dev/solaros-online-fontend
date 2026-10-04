@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -6156,6 +6156,35 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                               <>
                                   <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                   <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                  {(() => {
+                                    // Trunk height: auto (a fixed share of the height) until
+                                    // set by hand. Canopy height is what's left - shown, not
+                                    // edited, so it can't disagree with the total. A hand-set
+                                    // trunk also lifts the tree's shadow off its base in the
+                                    // shading math (see treeTrunkHeight / shadowPolygon).
+                                    const { trunk, manual } = treeTrunkHeight(selectedObstacle);
+                                    return (
+                                      <>
+                                        <div style={sliderRowStyle}>{sliderRowLabel(manual ? 'Trunk height' : 'Trunk (auto)', units)}<SliderInput unit={units} numberWidth={58} min={0} max={+(selectedObstacle.height * 0.9).toFixed(1)} step={0.1} value={+trunk.toFixed(1)} onChange={(v) => updateObstacle(selectedObstacle.id, 'trunkHeight', v)} /></div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 11, color: '#555', margin: '-4px 0 6px' }}>
+                                          <span>Canopy: {formatLength(Math.max(0, selectedObstacle.height - trunk), units, 1)} tall</span>
+                                          {manual && (
+                                            <button
+                                              onClick={() => updateObstacle(selectedObstacle.id, 'trunkHeight', null)}
+                                              style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                            >
+                                              reset to auto
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#888', lineHeight: 1.4 }}>
+                                          {manual
+                                            ? 'Shading treats only the canopy as solid, so low sun can pass under it.'
+                                            : 'Auto: 35% of the height. Set it to model a high canopy (e.g. a coconut palm) - shading then lets low sun pass under it.'}
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                                 </>
                             ) : isDrawn ? (

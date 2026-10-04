@@ -2,7 +2,7 @@ import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
   slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, packingAzimuth,
-  obstacleRoofSurfaceRange,
+  obstacleRoofSurfaceRange, treeTrunkHeight,
 } from './geometry.js';
 
 // ============================================================
@@ -2092,6 +2092,15 @@ function obstacleBaseHeight(o, roofs) {
 function shadowCastingHeight(o, roofs, targetBuildingHeight) {
   return obstacleBaseHeight(o, roofs) + o.height - targetBuildingHeight;
 }
+// Where the shadow-casting body starts, on the same relative scale: 0 for
+// everything except a tree with a hand-set trunk height, whose canopy
+// starts at the trunk top (see treeTrunkHeight - auto trunks keep the old
+// solid-from-the-base shadow, so untouched designs don't change).
+function shadowCastingBottom(o, roofs, targetBuildingHeight) {
+  if (o.label !== 'Tree') return 0;
+  const { trunk, manual } = treeTrunkHeight(o);
+  return manual ? obstacleBaseHeight(o, roofs) + trunk - targetBuildingHeight : 0;
+}
 
 // ============================================================
 // Instant shading (drives the live plan view)
@@ -2101,7 +2110,7 @@ export function getInstantShading({ location, date, hour, obstacles, panels, roo
   if (elevation <= 0.5 || !panels) return { elevation, azimuth, shadowPolys: [], shadedIds: new Set() };
   const shadowPolys = obstacles
     .filter((o) => !o.marker)
-    .map((o) => shadowPolygon(o, elevation, azimuth, shadowCastingHeight(o, roofs, targetBuildingHeight)))
+    .map((o) => shadowPolygon(o, elevation, azimuth, shadowCastingHeight(o, roofs, targetBuildingHeight), shadowCastingBottom(o, roofs, targetBuildingHeight)))
     .filter(Boolean);
   const shadedIds = new Set();
   panels.forEach((p) => {
@@ -2160,7 +2169,7 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
 
       const shadowPolys = obstacles
         .filter((o) => !o.marker)
-        .map((o) => shadowPolygon(o, elevation, sunAz, shadowCastingHeight(o, roofs, targetBuildingHeight)))
+        .map((o) => shadowPolygon(o, elevation, sunAz, shadowCastingHeight(o, roofs, targetBuildingHeight), shadowCastingBottom(o, roofs, targetBuildingHeight)))
         .filter(Boolean);
 
       panels.forEach((p) => {

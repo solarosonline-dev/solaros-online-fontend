@@ -559,12 +559,34 @@ export function polygonScanlineSegments(poly, y) {
 // ground should pass the obstacle's height *above the roof plane* instead,
 // so a short ground-level obstacle beside a tall building doesn't cast a
 // shadow onto panels sitting well above it.
-export function shadowPolygon(o, elevation, azimuth, relativeHeight = o.height) {
+// A tree's trunk height: `o.trunkHeight` when set by hand (capped at 90% of
+// the tree so lowering the height never leaves the trunk taller than the
+// tree), else auto - TREE_AUTO_TRUNK_FRACTION of its height, the fixed
+// proportion trees have always been drawn with. `manual` matters beyond
+// looks: only a hand-set trunk lifts the tree's shadow off the ground (see
+// shadowPolygon's relativeBottom), so designs whose trees were never
+// adjusted keep exactly the shading they had.
+export const TREE_AUTO_TRUNK_FRACTION = 0.35;
+export function treeTrunkHeight(o: any): { trunk: number; manual: boolean } {
+  const h = o?.height || 0;
+  const manual = typeof o?.trunkHeight === 'number' && Number.isFinite(o.trunkHeight);
+  return { trunk: manual ? Math.max(0, Math.min(o.trunkHeight, h * 0.9)) : h * TREE_AUTO_TRUNK_FRACTION, manual };
+}
+
+// `relativeBottom` (> 0) lifts the shadow-casting body off the plane: a
+// tree with a hand-set trunk height casts only its canopy (trunk top up to
+// its top), so its shadow is the footprint projected from both heights
+// rather than starting at its base - low sun passes under a high canopy.
+// The trunk's own thin shadow is ignored, like other slim items'.
+export function shadowPolygon(o, elevation, azimuth, relativeHeight = o.height, relativeBottom = 0) {
   if (elevation <= 0.5 || relativeHeight <= 0) return null;
   const L = relativeHeight / Math.tan(toRad(elevation));
   const antiAz = (azimuth + 180) % 360;
   const dx = Math.sin(toRad(antiAz)) * L;
   const dy = Math.cos(toRad(antiAz)) * L;
+  const Lb = Math.max(0, Math.min(relativeBottom, relativeHeight)) / Math.tan(toRad(elevation));
+  const bx = Math.sin(toRad(antiAz)) * Lb;
+  const by = Math.cos(toRad(antiAz)) * Lb;
 
   let footprint;
   if (o.shape === 'box') {
@@ -584,5 +606,6 @@ export function shadowPolygon(o, elevation, azimuth, relativeHeight = o.height) 
     ];
   }
   const projected = footprint.map((p) => ({ x: p.x + dx, y: p.y + dy }));
-  return convexHull([...footprint, ...projected]);
+  const base = Lb > 0 ? footprint.map((p) => ({ x: p.x + bx, y: p.y + by })) : footprint;
+  return convexHull([...base, ...projected]);
 }
