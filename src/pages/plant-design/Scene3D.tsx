@@ -1,6 +1,6 @@
 import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { Edges, OrbitControls, useProgress } from '@react-three/drei';
+import { Edges, Html, Line, OrbitControls, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
@@ -523,6 +523,114 @@ function Tree({ obstacle, baseHeight, selected = false }) {
   );
 }
 
+// Dimension annotations for the selected roof (Roof setup only, never in
+// report captures): width and length as ground-level dimension lines just
+// outside the footprint, measured in the same frame as the Dimensions
+// popover (`frameAz` - orientedRoofExtents) so the numbers match; a
+// vertical line to the eave (labelled Height on a flat roof), and on a
+// pitched roof a second one to the ridge plus the pitch angle as an arc at
+// the eave corner. A pitched roof's "Building height" is its eave - the
+// lowest edge, where the deck starts climbing (roofSurfaceHeightAt) - which
+// is exactly what this makes visible. Labels are screen-space HTML so they
+// stay readable at any zoom.
+const DIM_COLOR = '#1f2937';
+const DIM_LABEL_STYLE: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.94)', color: '#111827', font: '600 11px/1.25 system-ui, sans-serif',
+  padding: '2px 6px', borderRadius: 4, border: '1px solid #cbd5e1', whiteSpace: 'nowrap',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.18)', pointerEvents: 'none', userSelect: 'none',
+};
+
+function DimLabel({ position, text }) {
+  return (
+    <Html position={position} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+      <div style={DIM_LABEL_STYLE}>{text}</div>
+    </Html>
+  );
+}
+
+function DimLine({ points, dashed = false }) {
+  return <Line points={points} color={DIM_COLOR} lineWidth={dashed ? 1 : 1.6} dashed={dashed} dashSize={0.15} gapSize={0.1} depthTest={false} renderOrder={10} />;
+}
+
+function RoofDimensions({ roof, frameAz, format }) {
+  const dims = useMemo(() => {
+    const poly = roof.polygon;
+    if (!poly || poly.length < 3) return null;
+    const t = (frameAz || 0) * DEG;
+    // Same axes as geometry.ts's roofFrame: r = along the rows (width),
+    // f = the facing direction (length) - downhill on a pitched roof.
+    const r = { x: Math.cos(t), y: -Math.sin(t) };
+    const f = { x: Math.sin(t), y: Math.cos(t) };
+    const as = poly.map((p) => p.x * r.x + p.y * r.y);
+    const bs = poly.map((p) => p.x * f.x + p.y * f.y);
+    const aMin = Math.min(...as), aMax = Math.max(...as), bMin = Math.min(...bs), bMax = Math.max(...bs);
+    const width = aMax - aMin, length = bMax - bMin;
+    const P = (a, b) => ({ x: a * r.x + b * f.x, y: a * r.y + b * f.y });
+    const V = (pt, h) => toThree(pt.x, pt.y, h) as [number, number, number];
+    const off = Math.max(0.6, Math.max(width, length) * 0.06);
+    const g = 0.04;
+    const pitched = roof.type === 'pitched';
+    const eaveH = roof.buildingHeight || 0;
+    const ridgeH = pitched ? Math.max(...poly.map((p) => roofSurfaceHeightAt(roof, p))) : eaveH;
+    const pitch = pitched ? (roof.pitchDeg || 0) : 0;
+    return { aMin, aMax, bMin, bMax, width, length, P, V, off, g, pitched, eaveH, ridgeH, pitch, f };
+  }, [roof, frameAz]);
+  if (!dims) return null;
+  const { aMin, aMax, bMin, bMax, width, length, P, V, off, g, pitched, eaveH, ridgeH, pitch, f } = dims;
+
+  // Width: along the front (facing / eave) side; length: along the right side.
+  const wy = bMax + off, lx = aMax + off;
+  const widthLine = [V(P(aMin, wy), g), V(P(aMax, wy), g)];
+  const lengthLine = [V(P(lx, bMin), g), V(P(lx, bMax), g)];
+  const ext = (a0, b0, a1, b1) => [V(P(a0, b0), g), V(P(a1, b1), g)];
+
+  // Heights: verticals at the right side's front (eave) and back (ridge) ends.
+  const eaveBase = P(lx, bMax), ridgeBase = P(lx, bMin);
+
+  // Pitch arc in the right gable's vertical plane, at the eave corner:
+  // from horizontal (pointing up-slope, -f) up to the roof's pitch.
+  const arcR = Math.min(1.2, Math.max(0.5, (bMax - bMin) * 0.2));
+  const corner = P(aMax, bMax);
+  const arcPt = (theta, rad) => {
+    const horiz = Math.cos(theta) * rad;
+    return V({ x: corner.x - f.x * horiz, y: corner.y - f.y * horiz }, eaveH + Math.sin(theta) * rad);
+  };
+  const arc = pitched && pitch > 0 ? Array.from({ length: 17 }, (_, i) => arcPt((pitch * DEG * i) / 16, arcR)) : null;
+
+  return (
+    <group>
+      <DimLine points={widthLine} />
+      <DimLine points={ext(aMin, bMax, aMin, wy + off * 0.3)} dashed />
+      <DimLine points={ext(aMax, bMax, aMax, wy + off * 0.3)} dashed />
+      <DimLabel position={V(P((aMin + aMax) / 2, wy), g + 0.05)} text={`Width ${format(width)}`} />
+
+      <DimLine points={lengthLine} />
+      <DimLine points={ext(aMax, bMin, lx + off * 0.3, bMin)} dashed />
+      <DimLine points={ext(aMax, bMax, lx + off * 0.3, bMax)} dashed />
+      <DimLabel position={V(P(lx, (bMin + bMax) / 2), g + 0.05)} text={`Length ${format(length)}`} />
+
+      <DimLine points={[V(eaveBase, 0), V(eaveBase, eaveH)]} />
+      <DimLine points={[V(eaveBase, eaveH), V(P(aMax, bMax), eaveH)]} dashed />
+      <DimLabel position={V(eaveBase, eaveH / 2)} text={`${pitched ? 'Eave' : 'Height'} ${format(eaveH)}`} />
+
+      {pitched && (
+        <>
+          <DimLine points={[V(ridgeBase, 0), V(ridgeBase, ridgeH)]} />
+          <DimLine points={[V(ridgeBase, ridgeH), V(P(aMax, bMin), ridgeH)]} dashed />
+          <DimLabel position={V(ridgeBase, ridgeH / 2)} text={`Ridge ${format(ridgeH)}`} />
+        </>
+      )}
+      {arc && (
+        <>
+          <DimLine points={[arcPt(0, 0), arcPt(0, arcR * 1.25)]} dashed />
+          <DimLine points={arc} />
+          <DimLabel position={arcPt((pitch * DEG) / 2, arcR * 1.5)} text={`${+pitch.toFixed(1)}°`} />
+        </>
+      )}
+    </group>
+  );
+}
+
 // Visual style per generic member kind - any structure strategy's members
 // render through this same table, so a new strategy only needs to emit
 // members with these `kind`s (or extend this table) to look right.
@@ -877,7 +985,7 @@ function CaptureViews({ views, target, radius, onDone }: {
   return null;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1230,6 +1338,12 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                     />
                   ))
                 )
+              )}
+              {/* Selected roof's own dimensions - Roof setup only (where it's
+                  selectable and its size is being edited), never in a report
+                  capture. See RoofDimensions. */}
+              {canSelectRoofs && !capture && selectedRoofId === roof.id && (
+                <RoofDimensions roof={roof} frameAz={roof.dimensionFrameAzimuth ?? 0} format={formatLength} />
               )}
               {/* Edge picking (mirror / margin override / align to edge) on
                   this roof - each outline edge as a PickBar riding the roof

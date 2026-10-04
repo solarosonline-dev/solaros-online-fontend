@@ -616,6 +616,20 @@ never crosses the roof there). Ground mount's central post and braces
 follow the post. Pillars already on the roof are untouched, so ordinary
 layouts are unchanged. `BOUNDARY_WALL_THICKNESS` mirrors Scene3D's.
 
+## Roof dimensions in 3D
+
+Selecting a roof in Roof setup draws `RoofDimensions` (Scene3D.tsx): width
+and length as ground-level dimension lines, a vertical to the eave
+("Height" on flat roofs), and on pitched roofs a vertical to the ridge plus
+the pitch arc - labels are drei `Html`, formatted by the editor's
+`formatLength` (passed as Scene3D's `formatLength`, so feet work). Width and
+length use the roof's `dimensionFrameAzimuth` (the same frame the Dimensions
+popover measures in - `autoRoofAzimuth` for drawn roofs, else 0), so the
+numbers always match the popover. Hidden outside Roof setup and in report
+captures (`capture`). **A pitched roof's Building height is its eave** (the
+lowest edge - see roofSurfaceHeightAt); the popover labels it "(eave)" and
+shows the derived ridge height read-only.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

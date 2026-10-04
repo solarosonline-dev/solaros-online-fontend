@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -4620,6 +4620,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: '1px solid #d5d5d5', overflow: 'hidden', position: 'relative' }}>
               <React.Suspense fallback={<div style={{ padding: 16, fontSize: 13, color: '#888' }}>Loading 3D view…</div>}>
               <Scene3D
+                formatLength={(m) => formatLength(m, units, 1)}
                 roofs={roofPolygons.map((rp) => {
                   const roof = roofs.find((r) => r.id === rp.id);
                   return {
@@ -4632,6 +4633,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     pitchDeg: roof.pitchDeg,
                     slopeDirection: roof.slopeDirection,
                     azimuth: getRoofAzimuth(roof, location),
+                    // Same frame the Dimensions popover measures width/length
+                    // in, so Scene3D's on-roof dimension labels match it.
+                    dimensionFrameAzimuth: roof.polygon ? autoRoofAzimuth(roof, location) : 0,
                     // A roof can (eventually) hold more than one grid (see
                     // README's "Panel grids" entry) - each carries its own
                     // packed layout/structure/shading/efficiency, plus its
@@ -5839,7 +5843,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
                             <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
                             <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
+                            {selectedRoof.type === 'pitched' && (
+                              // A pitched roof's building height is its eave (the low
+                              // edge, where the deck starts climbing); the ridge is
+                              // derived from the pitch and depth - shown read-only so
+                              // "which side is the height?" never needs guessing.
+                              <div style={{ fontSize: 11, color: '#555', margin: '-4px 0 8px' }}>
+                                Ridge (highest point): {formatLength(Math.max(...getRoofPolygon(selectedRoof).map((p) => roofSurfaceHeightAt(selectedRoof, p))), units, 1)} at {selectedRoof.pitchDeg ?? 0}° pitch
+                              </div>
+                            )}
                             <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                               {selectedRoof.polygon
