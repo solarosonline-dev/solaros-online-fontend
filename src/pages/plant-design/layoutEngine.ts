@@ -1331,6 +1331,63 @@ function placeLegs(onRoof, x, legYs, yMin, yMax) {
   return out;
 }
 
+// Where a rack's pillar lines (one chord each) go, shared by every piece
+// of it. `pieces` are the rack's structure pieces - x-ranges with the rows
+// they carry (splitRunByRowCoverage segments, or the stepped strategy's
+// bays). Lines are laid out once per continuous run of pieces at the usual
+// spacing (end margin, at most PILLAR_SPACING apart) and each piece takes
+// the ones inside it. Giving every piece its own end-inset lines instead
+// put two chords a hand's width apart at every boundary between pieces -
+// cluttered and wasteful around a skylight, or on a stepped/tapering rack.
+// A piece only gets an extra line near an end where some of its rows
+// actually stop (no neighbouring piece carries them on) and no line is
+// already within END_SUPPORT_REACH of it, plus one in its middle if no line
+// falls inside it at all. Returns one sorted x-list per piece. A rack with
+// a single piece per run gets exactly the old uniform layout.
+const END_SUPPORT_REACH = 1.0;
+function supportLinesForPieces(pieces) {
+  const order = pieces.map((_, i) => i).sort((a, b) => pieces[a].xStart - pieces[b].xStart);
+  let runs: { xStart: number; xEnd: number }[] = [];
+  order.forEach((i) => {
+    const pc = pieces[i];
+    const last = runs[runs.length - 1];
+    if (last && pc.xStart <= last.xEnd + 0.05) last.xEnd = Math.max(last.xEnd, pc.xEnd);
+    else runs.push({ xStart: pc.xStart, xEnd: pc.xEnd });
+  });
+  const runLines = runs.map(({ xStart, xEnd }) => {
+    const length = xEnd - xStart;
+    const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
+    const usableStart = xStart + margin;
+    const usableLength = Math.max(length - 2 * margin, 0);
+    const n = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
+    return Array.from({ length: n }, (_, i) => usableStart + (usableLength * i) / (n - 1));
+  });
+  const base = runLines.flat();
+  const carries = (other, pc) => pc.rowYs.every((y) => other.rowYs.some((oy) => Math.abs(oy - y) < 1e-6));
+  return pieces.map((pc) => {
+    let xs = base.filter((x) => x >= pc.xStart - 1e-6 && x <= pc.xEnd + 1e-6);
+    const length = pc.xEnd - pc.xStart;
+    const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
+    const continues = (atX, side) => pieces.some((o) => o !== pc && Math.abs((side < 0 ? o.xEnd : o.xStart) - atX) <= 0.05 && carries(o, pc));
+    // An end whose rows stop needs a line within reach of it. Prefer moving
+    // the nearest line out to that end (if it's not far, and the span it
+    // leaves behind stays reasonable) over adding a second one beside it.
+    const supportEnd = (target, distOf) => {
+      if (xs.some((x) => distOf(x) <= END_SUPPORT_REACH)) return;
+      xs.sort((a, b) => distOf(a) - distOf(b));
+      const nearest = xs[0], next = xs[1];
+      const leftSpan = next == null ? 0 : Math.abs(next - target);
+      if (nearest != null && distOf(nearest) <= 2 * END_SUPPORT_REACH && leftSpan <= PILLAR_SPACING * 1.25) xs[0] = target;
+      else xs.push(target);
+    };
+    if (!continues(pc.xStart, -1)) supportEnd(pc.xStart + margin, (x) => x - pc.xStart);
+    if (!continues(pc.xEnd, 1)) supportEnd(pc.xEnd - margin, (x) => pc.xEnd - x);
+    if (xs.length === 0) xs.push((pc.xStart + pc.xEnd) / 2);
+    xs.sort((a, b) => a - b);
+    return xs.filter((x, i) => i === 0 || x - xs[i - 1] > 0.05);
+  });
+}
+
 function* iterateRacks(layout) {
   const footprintDepth = layout.footprintDepth;
   const panelsPerRow = Math.max(1, layout.panelsPerRow || 1);
@@ -1629,8 +1686,8 @@ function computeTrussStructure({ roof, layout }) {
   for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
     const centerY = rackTop + rackDepth / 2;
 
-    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }) => {
-      const length = xEnd - xStart;
+    const pieceLines = supportLinesForPieces(xSegments);
+    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }, pieceIndex) => {
       const midX = (xStart + xEnd) / 2;
 
       // Legs attach inset from the chord's own front/back ends too, so the
@@ -1646,13 +1703,9 @@ function computeTrussStructure({ roof, layout }) {
       const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
       const legYs = Array.from({ length: numDepthLegs }, (_, i) => top + legInset + (usableLegDepth * i) / (numDepthLegs - 1));
 
-      // Pillars stay inset from the segment's own left/right ends, rather
-      // than sitting exactly at them.
-      const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
-      const usableStart = xStart + margin;
-      const usableLength = Math.max(length - 2 * margin, 0);
-      const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-      const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), top, top + depth);
+      // Pillar lines come from the whole run (supportLinesForPieces), not
+      // re-spaced per piece - see that function.
+      const pillarXs = onRoof.pillarXs(pieceLines[pieceIndex], top, top + depth);
 
       let members: any[] = [];
       pillarXs.forEach((px) => {
@@ -1715,8 +1768,8 @@ function computeGroundMountStructure({ roof, layout }) {
   for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
     const centerY = rackTop + rackDepth / 2;
 
-    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }) => {
-      const length = xEnd - xStart;
+    const pieceLines = supportLinesForPieces(xSegments);
+    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }, pieceIndex) => {
       const midX = (xStart + xEnd) / 2;
       // This segment's own rows (splitRunByRowCoverage) - the whole rack,
       // except beside a hole in some of its rows. Its central post sits at
@@ -1739,13 +1792,9 @@ function computeGroundMountStructure({ roof, layout }) {
       const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
       const intermediateLegYs = Array.from({ length: numDepthLegs }, (_, i) => top + braceInset + (usableLegDepth * i) / (numDepthLegs - 1)).slice(1, -1);
 
-      // Same end-margin philosophy as the truss strategy, just fewer
-      // vertical pillars (one central post per position instead of two).
-      const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
-      const usableStart = xStart + margin;
-      const usableLength = Math.max(length - 2 * margin, 0);
-      const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-      const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), top, top + depth);
+      // Same pillar lines as the truss strategy (supportLinesForPieces),
+      // just one central post per line instead of a front/back pair.
+      const pillarXs = onRoof.pillarXs(pieceLines[pieceIndex], top, top + depth);
 
       let members: any[] = [];
       pillarXs.forEach((px) => {
@@ -1883,7 +1932,7 @@ function* iterateSteppedRackBays(layout) {
       bayRowYs.forEach((y) => {
         (rowMap.get(y) || []).forEach((p) => { if (bayColXs.has(p.rackX)) panels.push(p); });
       });
-      yield { rackTop, rackDepth, xStart, xEnd, rowYs: bayRowYs, panels };
+      yield { rackTop, rackDepth, xStart, xEnd, rowYs: bayRowYs, panels, cluster: ci };
     }
   }
 }
@@ -1905,10 +1954,20 @@ function computeSteppedTrussStructure({ roof, layout }) {
   let racks: any[] = [];
   const totals = {};
 
-  for (const { rackTop, rackDepth, xStart, xEnd, rowYs } of iterateSteppedRackBays(layout)) {
+  // Pillar lines per cluster (a rack's bays together), so neighbouring bays
+  // share lines instead of each placing its own end pair - see
+  // supportLinesForPieces.
+  const bays = [...iterateSteppedRackBays(layout)];
+  const bayLines = new Map();
+  [...new Set(bays.map((b) => b.cluster))].forEach((c) => {
+    const group = bays.filter((b) => b.cluster === c);
+    const lines = supportLinesForPieces(group);
+    group.forEach((b, i) => bayLines.set(b, lines[i]));
+  });
+  for (const bay of bays) {
+    const { rackTop, rackDepth, xStart, xEnd, rowYs } = bay;
     const centerY = rackTop + rackDepth / 2;
     const halfDepth = rackDepth / 2;
-    const length = xEnd - xStart;
     const midX = (xStart + xEnd) / 2;
 
     // Same leg/pillar spacing rules as the plain Truss strategy, just
@@ -1918,11 +1977,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
     const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
     const legYs = Array.from({ length: numDepthLegs }, (_, i) => rackTop + legInset + (usableLegDepth * i) / (numDepthLegs - 1));
 
-    const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
-    const usableStart = xStart + margin;
-    const usableLength = Math.max(length - 2 * margin, 0);
-    const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-    const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), rackTop, rackTop + rackDepth);
+    const pillarXs = onRoof.pillarXs(bayLines.get(bay), rackTop, rackTop + rackDepth);
 
     let members: any[] = [];
     pillarXs.forEach((px) => {

@@ -583,6 +583,15 @@ between) are separate segments via `contiguousRowGroups` - never one chord
 bridging the gap; `iterateSteppedRackBays` does the same per column (one
 entry per unbroken run of rows, bays grouped by extent then position).
 
+**Pillar lines are shared across a rack's pieces** (`supportLinesForPieces`):
+laid out once per continuous run at the usual spacing, each piece/bay takes
+the lines inside it, and only gets an extra one near an end where its rows
+actually stop with no line within `END_SUPPORT_REACH` (moving the nearest
+line out instead when that keeps spans ≤ 1.25 × `PILLAR_SPACING`). Spacing
+each piece on its own put two chords a hand's width apart at every piece
+boundary - cluttered around a skylight, and on any stepped/tapering rack.
+A run that's one piece gets exactly the old uniform layout.
+
 The other half of "structure on the skylight": `generateLayout`'s
 `isBlockedAt` for drawn (polygon) obstacles used to sample only a 0.3m cross
 around the panel's *center*, so a skylight/walkway under a panel's edge or
