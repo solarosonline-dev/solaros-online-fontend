@@ -591,6 +591,18 @@ as panels-per-row/tilt/spacing shifted the rows. It now tests the panel's
 whole footprint against the real polygon (`rectOverlapsPolygon`, concave
 shapes included). Box/cylinder obstacles keep their center-distance test.
 
+## Pillars always stand on the roof
+
+Panels may overhang the roof edge (a deep multi-row rack on a tapering roof
+does), but every pillar/leg is kept on the roof by `rooftopLegs` in
+`layoutEngine.ts`, shared by all three strategies: each pillar line (one
+chord) is pulled inside the roof outline - shrunk by the boundary wall
+thickness when there is a wall, plus `LEG_ROOF_MARGIN` - and each leg then
+slides along its chord to the nearest on-roof spot (dropped if the chord
+never crosses the roof there). Ground mount's central post and braces
+follow the post. Pillars already on the roof are untouched, so ordinary
+layouts are unchanged. `BOUNDARY_WALL_THICKNESS` mirrors Scene3D's.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

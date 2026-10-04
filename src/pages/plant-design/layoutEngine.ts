@@ -1155,6 +1155,8 @@ const LEG_END_MARGIN_FRAC = 0.12; // legs also stay inset from the chord's own f
 const MAX_LEG_END_MARGIN = 0.4;
 const BRACE_BASE_MARGIN_FRAC = 0.15; // braces attach above the pillar's own base, not right at it
 const MAX_BRACE_BASE_MARGIN = 0.3;
+// Same as Scene3D's BoundaryWall thickness (the wall stands inside the roof outline).
+const BOUNDARY_WALL_THICKNESS = 0.12;
 const DEFAULT_MIN_PILLAR_HEIGHT = 0.15; // fallback when roof.minPillarHeight isn't set
 // The two support bars cross each panel at 20%/80% of its own depth, not
 // right at its edges - roughly where real racking clamps go to minimize
@@ -1258,6 +1260,75 @@ function rectOverlapsPolygon(x0, y0, x1, y1, poly) {
     }
   }
   return false;
+}
+
+// Keeps a grid's pillars/legs standing on its roof. Panels may overhang
+// the roof edge a little (a deep multi-row rack on a tapering roof does),
+// but a pillar there used to drop straight past the edge to the ground.
+// Works in the grid's own (rackX, rackY) frame, against the roof outline
+// shrunk by the boundary wall (if any) plus a small margin so a leg never
+// lands in the wall. `pillarXs` pulls each pillar line (one chord) inside
+// the roof at the given rack band, merging lines that end up together;
+// `legY` slides one leg along its chord (within [yMin, yMax]) to the
+// nearest on-roof spot, or returns null if the chord never crosses the
+// roof there. Pillars already on the roof come back exactly as they were.
+const LEG_ROOF_MARGIN = 0.1;
+function rooftopLegs(roof, layout) {
+  const direction = gridDirection(layout, roof);
+  const local = getRoofPolygon(roof).map((p) => toSlopeLocal(p, direction));
+  const inset = LEG_ROOF_MARGIN + ((roof.boundaryHeight || 0) > 0 ? BOUNDARY_WALL_THICKNESS : 0);
+  const shrunk = insetPolygon(local, inset);
+  const poly = shrunk.length >= 3 ? shrunk : local;
+  const inside = (x, y) => pointInPolygon({ x, y }, poly);
+  const STEPS = 24;
+
+  function clampX(px, y) {
+    const segs = polygonScanlineSegments(poly, y);
+    if (segs.length === 0 || segs.some(([a, b]) => px >= a && px <= b)) return px;
+    let best = px, bestD = Infinity;
+    segs.forEach(([a, b]) => {
+      const c = px < a ? a : b;
+      if (Math.abs(c - px) < bestD) { bestD = Math.abs(c - px); best = c; }
+    });
+    return best;
+  }
+
+  return {
+    pillarXs(xs, yMin, yMax) {
+      const mid = (yMin + yMax) / 2;
+      let out: number[] = [];
+      xs.forEach((px) => {
+        // Prefer the band's middle; if that's off the roof, whichever of
+        // the band's y's gives the smallest move.
+        const cands = [mid, yMin, yMax].map((y) => clampX(px, y));
+        const x = cands.reduce((b, c) => (Math.abs(c - px) < Math.abs(b - px) ? c : b), cands[0]);
+        if (!out.some((o) => Math.abs(o - x) < 0.05)) out.push(x);
+      });
+      return out;
+    },
+    legY(x, ly, yMin, yMax) {
+      if (inside(x, ly)) return ly;
+      const span = yMax - yMin;
+      for (let k = 1; k <= STEPS; k++) {
+        const d = (span * k) / STEPS;
+        for (const y of [ly - d, ly + d]) {
+          if (y >= yMin - 1e-9 && y <= yMax + 1e-9 && inside(x, y)) return y;
+        }
+      }
+      return null;
+    },
+  };
+}
+
+// Leg y's that stay on the roof (rooftopLegs.legY), de-duplicated when two
+// slide onto the same spot.
+function placeLegs(onRoof, x, legYs, yMin, yMax) {
+  let out: number[] = [];
+  legYs.forEach((ly) => {
+    const y = onRoof.legY(x, ly, yMin, yMax);
+    if (y != null && !out.some((o) => Math.abs(o - y) < 0.05)) out.push(y);
+  });
+  return out;
 }
 
 function* iterateRacks(layout) {
@@ -1547,6 +1618,7 @@ function computeTrussStructure({ roof, layout }) {
   const footprintDepth = layout.footprintDepth;
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
+  const onRoof = rooftopLegs(roof, layout);
   const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
@@ -1580,7 +1652,7 @@ function computeTrussStructure({ roof, layout }) {
       const usableStart = xStart + margin;
       const usableLength = Math.max(length - 2 * margin, 0);
       const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-      const pillarXs = Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1));
+      const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), top, top + depth);
 
       let members: any[] = [];
       pillarXs.forEach((px) => {
@@ -1589,7 +1661,7 @@ function computeTrussStructure({ roof, layout }) {
         // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
         const frontHeight = heightAtY(top, rackTop, px, rackDepth);
         const backHeight = heightAtY(top + depth, rackTop, px, rackDepth);
-        legYs.forEach((ly) => {
+        placeLegs(onRoof, px, legYs, top, top + depth).forEach((ly) => {
           const legHeight = heightAtY(ly, rackTop, px, rackDepth);
           const legZ = ly - centerY;
           members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
@@ -1632,6 +1704,7 @@ function computeGroundMountStructure({ roof, layout }) {
   const footprintDepth = layout.footprintDepth;
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
+  const onRoof = rooftopLegs(roof, layout);
   const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
@@ -1672,7 +1745,7 @@ function computeGroundMountStructure({ roof, layout }) {
       const usableStart = xStart + margin;
       const usableLength = Math.max(length - 2 * margin, 0);
       const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-      const pillarXs = Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1));
+      const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), top, top + depth);
 
       let members: any[] = [];
       pillarXs.forEach((px) => {
@@ -1681,28 +1754,36 @@ function computeGroundMountStructure({ roof, layout }) {
         // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
         const frontHeight = heightAtY(top, rackTop, px, rackDepth);
         const backHeight = heightAtY(top + depth, rackTop, px, rackDepth);
-        const centerHeight = heightAtY(segCenterY, rackTop, px, rackDepth);
-        const braceFrontHeight = heightAtY(top + braceInset, rackTop, px, rackDepth);
-        const braceBackHeight = heightAtY(top + depth - braceInset, rackTop, px, rackDepth);
-        const baseMargin = Math.min(MAX_BRACE_BASE_MARGIN, centerHeight * BRACE_BASE_MARGIN_FRAC);
-        members.push({ kind: 'pillar', from: [localX, 0, segZ], to: [localX, centerHeight, segZ], thickness: PILLAR_THICKNESS });
         members.push({ kind: 'chord', from: [localX, frontHeight, segZ - halfDepth], to: [localX, backHeight, segZ + halfDepth], thickness: CHORD_THICKNESS });
-        members.push({ kind: 'brace', from: [localX, baseMargin, segZ], to: [localX, braceFrontHeight, segZ - braceHalfDepth], thickness: BRACE_THICKNESS });
-        members.push({ kind: 'brace', from: [localX, baseMargin, segZ], to: [localX, braceBackHeight, segZ + braceHalfDepth], thickness: BRACE_THICKNESS });
-        intermediateLegYs.forEach((ly) => {
+        addTotal(totals, 'chord', Math.hypot(depth, backHeight - frontHeight), 1);
+        // The central post (and its braces) slides along the chord to stay
+        // on the roof - skipped, with the chord resting on whatever legs
+        // remain, if the chord never crosses the roof at this x.
+        const postY = onRoof.legY(px, segCenterY, top, top + depth);
+        if (postY != null) {
+          const postZ = postY - centerY;
+          const centerHeight = heightAtY(postY, rackTop, px, rackDepth);
+          const braceFrontHeight = heightAtY(top + braceInset, rackTop, px, rackDepth);
+          const braceBackHeight = heightAtY(top + depth - braceInset, rackTop, px, rackDepth);
+          const baseMargin = Math.min(MAX_BRACE_BASE_MARGIN, centerHeight * BRACE_BASE_MARGIN_FRAC);
+          const frontZ = segZ - braceHalfDepth, backZ = segZ + braceHalfDepth;
+          members.push({ kind: 'pillar', from: [localX, 0, postZ], to: [localX, centerHeight, postZ], thickness: PILLAR_THICKNESS });
+          members.push({ kind: 'brace', from: [localX, baseMargin, postZ], to: [localX, braceFrontHeight, frontZ], thickness: BRACE_THICKNESS });
+          members.push({ kind: 'brace', from: [localX, baseMargin, postZ], to: [localX, braceBackHeight, backZ], thickness: BRACE_THICKNESS });
+          addTotal(totals, 'pillar', centerHeight, 1);
+          addTotal(
+            totals, 'brace',
+            Math.hypot(postZ - frontZ, braceFrontHeight - baseMargin) + Math.hypot(backZ - postZ, braceBackHeight - baseMargin),
+            2
+          );
+        }
+        placeLegs(onRoof, px, intermediateLegYs, top, top + depth).forEach((ly) => {
           const legHeight = heightAtY(ly, rackTop, px, rackDepth);
           const legZ = ly - centerY;
           members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
           addTotal(totals, 'pillar', legHeight, 1);
         });
 
-        addTotal(totals, 'pillar', centerHeight, 1);
-        addTotal(totals, 'chord', Math.hypot(depth, backHeight - frontHeight), 1);
-        addTotal(
-          totals, 'brace',
-          Math.hypot(braceHalfDepth, braceFrontHeight - baseMargin) + Math.hypot(braceHalfDepth, braceBackHeight - baseMargin),
-          2
-        );
       });
 
       const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
@@ -1816,6 +1897,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
   // those only look at rows (rackY), never columns, so they're already
   // correct for this strategy's grids too.
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
+  const onRoof = rooftopLegs(roof, layout);
   const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
@@ -1840,7 +1922,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
     const usableStart = xStart + margin;
     const usableLength = Math.max(length - 2 * margin, 0);
     const numPillars = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
-    const pillarXs = Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1));
+    const pillarXs = onRoof.pillarXs(Array.from({ length: numPillars }, (_, i) => usableStart + (usableLength * i) / (numPillars - 1)), rackTop, rackTop + rackDepth);
 
     let members: any[] = [];
     pillarXs.forEach((px) => {
@@ -1849,7 +1931,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
       // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
       const frontHeight = heightAtY(rackTop, rackTop, px, rackDepth);
       const backHeight = heightAtY(rackTop + rackDepth, rackTop, px, rackDepth);
-      legYs.forEach((ly) => {
+      placeLegs(onRoof, px, legYs, rackTop, rackTop + rackDepth).forEach((ly) => {
         const legHeight = heightAtY(ly, rackTop, px, rackDepth);
         const legZ = ly - centerY;
         members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
