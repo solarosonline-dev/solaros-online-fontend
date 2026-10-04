@@ -241,6 +241,9 @@ function RailPopover({ open, width = 260, children }) {
   const ref = useRef<any>(null);
   const isMobile = useIsMobile();
   const [shiftY, setShiftY] = useState(0);
+  // The shift currently applied, so a re-measure can undo it (see below).
+  const shiftYRef = useRef(0);
+  shiftYRef.current = shiftY;
   // Mobile only: the right rail (see its own comment further down) caps
   // its own height and scrolls internally so its ever-growing icon list
   // doesn't run off the bottom of the screen - but CSS only allows that
@@ -271,10 +274,18 @@ function RailPopover({ open, width = 260, children }) {
       return;
     }
     setFixedPos(null);
+    // Measure the popover's *natural* (unshifted) position: the rect already
+    // includes the translateY applied last time, so measuring it as-is saw
+    // "no overflow", reset to 0, overflowed again next render, and so on -
+    // a popover tall enough to need the shift (e.g. Mounting) flickered up
+    // and down on every re-render, which orbiting the 3D view triggers
+    // continuously.
     const rect = el.getBoundingClientRect();
-    const overflowBelow = rect.bottom - (window.innerHeight - margin);
+    const naturalTop = rect.top - shiftYRef.current;
+    const naturalBottom = rect.bottom - shiftYRef.current;
+    const overflowBelow = naturalBottom - (window.innerHeight - margin);
     if (overflowBelow <= 0) { setShiftY(0); return; }
-    const maxShift = rect.top - margin;
+    const maxShift = naturalTop - margin;
     setShiftY(-Math.min(overflowBelow, Math.max(maxShift, 0)));
     // Re-measure whenever the popover's own content changes size (e.g.
     // picking a roof edge to override reveals a new block) - `children`
