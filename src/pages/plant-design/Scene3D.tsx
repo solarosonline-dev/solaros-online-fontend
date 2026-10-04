@@ -476,33 +476,48 @@ function Tree({ obstacle, baseHeight, selected = false }) {
         </mesh>
       )}
 
+      {/* Every canopy fills the same envelope: from the trunk top up to the
+          tree's own height, canopy radius wide - what the shading math and
+          the 2D plan use. Round is an ellipsoid of exactly that size (it used
+          to be a sphere of the foliage height, ignoring the radius). */}
       {canopy === 'round' && (
-        <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
-          <sphereGeometry args={[foliageHeight / 2, 12, 10]} />
+        <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} scale={[foliageRadius, foliageHeight / 2, foliageRadius]} castShadow receiveShadow>
+          <sphereGeometry args={[1, 12, 10]} />
           <meshStandardMaterial color={selColor(selected, '#4a7a3f')} />
         </mesh>
       )}
 
       {canopy === 'bushy' && (() => {
+        // Lobes are laid out relative to the trunk top, sized from the canopy
+        // radius - which left the top at trunk + 2.6r regardless of the
+        // tree's height (an 8m tree with a 1.5m canopy topped out under 5m).
+        // The cluster is now stretched vertically (`stretch`) so its top lands
+        // exactly at the tree's height, like the cone and round canopies.
         const r = foliageRadius * 0.5;
         // Lower cluster sits with its center just above the trunk top, so its
         // bottom overlaps the trunk slightly instead of floating above it.
-        const lowerY = foliageBaseY + r * 0.7;
+        const lowerY = r * 0.7;
         const off = foliageRadius * 0.4;
         const lobes = [0, 120, 240].map((angle) => {
           const ax = Math.cos(angle * DEG) * off;
           const az = Math.sin(angle * DEG) * off;
-          return { key: angle, x: tx + ax, y: lowerY, z: tz + az, r };
+          return { key: angle, x: ax, y: lowerY, z: az, r };
         });
         // A smaller top lobe adds height/volume without leaving a gap, since
         // it overlaps the lower cluster below it.
-        (lobes as any[]).push({ key: 'top', x: tx, y: lowerY + r * 1.1, z: tz, r: r * 0.8 });
-        return lobes.map((l) => (
-          <mesh key={l.key} position={[l.x, l.y, l.z]} castShadow receiveShadow>
-            <sphereGeometry args={[l.r, 10, 8]} />
-            <meshStandardMaterial color={selColor(selected, '#4f7d44')} />
-          </mesh>
-        ));
+        (lobes as any[]).push({ key: 'top', x: 0, y: lowerY + r * 1.1, z: 0, r: r * 0.8 });
+        const naturalTop = lowerY + r * 1.1 + r * 0.8;
+        const stretch = naturalTop > 0 ? foliageHeight / naturalTop : 1;
+        return (
+          <group position={[tx, foliageBaseY, tz]} scale={[1, stretch, 1]}>
+            {lobes.map((l) => (
+              <mesh key={l.key} position={[l.x, l.y, l.z]} castShadow receiveShadow>
+                <sphereGeometry args={[l.r, 10, 8]} />
+                <meshStandardMaterial color={selColor(selected, '#4f7d44')} />
+              </mesh>
+            ))}
+          </group>
+        );
       })()}
     </group>
   );
