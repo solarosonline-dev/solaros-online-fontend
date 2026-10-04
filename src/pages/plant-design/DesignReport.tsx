@@ -11,7 +11,7 @@
 // No pricing - the Quote covers that.
 import type { ReactNode } from 'react';
 import { REPORT_PAGE_CLASS } from './designReportPdf';
-import { formatKWh, formatPct, shadingLossPct, type OutputSeries } from './OutputChartPanel';
+import { formatKWh, formatPct, shadingLossPct, SHADING_LIMITS_NOTE, type OutputSeries } from './OutputChartPanel';
 import SitePlanSvg, { boundsOf, type SitePlanData } from './SitePlanSvg';
 import './DesignReport.css';
 
@@ -473,6 +473,7 @@ export default function DesignReport(props: DesignReportProps) {
               {ghiStatus === 'ready'
                 ? 'Typical-year estimate from NASA POWER 2001-2020 monthly irradiance averages for this site. Actual generation varies with each year\'s weather, soiling and grid availability.'
                 : 'Estimate based on illustrative sample irradiance averages, not this site\'s own data.'}
+              {' '}{SHADING_LIMITS_NOTE}
             </p>
           </>
         ) : (

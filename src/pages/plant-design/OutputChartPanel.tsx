@@ -92,6 +92,13 @@ function hourLabel(h: number) {
   return `${h12} ${suffix}`;
 }
 
+// Where the shading-loss figures stop being reliable - shown under both
+// chart views, and (same wording) on the Design Report's Energy output
+// page, since customers see those numbers too. See computeOutput's
+// lost-energy accumulation for what *is* modelled.
+export const SHADING_LIMITS_NOTE =
+  'Shading loss covers shadows from the obstacles drawn in this design only. Real losses can be higher: partial shade on one panel can pull down its whole string, and nearby buildings, trees or panel rows shading each other aren\'t included.';
+
 function sourceNote(ghiStatus: string) {
   if (ghiStatus === 'ready') return 'Typical-year estimate from NASA POWER 2001-2020 monthly irradiance averages. Actual output will vary with each year\'s weather.';
   if (ghiStatus === 'loading') return 'Fetching this site\'s irradiance data - currently showing illustrative sample averages.';
@@ -223,7 +230,7 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
           </BarChart>
         </ResponsiveContainer>
         )}
-        <div className="pde-field-sm-hint pde-output-chart-note">{sourceNote(ghiStatus)}</div>
+        <div className="pde-field-sm-hint pde-output-chart-note">{sourceNote(ghiStatus)}<br />{SHADING_LIMITS_NOTE}</div>
       </div>
     );
   }
@@ -276,7 +283,7 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
           <Line type="monotone" dataKey="unshaded" name="Without shading" stroke={UNSHADED_LINE} strokeWidth={1.5} strokeDasharray="5 4" dot={false} hide={hourlyHidden.has('unshaded')} />
         </ComposedChart>
       </ResponsiveContainer>
-      <div className="pde-field-sm-hint pde-output-chart-note">{sourceNote(ghiStatus)}</div>
+      <div className="pde-field-sm-hint pde-output-chart-note">{sourceNote(ghiStatus)}<br />{SHADING_LIMITS_NOTE}</div>
     </div>
   );
 }

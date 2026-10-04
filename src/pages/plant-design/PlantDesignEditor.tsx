@@ -6735,7 +6735,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     than one at 7 AM, and this counts it that way. */}
                 {outputResult && (
                   <div className="pde-field-sm">
-                    <label>Shading loss</label>
+                    <label>
+                      Shading loss{' '}
+                      <InfoTip text="Energy lost over a typical year to shadows from the obstacles drawn on the plan. An estimate: each panel counts as fully shaded or unshaded by its centre point, string and bypass-diode effects aren't modelled, and anything not drawn (neighbouring buildings, trees, or flat-roof panel rows shading each other) isn't included. Real losses can be higher, especially without optimisers." />
+                    </label>
                     <div className="pde-stat-value">
                       {formatPct(shadingLossPct(outputResult))} ({formatKWh(outputResult.totalLostKWh)}/yr)
                     </div>
