@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -6343,7 +6343,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   const isPitchedGrid = gridOwnerRoof.type === 'pitched';
                   // Mirrors generateLayout's own default (pitched 0, flat 1.0).
                   const defaultRowSpacing = isPitchedGrid ? 0 : 1.0;
-                  const resolvedRowSpacing = selectedGrid.rowSpacing ?? defaultRowSpacing;
+                  // A pitched grid filled before pitched grids defaulted to 0
+                  // stored the flat default 1.0 - below the panel depth, so it
+                  // never had any effect there (generateLayout clamps the pitch
+                  // to depth + gap). Shown as the default it behaves as.
+                  const legacyPitchedDefault = isPitchedGrid && selectedGrid.rowSpacing === 1.0;
+                  const resolvedRowSpacing = legacyPitchedDefault ? 0 : (selectedGrid.rowSpacing ?? defaultRowSpacing);
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>
@@ -6448,18 +6453,31 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}><RackTiltIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridRack'}>
-                            <div style={labelStyle}>
-                              <span>Panels per row (depth)</span>
-                              <SliderInput
-                                min={1} max={20} step={1}
-                                value={selectedGrid.panelsPerRow}
-                                onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { panelsPerRow: Math.max(1, Math.round(v)) })}
-                              />
-                            </div>
-                            <div style={{ fontSize: 11, color: '#888' }}>
-                              How many panels stack front-to-back on one rack row (e.g. 2 for a
-                              "2-up" layout) before the next shading-safe row starts.
-                            </div>
+                            {(() => {
+                              // Flush on the slope (pitched roof filled toward its
+                              // slope edge): back-to-back rows, no racks - the engine
+                              // pins this to 1 (see isFlushOnSlope), so the control
+                              // is shown locked rather than looking like it does
+                              // something.
+                              const flush = isFlushOnSlope(gridOwnerRoof, slopeDirectionAzimuth(gridDirection(selectedGrid, gridOwnerRoof)));
+                              return (
+                                <>
+                                  <div style={labelStyle}>
+                                    <span>Panels per row (depth)</span>
+                                    <SliderInput
+                                      min={1} max={20} step={1} disabled={flush}
+                                      value={flush ? 1 : selectedGrid.panelsPerRow}
+                                      onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { panelsPerRow: Math.max(1, Math.round(v)) })}
+                                    />
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#888' }}>
+                                    {flush
+                                      ? 'Not used here: panels follow the roof slope and lie flush in back-to-back rows.'
+                                      : 'How many panels stack front-to-back on one rack row (e.g. 2 for a "2-up" layout) before the next shading-safe row starts.'}
+                                  </div>
+                                </>
+                              );
+                            })()}
 
                             <div style={labelStyle}>
                               <span>Panel tilt (°)</span>

@@ -527,7 +527,12 @@ to back, `Ls + gap`) and 1.0 on flat; it's editable on both (pitched: a
 value > 0 sets the row-to-row pitch, same clamp as flat). Pitched grids
 filled before this stored the flat default 1.0, which never had an effect
 there (below the minimum pitch) — the popover just shows "reset to
-default (0)" for them. `azimuth` is in
+default (0)" for them. A grid filled **toward the slope** (`isFlushOnSlope` -
+its packing direction within 0.5° of the slope edge) has panels flush in
+back-to-back rows, so `panelsPerRow` is pinned to 1 in `generateLayout` /
+`generateFixedGrid` and the Rack settings control is disabled with a note;
+the popover also shows a legacy stored 1.0 row spacing on a pitched grid as
+the default 0 (it never had an effect - below the panel depth). `azimuth` is in
 `ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
 resets the override to auto.
 

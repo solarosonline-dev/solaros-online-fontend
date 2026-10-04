@@ -234,6 +234,15 @@ export function packingAzimuth(roof: any, location: any): number {
   return edgeFacingAzimuth(getRoofPolygon(roof), { x: Math.sin(t), y: Math.cos(t) }) ?? az;
 }
 
+// Whether panels packed at `azimuthDeg` on this roof face straight down its
+// slope - a pitched roof filled toward its own slope edge, where panels lie
+// flush in back-to-back rows (no racks), so "panels per row" (rack depth)
+// means nothing and is pinned to 1. Same 0.5° tolerance packingAzimuth's
+// snapped facing and the popover's "differs from typed" note use.
+export function isFlushOnSlope(roof: any, azimuthDeg: number): boolean {
+  return roof?.type === 'pitched' && azimuthOffset(azimuthDeg, getPitchedRoofSlopeAzimuth(roof)) < 0.5;
+}
+
 export function getRoofAzimuth(roof: any, location: any): number {
   if (typeof roof?.azimuth === 'number' && Number.isFinite(roof.azimuth)) {
     return ((roof.azimuth % 360) + 360) % 360;

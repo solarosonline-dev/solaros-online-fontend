@@ -2,7 +2,7 @@ import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
   slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, packingAzimuth,
-  obstacleRoofSurfaceRange, treeTrunkHeight,
+  obstacleRoofSurfaceRange, treeTrunkHeight, isFlushOnSlope,
 } from './geometry.js';
 
 // ============================================================
@@ -201,7 +201,12 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   // "2-up" rack) before the next shading-safe row starts. They share the
   // same tilt plane and only need the small panel-to-panel gap between
   // them, not the full inter-row shading clearance.
-  const panelsPerRow = Math.max(1, Math.round(gridSettings.panelsPerRow ?? panelSpec.panelsPerRow ?? 1));
+  // Pinned to 1 on a pitched roof filled toward its slope: panels lie flush
+  // in back-to-back rows there, so stacking them into deeper racks would
+  // only change how the structure is grouped (see isFlushOnSlope).
+  const panelsPerRow = isFlushOnSlope(roof, slopeDirectionAzimuth(direction))
+    ? 1
+    : Math.max(1, Math.round(gridSettings.panelsPerRow ?? panelSpec.panelsPerRow ?? 1));
   // Orientation is a per-grid setting (like panelTiltDeg/rowSpacing/
   // structureStrategy below) rather than read off the site-wide panelSpec -
   // two grids on the same site can mount their panels differently. New
@@ -899,7 +904,7 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
     count: panels.length,
     capacityKW: (panels.length * wattPerPanel) / 1000,
     footprintPolygon,
-    panelsPerRow: cols,
+    panelsPerRow: isFlushOnSlope(roof, slopeDirectionAzimuth(direction)) ? 1 : cols,
     orientation,
     panelTiltDeg: null,
     rowSpacing: null,
