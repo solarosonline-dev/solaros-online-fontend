@@ -58,7 +58,7 @@ import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
-import OutputChartPanel, { formatKWh } from './OutputChartPanel.jsx';
+import OutputChartPanel, { formatKWh, formatPct, shadingLossPct, emptyOutputSeries, addToOutputSeries, type OutputSeries } from './OutputChartPanel.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];
@@ -3511,9 +3511,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const gridsWithPanels = roofs.flatMap((roof) => roof.grids.filter((g) => g.count > 0).map((grid) => ({ roof, grid })));
     if (gridsWithPanels.length === 0) return;
 
-    let totalKWh = 0, shadedWeighted = 0, panelSamples = 0, label = '';
-    const monthlyKWh = new Array(12).fill(0);
-    const hourlyByMonth = Array.from({ length: 12 }, () => new Array(15).fill(0));
+    // One OutputSeries (OutputChartPanel.tsx) for the whole site plus one
+    // per roof - the chart's roof dropdown just picks which to plot.
+    const site = emptyOutputSeries();
+    const byRoof = new Map<any, OutputSeries>();
+    let label = '';
     let panelCost = 0, structureCost = 0, totalRailLength = 0, hasRail = false;
     gridsWithPanels.forEach(({ roof, grid }) => {
       const layout = resolvedGrid(grid);
@@ -3523,11 +3525,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         systemDerate: assumptions.systemDerate, diffuseFraction: assumptions.diffuseFraction,
         roofs, targetBuildingHeight: roof.buildingHeight,
       });
-      totalKWh += r.totalKWh;
-      r.monthlyKWh?.forEach((v, m) => { monthlyKWh[m] += v; });
-      r.hourlyByMonth?.forEach((hours, m) => hours.forEach((v, h) => { hourlyByMonth[m][h] += v; }));
-      shadedWeighted += r.avgShadedPct * layout.count;
-      panelSamples += layout.count;
+      if (!byRoof.has(roof.id)) byRoof.set(roof.id, emptyOutputSeries());
+      addToOutputSeries(site, r);
+      addToOutputSeries(byRoof.get(roof.id)!, r);
       label = r.label;
 
       const c = computeCost({ layout, roofType: roof.type, ...pricing });
@@ -3537,8 +3537,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     });
 
     setOutputResult({
-      totalKWh, label, monthlyKWh, hourlyByMonth,
-      avgShadedPct: panelSamples ? Math.round(shadedWeighted / panelSamples) : 0,
+      ...site, label,
+      roofs: roofs
+        .map((roof, idx) => ({ id: roof.id, label: roofLabel(roof, idx), series: byRoof.get(roof.id) }))
+        .filter((r) => r.series),
     });
     setCost({
       panelCost, structureCost, totalCost: panelCost + structureCost,
@@ -6474,10 +6476,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     </div>
                   );
                 })()}
+                {/* Energy-weighted (unlike the old "% of samples shaded"
+                    figure this replaced): a shadow at noon costs far more
+                    than one at 7 AM, and this counts it that way. */}
                 {outputResult && (
                   <div className="pde-field-sm">
-                    <label>Overall efficiency</label>
-                    <div className="pde-stat-value">{100 - outputResult.avgShadedPct}% average unshaded</div>
+                    <label>Shading loss</label>
+                    <div className="pde-stat-value">
+                      {formatPct(shadingLossPct(outputResult))} ({formatKWh(Math.max(0, outputResult.totalUnshadedKWh - outputResult.totalKWh))}/yr)
+                    </div>
                   </div>
                 )}
 

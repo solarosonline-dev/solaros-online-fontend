@@ -687,3 +687,54 @@
 .plant-design-editor .pde-info-tip.open .pde-info-tip-bubble {
   display: block;
 }
+.plant-design-editor .pde-output-chart-roof {
+  font-family: var(--app-font, inherit);
+  font-size: 14px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 8px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  max-width: 100%;
+}
+.plant-design-editor .pde-output-chart-roof:focus {
+  outline: none;
+  border-color: var(--app-accent, #2563eb);
+}
+.plant-design-editor .pde-output-chart-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.plant-design-editor .pde-output-chart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 999px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.plant-design-editor .pde-output-chart-toggle:hover {
+  background: var(--app-bg, #f5f6f8);
+  border-color: var(--app-text-muted, #888);
+}
+.plant-design-editor .pde-output-chart-toggle.off {
+  color: var(--app-text-muted, #888);
+  text-decoration: line-through;
+}
+.plant-design-editor .pde-output-chart-toggle.off .pde-output-chart-swatch {
+  opacity: 0.3;
+}
+.plant-design-editor .pde-output-chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
