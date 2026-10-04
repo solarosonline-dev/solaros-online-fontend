@@ -28,6 +28,21 @@ export const PDF_HIDE_CLASS = 'sld-pdf-hide';
 
 const MARGIN_MM = 10;
 
+// The SLD's non-vector part (tables, legend, notes) is captured at 3x -
+// ~385 DPI across a landscape A4 page, up from 1.5x (~190 DPI), which read
+// slightly soft when zoomed. Flat colors and text compress well as PNG, so
+// this only cost ~2.4x the file size (a typical one-page SLD ~200 KB ->
+// ~500 KB, well under the 5 MB work order document cap). Capped by total
+// canvas area: Safari refuses canvases over 16,777,216 px (html2canvas then
+// renders blank), so a very large SLD steps its scale down to fit instead.
+const SLD_CAPTURE_SCALE = 3;
+const MAX_CANVAS_PIXELS = 16_000_000;
+
+function captureScale(el: HTMLElement, preferred: number) {
+  const area = Math.max(1, el.scrollWidth * el.scrollHeight);
+  return Math.min(preferred, Math.sqrt(MAX_CANVAS_PIXELS / area));
+}
+
 // Largest box with the given aspect ratio that fits the page inside the
 // margins, centered horizontally and pinned to the top margin.
 function fitToPage(pdf: jsPDF, aspect: number) {
@@ -54,7 +69,7 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
 
   const canvas = await html2canvas(sldContainer, {
     useCORS: true,
-    scale: 1.5,
+    scale: captureScale(sldContainer, SLD_CAPTURE_SCALE),
     backgroundColor: '#ffffff',
     onclone: (doc, root) => {
       // Show the whole thing rather than the on-screen scroll viewport,
