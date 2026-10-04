@@ -3527,8 +3527,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       setGridPlacementError("Add a roof first before placing a grid.");
       return;
     }
-    setGridPlacementError(null);
     const grid = generateFixedGrid({ roof, rows, cols, panelSpec, location });
+    // generateFixedGrid keeps only panels wholly on the roof's usable area.
+    if (grid.panels.length === 0) {
+      setGridPlacementError(`A ${rows} × ${cols} grid doesn't fit on this roof's usable area.`);
+      return;
+    }
+    setGridPlacementError(null);
     setRoofs((rs) => rs.map((r) => (r.id === roof.id ? { ...r, grids: [...r.grids, grid] } : r)));
     setSelectedGridKeys(new Set([gridKey(roof.id, grid.id)]));
     setGridTablePickerOpen(false);

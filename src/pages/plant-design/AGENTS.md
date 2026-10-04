@@ -661,6 +661,17 @@ thin shadow is ignored.
   their *column count* as `panelsPerRow`; `generateFixedGrid` now stores 1,
   and a legacy grid whose `panelsPerRow` equals its column count is read as
   1 unless that setting itself is being changed.
+  A placed grid still **respects the roof boundary the same way "Fill
+  roof" does**: `onRoofPanels` keeps only panels whose whole footprint is
+  inside the roof's usable area (outline inset by the panel margins,
+  per-edge overrides included), both when placed (`generateFixedGrid`) and
+  on every re-space. The full rows × cols layout is kept as `layoutPanels`
+  (with the visible ids it produced, `layoutVisibleIds`), so panels pushed
+  off the roof come back when they fit again. `reconcileLayoutPanels`
+  keeps that layout in step with edits: panels deleted since are dropped
+  from it, a grid move (uniform shift) moves it, and any panel it has never
+  seen (added row/column) makes the visible set the new layout. Placing a
+  grid that has no panel on the usable area shows an error instead.
 - `wholeRoof` / `drawn` re-pack their footprint with `generateLayout`,
   capped at the grid's intended size (`panelCap`, remembered with the count
   it produced as `panelCapCount`, so undoing a spacing change restores the

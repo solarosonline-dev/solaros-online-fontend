@@ -268,6 +268,71 @@ function packingParams({ roof, gridSettings = {} as any, panelSpec, location, di
   };
 }
 
+// Whether the axis-aligned rectangle [x0,x1]x[y0,y1] lies entirely inside a
+// simple polygon (convex or not): every corner inside, no polygon vertex
+// strictly inside the rectangle (a notch poking in), no edge crossing.
+function rectInsidePolygon(x0, y0, x1, y1, poly) {
+  const eps = 1e-9;
+  const corners = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  if (!corners.every((c) => pointInPolygon(c, poly))) return false;
+  if (poly.some((p) => p.x > x0 + eps && p.x < x1 - eps && p.y > y0 + eps && p.y < y1 - eps)) return false;
+  const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    for (let j = 0; j < 4; j++) {
+      const c = corners[j], d = corners[(j + 1) % 4];
+      const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
+      if (((d1 > eps && d2 < -eps) || (d1 < -eps && d2 > eps)) && ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps))) return false;
+    }
+  }
+  return true;
+}
+
+// The panels (rackX/rackY in `direction`'s frame, w x d footprints) that sit
+// wholly on the roof's usable area - its outline inset by the panel margins,
+// per-edge overrides included - the same boundary "Fill roof" packs within.
+// A placed grid keeps only these (see generateFixedGrid/respaceFixedGrid).
+function onRoofPanels(roof, panels, direction) {
+  const poly = getRoofPolygon(roof);
+  const margins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1);
+  const usable = insetPolygon(poly.map((p) => toSlopeLocal(p, direction)), margins);
+  if (!usable || usable.length < 3) return [];
+  return panels.filter((p) => rectInsidePolygon(p.rackX - p.w / 2, p.rackY - p.d / 2, p.rackX + p.w / 2, p.rackY + p.d / 2, usable));
+}
+
+// A placed grid's full layout (`layoutPanels`, off-roof panels included),
+// brought up to date with what the user did to its visible panels since it
+// was last laid out (`layoutVisibleIds`): panels deleted since are dropped
+// from it, and a move - every visible panel shifted by the same amount in
+// the grid's frame - shifts the whole layout with it. Panels the layout has
+// never seen (an added row/column) mean the visible set is the layout now.
+function reconcileLayoutPanels(grid, direction) {
+  const visible = grid.panels || [];
+  const layout = grid.layoutPanels;
+  if (!layout || !Array.isArray(grid.layoutVisibleIds)) return visible;
+  const byId = new Map<any, any>(layout.map((p) => [p.id, p]));
+  if (visible.some((p) => !byId.has(p.id))) return visible;
+  let dx = 0, dy = 0;
+  if (visible.length) {
+    const ref = byId.get(visible[0].id);
+    dx = visible[0].rackX - ref.rackX;
+    dy = visible[0].rackY - ref.rackY;
+    const uniform = visible.every((p) => {
+      const q = byId.get(p.id);
+      return Math.abs(p.rackX - q.rackX - dx) < 1e-6 && Math.abs(p.rackY - q.rackY - dy) < 1e-6;
+    });
+    if (!uniform) return visible;
+  }
+  const visibleIds = new Set(visible.map((p) => p.id));
+  const deleted = new Set(grid.layoutVisibleIds.filter((id) => !visibleIds.has(id)));
+  return layout.filter((p) => !deleted.has(p.id)).map((p) => {
+    if (!dx && !dy) return p;
+    const rackX = p.rackX + dx, rackY = p.rackY + dy;
+    const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
+    return { ...p, rackX, rackY, x: world.x, y: world.y };
+  });
+}
+
 // Re-spaces a grid placed by size (source 'preset', generateFixedGrid) for
 // new settings. Such a grid is defined by its panels - rows x columns the
 // user asked for, possibly since edited - not by an area, so a settings
@@ -284,7 +349,11 @@ export function respaceFixedGrid({ roof, grid, gridSettings, panelSpec, location
     panelsPerRow: P.panelsPerRow, clusterPitch: P.clusterPitch, orientation: P.orientation,
     panelTiltDeg: P.panelTiltDeg, rowSpacing: P.rowSpacing, structureStrategy: P.structureStrategy,
   };
-  const panels = grid.panels || [];
+  // Re-space the grid's full rows x cols layout (`layoutPanels` - panels
+  // that fell off the roof included), so widening spacing and narrowing it
+  // again brings them back - reconciled with any edits since (see
+  // reconcileLayoutPanels).
+  const panels = reconcileLayoutPanels(grid, direction);
   if (panels.length === 0) return { ...grid, ...settingsFields };
 
   const key = (y) => Math.round(y * 1e4);
@@ -299,22 +368,29 @@ export function respaceFixedGrid({ roof, grid, gridSettings, panelSpec, location
   const maxCol = Math.max(...panels.map(colOf));
   const newWidth = xOf(maxCol) + P.Wp;
   const newDepth = yOf(rowKeys.length - 1) + P.footprintDepth;
-  const old = gridLocalBounds(grid);
+  const old = gridLocalBounds({ panels });
   const cx = old ? (old.minX + old.maxX) / 2 : 0;
   const cy = old ? (old.minY + old.maxY) / 2 : 0;
   const x0 = cx - newWidth / 2 + P.Wp / 2;
   const y0 = cy - newDepth / 2 + P.footprintDepth / 2;
 
-  const next = panels.map((p) => {
+  const layout = panels.map((p) => {
     const rackX = x0 + xOf(colOf(p));
     const rackY = y0 + yOf(rowOf(p));
     const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
     return { ...p, rackX, rackY, x: world.x, y: world.y, w: P.Wp, d: P.footprintDepth };
   });
+  // Same roof boundary as "Fill roof": panels pushed past the roof's usable
+  // edge are left out (kept in layoutPanels for later).
+  const next = onRoofPanels(roof, layout, direction);
   return {
     ...grid,
     ...settingsFields,
     panels: next,
+    count: next.length,
+    capacityKW: (next.length * (panelSpec.wattage || 550)) / 1000,
+    layoutPanels: layout,
+    layoutVisibleIds: next.map((p) => p.id),
     footprintPolygon: footprintPolygonFromPanels(next, direction) ?? grid.footprintPolygon,
   };
 }
@@ -965,13 +1041,19 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
 
   const gridId = Date.now() + Math.floor(Math.random() * 1000);
   const wattPerPanel = panelSpec.wattage || 550;
-  const footprintPolygon = footprintPolygonFromPanels(panels, direction);
+  // Only the panels that land wholly on the roof's usable area (same
+  // boundary as "Fill roof"); the full rows x cols layout is kept as
+  // layoutPanels so re-spacing can bring the rest back if they fit later.
+  const onRoof = onRoofPanels(roof, panels, direction);
+  const footprintPolygon = footprintPolygonFromPanels(onRoof, direction) ?? footprintPolygonFromPanels(panels, direction);
 
   return {
     id: gridId,
-    panels,
-    count: panels.length,
-    capacityKW: (panels.length * wattPerPanel) / 1000,
+    panels: onRoof,
+    layoutPanels: panels,
+    layoutVisibleIds: onRoof.map((p) => p.id),
+    count: onRoof.length,
+    capacityKW: (onRoof.length * wattPerPanel) / 1000,
     footprintPolygon,
     // One panel row per rack: a placed grid's rows are separate rows, so
     // row spacing spreads them (this used to store `cols` here - the column
