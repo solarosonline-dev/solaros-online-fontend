@@ -185,14 +185,13 @@ export function computeAutoRowSpacing({ location, tilt, Ls }) {
 // on the roof itself (panelTiltDeg/rowSpacing/structureStrategy/
 // panelsPerRow) - each grid keeps its own copy once created, so a roof can
 // hold more than one independently configured grid.
-export function generateLayout({ roof, footprintPolygon, gridSettings = {} as any, panelSpec, obstacles, location }: any): any {
+// The per-grid packing parameters (orientation, tilt, facing, row pitch,
+// footprint depth, rack clustering) for `gridSettings` on `roof`, packed in
+// `direction`. Shared by generateLayout (packing a footprint) and
+// respaceFixedGrid (re-spacing a placed rows x cols grid) so both apply a
+// grid's settings identically.
+function packingParams({ roof, gridSettings = {} as any, panelSpec, location, direction }: any) {
   const { type } = roof;
-  // Both roof types pack in local "south-facing" space and get rotated
-  // into the roof's own azimuth (see packingAzimuth, and toSlopeLocal/
-  // toSlopeWorld in geometry.js) - a flat roof used to always face due
-  // south/north regardless of how the building sat, leaving rows skewed
-  // against a roof not aligned to the compass.
-  const direction = packingAzimuth(roof, location);
   // Row-to-row spacing is separate and unaffected by PANEL_GAP - the
   // shading-derived rowPitch for flat roofs, or the flush-mounted Ls for
   // pitched roofs.
@@ -215,14 +214,6 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   const Wp = orientation === 'landscape' ? panelSpec.height : panelSpec.width;
   const Ls = orientation === 'landscape' ? panelSpec.width : panelSpec.height;
 
-  const roofPolygon = getRoofPolygon(roof);
-  // Whole-roof grids (the default "Generate Layout" run) pack the roof's
-  // own polygon and inherit its per-edge margin overrides; a polygon-tool
-  // grid packs whatever footprint was drawn for it instead, with a single
-  // uniform margin (the roof's own edgeMargin default) since a drawn
-  // footprint has no edge indices of its own to hang per-edge overrides off.
-  const targetPolygon = footprintPolygon || roofPolygon;
-  const isWholeRoofFootprint = targetPolygon === roofPolygon;
   const panelTiltDeg = gridSettings.panelTiltDeg ?? null;
   // Pitched grids default to 0 (rows packed back to back, as flush panels
   // need no shading clearance); flat grids keep their 1.0 default. Either
@@ -270,6 +261,84 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   const extraRowClearance = rowPitch - footprintDepth;
   const clusterDepth = panelsPerRow * footprintDepth + (panelsPerRow - 1) * gap;
   const clusterPitch = clusterDepth + extraRowClearance;
+
+  return {
+    gap, panelsPerRow, orientation, Wp, Ls, panelTiltDeg, rowSpacing, structureStrategy,
+    tilt, azimuth, rowPitch, footprintDepth, extraRowClearance, clusterDepth, clusterPitch,
+  };
+}
+
+// Re-spaces a grid placed by size (source 'preset', generateFixedGrid) for
+// new settings. Such a grid is defined by its panels - rows x columns the
+// user asked for, possibly since edited - not by an area, so a settings
+// change keeps every panel (same row and column) and moves them to the new
+// row pitch / tilt depth / orientation width / rack clustering, growing or
+// shrinking around the grid's own center; its footprint follows. Packing it
+// into its old footprint with generateLayout (as before) dropped rows
+// whenever the new spacing no longer fit, so the panels were simply lost.
+export function respaceFixedGrid({ roof, grid, gridSettings, panelSpec, location }: any): any {
+  const direction = gridDirection(grid, roof);
+  const P = packingParams({ roof, gridSettings, panelSpec, location, direction });
+  const settingsFields = {
+    tilt: P.tilt, azimuth: P.azimuth, rowPitch: P.rowPitch, footprintDepth: P.footprintDepth,
+    panelsPerRow: P.panelsPerRow, clusterPitch: P.clusterPitch, orientation: P.orientation,
+    panelTiltDeg: P.panelTiltDeg, rowSpacing: P.rowSpacing, structureStrategy: P.structureStrategy,
+  };
+  const panels = grid.panels || [];
+  if (panels.length === 0) return { ...grid, ...settingsFields };
+
+  const key = (y) => Math.round(y * 1e4);
+  const rowKeys: number[] = [...new Set<number>(panels.map((p) => key(p.rackY)))].sort((a, b) => a - b);
+  const rowOf = (p) => rowKeys.indexOf(key(p.rackY));
+  const oldStep = (panels[0].w ?? P.Wp) + PANEL_GAP;
+  const minX = Math.min(...panels.map((p) => p.rackX));
+  const colOf = (p) => Math.round((p.rackX - minX) / oldStep);
+
+  const yOf = (i) => Math.floor(i / P.panelsPerRow) * P.clusterPitch + (i % P.panelsPerRow) * (P.footprintDepth + P.gap);
+  const xOf = (c) => c * (P.Wp + P.gap);
+  const maxCol = Math.max(...panels.map(colOf));
+  const newWidth = xOf(maxCol) + P.Wp;
+  const newDepth = yOf(rowKeys.length - 1) + P.footprintDepth;
+  const old = gridLocalBounds(grid);
+  const cx = old ? (old.minX + old.maxX) / 2 : 0;
+  const cy = old ? (old.minY + old.maxY) / 2 : 0;
+  const x0 = cx - newWidth / 2 + P.Wp / 2;
+  const y0 = cy - newDepth / 2 + P.footprintDepth / 2;
+
+  const next = panels.map((p) => {
+    const rackX = x0 + xOf(colOf(p));
+    const rackY = y0 + yOf(rowOf(p));
+    const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
+    return { ...p, rackX, rackY, x: world.x, y: world.y, w: P.Wp, d: P.footprintDepth };
+  });
+  return {
+    ...grid,
+    ...settingsFields,
+    panels: next,
+    footprintPolygon: footprintPolygonFromPanels(next, direction) ?? grid.footprintPolygon,
+  };
+}
+
+export function generateLayout({ roof, footprintPolygon, gridSettings = {} as any, panelSpec, obstacles, location }: any): any {
+  // Both roof types pack in local "south-facing" space and get rotated
+  // into the roof's own azimuth (see packingAzimuth, and toSlopeLocal/
+  // toSlopeWorld in geometry.js) - a flat roof used to always face due
+  // south/north regardless of how the building sat, leaving rows skewed
+  // against a roof not aligned to the compass.
+  const direction = packingAzimuth(roof, location);
+  const {
+    gap, panelsPerRow, orientation, Wp, panelTiltDeg, rowSpacing, structureStrategy,
+    tilt, azimuth, rowPitch, footprintDepth, extraRowClearance, clusterPitch,
+  } = packingParams({ roof, gridSettings, panelSpec, location, direction });
+
+  const roofPolygon = getRoofPolygon(roof);
+  // Whole-roof grids (the default "Generate Layout" run) pack the roof's
+  // own polygon and inherit its per-edge margin overrides; a polygon-tool
+  // grid packs whatever footprint was drawn for it instead, with a single
+  // uniform margin (the roof's own edgeMargin default) since a drawn
+  // footprint has no edge indices of its own to hang per-edge overrides off.
+  const targetPolygon = footprintPolygon || roofPolygon;
+  const isWholeRoofFootprint = targetPolygon === roofPolygon;
 
   // Inset the roof boundary by the edge setback, then fill it cluster by
   // cluster, each cluster being `panelsPerRow` panels deep with a scanline
@@ -904,7 +973,10 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
     count: panels.length,
     capacityKW: (panels.length * wattPerPanel) / 1000,
     footprintPolygon,
-    panelsPerRow: isFlushOnSlope(roof, slopeDirectionAzimuth(direction)) ? 1 : cols,
+    // One panel row per rack: a placed grid's rows are separate rows, so
+    // row spacing spreads them (this used to store `cols` here - the column
+    // count - grouping a 3 x 5 grid's rows into one 5-deep rack).
+    panelsPerRow: 1,
     orientation,
     panelTiltDeg: null,
     rowSpacing: null,

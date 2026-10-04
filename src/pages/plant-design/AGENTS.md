@@ -650,6 +650,23 @@ high canopy. Auto trees keep the old solid-from-the-base shadow, so designs
 whose trees were never adjusted produce identical output. The trunk's own
 thin shadow is ignored.
 
+## Changing a grid's settings: placed grids expand, area grids re-pack
+
+`updateGridSettings` (editor) handles the three grid sources differently:
+- `preset` (placed by rows × cols, `generateFixedGrid`) goes through
+  `respaceFixedGrid`: every panel keeps its row and column and moves to the
+  new row pitch / depth / orientation / clustering, growing or shrinking
+  around the grid's center. Re-packing it into its old footprint dropped
+  rows whenever the new spacing didn't fit. Placed grids used to store
+  their *column count* as `panelsPerRow`; `generateFixedGrid` now stores 1,
+  and a legacy grid whose `panelsPerRow` equals its column count is read as
+  1 unless that setting itself is being changed.
+- `wholeRoof` / `drawn` re-pack their footprint with `generateLayout`,
+  capped at the grid's intended size (`panelCap`, remembered with the count
+  it produced as `panelCapCount`, so undoing a spacing change restores the
+  panels; a count change from manual edits resets it).
+Both share `packingParams`, so a setting means the same thing either way.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

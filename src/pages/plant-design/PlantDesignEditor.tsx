@@ -20,6 +20,7 @@ import {
   OBSTACLE_PRESETS,
   generateLayout,
   generateFixedGrid,
+  respaceFixedGrid,
   getInstantShading,
   computeOutput,
   computeCost,
@@ -875,6 +876,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           maxPanels: cap?.maxPanels,
           maxRows: cap?.maxRows,
         };
+        // A grid placed by size keeps its panels and expands/contracts to the
+        // new settings instead of being re-packed into its old footprint (see
+        // respaceFixedGrid). Placed grids used to store their column count
+        // as panels-per-row; unless the user is changing it now, that legacy
+        // value is read as 1 so row spacing actually spreads the rows.
+        if (g.source === 'preset') {
+          const cols = new Set((g.panels || []).map((p: any) => Math.round(p.rackX * 1e3))).size;
+          const legacyPpr = patch.panelsPerRow === undefined && cols > 1 && g.panelsPerRow === cols;
+          const respaced = respaceFixedGrid({ roof, grid: g, gridSettings: { ...gridSettings, panelsPerRow: legacyPpr ? 1 : gridSettings.panelsPerRow }, panelSpec, location });
+          return { ...respaced, panelCap: undefined, panelCapCount: undefined };
+        }
         const next = generateLayout({ roof, footprintPolygon: g.footprintPolygon, gridSettings, panelSpec, obstacles, location });
         // `source` isn't set by generateLayout itself - carry it over so a
         // later "Generate Layout" run (see regenerateAllGrids) still finds
