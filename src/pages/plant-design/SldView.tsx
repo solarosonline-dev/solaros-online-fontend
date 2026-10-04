@@ -8,14 +8,19 @@
 // physical MPPT channel is labeled with the grid it belongs to whenever an
 // inverter isn't dedicated to a single grid.
 //
-// Printable: the "Print SLD" button below calls window.print(); the
-// @media print rule scoped to PRINT_ROOT_CLASS hides the rest of the app
-// (step bar, sidebars) and prints only this component, landscape, one page
-// wide - the standard trick for printing a single view out of an SPA that
-// has no per-page routes.
+// Downloadable: the "Download PDF" button below builds the same single-page
+// landscape PDF that "Attach PDF to Work Order" attaches (one shared
+// builder, designReportPdf.ts - vector diagram, compressed tables), so the
+// two can never drift apart. It used to call window.print() instead, which
+// gave a different, browser-dependent, often multi-page result. The
+// @media print rule scoped to PRINT_ROOT_CLASS is still here for a plain
+// Ctrl/Cmd+P on this page: it hides the rest of the app (step bar,
+// sidebars) and prints only this component.
 
 import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
+import { useRef, useState } from 'react';
 import { CollapsibleSection, SliderInput } from './PlantDesignControls.jsx';
+import { buildDesignReportPdf } from './designReportPdf';
 
 const PRINT_ROOT_CLASS = 'sld-print-root';
 
@@ -128,14 +133,7 @@ function PvModulePaths({ x, y, size }) {
   );
 }
 
-// "Save as PDF" in the print dialog has no API to set a filename directly -
-// every browser instead just slugifies whatever document.title happens to
-// be at the moment print() is called (that's also literally what the print
-// preview's own tab/window title shows). Swapping it in right before, then
-// restoring the app's real title once the dialog closes (`afterprint`
-// fires reliably in every major browser, print-cancelled included) is the
-// standard workaround - never left in place, so nothing else on screen
-// (tab title, browser history) is affected by it either.
+// Download filename (without extension): SolarOS-SLD-<project>-<date>.
 function buildPrintFilename(projectName) {
   const safeName = (projectName || 'Untitled project').trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-');
   const today = new Date();
@@ -164,15 +162,28 @@ export default function SldView({
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
   const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
 
-  function handlePrint() {
-    const previousTitle = document.title;
-    document.title = buildPrintFilename(projectName);
-    const restoreTitle = () => {
-      document.title = previousTitle;
-      window.removeEventListener('afterprint', restoreTitle);
-    };
-    window.addEventListener('afterprint', restoreTitle);
-    window.print();
+  const printRootRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownloadPdf() {
+    if (!printRootRef.current) return;
+    setDownloading(true);
+    try {
+      const blob = await buildDesignReportPdf({ viewContainer: null, sldContainer: printRootRef.current });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${buildPrintFilename(projectName)}.pdf`;
+      a.click();
+      // Revoked on the next tick, not immediately - some browsers haven't
+      // started reading the blob yet when click() returns.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      console.error(err);
+      alert('Could not generate the SLD PDF.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   const svgWidth = Math.max(1000, inverters.length * (COL_WIDTH + COL_GAP) + COL_GAP);
@@ -248,7 +259,7 @@ export default function SldView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', boxSizing: 'border-box' }}>
       {controls}
-      <div className={PRINT_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
+      <div ref={printRootRef} className={PRINT_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
       <style>{`
         @media print {
           @page { size: landscape; margin: 12mm; }
@@ -308,10 +319,11 @@ export default function SldView({
           </div>
           <button
             className="sld-no-print"
-            onClick={handlePrint}
-            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            onClick={handleDownloadPdf}
+            disabled={downloading || inverters.length === 0}
+            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: downloading || inverters.length === 0 ? 'default' : 'pointer', opacity: inverters.length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
           >
-            🖨 Print SLD
+            {downloading ? 'Generating PDF…' : '⬇ Download PDF'}
           </button>
         </div>
       </div>
