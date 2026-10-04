@@ -13,7 +13,7 @@ import type { PlantDesignData } from "./types";
 // knows nothing about HTTP - see types.ts's PlantDesignEditorProps.
 import { useSearchParams } from "react-router-dom";
 import { uploadWorkOrderDocument } from "../../api/workOrders";
-import { buildDesignReportPdf } from "./designReportPdf";
+import { buildDesignReportPdf, PDF_ROOT_CLASS } from "./designReportPdf";
 
 export default function PlantDesignEditorPage() {
   const { user } = useAuth();
@@ -80,10 +80,11 @@ export default function PlantDesignEditorPage() {
   async function handleGeneratePdf() {
     if (!linkedWorkOrderId) return;
     
-    // We expect the Editor to render the `.pde-capture-area` (the 2D/3D view) 
-    // and the `.sld-print-root` (the SLD layout)
+    // Captures whichever of these the editor is currently showing - the
+    // plan/3D view (`.pde-map-container`, design steps) and/or the SLD
+    // (PDF_ROOT_CLASS, SLD step) - see designReportPdf.ts.
     const viewContainer = document.querySelector(".pde-map-container") as HTMLElement;
-    const sldContainer = document.querySelector(".sld-print-root") as HTMLElement;
+    const sldContainer = document.querySelector(`.${PDF_ROOT_CLASS}`) as HTMLElement;
     
     if (!viewContainer && !sldContainer) {
        alert("Nothing to capture. Please ensure you have a design or SLD generated.");

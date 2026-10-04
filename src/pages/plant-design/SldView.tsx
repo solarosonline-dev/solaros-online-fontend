@@ -11,18 +11,16 @@
 // Downloadable: the "Download PDF" button below builds the same single-page
 // landscape PDF that "Attach PDF to Work Order" attaches (one shared
 // builder, designReportPdf.ts - vector diagram, compressed tables), so the
-// two can never drift apart. It used to call window.print() instead, which
-// gave a different, browser-dependent, often multi-page result. The
-// @media print rule scoped to PRINT_ROOT_CLASS is still here for a plain
-// Ctrl/Cmd+P on this page: it hides the rest of the app (step bar,
-// sidebars) and prints only this component.
+// two can never drift apart. It used to call window.print() with its own
+// @media print stylesheet instead, which gave a different,
+// browser-dependent, often multi-page result - both removed. PDF_ROOT_CLASS
+// marks the element the builder captures; PDF_HIDE_CLASS marks on-screen
+// controls inside it that the PDF leaves out.
 
 import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
 import { useRef, useState } from 'react';
 import { CollapsibleSection, SliderInput } from './PlantDesignControls.jsx';
-import { buildDesignReportPdf } from './designReportPdf';
-
-const PRINT_ROOT_CLASS = 'sld-print-root';
+import { buildDesignReportPdf, PDF_ROOT_CLASS, PDF_HIDE_CLASS } from './designReportPdf';
 
 // Compact throughout on purpose: an inverter used to be a large text-filled
 // box (~260x98) with every spec repeated per column, which - combined with
@@ -162,14 +160,14 @@ export default function SldView({
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
   const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
 
-  const printRootRef = useRef<HTMLDivElement>(null);
+  const pdfRootRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownloadPdf() {
-    if (!printRootRef.current) return;
+    if (!pdfRootRef.current) return;
     setDownloading(true);
     try {
-      const blob = await buildDesignReportPdf({ viewContainer: null, sldContainer: printRootRef.current });
+      const blob = await buildDesignReportPdf({ viewContainer: null, sldContainer: pdfRootRef.current });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -205,11 +203,9 @@ export default function SldView({
   // CollapsibleSection/SliderInput/pde-field-* pieces Step 2 uses (see
   // PlantDesignControls.jsx) so it looks and behaves identically rather
   // than reinventing a second style of input here. Sits above the
-  // printable SLD card itself (not inside it) - it's a live editor for
-  // this page, not part of the diagram/schedule being drawn, and never
-  // needs a sld-no-print escape hatch for that reason: it's outside
-  // .sld-print-root entirely, so the print stylesheet's "hide everything
-  // except .sld-print-root" rule already keeps it off the printed sheet.
+  // SLD card itself (not inside it) - it's a live editor for this page,
+  // not part of the diagram/schedule being drawn, so it sits outside
+  // PDF_ROOT_CLASS and never ends up in the PDF.
   // Collapsed by default (defaultOpen=false) - reviewing the diagram is
   // the common case, tweaking these is occasional. Only rendered when the
   // caller wired the onChange props up - keeps this component still usable
@@ -259,57 +255,7 @@ export default function SldView({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', boxSizing: 'border-box' }}>
       {controls}
-      <div ref={printRootRef} className={PRINT_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
-      <style>{`
-        @media print {
-          @page { size: landscape; margin: 12mm; }
-          /* .sld-print-root's own background is already white, but that
-             only covers the box it actually occupies - position:absolute
-             content that spans multiple pages doesn't necessarily paint
-             that background all the way to a later page's own edges, so
-             whatever the app's own page background is (behind body/html)
-             was showing through in the gap on a page where our content
-             ran shorter than a full page. Forcing the page background
-             itself white removes that regardless of where it was leaking
-             from. */
-          html, body { background: #fff !important; }
-          body * { visibility: hidden; }
-          .${PRINT_ROOT_CLASS}, .${PRINT_ROOT_CLASS} * { visibility: visible; }
-          .${PRINT_ROOT_CLASS} { position: absolute; inset: 0; height: auto !important; overflow: visible !important; border: none !important; padding: 0 !important; }
-          .${PRINT_ROOT_CLASS} .sld-no-print { display: none !important; }
-          .${PRINT_ROOT_CLASS} .sld-svg-scroll { overflow: visible !important; border: none !important; break-inside: avoid; page-break-inside: avoid; }
-          /* The svg's own minWidth (inline, see svgWidth) exists so it
-             never squeezes unreadably thin on screen - overflowX:auto on
-             sld-svg-scroll turns that into a scrollbar there instead of an
-             overflow. Print has no scrollbar to fall back on, and just
-             forced overflow:visible above (needed so the diagram isn't
-             clipped/hidden entirely) - left as min-width on a printed page
-             that's narrower than svgWidth, the diagram would spill straight
-             over the sidebar table beside it instead of scaling down to
-             fit. Printing is a one-shot fixed layout with no interaction
-             to preserve, so dropping the min-width here and letting the
-             viewBox scale the diagram down to whatever the column's own
-             width is (down to a legible floor) is the right trade, not a
-             workaround. */
-          .${PRINT_ROOT_CLASS} .sld-svg-scroll svg { min-width: 260px !important; width: 100% !important; }
-          /* The two "info section" rows below the diagram are flex
-             containers on screen (nice side-by-side columns), but print
-             pagination engines treat a flex/grid container as one
-             unbreakable block - when it doesn't fit the remaining page, the
-             *whole row* (every card in it) gets pushed together, and if
-             that row is itself taller than one page, each card's heading
-             ends up stranded at the bottom of one page while its table
-             lands alone on the next. Switching to plain block flow for
-             print lets each card size/place itself independently, and
-             sld-print-card's own break-inside:avoid keeps each card's own
-             heading+table glued together as one unit while still letting
-             different cards land on different pages freely. */
-          .${PRINT_ROOT_CLASS} .sld-print-row { display: block !important; }
-          .${PRINT_ROOT_CLASS} .sld-print-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 14px; }
-          .${PRINT_ROOT_CLASS} .sld-print-card:last-child { margin-bottom: 0; }
-        }
-      `}</style>
-
+      <div ref={pdfRootRef} className={PDF_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid #1c2b4a', paddingBottom: 6 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#1c2b4a' }}>SINGLE LINE DIAGRAM</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -318,7 +264,7 @@ export default function SldView({
             {gridConnection.sanctionedLoadKw !== '' && <><br />Sanctioned load: {gridConnection.sanctionedLoadKw} kW</>}
           </div>
           <button
-            className="sld-no-print"
+            className={PDF_HIDE_CLASS}
             onClick={handleDownloadPdf}
             disabled={downloading || inverters.length === 0}
             style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: downloading || inverters.length === 0 ? 'default' : 'pointer', opacity: inverters.length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
@@ -342,14 +288,10 @@ export default function SldView({
               in a narrow sidebar on the right - matches the reference
               drawing's own layout (specs sit in a side column beside the
               schematic rather than duplicated under every inverter column
-              or in a third full-width row below it). NOT wrapped in
-              sld-print-row/display:block for print, unlike the card groups
-              inside each column: this outer split is meant to stay
-              side-by-side even when printed - the schedule table competing
-              for the same page as the diagram (rather than sitting in its
-              own full-width row above both columns) is what actually lets
-              the whole thing land on one sheet for a typical site instead
-              of the schedule alone claiming a full page first. */}
+              or in a third full-width row below it). Keeping the schedule
+              table in the same column as the diagram (rather than its own
+              full-width row above both) is what keeps the whole thing
+              compact enough to fit the PDF's single page legibly. */}
           <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
             <div style={{ flex: '3 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 18 }}>
               {/* flexShrink:0 matters here, not just cosmetic: this is a flex
@@ -357,11 +299,7 @@ export default function SldView({
                   'visible' default gets computed as 'auto' on *both* axes per
                   the CSS overflow spec - a flex item with non-visible overflow
                   on both axes collapses to its automatic minimum size (0) with
-                  nothing else to constrain it, hiding the whole SVG on screen.
-                  Print worked despite this bug because the @media print rule
-                  above already forces overflow:visible, which sidesteps the
-                  collapse entirely - that's why "looks fine printed, blank on
-                  screen" was the exact symptom. */}
+                  nothing else to constrain it, hiding the whole SVG on screen. */}
               <div className="sld-svg-scroll" style={{ overflowX: 'auto', flexShrink: 0, border: '1px solid #e2e2e2', borderRadius: 8, background: '#fff' }}>
             {/* No width/height attributes - viewBox alone plus CSS width:100%
                 lets the diagram stretch to fill the available pane when
@@ -460,8 +398,8 @@ export default function SldView({
             </svg>
           </div>
 
-              <div className="sld-print-row" style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-                <div className="sld-print-card" style={{ flex: '1 1 320px', minWidth: 280 }}>
+              <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 320px', minWidth: 280 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>STRING SCHEDULE</div>
                   <div style={{ overflowX: 'auto', border: '1px solid #e2e2e2', borderRadius: 6 }}>
                     <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 10.5 }}>
@@ -489,7 +427,7 @@ export default function SldView({
                   </div>
                 </div>
 
-                <div className="sld-print-card" style={{ flex: '1 1 260px', minWidth: 240 }}>
+                <div style={{ flex: '1 1 260px', minWidth: 240 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>NOTES</div>
                   <ol style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 12px 8px 26px', margin: 0, fontSize: 10.5, color: '#333', lineHeight: 1.6 }}>
                     <li>Plant: {totalCapacityKW.toFixed(2)} kWp DC, {totalPanelCount}× {panelSpec.wattage}Wp modules, {inverters.reduce((s, inv) => s + inv.rows.reduce((s2, row) => s2 + row.lens.length, 0), 0)} strings.</li>
@@ -514,7 +452,7 @@ export default function SldView({
                 it lives here now as the sidebar's first card instead,
                 letting the diagram start right under the header. */}
             <div style={{ flex: '1 1 220px', maxWidth: 260, display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div className="sld-print-card" style={{ display: 'flex', gap: 0, fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', gap: 0, fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6, overflow: 'hidden' }}>
                 {[
                   ['Client', projectName || 'Untitled project'],
                   ['Date', new Date().toLocaleDateString('en-IN')],
@@ -527,7 +465,7 @@ export default function SldView({
                 ))}
               </div>
 
-              <div className="sld-print-card">
+              <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>MODULE — {panelSpec.model || `${panelSpec.wattage}W custom`}</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
                   <tbody>
@@ -547,7 +485,7 @@ export default function SldView({
                 </table>
               </div>
 
-              <div className="sld-print-card">
+              <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>INVERTER — {inverterChoice.model || `${inverterChoice.acPowerKw}kW custom`} (×{inverters.length})</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
                   <tbody>
@@ -577,7 +515,7 @@ export default function SldView({
                   PLANT DETAILS: the legend explains symbols used in the
                   diagram right above it, so it reads before the plant's own
                   summary numbers below. */}
-              <div className="sld-print-card">
+              <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>LEGEND</div>
                 <div style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10.5, color: '#333' }}>
                   {[
@@ -600,7 +538,7 @@ export default function SldView({
                 </div>
               </div>
 
-              <div className="sld-print-card">
+              <div>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>PLANT DETAILS</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
                   <tbody>

@@ -129,8 +129,17 @@ wizard), but `index.css` wasn't purely that.
   below for the algorithm and two gotchas worth reading before touching
   it).
 - `SldView.tsx` — renders `assignSiteToInverters`'s output as a single-line
-  diagram (SVG schematic + string/MPPT schedule table + plant details),
-  with print support (`window.print()` + a scoped `@media print` rule).
+  diagram (SVG schematic + string/MPPT schedule table + plant details).
+  Its "Download PDF" button and the editor page's "Attach PDF to Work
+  Order" both go through one builder, `designReportPdf.ts` (single
+  landscape A4 page: the diagram as vector via `svg2pdf.js`, the
+  surrounding HTML as a compressed `html2canvas` PNG) - don't add a second
+  PDF path (the old `window.print()` + `@media print` route was removed).
+- `designReportPdf.ts` — that shared PDF builder (plus the site-view page
+  for the attach flow). Two `svg2pdf.js` gotchas it already handles:
+  numeric font weights other than 700 fall back to Times (snapped to
+  bold/normal on a copy), and `html2canvas` clips one-line ellipsis cells
+  (they're allowed to wrap in the capture).
 - `types.ts` — the persistence-boundary types (`PlantDesignData`,
   `PlantDesignEditorProps`) — everything else in this module stays loosely
   typed (`any`) per the mechanical-port decision; this file is the one

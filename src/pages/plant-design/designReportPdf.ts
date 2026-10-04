@@ -20,6 +20,12 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 
+// SldView puts PDF_ROOT_CLASS on the element to capture (PlantDesignEditor-
+// Page's attach handler finds it by this class) and PDF_HIDE_CLASS on
+// on-screen-only controls inside it that the PDF leaves out.
+export const PDF_ROOT_CLASS = 'sld-pdf-root';
+export const PDF_HIDE_CLASS = 'sld-pdf-hide';
+
 const MARGIN_MM = 10;
 
 // Largest box with the given aspect ratio that fits the page inside the
@@ -42,8 +48,8 @@ async function addSiteViewPage(pdf: jsPDF, viewContainer: HTMLElement) {
 async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
   const liveSvg = sldContainer.querySelector('.sld-svg-scroll svg') as SVGSVGElement | null;
   // The diagram's position within the captured root, in CSS px - measured
-  // inside html2canvas's own cloned layout (after the print-like tweaks
-  // below), since that's the layout the captured image actually shows.
+  // inside html2canvas's own cloned layout (after the tweaks below), since
+  // that's the layout the captured image actually shows.
   let diagram: { x: number; y: number; w: number; h: number; rootW: number } | null = null;
 
   const canvas = await html2canvas(sldContainer, {
@@ -51,19 +57,19 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
     scale: 1.5,
     backgroundColor: '#ffffff',
     onclone: (doc, root) => {
-      // Same adjustments SldView's own @media print rules make: show the
-      // whole thing rather than the on-screen scroll viewport, drop the
-      // Print button, and let the diagram fit its column instead of
-      // overflowing it at its on-screen min-width.
+      // Show the whole thing rather than the on-screen scroll viewport,
+      // drop on-screen-only controls (the Download PDF button), and let the
+      // diagram fit its column instead of overflowing it at its on-screen
+      // min-width.
       root.style.height = 'auto';
       root.style.flex = 'none';
       root.style.overflow = 'visible';
-      root.querySelectorAll<HTMLElement>('.sld-no-print').forEach((el) => { el.style.display = 'none'; });
+      root.querySelectorAll<HTMLElement>(`.${PDF_HIDE_CLASS}`).forEach((el) => { el.style.display = 'none'; });
       // Single-line "…"-truncated cells (the Client/Date/Scale title
       // block): html2canvas draws text a couple of px lower than the
       // browser does, so overflow:hidden on a one-line box clipped the
       // bottom of every value. Let them wrap instead - there's no
-      // horizontal space pressure on a printed page anyway.
+      // horizontal space pressure in the PDF anyway.
       root.querySelectorAll<HTMLElement>('*').forEach((el) => {
         if (doc.defaultView?.getComputedStyle(el).textOverflow === 'ellipsis') {
           el.style.overflow = 'visible';
