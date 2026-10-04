@@ -190,6 +190,7 @@ export default function PlantDesignEditorPage() {
         onCaptureSiteImage={handleCaptureSiteImage}
         linkedWorkOrderId={linkedWorkOrderId}
         onAttachPdf={handleAttachPdf}
+        onRefreshSiteImages={savedId != null ? async () => (await getPlantDesign(entityId, savedId)).design_data.siteImages : undefined}
         reportContext={reportContext}
       />
       <ConfirmDialog

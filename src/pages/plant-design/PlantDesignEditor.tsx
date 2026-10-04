@@ -108,6 +108,25 @@ function mergeSavedSiteImages(prev, saved) {
   return changed ? next : prev;
 }
 
+// Swaps in freshly presigned URLs (onRefreshSiteImages) for site images that
+// are still the same saved S3 object (matching s3Key) - their old URL has
+// likely expired (presigned S3 GETs last 1 hour). Anything else is left
+// alone: an image with no s3Key is still the live Google URL (doesn't
+// expire), and one whose key differs was re-captured locally since the last
+// save, so the server's copy is the stale one.
+function refreshSiteImageUrls(prev, fresh) {
+  let changed = false;
+  const next = { ...prev };
+  for (const key of ['locationImage', 'locationImageWide']) {
+    const cur = prev?.[key], srv = fresh?.[key];
+    if (cur?.s3Key && srv?.s3Key === cur.s3Key && srv.url && srv.url !== cur.url) {
+      next[key] = { ...cur, url: srv.url };
+      changed = true;
+    }
+  }
+  return changed ? next : prev;
+}
+
 function toDateInputValue(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -392,7 +411,7 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext, onRefreshSiteImages }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   const isMobile = useIsMobile();
 
@@ -3596,6 +3615,26 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // 2D: SitePlanSvg drawn straight from the design data, with the satellite
   // backdrop inlined as a JPEG data URL - an external image href wouldn't
   // survive the PDF's vector export, and a JPEG keeps it small there.
+  // Saved site images are presigned S3 URLs that expire after an hour, and a
+  // texture that fails to load is silently dropped (MapGroundBoundary) - so a
+  // design left open a while, or reopened straight onto this step, rendered
+  // its 3D views with no satellite ground. Fresh URLs are fetched on every
+  // visit to the step, and the image loads below wait for that first.
+  const [reportImagesReady, setReportImagesReady] = useState(false);
+
+  useEffect(() => {
+    if (currentStep !== 8) return;
+    if (!onRefreshSiteImages) { setReportImagesReady(true); return; }
+    let cancelled = false;
+    setReportImagesReady(false);
+    onRefreshSiteImages()
+      .then((fresh) => { if (!cancelled) setSiteImages((prev) => refreshSiteImageUrls(prev, fresh)); })
+      .catch((err) => console.warn('Could not refresh site image links for the report', err))
+      .finally(() => { if (!cancelled) setReportImagesReady(true); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
   const [renders3D, setRenders3D] = useState<string[] | null>(null);
   const [renders3DFailed, setRenders3DFailed] = useState(false);
   const [reportBackdrop, setReportBackdrop] = useState<{ url: string; dataUrl: string } | null>(null);
@@ -3617,7 +3656,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   useEffect(() => {
     const url = siteImages.locationImage?.url;
-    if (currentStep !== 8 || !url || reportBackdrop?.url === url) return;
+    if (currentStep !== 8 || !reportImagesReady || !url || reportBackdrop?.url === url) return;
     let cancelled = false;
     (async () => {
       try {
@@ -3634,7 +3673,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       }
     })();
     return () => { cancelled = true; };
-  }, [currentStep, siteImages.locationImage?.url, reportBackdrop?.url]);
+  }, [currentStep, reportImagesReady, siteImages.locationImage?.url, reportBackdrop?.url]);
 
   const reportSitePlan: SitePlanData = useMemo(() => ({
     roofs: roofs.map((r, i) => ({ id: r.id, label: roofLabel(r, i), polygon: getRoofPolygon(r) })),
@@ -6629,7 +6668,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             )}
             {/* Off-screen Scene3D in capture mode - renders the report's
                 fixed-angle 3D views once, then unmounts (renders3D set). */}
-            {rendering3D && totalPanelCount > 0 && (
+            {rendering3D && totalPanelCount > 0 && reportImagesReady && (
               <div aria-hidden style={{ position: 'fixed', left: -10000, top: 0, width: 1200, height: 800, pointerEvents: 'none' }}>
                 <React.Suspense fallback={null}>
                   <Scene3D

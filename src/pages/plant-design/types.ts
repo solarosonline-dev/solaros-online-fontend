@@ -68,6 +68,11 @@ export interface PlantDesignEditorProps {
   // Customer-facing context the editor can't know itself (it has no HTTP
   // access): the entity's branding, and the client/site address from the
   // design's linked lead when there is one.
+  // Re-fetches the saved design's site images with freshly presigned URLs
+  // (the editor has no HTTP access). Called on entering the Design Report
+  // step so its images don't load from links that expired while the design
+  // sat open. Omitted for a design that hasn't been saved yet.
+  onRefreshSiteImages?: () => Promise<PlantDesignData['siteImages']>;
   reportContext?: {
     branding: ReportBranding;
     client: ReportClient | null;
