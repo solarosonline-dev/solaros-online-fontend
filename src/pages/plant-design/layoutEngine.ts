@@ -308,21 +308,15 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
         // own bounding box - a non-rectangular drawn obstacle (a triangle,
         // an L, ...) has a bounding box far bigger than its actual
         // footprint, which used to block every panel position in that
-        // whole box, not just the ones the shape itself actually covers -
-        // visibly wasting real, obstacle-free roof space around anything
-        // but a rectangle. `margin` samples a small cross of points around
-        // the candidate position instead of the position alone, as a
-        // stand-in for a true 0.3m-clearance/Minkowski-expanded polygon
-        // test (matching the flat 0.3m the box/cylinder branches already
-        // add to their own half-dimensions).
+        // whole box, not just the ones the shape itself actually covers.
+        // Tested against the panel's whole footprint: this used to sample
+        // only a 0.3m cross around the panel's *center*, so a skylight or
+        // walkway under a panel's edge or corner went unnoticed and the
+        // panel (and its mounting structure) was packed right over it -
+        // which rows landed where shifted with panels-per-row, tilt, row
+        // spacing, so it came and went with those settings.
         const localPoly = o.polygon.map((p) => toSlopeLocal(p, direction));
-        const margin = 0.3;
-        const samplePoints = [
-          { x, y: rowY },
-          { x: x - margin, y: rowY }, { x: x + margin, y: rowY },
-          { x, y: rowY - margin }, { x, y: rowY + margin },
-        ];
-        return samplePoints.some((pt) => pointInPolygon(pt, localPoly));
+        return rectOverlapsPolygon(x - Wp / 2, rowY - footprintDepth / 2, x + Wp / 2, rowY + footprintDepth / 2, localPoly);
       }
       return Math.hypot(x - op.x, rowY - op.y) < (o.radius || 0.5) + 0.3;
     });
@@ -1202,7 +1196,7 @@ const PANEL_PLANE_OFFSET = CHORD_THICKNESS / 2 + PURLIN_THICKNESS + PANEL_THICKN
 // that remain. Heights still come from the whole rack's plane - only the
 // extent of the supports changes. A run where every row is present (the
 // usual case, and any one-row rack) comes back as one piece, unchanged.
-function splitRunByRowCoverage(segPanels, footprintDepth) {
+function splitRunByRowCoverage(segPanels, footprintDepth, rackYs) {
   const left = (p) => p.rackX - p.w / 2;
   const right = (p) => p.rackX + p.w / 2;
   const edges: number[] = [...new Set<number>(segPanels.flatMap((p) => [left(p), right(p)]))].sort((a, b) => a - b);
@@ -1220,11 +1214,50 @@ function splitRunByRowCoverage(segPanels, footprintDepth) {
     if (prev && prev.xEnd - prev.xStart < MIN_PIECE) { Object.assign(prev, { xEnd: b, rowYs, key }); continue; }
     pieces.push({ xStart: a, xEnd: b, rowYs, key });
   }
-  return pieces.map(({ xStart, xEnd, rowYs }) => ({
-    xStart, xEnd, rowYs,
-    top: rowYs[0] - footprintDepth / 2,
-    depth: rowYs[rowYs.length - 1] - rowYs[0] + footprintDepth,
-  }));
+  return pieces.flatMap(({ xStart, xEnd, rowYs }) => contiguousRowGroups(rowYs, rackYs).map((group) => ({
+    xStart, xEnd, rowYs: group,
+    top: group[0] - footprintDepth / 2,
+    depth: group[group.length - 1] - group[0] + footprintDepth,
+  })));
+}
+
+// Splits `rowYs` (a subset of a rack's sorted `rackYs`) into runs of
+// consecutive rack rows - a rack missing a middle row (an obstacle in just
+// that row) is two runs, each needing its own support, never one chord
+// spanning straight over the gap.
+function contiguousRowGroups(rowYs, rackYs) {
+  const idx = rowYs.map((y) => rackYs.indexOf(y)).sort((a, b) => a - b);
+  let groups: number[][] = [];
+  idx.forEach((i) => {
+    const last = groups[groups.length - 1];
+    if (last && i === last[last.length - 1] + 1) last.push(i);
+    else groups.push([i]);
+  });
+  return groups.map((g) => g.map((i) => rackYs[i]));
+}
+
+// Whether the axis-aligned rectangle [x0,x1]x[y0,y1] and a simple polygon
+// (convex or not) share any area: a rectangle corner inside the polygon, a
+// polygon vertex inside the rectangle, or an edge of one crossing an edge
+// of the other. Touching along an edge doesn't count.
+function rectOverlapsPolygon(x0, y0, x1, y1, poly) {
+  const eps = 1e-9;
+  if (!poly || poly.length < 3) return false;
+  const corners = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  if (corners.some((c) => pointInPolygon(c, poly))) return true;
+  if (poly.some((p) => p.x > x0 + eps && p.x < x1 - eps && p.y > y0 + eps && p.y < y1 - eps)) return true;
+  const cross = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const properCross = (a, b, c, d) => {
+    const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
+    return ((d1 > eps && d2 < -eps) || (d1 < -eps && d2 > eps)) && ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps));
+  };
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    for (let j = 0; j < 4; j++) {
+      if (properCross(a, b, corners[j], corners[(j + 1) % 4])) return true;
+    }
+  }
+  return false;
 }
 
 function* iterateRacks(layout) {
@@ -1274,7 +1307,7 @@ function* iterateRacks(layout) {
     }
     runs.push(current);
 
-    const xSegments = runs.flatMap((segPanels) => splitRunByRowCoverage(segPanels, footprintDepth));
+    const xSegments = runs.flatMap((segPanels) => splitRunByRowCoverage(segPanels, footprintDepth, rackYs));
 
     yield { rackYs, rackTop, rackDepth, xSegments, rowMap };
   }
@@ -1720,15 +1753,18 @@ function* iterateSteppedRackBays(layout) {
     const colMap = new Map();
     rackYs.forEach((y) => {
       (rowMap.get(y) || []).forEach((p) => {
-        const c = colMap.get(p.rackX) || { minY: y, maxY: y, w: p.w };
-        c.minY = Math.min(c.minY, y);
-        c.maxY = Math.max(c.maxY, y);
+        const c = colMap.get(p.rackX) || { ys: [], w: p.w };
+        c.ys.push(y);
         colMap.set(p.rackX, c);
       });
     });
+    // A column missing a middle row (an obstacle - typically a skylight -
+    // in just that row) becomes one entry per unbroken run of rows, so no
+    // chord spans across the gap; each entry then bays with its neighbours
+    // of the same extent, keyed by extent first (two entries share a rackX).
     const columns = [...colMap.entries()]
-      .map(([rackX, c]) => ({ rackX, ...c }))
-      .sort((a, b) => a.rackX - b.rackX);
+      .flatMap(([rackX, c]) => contiguousRowGroups(c.ys, rackYs).map((g) => ({ rackX, w: c.w, minY: g[0], maxY: g[g.length - 1] })))
+      .sort((a, b) => (a.minY - b.minY) || (a.maxY - b.maxY) || (a.rackX - b.rackX));
     if (columns.length === 0) continue;
 
     // A new bay starts at a physical x-gap (an obstacle, a roof notch -

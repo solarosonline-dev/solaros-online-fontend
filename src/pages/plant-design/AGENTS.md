@@ -578,6 +578,18 @@ set of rows with a panel changes; each segment carries its own
 purlins from those (heights still from the whole rack's plane, so panels
 don't move). A run with every row present is one segment, unchanged. A
 walkway usually crosses every row, which already split the run.
+Rows missing from the *middle* (front + back present, an obstacle in
+between) are separate segments via `contiguousRowGroups` - never one chord
+bridging the gap; `iterateSteppedRackBays` does the same per column (one
+entry per unbroken run of rows, bays grouped by extent then position).
+
+The other half of "structure on the skylight": `generateLayout`'s
+`isBlockedAt` for drawn (polygon) obstacles used to sample only a 0.3m cross
+around the panel's *center*, so a skylight/walkway under a panel's edge or
+corner wasn't seen and the panel was packed on top of it - coming and going
+as panels-per-row/tilt/spacing shifted the rows. It now tests the panel's
+whole footprint against the real polygon (`rectOverlapsPolygon`, concave
+shapes included). Box/cylinder obstacles keep their center-distance test.
 
 ## Cutouts in 3D
 
