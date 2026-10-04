@@ -425,6 +425,24 @@ export function DrawAreaIcon({ size = 18, className }: IconProps) {
   );
 }
 
+// The grid rail's Add panels toggle: three panels of a 2x2 grid with the
+// fourth slot a filled "+" badge, so it reads as "add panels to this grid"
+// rather than a generic plus. The badge's "+" is knocked out in
+// --pde-icon-knockout (white by default; the active, filled-green button
+// flips it to green - see .pde-add in PlantDesignEditor.css).
+export function AddPanelsIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <rect {...base} x="2.5" y="2.5" width="8.5" height="8.5" rx="1" />
+      <rect {...base} x="13" y="2.5" width="8.5" height="8.5" rx="1" />
+      <rect {...base} x="2.5" y="13" width="8.5" height="8.5" rx="1" />
+      <circle cx="17.25" cy="17.25" r="5.25" fill="currentColor" />
+      <line x1="17.25" y1="14.5" x2="17.25" y2="20" stroke="var(--pde-icon-knockout, #fff)" strokeWidth="1.9" strokeLinecap="round" />
+      <line x1="14.5" y1="17.25" x2="20" y2="17.25" stroke="var(--pde-icon-knockout, #fff)" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function AddRowIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>

@@ -10,7 +10,7 @@ import { fetchMonthlyGHI, fetchDesignTemperatureRange } from './irradiance.js';
 import {
   OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
-  CloseIcon, PlusIcon, TrashIcon, RulerIcon, MirrorIcon,
+  CloseIcon, PlusIcon, AddPanelsIcon, TrashIcon, RulerIcon, MirrorIcon,
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
   SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon, RotateIcon,
@@ -38,7 +38,7 @@ import {
   previewGridAdd,
   gridAddCandidates,
   gridAddRun,
-  gridAddBlock,
+  gridAddBlock, growAddSlotExt, ADD_SLOT_LOOKAHEAD,
   gridPanelFitsRoof,
   appendGridPanels,
   gridRackToWorld,
@@ -772,7 +772,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const [addDrag, setAddDrag] = useState<any>(null); // { roofId, gridId, side, count } | null
   const [hoveredAddHandle, setHoveredAddHandle] = useState<any>(null); // 'front' | 'back' | 'left' | 'right' | null
   const addDragRef = useRef<any>(null);
-  const [addPanelsMode, setAddPanelsMode] = useState<any>(null); // { roofId, gridId } | null
+  // `ext`: how far the free slots reach past the grid per side
+  // (gridAddCandidates) - grows ahead of the pointer (growAddSlotExt).
+  const [addPanelsMode, setAddPanelsMode] = useState<any>(null); // { roofId, gridId, ext: { left, right, front, back } } | null
   // Add -> Panels: the slot under the pointer - the run from the grid out to
   // it (gridAddRun) is highlighted and added on click.
   const [hoveredSlotKey, setHoveredSlotKey] = useState<string | null>(null);
@@ -920,8 +922,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // ---- Adding to a grid ("+" handles, Add -> Panels) ----
   // The panels from `added` (rack coords of `grid`) that can really go in:
-  // wholly on the roof's usable area (gridPanelFitsRoof - the same rule as
-  // Fill roof and placed grids) and clear of obstacles, both checked where
+  // mostly on the roof's usable area (gridPanelFitsRoof - up to 70% of a
+  // panel may overhang its edge) and clear of obstacles, both checked where
   // the panel really is (grid rotation included). Force-adding regardless,
   // as add row/column used to, put panels off the roof or into obstacles.
   function fittingAdditions(roof, grid, added) {
@@ -1003,7 +1005,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function startAddPanels(roofId, gridId) {
     cancelActiveModes();
     setRightPanelOpenGroup(null);
-    setAddPanelsMode({ roofId, gridId });
+    setAddPanelsMode({ roofId, gridId, ext: { left: ADD_SLOT_LOOKAHEAD, right: ADD_SLOT_LOOKAHEAD, front: ADD_SLOT_LOOKAHEAD, back: ADD_SLOT_LOOKAHEAD } });
     setHoveredSlotKey(null);
   }
   function exitAddPanels() {
@@ -1980,10 +1982,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const roof = roofs.find((r) => r.id === addPanelsMode.roofId);
     const grid = findGrid(addPanelsMode.roofId, addPanelsMode.gridId);
     if (!roof || !grid) return none;
-    const cands = fittingAdditions(roof, grid, gridAddCandidates(grid, roof));
+    const cands = fittingAdditions(roof, grid, gridAddCandidates(grid, roof, addPanelsMode.ext));
     return { cands, slots: cands.map((c) => ({ key: c.key, corners: panelCornersWorld(roof, grid, c) })) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addPanelsMode, roofs, obstacles]);
+
+  // Grow the slots ahead of the pointer: hovering (or dragging a block onto)
+  // a slot near the edge of what's shown adds more on that side, so there
+  // are always ADD_SLOT_LOOKAHEAD more past it wherever the roof allows -
+  // slots that don't fit (gridPanelFitsRoof) are filtered out, which is
+  // what stops the growth at the roof's edge.
+  useEffect(() => {
+    if (!addPanelsMode) return;
+    const key = slotDrag?.cur ?? hoveredSlotKey;
+    const slot = key ? addPanelSlots.cands.find((c) => c.key === key) : null;
+    const ext = growAddSlotExt(addPanelsMode.ext, slot);
+    if (ext !== addPanelsMode.ext) setAddPanelsMode((m) => (m ? { ...m, ext } : m));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoveredSlotKey, slotDrag, addPanelSlots]);
 
   // What a click/release would add, highlighted in both views: the block
   // being dragged out, else the hovered slot's run.
@@ -6647,10 +6663,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <button
                         data-tooltip={addPanelsMode ? 'Adding panels - hover a slot, click to add (drag for a block). Click to stop' : 'Add panels'}
                         aria-label="Add panels" aria-pressed={!!addPanelsMode}
-                        className={iconBtn(!!addPanelsMode)}
+                        className={`${iconBtn(!!addPanelsMode)} pde-add`}
                         onClick={() => (addPanelsMode ? exitAddPanels() : startAddPanels(gridOwnerRoof.id, selectedGrid.id))}
                       >
-                        <PlusIcon />
+                        <AddPanelsIcon size={22} />
                       </button>
 
                       <div style={{ position: 'relative' }}>

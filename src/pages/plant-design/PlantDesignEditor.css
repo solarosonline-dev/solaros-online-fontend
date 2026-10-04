@@ -270,6 +270,33 @@
   box-shadow: 0 4px 10px rgba(220, 38, 38, 0.18);
 }
 
+/* Add panels (grid rail) - green, the plan's "will be added" ghost
+   color, so the one constructive grid action stands out from the neutral
+   settings buttons around it. Active (slot mode on) fills solid green with
+   a white icon, so it's obvious at a glance that the mode is running; the
+   icon's "+" badge knocks out to green there (--pde-icon-knockout). */
+.plant-design-editor .pde-icon-btn.pde-add {
+  color: #16a34a;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.plant-design-editor .pde-icon-btn.pde-add:hover:not(:disabled) {
+  border-color: #16a34a;
+  background: #dcfce7;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.22);
+}
+.plant-design-editor .pde-icon-btn.pde-add.pde-active {
+  color: #fff;
+  background: #16a34a;
+  border-color: #15803d;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+  --pde-icon-knockout: #16a34a;
+}
+.plant-design-editor .pde-icon-btn.pde-add.pde-active:hover:not(:disabled) {
+  background: #15803d;
+  --pde-icon-knockout: #15803d;
+}
+
 /* "Continue to next step" - a filled, higher-contrast variant of the same
    icon button rather than the usual outlined one, since it's the wizard's
    one primary action per step. Grey/disabled still comes from the real

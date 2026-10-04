@@ -686,18 +686,31 @@ middle of each side, in both views (`gridSideHandles` in the editor,
 (left/right), drag outward adds as many as the drag covers - live ghosts
 (green = added, red = skipped) and a count label, applied on release.
 Rows/columns come from `previewGridAdd` (`addGridRow`/`addGridColumn`
-repeated), and only panels that pass `fittingAdditions` - wholly on the
-roof's usable area (`gridPanelFitsRoof`, rotation-aware) and clear of
-obstacles - are added (old add row/column force-added). The drag count is
+repeated), and only panels that pass `fittingAdditions` - at least 30%
+on the roof's usable area (`gridPanelFitsRoof`, rotation-aware; up to
+`ADD_PANEL_MAX_OUTSIDE` = 70% may overhang, measured by clipping the usable
+polygon to the panel rect) and clear of obstacles - are added (old add
+row/column force-added). This overhang allowance is deliberately looser
+than Fill roof / placed grids (`onRoofPanels`, wholly inside), so a later
+respace of the grid (`respaceFixedGrid`, e.g. a tilt/spacing change) drops
+overhanging added panels again. The drag count is
 the pointer's projection onto one step in screen px; in 3D the step is
 projected through the camera on pointer-down, so one editor code path
 (`startAddDrag` + a document pointer listener) serves both. Handles share
 one size, scaled to the smaller on-screen row/column step (capped), so
 they don't dwarf a zoomed-out grid; hover shows "Add row"/"Add column".
-The rail's "+" button toggles **Add → Panels** directly (no popover;
+The rail's Add panels button (`AddPanelsIcon` - three panels plus a "+"
+badge slot - styled green via `.pde-add`, solid green while the mode is on)
+toggles **Add → Panels** directly (no popover;
 opening another rail popover or Esc exits): free slots around the grid
-(`gridAddCandidates` - row ends, holes, up to 3 new rows front/back -
-filtered by `fittingAdditions`). Hovering a slot highlights its run from
+(`gridAddCandidates` - row ends, holes, new rows front/back - filtered by
+`fittingAdditions`). How far the slots reach is per side
+(`addPanelsMode.ext`, starting at 3) and grows ahead of the pointer: each
+slot carries `out` (how far past the grid it is per side), and hovering or
+block-dragging onto one grows that side so `ADD_SLOT_LOOKAHEAD` (3) more
+show beyond it (`growAddSlotExt`) - so it's obvious you can keep going.
+Nothing caps the growth explicitly; slots that fail the 70% fit rule are
+filtered out, which is what stops it at the roof's edge. Hovering a slot highlights its run from
 the grid (`gridAddRun`) and a click adds it; on the 2D plan, press and drag
 across slots to add the rectangle between them (`gridAddBlock`), with the
 end slot's trailing click skipped. 3D supports hover/click runs only

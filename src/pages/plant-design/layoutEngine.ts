@@ -1190,17 +1190,57 @@ export function addGridColumn(grid, roof, side) {
 // the 2D plan and the 3D view; the editor owns the interaction.
 // ============================================================
 
-// Whether a panel (rack coords of `grid`) sits wholly on the roof's usable
-// area - the same boundary "Fill roof" and placed grids use (outline inset
-// by the panel margins, per-edge overrides included) - measured where the
-// panel really is, grid rotation included (gridWorldToRack).
+// How much of an added panel may hang past the roof's usable area and still
+// be added - the "+" handles and Add -> Panels let a panel overhang the
+// edge a little (up to 70% of its area off), unlike Fill roof / placed
+// grids, which keep panels wholly inside.
+export const ADD_PANEL_MAX_OUTSIDE = 0.7;
+
+// Area of the part of polygon `poly` inside the axis-aligned rectangle
+// [x0,x1]x[y0,y1] - Sutherland-Hodgman clipping against the rectangle's
+// four (convex) edges, which is exact for a non-convex `poly` too.
+function polygonAreaInRect(poly, x0, y0, x1, y1) {
+  const clip = (pts, inside, cut) => {
+    const out: any[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const ina = inside(a), inb = inside(b);
+      if (ina) out.push(a);
+      if (ina !== inb) out.push(cut(a, b));
+    }
+    return out;
+  };
+  const atX = (x) => (a, b) => ({ x, y: a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x) });
+  const atY = (y) => (a, b) => ({ x: a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y), y });
+  let pts = poly;
+  pts = clip(pts, (p) => p.x >= x0, atX(x0));
+  if (pts.length) pts = clip(pts, (p) => p.x <= x1, atX(x1));
+  if (pts.length) pts = clip(pts, (p) => p.y >= y0, atY(y0));
+  if (pts.length) pts = clip(pts, (p) => p.y <= y1, atY(y1));
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    area += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(area) / 2;
+}
+
+// Whether a panel (rack coords of `grid`) may be added: at most
+// ADD_PANEL_MAX_OUTSIDE of its area off the roof's usable area - the same
+// boundary "Fill roof" and placed grids use (outline inset by the panel
+// margins, per-edge overrides included) - measured where the panel really
+// is, grid rotation included (gridWorldToRack).
 export function gridPanelFitsRoof(roof, grid) {
   const toRack = gridWorldToRack(grid, roof);
   const poly = getRoofPolygon(roof);
   const margins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1);
   const usable = insetPolygon(poly.map(toRack), margins);
-  return (p) => !!usable && usable.length >= 3
-    && rectInsidePolygon(p.rackX - p.w / 2, p.rackY - p.d / 2, p.rackX + p.w / 2, p.rackY + p.d / 2, usable);
+  return (p) => {
+    if (!usable || usable.length < 3) return false;
+    const x0 = p.rackX - p.w / 2, y0 = p.rackY - p.d / 2, x1 = p.rackX + p.w / 2, y1 = p.rackY + p.d / 2;
+    if (rectInsidePolygon(x0, y0, x1, y1, usable)) return true;
+    return polygonAreaInRect(usable, x0, y0, x1, y1) >= (1 - ADD_PANEL_MAX_OUTSIDE) * p.w * p.d - 1e-9;
+  };
 }
 
 // The panels `count` more rows (side front/back) or columns (left/right)
@@ -1219,11 +1259,17 @@ export function previewGridAdd(grid, roof, side, count) {
 // Free slots next to a grid for Add -> Panels: up to `ext` positions past
 // each row's ends, holes inside a row (a deleted panel), and up to `ext`
 // new rows in front and behind (on the front/back row's columns, also
-// extended by `ext`). Positions follow each row's own column step, and the new rows'
-// spacing comes from addGridRow itself. Slots already holding a panel are
-// skipped; roof/obstacle fit is the caller's call (see gridPanelFitsRoof).
-export function gridAddCandidates(grid, roof, ext = 3) {
+// extended by `ext`). `ext` is one number for every side or a per-side
+// { left, right, front, back } - the editor grows a side as the pointer
+// nears its edge (ADD_SLOT_LOOKAHEAD). Positions follow each row's own
+// column step, and the new rows' spacing comes from addGridRow itself.
+// Each slot carries `out` - how far past the grid it is on each side
+// (columns past its row's end, or which new row in front/behind, 0 if not
+// past that side). Slots already holding a panel are skipped; roof/obstacle
+// fit is the caller's call (see gridPanelFitsRoof).
+export function gridAddCandidates(grid, roof, ext: any = 3) {
   if (!grid.panels.length) return [];
+  const e = typeof ext === 'number' ? { left: ext, right: ext, front: ext, back: ext } : ext;
   const direction = gridDirection(grid, roof);
   const w = grid.panels[0].w, d = grid.footprintDepth ?? grid.panels[0].d;
   const step = w + PANEL_GAP;
@@ -1234,33 +1280,53 @@ export function gridAddCandidates(grid, roof, ext = 3) {
     rows.get(k).xs.push(p.rackX);
   });
   const out = new Map();
-  const add = (rackX, rackY) => {
+  const add = (rackX, rackY, slotOut) => {
     const key = `${Math.round(rackX * 100)}|${Math.round(rackY * 100)}`;
     if (out.has(key)) return;
     const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
-    out.set(key, { key, rackX, rackY, x: world.x, y: world.y, w, d });
+    out.set(key, { key, rackX, rackY, x: world.x, y: world.y, w, d, out: slotOut });
   };
-  const rowSlots = (xs, y, includeRow) => {
+  const rowSlots = (xs, y, includeRow, rowOut) => {
     const sorted = [...xs].sort((a, b) => a - b);
     const x0 = sorted[0], x1 = sorted[sorted.length - 1];
     const n = Math.round((x1 - x0) / step);
-    for (let k = -ext; k <= n + ext; k++) {
+    for (let k = -e.left; k <= n + e.right; k++) {
       const x = x0 + k * step;
       const occupied = includeRow && sorted.some((sx) => Math.abs(sx - x) < step * 0.3);
-      if (!occupied) add(x, y);
+      if (!occupied) add(x, y, { left: Math.max(0, -k), right: Math.max(0, k - n), front: 0, back: 0, ...rowOut });
     }
   };
-  rows.forEach(({ y, xs }) => rowSlots(xs, y, true));
+  rows.forEach(({ y, xs }) => rowSlots(xs, y, true, null));
   ['front', 'back'].forEach((side) => {
     const byRow = new Map();
-    previewGridAdd(grid, roof, side, ext).forEach((p) => {
+    previewGridAdd(grid, roof, side, e[side]).forEach((p) => {
       const k = Math.round(p.rackY * 1e4);
       if (!byRow.has(k)) byRow.set(k, { y: p.rackY, xs: [] });
       byRow.get(k).xs.push(p.rackX);
     });
-    byRow.forEach(({ y, xs }) => rowSlots(xs, y, false));
+    // Nearest the grid first, so the row index is how many rows out it is.
+    const ordered = [...byRow.values()].sort((a, b) => (side === 'front' ? b.y - a.y : a.y - b.y));
+    ordered.forEach(({ y, xs }, i) => rowSlots(xs, y, false, { [side]: i + 1 }));
   });
   return [...out.values()];
+}
+
+// How many slots Add -> Panels keeps showing past the slot under the
+// pointer on each side - so the ghost grows ahead of the pointer and it's
+// obvious there's more room (where the roof allows) before reaching its edge.
+export const ADD_SLOT_LOOKAHEAD = 3;
+
+// `ext` (per side, see gridAddCandidates) grown so at least
+// ADD_SLOT_LOOKAHEAD slots stay past `slot` on every side it's out on.
+// Returns the same object when nothing needs to grow.
+export function growAddSlotExt(ext, slot) {
+  if (!slot?.out) return ext;
+  let next = ext;
+  (['left', 'right', 'front', 'back'] as const).forEach((side) => {
+    const want = slot.out[side] + ADD_SLOT_LOOKAHEAD;
+    if (slot.out[side] > 0 && want > next[side]) next = { ...next, [side]: want };
+  });
+  return next;
 }
 
 // Every free slot (in `candidates`) inside the rectangle spanned by slots
