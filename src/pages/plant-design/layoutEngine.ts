@@ -1334,57 +1334,100 @@ function placeLegs(onRoof, x, legYs, yMin, yMax) {
 // Where a rack's pillar lines (one chord each) go, shared by every piece
 // of it. `pieces` are the rack's structure pieces - x-ranges with the rows
 // they carry (splitRunByRowCoverage segments, or the stepped strategy's
-// bays). Lines are laid out once per continuous run of pieces at the usual
-// spacing (end margin, at most PILLAR_SPACING apart) and each piece takes
-// the ones inside it. Giving every piece its own end-inset lines instead
-// put two chords a hand's width apart at every boundary between pieces -
-// cluttered and wasteful around a skylight, or on a stepped/tapering rack.
-// A piece only gets an extra line near an end where some of its rows
-// actually stop (no neighbouring piece carries them on) and no line is
-// already within END_SUPPORT_REACH of it, plus one in its middle if no line
-// falls inside it at all. Returns one sorted x-list per piece. A rack with
-// a single piece per run gets exactly the old uniform layout.
-const END_SUPPORT_REACH = 1.0;
+// bays). Returns one sorted x-list per piece: the lines falling in it.
+//
+// Lines are laid out once per continuous run of pieces at the usual spacing
+// (end margin, at most PILLAR_SPACING apart). Then every row's own ends
+// must have support: a line under that row within END_SUPPORT_REACH of the
+// end (inset by the usual end margin). Ends no line reaches yet get new
+// lines by interval stabbing - sorted by window end, each new line placed
+// as far in as its window allows, so one line serves several staggered
+// row ends (a diagonal walkway or tapering edge ends each row about a panel
+// further along). Placing support per *piece* end instead - every piece its
+// own end lines - put chords a hand's width apart all along such staircases.
+// A run where every row spans the whole run gets exactly the old uniform
+// layout (its row ends are already covered by the run's end lines).
+const END_SUPPORT_REACH = 1.6;
+const MIN_LINE_GAP = 1.0;
 function supportLinesForPieces(pieces) {
-  const order = pieces.map((_, i) => i).sort((a, b) => pieces[a].xStart - pieces[b].xStart);
+  const endMargin = (len) => Math.min(MAX_PILLAR_END_MARGIN, len * PILLAR_END_MARGIN_FRAC);
+  const byStart = pieces.slice().sort((p, q) => p.xStart - q.xStart);
   let runs: { xStart: number; xEnd: number }[] = [];
-  order.forEach((i) => {
-    const pc = pieces[i];
+  byStart.forEach((pc) => {
     const last = runs[runs.length - 1];
     if (last && pc.xStart <= last.xEnd + 0.05) last.xEnd = Math.max(last.xEnd, pc.xEnd);
     else runs.push({ xStart: pc.xStart, xEnd: pc.xEnd });
   });
-  const runLines = runs.map(({ xStart, xEnd }) => {
+  let lines: number[] = runs.flatMap(({ xStart, xEnd }) => {
     const length = xEnd - xStart;
-    const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
+    const margin = endMargin(length);
     const usableStart = xStart + margin;
     const usableLength = Math.max(length - 2 * margin, 0);
     const n = Math.max(2, Math.ceil(usableLength / PILLAR_SPACING) + 1);
     return Array.from({ length: n }, (_, i) => usableStart + (usableLength * i) / (n - 1));
   });
-  const base = runLines.flat();
-  const carries = (other, pc) => pc.rowYs.every((y) => other.rowYs.some((oy) => Math.abs(oy - y) < 1e-6));
+
+  // Each row's own continuous x-intervals across the pieces carrying it.
+  const rowKeys = [...new Set(pieces.flatMap((pc) => pc.rowYs.map((y) => y.toFixed(6))))];
+  let windows: { lo: number; hi: number }[] = [];
+  rowKeys.forEach((key) => {
+    const spans = pieces.filter((pc) => pc.rowYs.some((y) => y.toFixed(6) === key))
+      .map((pc) => [pc.xStart, pc.xEnd]).sort((p, q) => p[0] - q[0]);
+    let merged: number[][] = [];
+    spans.forEach(([x0, x1]) => {
+      const last = merged[merged.length - 1];
+      if (last && x0 <= last[1] + 0.05) last[1] = Math.max(last[1], x1);
+      else merged.push([x0, x1]);
+    });
+    merged.forEach(([x0, x1]) => {
+      const len = x1 - x0, m = endMargin(len);
+      if (len <= 2 * m + 1e-6) { windows.push({ lo: (x0 + x1) / 2, hi: (x0 + x1) / 2 }); return; }
+      windows.push({ lo: x0 + m, hi: Math.min(x0 + END_SUPPORT_REACH, x1 - m) });
+      windows.push({ lo: Math.max(x1 - END_SUPPORT_REACH, x0 + m), hi: x1 - m });
+    });
+  });
+  windows.sort((p, q) => p.hi - q.hi);
+  const stabbed = (w) => lines.some((x) => x >= w.lo - 1e-6 && x <= w.hi + 1e-6);
+  let done: { lo: number; hi: number }[] = [];
+  windows.forEach((w) => {
+    const { lo, hi } = w;
+    if (!stabbed(w)) {
+      // A line just outside the window (a run line a few cm past it, say)
+      // is nudged in rather than doubled up beside - as long as every
+      // window already handled stays covered.
+      const nearby = lines.map((x, i) => ({ i, d: x < lo ? lo - x : x - hi }))
+        .filter(({ d }) => d <= MIN_LINE_GAP).sort((p, q) => p.d - q.d);
+      const runOf = (x) => runs.find((r) => x >= r.xStart - 1e-6 && x <= r.xEnd + 1e-6);
+      const spansOk = (i) => {
+        const r = runOf(lines[i]);
+        const mates = lines.filter((x, j) => j !== i && runOf(x) === r);
+        const below = Math.max(...mates.filter((x) => x <= lines[i]), -Infinity);
+        const above = Math.min(...mates.filter((x) => x > lines[i]), Infinity);
+        return lines[i] - below <= PILLAR_SPACING * 1.25 && above - lines[i] <= PILLAR_SPACING * 1.25;
+      };
+      const moved = nearby.some(({ i }) => {
+        const old = lines[i];
+        lines[i] = Math.min(hi, Math.max(lo, old));
+        if (done.every(stabbed) && spansOk(i)) return true;
+        lines[i] = old;
+        return false;
+      });
+      if (!moved) {
+        // Furthest-in spot that isn't crowding an existing line, else the
+        // least crowded one.
+        const samples = Array.from({ length: 9 }, (_, i) => hi - ((hi - lo) * i) / 8);
+        const gapTo = (x) => lines.reduce((d, l) => Math.min(d, Math.abs(l - x)), Infinity);
+        const roomy = samples.find((x) => gapTo(x) >= MIN_LINE_GAP);
+        lines.push(roomy ?? samples.reduce((best, x) => (gapTo(x) > gapTo(best) ? x : best), samples[0]));
+      }
+    }
+    done.push(w);
+  });
+  lines.sort((p, q) => p - q);
+
   return pieces.map((pc) => {
-    let xs = base.filter((x) => x >= pc.xStart - 1e-6 && x <= pc.xEnd + 1e-6);
-    const length = pc.xEnd - pc.xStart;
-    const margin = Math.min(MAX_PILLAR_END_MARGIN, length * PILLAR_END_MARGIN_FRAC);
-    const continues = (atX, side) => pieces.some((o) => o !== pc && Math.abs((side < 0 ? o.xEnd : o.xStart) - atX) <= 0.05 && carries(o, pc));
-    // An end whose rows stop needs a line within reach of it. Prefer moving
-    // the nearest line out to that end (if it's not far, and the span it
-    // leaves behind stays reasonable) over adding a second one beside it.
-    const supportEnd = (target, distOf) => {
-      if (xs.some((x) => distOf(x) <= END_SUPPORT_REACH)) return;
-      xs.sort((a, b) => distOf(a) - distOf(b));
-      const nearest = xs[0], next = xs[1];
-      const leftSpan = next == null ? 0 : Math.abs(next - target);
-      if (nearest != null && distOf(nearest) <= 2 * END_SUPPORT_REACH && leftSpan <= PILLAR_SPACING * 1.25) xs[0] = target;
-      else xs.push(target);
-    };
-    if (!continues(pc.xStart, -1)) supportEnd(pc.xStart + margin, (x) => x - pc.xStart);
-    if (!continues(pc.xEnd, 1)) supportEnd(pc.xEnd - margin, (x) => pc.xEnd - x);
-    if (xs.length === 0) xs.push((pc.xStart + pc.xEnd) / 2);
-    xs.sort((a, b) => a - b);
-    return xs.filter((x, i) => i === 0 || x - xs[i - 1] > 0.05);
+    const atRunEnd = !pieces.some((o) => o.xStart >= pc.xEnd - 0.05 && o.xStart <= pc.xEnd + 0.05 && o !== pc);
+    return lines.filter((x) => x >= pc.xStart - 1e-6 && (x < pc.xEnd - 1e-6 || (atRunEnd && x <= pc.xEnd + 1e-6)));
   });
 }
 
