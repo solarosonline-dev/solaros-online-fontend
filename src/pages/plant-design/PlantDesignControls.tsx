@@ -100,3 +100,23 @@ export function SliderInput({ value, onChange, min, max, step = 1, disabled = fa
     </div>
   );
 }
+
+// Small "ⓘ" explainer next to a label - shows `text` in a bubble on hover
+// (desktop) or tap (mobile, where there's no hover; a second tap or
+// blurring away closes it).
+export function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className={`pde-info-tip${open ? ' open' : ''}`}>
+      <button
+        type="button"
+        className="pde-info-tip-btn"
+        aria-label="More info"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+      >ⓘ</button>
+      <span className="pde-info-tip-bubble" role="tooltip">{text}</span>
+    </span>
+  );
+}

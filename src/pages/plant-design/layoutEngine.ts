@@ -1821,15 +1821,20 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
     let samples: any[] = [];
     for (let h = 5; h <= 19; h += 0.5) {
       const { elevation, azimuth: sunAz } = solarPosition(location.lat, location.lon, d, h, location.tz);
-      if (elevation > 0.5) samples.push({ elevation, sunAz });
+      if (elevation > 0.5) samples.push({ elevation, sunAz, hour: h });
     }
     const sinSum = samples.reduce((s, p) => s + Math.sin(toRad(p.elevation)), 0) || 1;
 
     const perPanelKWh: Record<string, number> = {};
     panels.forEach((p) => (perPanelKWh[p.id] = 0));
     let shadedCount = 0, sampleCount = 0;
+    // Site-wide energy per clock hour (5..19, the same window sampled
+    // above) - each half-hour sample's energy lands in its own hour's
+    // bucket, so a bucket reads as that hour's kWh (= average kW). Feeds
+    // Output estimate's typical-day hourly chart.
+    const hourlyKWh = new Array(15).fill(0);
 
-    samples.forEach(({ elevation, sunAz }) => {
+    samples.forEach(({ elevation, sunAz, hour }) => {
       // Distribute the day's known total insolation across samples by a
       // sin(elevation) weighting, then split into a simple beam/diffuse model.
       const ghiSlot = dailyGHI * (Math.sin(toRad(elevation)) / sinSum);
@@ -1850,7 +1855,9 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
       panels.forEach((p) => {
         const shaded = shadowPolys.some((poly) => pointInPolygon({ x: p.x, y: p.y }, poly));
         const iEffective = (shaded ? 0 : iBeamTilt) + iDiffuseTilt + iGroundTilt;
-        perPanelKWh[p.id] += iEffective * panelAreaEach * efficiency * systemDerate;
+        const kWh = iEffective * panelAreaEach * efficiency * systemDerate;
+        perPanelKWh[p.id] += kWh;
+        hourlyKWh[Math.floor(hour) - 5] += kWh;
         sampleCount++;
         if (shaded) shadedCount++;
       });
@@ -1858,12 +1865,12 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
 
     const totalKWh = Object.values(perPanelKWh).reduce((a, b) => a + b, 0);
     const avgShadedPct = sampleCount ? Math.round((100 * shadedCount) / sampleCount) : 0;
-    return { totalKWh, perPanelKWh, avgShadedPct };
+    return { totalKWh, perPanelKWh, avgShadedPct, hourlyKWh };
   }
 
   if (mode === 'day') {
     const r = dayEnergy(date, date.getMonth());
-    return { totalKWh: r.totalKWh, avgShadedPct: r.avgShadedPct, label: date.toDateString(), perPanelKWh: r.perPanelKWh };
+    return { totalKWh: r.totalKWh, avgShadedPct: r.avgShadedPct, label: date.toDateString(), perPanelKWh: r.perPanelKWh, hourlyKWh: r.hourlyKWh };
   }
   if (mode === 'month') {
     const monthIdx = date.getMonth();
@@ -1877,6 +1884,7 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
       avgShadedPct: r.avgShadedPct,
       label: repDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
       perPanelKWh,
+      hourlyKWh: r.hourlyKWh,
     };
   }
   // 'year' - also accumulates each panel's own annual total (not just the
@@ -1887,8 +1895,14 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
   // own annual output rather than a single day, and by the roof-wide sun
   // exposure heatmap (same file's roofSunSamples), which calls this with
   // synthetic "panels" (bare sample points, no real panel behind them) in
-  // place of a grid's own panels.
+  // place of a grid's own panels. Also keeps each month's own total
+  // (monthlyKWh) and its representative day's hourly profile
+  // (hourlyByMonth) - Output estimate's monthly bar chart and its
+  // click-a-month typical-day drill-down, both read straight off this one
+  // pass rather than a second per-month computeOutput call.
   let totalKWh = 0, shadedSum = 0;
+  const monthlyKWh: number[] = [];
+  const hourlyByMonth: number[][] = [];
   const perPanelKWh: Record<string, number> = {};
   panels.forEach((p) => (perPanelKWh[p.id] = 0));
   for (let m = 0; m < 12; m++) {
@@ -1896,10 +1910,12 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
     const r = dayEnergy(repDate, m);
     const daysInMonth = new Date(date.getFullYear(), m + 1, 0).getDate();
     totalKWh += r.totalKWh * daysInMonth;
+    monthlyKWh.push(r.totalKWh * daysInMonth);
+    hourlyByMonth.push(r.hourlyKWh);
     shadedSum += r.avgShadedPct;
     Object.entries(r.perPanelKWh).forEach(([id, kwh]) => { perPanelKWh[id] += kwh * daysInMonth; });
   }
-  return { totalKWh, avgShadedPct: Math.round(shadedSum / 12), label: `${date.getFullYear()} (full year)`, perPanelKWh };
+  return { totalKWh, avgShadedPct: Math.round(shadedSum / 12), label: `${date.getFullYear()} (full year)`, perPanelKWh, monthlyKWh, hourlyByMonth };
 }
 
 export function computeCost({ layout, roofType, panelPricePerW, structureRatePerMeter, mountCostPerPanel }) {

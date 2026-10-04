@@ -57,7 +57,8 @@ import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterC
 import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { CollapsibleSection, SliderInput, metersToFeet } from './PlantDesignControls.jsx';
+import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
+import OutputChartPanel, { formatKWh } from './OutputChartPanel.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];
@@ -1197,7 +1198,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   const [selectedDate, setSelectedDate] = useState(new Date(2026, 5, 21));
   const [selectedHour, setSelectedHour] = useState(12);
-  const [mode, setMode] = useState('day');
+  // Output estimate's drill-down: null shows the 12 monthly bars, a month
+  // index (0-11) shows that month's typical-day hourly profile instead.
+  // Both come from the one full-year computeOutput pass in handleCalculate.
+  const [outputDrillMonth, setOutputDrillMonth] = useState<number | null>(null);
   const [outputResult, setOutputResult] = useState<any>(null);
 
   const [sunPlaying, setSunPlaying] = useState(false);
@@ -1518,7 +1522,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // Solar efficiency analysis (2D plan only, see the efficiencyView toggle
   // below): each panel's own *annual* output (full-year aggregate, same
-  // mode Output estimate's own "Year" button uses) as a % of whichever
+  // 'year' mode Output estimate itself uses) as a % of whichever
   // panel on the whole site gets the most energy - a panel shaded only in
   // one season reads correctly as "mostly fine" rather than being judged
   // against a single arbitrary day. Only computed while the view is
@@ -3508,16 +3512,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     if (gridsWithPanels.length === 0) return;
 
     let totalKWh = 0, shadedWeighted = 0, panelSamples = 0, label = '';
+    const monthlyKWh = new Array(12).fill(0);
+    const hourlyByMonth = Array.from({ length: 12 }, () => new Array(15).fill(0));
     let panelCost = 0, structureCost = 0, totalRailLength = 0, hasRail = false;
     gridsWithPanels.forEach(({ roof, grid }) => {
       const layout = resolvedGrid(grid);
       const r = computeOutput({
-        layout, obstacles, location, mode, date: selectedDate,
+        layout, obstacles, location, mode: 'year', date: selectedDate,
         monthlyGHI, panelSpec,
         systemDerate: assumptions.systemDerate, diffuseFraction: assumptions.diffuseFraction,
         roofs, targetBuildingHeight: roof.buildingHeight,
       });
       totalKWh += r.totalKWh;
+      r.monthlyKWh?.forEach((v, m) => { monthlyKWh[m] += v; });
+      r.hourlyByMonth?.forEach((hours, m) => hours.forEach((v, h) => { hourlyByMonth[m][h] += v; }));
       shadedWeighted += r.avgShadedPct * layout.count;
       panelSamples += layout.count;
       label = r.label;
@@ -3529,7 +3537,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     });
 
     setOutputResult({
-      totalKWh, label,
+      totalKWh, label, monthlyKWh, hourlyByMonth,
       avgShadedPct: panelSamples ? Math.round(shadedWeighted / panelSamples) : 0,
     });
     setCost({
@@ -3561,7 +3569,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   useEffect(() => {
     if (currentStep >= 4 && totalPanelCount > 0) handleCalculate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, mode, assumptions, totalPanelCount, roofs, panelSpec, pricing, location, selectedDate, monthlyGHI]);
+  }, [currentStep, assumptions, totalPanelCount, roofs, panelSpec, pricing, location, selectedDate, monthlyGHI]);
 
   // Persistence: gathers exactly the content state identified as the
   // round-trippable shape (see types.ts's PlantDesignData) and hands it to
@@ -3823,7 +3831,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: isMobile && currentStep <= 2 ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && currentStep <= 2 && !mobileMapFullView ? 'auto' : undefined }}>
+      <div style={{ display: 'flex', flexDirection: isMobile && (currentStep <= 2 || currentStep === 5) ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && (currentStep <= 2 || currentStep === 5) && !mobileMapFullView ? 'auto' : undefined }}>
       {currentStep <= 2 && !mobileMapFullView ? (
       /* LEFT: steps 1-2's own input form (Project & Location, then
          Configuration). Neither step shows the plan/3D canvas alongside it
@@ -6407,7 +6415,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           column treatment as steps 1/2 instead of the old narrow 280px
           data panel that used to sit beside the plan/3D view. */}
       {currentStep === 5 && (
-        <div style={isMobile ? { width: '100%', flexShrink: 0, overflowY: 'auto' } : { width: 480, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
+        <div style={isMobile ? { width: '100%', flexShrink: 0 } : { width: 480, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
           <div className="pde-step1-card">
             <div className="pde-step1-heading">Output estimate</div>
             <div className="pde-step1-subtext">Estimated energy output for this design, based on shading, module specs, and this site's own irradiance.</div>
@@ -6473,19 +6481,25 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   </div>
                 )}
 
-                <div className="pde-field-sm">
-                  <label>Period</label>
-                  <div className="pde-unit-toggle">
-                    <button className={btn(mode === 'day')} onClick={() => setMode('day')}>Day</button>
-                    <button className={btn(mode === 'month')} onClick={() => setMode('month')}>Month</button>
-                    <button className={btn(mode === 'year')} onClick={() => setMode('year')}>Year</button>
-                  </div>
-                </div>
-
                 {outputResult ? (
-                  <div className="pde-field-sm" style={{ marginBottom: 20 }}>
-                    <label>{outputResult.label}</label>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--app-text, #222)' }}>{outputResult.totalKWh.toFixed(1)} kWh</div>
+                  <div className="pde-field-row" style={{ marginBottom: 20 }}>
+                    <div className="pde-field-sm">
+                      <label>Annual output</label>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--app-text, #222)' }}>{formatKWh(outputResult.totalKWh)}</div>
+                    </div>
+                    {/* kWh per kWp per year - the installer's standard
+                        sanity check (roughly 1,400-1,600 across most of
+                        India), independent of system size. */}
+                    <div className="pde-field-sm">
+                      <label>
+                        Specific yield{' '}
+                        <InfoTip text="Units generated per year for each kW of panels installed (annual kWh ÷ system kWp). Lets you compare designs regardless of size - a good unshaded system in most of India gives about 1,400-1,600." />
+                      </label>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--app-text, #222)' }}>
+                        {totalCapacityKW > 0 ? Math.round(outputResult.totalKWh / totalCapacityKW).toLocaleString('en-IN') : '-'}
+                        <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--app-text-muted, #888)' }}> kWh/kWp/yr</span>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="pde-field-sm-hint" style={{ marginBottom: 20 }}>Calculating…</div>
@@ -6509,6 +6523,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               Continue to Electrical Design (SLD) →
             </button>
           </div>
+        </div>
+      )}
+
+      {/* RIGHT: step 5's chart pane - monthly bars for the typical year,
+          or (after clicking a month's bar) that month's typical-day hourly
+          curve. Fills the space beside the summary card. */}
+      {currentStep === 5 && totalPanelCount > 0 && (
+        <div style={isMobile ? { width: '100%', flexShrink: 0 } : { flex: 1, minWidth: 0, height: '100%', overflowY: 'auto' }}>
+          <OutputChartPanel
+            result={outputResult}
+            drillMonth={outputDrillMonth}
+            onDrillMonth={setOutputDrillMonth}
+            ghiStatus={ghiStatus}
+            isMobile={isMobile}
+          />
         </div>
       )}
 

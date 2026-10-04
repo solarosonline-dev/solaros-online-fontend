@@ -576,3 +576,114 @@
   background: #f2f2f2;
   color: #999;
 }
+
+/* Step 5's chart pane (OutputChartPanel.tsx) - sits beside the summary
+   card on desktop, below it on mobile. */
+.plant-design-editor .pde-output-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.plant-design-editor .pde-output-chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--app-text, #222);
+}
+.plant-design-editor .pde-output-chart-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plant-design-editor .pde-output-chart-sub {
+  font-size: 12px;
+  color: var(--app-text-muted, #888);
+  margin-top: 2px;
+}
+.plant-design-editor .pde-output-chart-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 13px;
+  color: var(--app-text-muted, #888);
+}
+.plant-design-editor .pde-output-chart-stats strong {
+  color: var(--app-text, #222);
+  font-weight: 600;
+}
+.plant-design-editor .pde-output-chart-back {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-accent, #2563eb);
+  cursor: pointer;
+}
+.plant-design-editor .pde-output-chart-back:hover {
+  color: var(--app-accent-hover, #1d4ed8);
+}
+.plant-design-editor .pde-output-chart-step {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 6px;
+  background: var(--app-surface, #fff);
+  color: var(--app-text, #222);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.plant-design-editor .pde-output-chart-step:hover {
+  background: var(--app-bg, #f5f6f8);
+  border-color: var(--app-text-muted, #888);
+}
+.plant-design-editor .pde-output-chart-note {
+  margin-top: 12px;
+}
+
+/* InfoTip (PlantDesignControls.tsx) - "ⓘ" with a hover/tap bubble. */
+.plant-design-editor .pde-info-tip {
+  position: relative;
+  display: inline-block;
+}
+.plant-design-editor .pde-info-tip-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--app-text-muted, #888);
+  cursor: help;
+}
+.plant-design-editor .pde-info-tip-btn:hover,
+.plant-design-editor .pde-info-tip.open .pde-info-tip-btn {
+  color: var(--app-accent, #2563eb);
+}
+.plant-design-editor .pde-info-tip-bubble {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: -8px;
+  width: 240px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.plant-design-editor .pde-info-tip:hover .pde-info-tip-bubble,
+.plant-design-editor .pde-info-tip.open .pde-info-tip-bubble {
+  display: block;
+}
