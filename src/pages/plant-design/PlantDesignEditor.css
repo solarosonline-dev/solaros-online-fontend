@@ -192,6 +192,14 @@
 .plant-design-editor .pde-orientation-row + .pde-orientation-row {
   border-top: 1px solid var(--app-border, #e2e5ea);
 }
+.plant-design-editor .pde-orientation-output {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: -2px;
+  color: var(--app-text-muted, #666);
+}
 .plant-design-editor .pde-orientation-name {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -3780,6 +3780,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // per roof - the chart's roof dropdown just picks which to plot.
     const site = emptyOutputSeries();
     const byRoof = new Map<any, OutputSeries>();
+    // Per grid (gridKey): its own annual kWh and the share it gives up to
+    // facing - one unshaded panel at its real azimuth vs facing the equator
+    // at the same tilt, so shading doesn't blur the number. Shown on Output
+    // estimate's Orientation rows.
+    const byGrid: Record<string, { kWh: number; dirLossPct: number }> = {};
+    const equatorAz = location.lat >= 0 ? 180 : 0;
+    const onePanelKWh = (tilt, azimuth) => computeOutput({
+      layout: { tilt, azimuth, panels: [{ id: 'dir', x: 0, y: 0 }] }, obstacles: [], location, mode: 'year', date: selectedDate,
+      monthlyGHI, panelSpec, systemDerate: 1, diffuseFraction: assumptions.diffuseFraction, roofs: [], targetBuildingHeight: 0,
+    }).totalKWh;
     let label = '';
     let panelCost = 0, structureCost = 0, totalRailLength = 0, hasRail = false;
     gridsWithPanels.forEach(({ roof, grid }) => {
@@ -3794,6 +3804,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       addToOutputSeries(site, r);
       addToOutputSeries(byRoof.get(roof.id)!, r);
       label = r.label;
+      const facingKWh = onePanelKWh(layout.tilt, layout.azimuth);
+      const equatorKWh = onePanelKWh(layout.tilt, equatorAz);
+      byGrid[gridKey(roof.id, grid.id)] = {
+        kWh: r.totalKWh,
+        dirLossPct: equatorKWh > 0 ? Math.max(0, (1 - facingKWh / equatorKWh) * 100) : 0,
+      };
 
       const c = computeCost({ layout, roofType: roof.type, ...pricing });
       panelCost += c.panelCost;
@@ -3802,7 +3818,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     });
 
     setOutputResult({
-      ...site, label,
+      ...site, label, byGrid,
       roofs: roofs
         .map((roof, idx) => ({ id: roof.id, label: roofLabel(roof, idx), series: byRoof.get(roof.id) }))
         .filter((r) => r.series),
@@ -7124,6 +7140,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <div className="pde-stat-value">{panelSpec.make} {panelSpec.model} · {panelSpec.wattage} W</div>
                 </div>
                 {/* The facing each grid's output was actually computed with
+                    - and, once calculated, that grid's own annual output,
+                    yield and the % it loses to its facing (byGrid in
+                    handleCalculate) -
                     (its packed azimuth + any manual grid rotation -
                     resolvedGridAzimuth, the same value computeOutput reads
                     via resolvedGrid), so the estimate never silently reads
@@ -7142,6 +7161,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         off: Math.round(azimuthOffset(az, equatorAz)),
                         tilt: Math.round(g.tilt ?? 0),
                         kw: g.capacityKW ?? 0,
+                        out: outputResult?.byGrid?.[gridKey(roof.id, g.id)] ?? null,
                       };
                     });
                   });
@@ -7159,6 +7179,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </span>
                             <span style={{ color: '#888' }}>tilt {r.tilt}°</span>
                             <span style={{ fontWeight: 600 }}>{r.kw.toFixed(1)} kW</span>
+                            {r.out && (
+                              <div className="pde-orientation-output">
+                                <span><strong>{formatKWh(r.out.kWh)}</strong>/yr</span>
+                                {r.kw > 0 && <span>{Math.round(r.out.kWh / r.kw).toLocaleString('en-IN')} kWh/kWp</span>}
+                                <span style={{ color: r.out.dirLossPct >= 0.05 ? '#c0392b' : '#888' }}>
+                                  {r.out.dirLossPct < 0.05 ? `no loss vs facing ${dirWord}` : `−${formatPct(r.out.dirLossPct)} vs facing ${dirWord}`}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
