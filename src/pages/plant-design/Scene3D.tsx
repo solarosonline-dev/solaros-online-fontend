@@ -635,7 +635,7 @@ function RoofDimensions({ roof, frameAz, format }) {
 // A flat translucent outline just above the roof - a ghost of panels a "+"
 // drag would add, or an Add -> Panels slot (pickable via onPointerDown).
 // `corners` are world plan points; the shape lies in the plan at `height`.
-function FlatQuad({ corners, height, color, opacity, onPointerDown = undefined as any }) {
+function FlatQuad({ corners, height, color, opacity, onPointerOver = undefined as any, onPointerOut = undefined as any, onClick = undefined as any }) {
   const geometry = useMemo(() => {
     const shape = new THREE.Shape();
     corners.forEach((c, i) => (i === 0 ? shape.moveTo(c.x, c.y) : shape.lineTo(c.x, c.y)));
@@ -653,8 +653,9 @@ function FlatQuad({ corners, height, color, opacity, onPointerDown = undefined a
     <>
       <mesh
         geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, height, 0]} renderOrder={6}
-        onPointerDown={onPointerDown}
-        onClick={onPointerDown ? (e) => e.stopPropagation() : undefined}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+        onClick={onClick}
       >
         <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
@@ -1481,9 +1482,17 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       <FlatQuad
                         key={`add-slot-${sl.key}`} corners={sl.corners} height={at(centroid(sl.corners))}
                         color="#22c55e" opacity={sl.picked ? 0.7 : 0.18}
-                        onPointerDown={(e) => { e.stopPropagation(); gridAdd.onSlotDown(sl.key); }}
+                        onPointerOver={(e) => { e.stopPropagation(); gridAdd.onSlotHover(sl.key, true); }}
+                        onPointerOut={() => gridAdd.onSlotHover(sl.key, false)}
+                        onClick={(e) => { e.stopPropagation(); if (!isDragClick(e)) gridAdd.onSlotClick(sl.key); }}
                       />
                     ))}
+                    {gridAdd.runLabel && (() => {
+                      const sl = gridAdd.slots.find((x) => x.key === gridAdd.hoveredSlot);
+                      if (!sl) return null;
+                      const c = centroid(sl.corners);
+                      return <DimLabel position={toThree(c.x, c.y, at(c) + 0.2)} text={gridAdd.runLabel} />;
+                    })()}
                     {(() => {
                       const placed = gridAdd.handles.map((h) => {
                         const len = Math.hypot(h.step.x, h.step.y) || 1;

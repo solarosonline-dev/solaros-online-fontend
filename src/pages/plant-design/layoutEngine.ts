@@ -1217,9 +1217,9 @@ export function previewGridAdd(grid, roof, side, count) {
 }
 
 // Free slots next to a grid for Add -> Panels: up to `ext` positions past
-// each row's ends, holes inside a row (a deleted panel), and one new row in
-// front and behind (on the front/back row's columns, also extended by
-// `ext`). Positions follow each row's own column step, and the new rows'
+// each row's ends, holes inside a row (a deleted panel), and up to `ext`
+// new rows in front and behind (on the front/back row's columns, also
+// extended by `ext`). Positions follow each row's own column step, and the new rows'
 // spacing comes from addGridRow itself. Slots already holding a panel are
 // skipped; roof/obstacle fit is the caller's call (see gridPanelFitsRoof).
 export function gridAddCandidates(grid, roof, ext = 3) {
@@ -1252,10 +1252,62 @@ export function gridAddCandidates(grid, roof, ext = 3) {
   };
   rows.forEach(({ y, xs }) => rowSlots(xs, y, true));
   ['front', 'back'].forEach((side) => {
-    const added = previewGridAdd(grid, roof, side, 1);
-    if (added.length) rowSlots(added.map((p) => p.rackX), added[0].rackY, false);
+    const byRow = new Map();
+    previewGridAdd(grid, roof, side, ext).forEach((p) => {
+      const k = Math.round(p.rackY * 1e4);
+      if (!byRow.has(k)) byRow.set(k, { y: p.rackY, xs: [] });
+      byRow.get(k).xs.push(p.rackX);
+    });
+    byRow.forEach(({ y, xs }) => rowSlots(xs, y, false));
   });
   return [...out.values()];
+}
+
+// The run of slots Add -> Panels adds when the slot `key` is hovered: every
+// free slot from the grid out to it. In a row that already has panels, the
+// run goes along the row from that row's nearest panel; in a new row (in
+// front of/behind the grid) it goes along the column from the nearest panel
+// in that column. It stops short at a slot that isn't free/fitting (not in
+// `candidates`), so it never jumps a gap. A slot with no panel in its row
+// or column is a run of one.
+export function gridAddRun(grid, candidates, key) {
+  const s = candidates.find((c) => c.key === key);
+  if (!s) return [];
+  const step = (grid.panels[0]?.w ?? s.w) + PANEL_GAP;
+  const tol = step * 0.3;
+  const sameY = (a, b) => Math.abs(a - b) < 1e-3;
+  const slotAt = (x, y) => candidates.find((c) => Math.abs(c.rackX - x) < tol && sameY(c.rackY, y));
+  const nearestBy = (ps, d) => ps.reduce((b, p) => (d(p) < d(b) ? p : b), ps[0]);
+
+  const rowPanels = grid.panels.filter((p) => sameY(p.rackY, s.rackY));
+  if (rowPanels.length) {
+    const near = nearestBy(rowPanels, (p) => Math.abs(p.rackX - s.rackX));
+    const dir = Math.sign(near.rackX - s.rackX);
+    const run = [s];
+    for (let i = 1; i < 200; i++) {
+      const x = s.rackX + dir * step * i;
+      if (Math.abs(x - near.rackX) < tol) break;
+      const c = slotAt(x, s.rackY);
+      if (!c) break;
+      run.push(c);
+    }
+    return run;
+  }
+
+  const colPanels = grid.panels.filter((p) => Math.abs(p.rackX - s.rackX) < tol);
+  if (!colPanels.length) return [s];
+  const near = nearestBy(colPanels, (p) => Math.abs(p.rackY - s.rackY));
+  const ys = [...new Set<number>([...candidates.map((c) => c.rackY), ...grid.panels.map((p) => p.rackY)].map((y) => Math.round(y * 1e4)))]
+    .map((k) => k / 1e4).sort((a, b) => a - b);
+  const between = ys.filter((y) => (near.rackY < s.rackY ? y > near.rackY + 1e-3 && y < s.rackY - 1e-3 : y < near.rackY - 1e-3 && y > s.rackY + 1e-3));
+  between.sort((a, b) => Math.abs(a - s.rackY) - Math.abs(b - s.rackY));
+  const run = [s];
+  for (const y of between) {
+    const c = slotAt(s.rackX, y);
+    if (!c) break;
+    run.push(c);
+  }
+  return run;
 }
 
 // Appends `panels` (rack coords; ids, world coords and size filled in here)

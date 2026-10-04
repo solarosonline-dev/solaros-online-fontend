@@ -37,6 +37,7 @@ import {
   gridLocalBounds,
   previewGridAdd,
   gridAddCandidates,
+  gridAddRun,
   gridPanelFitsRoof,
   appendGridPanels,
   gridRackToWorld,
@@ -771,8 +772,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const [hoveredAddHandle, setHoveredAddHandle] = useState<any>(null); // 'front' | 'back' | 'left' | 'right' | null
   const addDragRef = useRef<any>(null);
   const [addPanelsMode, setAddPanelsMode] = useState<any>(null); // { roofId, gridId } | null
-  const [addPanelsPicks, setAddPanelsPicks] = useState<Set<string>>(new Set());
-  const addPaintRef = useRef<any>(null); // { adding: boolean } while drag-picking slots
+  // Add -> Panels: the slot under the pointer - the run from the grid out to
+  // it (gridAddRun) is highlighted and added on click.
+  const [hoveredSlotKey, setHoveredSlotKey] = useState<string | null>(null);
   // Delete row/column/panel mode for the currently selected (single) grid
   // - a mode button in the grid popup arms one of these, which changes
   // what clicking a panel in that grid does (select a row/column/panel
@@ -987,38 +989,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setAddDrag({ roofId, gridId, side, count: 0 });
   }
 
-  // Add -> Panels: enter/exit slot picking for one grid.
+  // Add -> Panels: enter/exit for one grid. Hovering a free slot lights up
+  // the run of slots from the grid out to it (gridAddRun - along its row,
+  // or along its column for the new rows in front/behind); clicking adds
+  // that whole run at once.
   function startAddPanels(roofId, gridId) {
     cancelActiveModes();
     setAddPanelsMode({ roofId, gridId });
-    setAddPanelsPicks(new Set());
+    setHoveredSlotKey(null);
   }
   function exitAddPanels() {
     setAddPanelsMode(null);
-    setAddPanelsPicks(new Set());
-    addPaintRef.current = null;
+    setHoveredSlotKey(null);
   }
-  // Slot pick by pointer: pressing on a slot starts a stroke that either
-  // picks or un-picks (whichever that first slot needs); dragging across
-  // more slots on the 2D plan applies the same to each.
-  function paintSlot(key, starting) {
-    if (starting) addPaintRef.current = { adding: !addPanelsPicks.has(key) };
-    const stroke = addPaintRef.current;
-    if (!stroke) return;
-    setAddPanelsPicks((prev) => {
-      const next = new Set(prev);
-      if (stroke.adding) next.add(key); else next.delete(key);
-      return next;
-    });
+  function addSlotRun(key) {
+    if (!addPanelsMode) return;
+    const run = gridAddRun(addPanelsGrid(), addPanelSlots.cands, key);
+    addToGrid(addPanelsMode.roofId, addPanelsMode.gridId, run);
+    setHoveredSlotKey(null);
   }
-  function commitAddPanels() {
-    if (!addPanelsMode || addPanelsPicks.size === 0) return;
-    const roof = roofs.find((r) => r.id === addPanelsMode.roofId);
-    const grid = findGrid(addPanelsMode.roofId, addPanelsMode.gridId);
-    if (!roof || !grid) return;
-    const picked = gridAddCandidates(grid, roof).filter((c) => addPanelsPicks.has(c.key));
-    addToGrid(addPanelsMode.roofId, addPanelsMode.gridId, picked);
-    setAddPanelsPicks(new Set());
+  function addPanelsGrid() {
+    return addPanelsMode ? findGrid(addPanelsMode.roofId, addPanelsMode.gridId) : null;
   }
 
   // Delete-mode picking (row/column/panel), shared by a panel click on the
@@ -1120,8 +1111,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         if (gridDeleteMode) { setGridDeleteMode(null); setGridDeleteSelection(null); }
         return;
       }
-      // Enter adds the slots picked in Add -> Panels.
-      if (e.key === 'Enter' && addPanelsMode && addPanelsPicks.size > 0) { e.preventDefault(); commitAddPanels(); return; }
+
       // Cmd/Ctrl+C copies the selected obstacle; Cmd/Ctrl+V drops a copy
       // just beside the original (pasteObstacleNearby). Obstacles only -
       // grids have their own Duplicate, roofs aren't copyable.
@@ -1148,7 +1138,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addPanelsMode, addPanelsPicks, roofs, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints, obstacles, obstacleClipboard]);
+  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addPanelsMode, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints, obstacles, obstacleClipboard]);
   // Set right before closing a roof trace by clicking back on its own first
   // point (see onSvgClick) — a real double-click landing there fires a
   // second click event a moment later that would otherwise immediately
@@ -1892,12 +1882,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rightPanelOpenGroup]);
 
-  // A slot-picking stroke ends wherever the pointer is released.
-  useEffect(() => {
-    const end = () => { addPaintRef.current = null; };
-    document.addEventListener('pointerup', end);
-    return () => document.removeEventListener('pointerup', end);
-  }, []);
 
   // "+" handle drag, tracked across the whole page (the pointer leaves the
   // handle at once). The count is the drag's projection onto one step
@@ -1962,13 +1946,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // Add -> Panels: every free slot next to the grid that would fit.
   const addPanelSlots = useMemo(() => {
-    if (!addPanelsMode) return [];
+    const none = { cands: [] as any[], slots: [] as any[] };
+    if (!addPanelsMode) return none;
     const roof = roofs.find((r) => r.id === addPanelsMode.roofId);
     const grid = findGrid(addPanelsMode.roofId, addPanelsMode.gridId);
-    if (!roof || !grid) return [];
-    return fittingAdditions(roof, grid, gridAddCandidates(grid, roof)).map((c) => ({ key: c.key, corners: panelCornersWorld(roof, grid, c) }));
+    if (!roof || !grid) return none;
+    const cands = fittingAdditions(roof, grid, gridAddCandidates(grid, roof));
+    return { cands, slots: cands.map((c) => ({ key: c.key, corners: panelCornersWorld(roof, grid, c) })) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addPanelsMode, roofs, obstacles]);
+
+  // The run the hovered slot would add (highlighted in both views).
+  const hoveredSlotRun = useMemo(() => {
+    const grid = addPanelsGrid();
+    if (!grid || !hoveredSlotKey) return new Set<string>();
+    return new Set<string>(gridAddRun(grid, addPanelSlots.cands, hoveredSlotKey).map((c) => c.key));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoveredSlotKey, addPanelSlots]);
 
   // The selected grid's "+" handles - only while nothing else is being done
   // to it (delete/add-panels picking, moving, rotating, placing a grid).
@@ -2487,7 +2481,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setTablePickSize(null);
     setHoveredPickRoofId(null);
     setAddPanelsMode(null);
-    setAddPanelsPicks(new Set());
+    setHoveredSlotKey(null);
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
   }
@@ -4888,9 +4882,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   activeSide: addDrag?.side ?? null,
                   label: addDragPreview?.label ?? null,
                   ghosts: addDragPreview?.ghosts ?? [],
-                  slots: addPanelsMode ? addPanelSlots.map((sl) => ({ ...sl, picked: addPanelsPicks.has(sl.key) })) : [],
+                  slots: addPanelsMode ? addPanelSlots.slots.map((sl) => ({ ...sl, picked: hoveredSlotRun.has(sl.key) })) : [],
+                  runLabel: hoveredSlotRun.size ? `+${hoveredSlotRun.size}` : null,
+                  hoveredSlot: hoveredSlotKey,
                   onHandleDown: (side, x, y, stepPx) => startAddDrag(gridOwnerRoof.id, selectedGrid.id, side, x, y, stepPx, '3d'),
-                  onSlotDown: (key) => paintSlot(key, true),
+                  onSlotHover: (key, on) => setHoveredSlotKey((cur) => (on ? key : (cur === key ? null : cur))),
+                  onSlotClick: (key) => addSlotRun(key),
                 } : null}
                 // Same step the 2D plan's panels are clickable in (see the
                 // panel <g>'s pointerEvents there).
@@ -5833,21 +5830,34 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               );
               });
             })()}
-            {addPanelsMode && addPanelSlots.map((slot) => {
-              const picked = addPanelsPicks.has(slot.key);
+            {addPanelsMode && addPanelSlots.slots.map((slot) => {
+              const inRun = hoveredSlotRun.has(slot.key);
               return (
                 <polygon
                   key={`add-slot-${slot.key}`}
                   points={slot.corners.map((c) => { const sp = toScreen(c.x, c.y); return `${sp.sx},${sp.sy}`; }).join(' ')}
-                  fill={picked ? 'rgba(34,197,94,0.55)' : 'rgba(34,197,94,0.07)'}
-                  stroke="#16a34a" strokeWidth={picked ? 1.6 : 1} strokeDasharray={picked ? undefined : '4 3'}
+                  fill={inRun ? 'rgba(34,197,94,0.6)' : 'rgba(34,197,94,0.07)'}
+                  stroke="#16a34a" strokeWidth={inRun ? 1.6 : 1} strokeDasharray={inRun ? undefined : '4 3'}
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); paintSlot(slot.key, true); }}
-                  onMouseEnter={() => paintSlot(slot.key, false)}
-                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                  onMouseEnter={() => setHoveredSlotKey(slot.key)}
+                  onMouseLeave={() => setHoveredSlotKey((cur) => (cur === slot.key ? null : cur))}
+                  onClick={(e) => { e.stopPropagation(); addSlotRun(slot.key); }}
                 />
               );
             })}
+            {/* "+N" on the hovered slot - how many the click will add. */}
+            {addPanelsMode && hoveredSlotRun.size > 0 && (() => {
+              const slot = addPanelSlots.slots.find((sl) => sl.key === hoveredSlotKey);
+              if (!slot) return null;
+              const sp = slot.corners.map((c) => toScreen(c.x, c.y));
+              const cx = sp.reduce((t, p) => t + p.sx, 0) / 4, cy = sp.reduce((t, p) => t + p.sy, 0) / 4;
+              return (
+                <text x={cx} y={cy + 4} textAnchor="middle" fontSize={12} fontWeight={700} fill="#14532d" stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: 'none' }}>
+                  +{hoveredSlotRun.size}
+                </text>
+              );
+            })()}
 
             {/* Slope-direction arrow for every pitched roof - drawn last so
                 it stays visible even once the roof is full of panels.
@@ -6601,17 +6611,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                           {addPanelsMode && (
                             <>
                               <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 8, lineHeight: 1.4 }}>
-                                Click free slots around the grid to pick them, or drag across several on the 2D plan. Enter adds them, Esc exits.
-                              </div>
-                              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                <button
-                                  className={btn(true)} style={{ flex: 1, padding: '7px 8px' }}
-                                  disabled={addPanelsPicks.size === 0}
-                                  onClick={commitAddPanels}
-                                >
-                                  Add {addPanelsPicks.size} panel{addPanelsPicks.size === 1 ? '' : 's'}
-                                </button>
-                                <button className={btn(false)} style={{ padding: '7px 10px' }} disabled={addPanelsPicks.size === 0} onClick={() => setAddPanelsPicks(new Set())}>Clear</button>
+                                Hover a free slot around the grid - the panels from the grid out to it light up green. Click to add them. Esc exits.
                               </div>
                             </>
                           )}
