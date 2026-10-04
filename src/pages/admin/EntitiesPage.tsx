@@ -2,12 +2,21 @@ import { useEffect, useState } from "react";
 import {
   listEntities,
   updateEntityState,
+  updateEntityFeatures,
   updateEntityTrial,
   type AdminEntity,
   type EntityState,
 } from "../../api/adminEntities";
 import { ApiError } from "../../api/client";
+import type { Feature } from "../../api/auth";
 import "./EntitiesPage.css";
+
+// Product modules a system admin can toggle per entity. New entities get CRM
+// only; DESIGN (plant design) is granted here.
+const FEATURES: { key: Feature; label: string }[] = [
+  { key: "CRM", label: "CRM" },
+  { key: "DESIGN", label: "Design" },
+];
 
 const STATE_FILTERS: { label: string; value: EntityState | undefined }[] = [
   { label: "All", value: undefined },
@@ -84,6 +93,25 @@ export default function EntitiesPage() {
     }
   }
 
+  async function handleToggleFeature(entity: AdminEntity, feature: Feature, enabled: boolean) {
+    const next = FEATURES.map((f) => f.key).filter((k) =>
+      k === feature ? enabled : entity.features.includes(k),
+    );
+    setPendingId(entity.entity_id);
+    setRowErrors((prev) => ({ ...prev, [entity.entity_id]: "" }));
+    try {
+      const updated = await updateEntityFeatures(entity.entity_id, next);
+      setEntities((prev) =>
+        prev.map((e) => (e.entity_id === entity.entity_id ? { ...e, features: updated.features } : e)),
+      );
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Could not update modules";
+      setRowErrors((prev) => ({ ...prev, [entity.entity_id]: message }));
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   return (
     <div className="entities-page">
       <h1>Entities</h1>
@@ -118,6 +146,7 @@ export default function EntitiesPage() {
                 <th>Founder</th>
                 <th>Created</th>
                 <th>Trial Status</th>
+                <th>Modules</th>
                 <th />
               </tr>
             </thead>
@@ -170,6 +199,28 @@ export default function EntitiesPage() {
                         >
                           +7 Days
                         </button>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="entities-features">
+                        {FEATURES.map((f) => {
+                          const checked = entity.features.includes(f.key);
+                          // Can't switch off the last enabled module -- the
+                          // backend rejects an empty set (deactivate the
+                          // entity instead).
+                          const isLast = checked && entity.features.length === 1;
+                          return (
+                            <label key={f.key} title={isLast ? "At least one module must stay enabled" : undefined}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={pendingId === entity.entity_id || isLast}
+                                onChange={(e) => handleToggleFeature(entity, f.key, e.target.checked)}
+                              />
+                              {f.label}
+                            </label>
+                          );
+                        })}
                       </div>
                     </td>
                     <td>

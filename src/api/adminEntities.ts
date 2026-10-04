@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { Feature } from "./auth";
 
 export type EntityState = "PENDING_APPROVAL" | "ACTIVE" | "INACTIVE";
 
@@ -14,6 +15,7 @@ export type AdminEntity = {
   created_at: string;
   approved_at: string | null;
   trial_ends_at: string | null;
+  features: Feature[];
 };
 
 export type AdminEntityList = {
@@ -44,4 +46,13 @@ export function updateEntityTrial(entityId: number, data: { extend_days?: number
     `/admin/entities/${entityId}/trial`,
     { method: "PATCH", body: data },
   );
+}
+
+// Replaces the entity's enabled modules wholesale -- at least one required
+// (the backend 400s NO_FEATURES on an empty list).
+export function updateEntityFeatures(entityId: number, features: Feature[]) {
+  return apiRequest<{ entity_id: number; features: Feature[] }>(`/admin/entities/${entityId}/features`, {
+    method: "PUT",
+    body: { features },
+  });
 }

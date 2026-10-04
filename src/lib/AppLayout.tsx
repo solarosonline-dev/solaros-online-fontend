@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin } from "./roles";
+import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin, hasFeature } from "./roles";
 import { TourProvider, useTour } from "./TourContext";
 import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
 import { sweepExpiredDrafts } from "./drafts";
@@ -46,6 +46,8 @@ function AppLayoutInner() {
   // device). Runs once `user` first resolves, not on every render.
   useEffect(() => {
     if (!user) return;
+    // CRM-only walkthrough -- see tourAvailable below.
+    if (!isSystemAdmin(user.roles) && !hasFeature(user, "CRM")) return;
     if (!localStorage.getItem(onboardingTourSeenKey(user.user_id))) {
       setOnboardingStep(0);
       setOnboardingOpen(true);
@@ -105,6 +107,13 @@ function AppLayoutInner() {
   // real gate. Stricter than systemAdmin: SYSTEM_ADMIN must not see this
   // link, only SYSTEM_SUPER_ADMIN.
   const superAdmin = user ? isSystemSuperAdmin(user.roles) : false;
+  // Product modules (mirrors the RequireFeature route guards in App.tsx).
+  const crm = hasFeature(user, "CRM");
+  const design = hasFeature(user, "DESIGN");
+  // The guided tour is a Lead -> Quote -> Agreement -> Project walkthrough
+  // (plus the worker's work-order queue) -- all CRM, so a Design-only
+  // entity's users don't get it at all.
+  const tourAvailable = systemAdmin || crm;
   const onboardingRole: OnboardingRole = systemAdmin ? "system_admin" : entityAdmin ? "entity_admin" : "worker";
 
   // Only pulse the nav link while the user hasn't already arrived at Entity
@@ -149,11 +158,11 @@ function AppLayoutInner() {
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
             {superAdmin && <NavLink to="/app/admin/email">Email</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/dashboard">Dashboard</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/leads">Leads</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/projects">Projects</NavLink>}
-            {!systemAdmin && entityAdmin && <NavLink to="/app/plant-design">Plant Design</NavLink>}
-            {!systemAdmin && !entityAdmin && user?.entity_id && (
+            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/dashboard">Dashboard</NavLink>}
+            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/leads">Leads</NavLink>}
+            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/projects">Projects</NavLink>}
+            {!systemAdmin && entityAdmin && design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
+            {!systemAdmin && !entityAdmin && user?.entity_id && crm && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>
             )}
           </nav>
@@ -177,9 +186,11 @@ function AppLayoutInner() {
           )}
           <div className="app-topbar-right">
             <span className="app-topbar-user">{user?.full_name}</span>
-            <button type="button" className="app-topbar-tour-link" onClick={replayOnboardingTour}>
-              Take the tour
-            </button>
+            {tourAvailable && (
+              <button type="button" className="app-topbar-tour-link" onClick={replayOnboardingTour}>
+                Take the tour
+              </button>
+            )}
             <button className="app-topbar-signout" onClick={handleSignOut}>
               Sign out
             </button>

@@ -106,6 +106,21 @@
   color: #92400e;
 }
 
+.entities-features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85em;
+}
+
+.entities-features label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .entities-action-btn {
   font-family: inherit;
   font-size: 13px;

@@ -1,3 +1,5 @@
+import type { Feature } from "../api/auth";
+
 export const SYSTEM_ROLES = ["SYSTEM_SUPER_ADMIN", "SYSTEM_ADMIN"];
 
 export function isSystemAdmin(roles: string[]): boolean {
@@ -37,4 +39,12 @@ export const SYSTEM_SUPER_ADMIN_ROLES = ["SYSTEM_SUPER_ADMIN"];
 
 export function isSystemSuperAdmin(roles: string[]): boolean {
   return roles.some((r) => SYSTEM_SUPER_ADMIN_ROLES.includes(r));
+}
+
+// Whether the user's entity has a product module enabled -- mirrors the
+// backend's require_feature (app/api/deps.py), which 403s FEATURE_NOT_ENABLED
+// otherwise. UX-only (nav links, route guards, hiding cross-module links);
+// the backend is the real gate.
+export function hasFeature(user: { features?: Feature[] } | null | undefined, feature: Feature): boolean {
+  return !!user?.features?.includes(feature);
 }

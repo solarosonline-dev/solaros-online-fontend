@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { canManageAmc, isEntityAdmin } from "../../lib/roles";
+import { canManageAmc, hasFeature, isEntityAdmin } from "../../lib/roles";
 import {
   getWorkOrder,
   updateWorkOrderStatus,
@@ -569,7 +569,9 @@ export default function WorkOrderDetailPage() {
         <CommissioningPanel entityId={entityId} workOrderId={Number(workOrderId)} onAdvanced={handleCommissioningAdvanced} />
       )}
 
-      {wo.type === "SITE_DESIGN" && (
+      {/* Plant designs are the DESIGN module -- a CRM-only entity's
+          listPlantDesigns call would 403 FEATURE_NOT_ENABLED. */}
+      {wo.type === "SITE_DESIGN" && hasFeature(user, "DESIGN") && (
         <SiteDesignPanel 
           entityId={entityId} 
           workOrderId={Number(workOrderId)} 

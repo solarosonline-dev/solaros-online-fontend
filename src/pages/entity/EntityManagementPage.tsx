@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { hasFeature } from "../../lib/roles";
 import { getEntity, updateEntity, type Entity } from "../../api/entity";
 import {
   getEntityPreferences,
@@ -33,16 +34,20 @@ type Tab =
   | "warehouses"
   | "amc";
 
-const TABS: { key: Tab; label: string }[] = [
+// `crm` tabs only configure CRM documents/operations (quotes, agreements,
+// procurement, AMC) and are hidden for an entity without the CRM module --
+// their APIs 403 FEATURE_NOT_ENABLED there. Business Info and Branding are
+// core (the plant-design Design Report uses the branding too).
+const TABS: { key: Tab; label: string; crm?: boolean }[] = [
   { key: "business", label: "Business Info" },
   { key: "branding", label: "Branding & Typography" },
-  { key: "documents", label: "Documents" },
-  { key: "pricing", label: "Pricing & Language" },
-  { key: "components", label: "Components" },
-  { key: "payment_schedule", label: "Payment Schedule" },
-  { key: "vendors", label: "Vendors" },
-  { key: "warehouses", label: "Warehouses" },
-  { key: "amc", label: "AMC Plans" },
+  { key: "documents", label: "Documents", crm: true },
+  { key: "pricing", label: "Pricing & Language", crm: true },
+  { key: "components", label: "Components", crm: true },
+  { key: "payment_schedule", label: "Payment Schedule", crm: true },
+  { key: "vendors", label: "Vendors", crm: true },
+  { key: "warehouses", label: "Warehouses", crm: true },
+  { key: "amc", label: "AMC Plans", crm: true },
 ];
 
 // The AMC Plans tab manages its own CRUD/persistence per row (add/edit/
@@ -62,13 +67,19 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   payment_schedule: "payment_schedule",
 };
 
-function isTabKey(value: string | null): value is Tab {
-  return TABS.some((t) => t.key === value);
+function visibleTabs(crm: boolean) {
+  return TABS.filter((t) => crm || !t.crm);
+}
+
+function isTabKey(value: string | null, crm: boolean): value is Tab {
+  return visibleTabs(crm).some((t) => t.key === value);
 }
 
 export default function EntityManagementPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
+  const crm = hasFeature(user, "CRM");
+  const tabs = visibleTabs(crm);
 
   // Supports deep-linking straight to a tab (e.g. `?tab=amc`) -- used by the
   // "no AMC plans defined" guided-tour prompt (see QuoteBuilderPage.tsx /
@@ -77,9 +88,9 @@ export default function EntityManagementPage() {
   // which one the tour meant, without leaving a highlight lingering forever.
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(isTabKey(initialTab) ? initialTab : "business");
+  const [tab, setTab] = useState<Tab>(isTabKey(initialTab, crm) ? initialTab : "business");
   const [tourPulseTab, setTourPulseTab] = useState<Tab | null>(
-    searchParams.get("tour") === "1" && isTabKey(initialTab) ? initialTab : null,
+    searchParams.get("tour") === "1" && isTabKey(initialTab, crm) ? initialTab : null,
   );
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [entity, setEntity] = useState<Entity | null>(null);
@@ -239,7 +250,7 @@ export default function EntityManagementPage() {
           aria-label="Toggle settings sections"
           onClick={() => setTabMenuOpen((open) => !open)}
         >
-          <span className="entity-tabs-toggle-label">{TABS.find((t) => t.key === tab)?.label}</span>
+          <span className="entity-tabs-toggle-label">{tabs.find((t) => t.key === tab)?.label}</span>
           <span className="entity-tabs-toggle-icon" aria-hidden="true">
             <span />
             <span />
@@ -247,7 +258,7 @@ export default function EntityManagementPage() {
           </span>
         </button>
         <div className={`entity-tabs ${tabMenuOpen ? "open" : ""}`}>
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.key}
               className={[tab === t.key ? "active" : "", tourPulseTab === t.key ? "tour-pulse" : ""]

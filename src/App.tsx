@@ -4,6 +4,7 @@ import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
 import RequireSystemSuperAdmin from "./lib/RequireSystemSuperAdmin";
 import RequireEntityAdmin from "./lib/RequireEntityAdmin";
+import RequireFeature from "./lib/RequireFeature";
 import AppLayout from "./lib/AppLayout";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -59,22 +60,31 @@ const router = createBrowserRouter(
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/app" element={<HomeRedirect />} />
-          <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
-          <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
+          {/* Product-module gates (see RequireFeature.tsx / the backend's
+              require_feature): CRM is everything but plant design, DESIGN is
+              plant design only. Entity Settings and Users are core. */}
+          <Route element={<RequireFeature feature="CRM" />}>
+            <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
+            <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
+          </Route>
           <Route element={<RequireEntityAdmin />}>
-            <Route path="/app/dashboard" element={<EntityDashboardPage />} />
             <Route path="/app/entity" element={<EntityManagementPage />} />
             <Route path="/app/users" element={<UsersPage />} />
-            <Route path="/app/leads" element={<LeadsPage />} />
-            <Route path="/app/leads/new" element={<AddLeadPage />} />
-            <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
-            <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
-            <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
-            <Route path="/app/projects" element={<ProjectsPage />} />
-            <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
-            <Route path="/app/plant-design" element={<PlantDesignListPage />} />
-            <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
-            <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
+            <Route element={<RequireFeature feature="CRM" />}>
+              <Route path="/app/dashboard" element={<EntityDashboardPage />} />
+              <Route path="/app/leads" element={<LeadsPage />} />
+              <Route path="/app/leads/new" element={<AddLeadPage />} />
+              <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
+              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
+              <Route path="/app/projects" element={<ProjectsPage />} />
+              <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
+            </Route>
+            <Route element={<RequireFeature feature="DESIGN" />}>
+              <Route path="/app/plant-design" element={<PlantDesignListPage />} />
+              <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
+              <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
+            </Route>
           </Route>
           <Route element={<RequireSystemAdmin />}>
             <Route path="/app/admin/entities" element={<EntitiesPage />} />
