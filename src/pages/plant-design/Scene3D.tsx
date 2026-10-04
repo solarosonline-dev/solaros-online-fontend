@@ -625,16 +625,19 @@ function StructureMember({ member }) {
     );
   }
 
-  // A box's default long axis is local Z. Running purely along X (a
-  // purlin) needs a 90° turn around Y to align that axis with X instead;
-  // running within the Y-Z plane (chord/brace) needs the usual tilt
-  // rotation around X.
-  const rotation = Math.abs(dx) > Math.abs(dy) + Math.abs(dz)
-    ? [0, Math.PI / 2, 0]
-    : [Math.atan2(-dy, dz), 0, 0];
+  // A box's default long axis is local Z; turn it onto the member's own
+  // from->to direction. This used to special-case two shapes - "mostly
+  // along X" got a flat 90° Y turn, anything else a tilt about X - which
+  // drew a purlin that also rises along its row (a pitched-roof rack filled
+  // from an edge other than the slope edge) dead level at its mid height,
+  // poking out above the rack at one end and through it at the other.
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(dx, dy, dz).normalize()
+  );
 
   return (
-    <mesh position={mid as any} rotation={rotation as any} castShadow receiveShadow>
+    <mesh position={mid as any} quaternion={quaternion} castShadow receiveShadow>
       <boxGeometry args={[thickness, thickness, length]} />
       <meshStandardMaterial color={style.color} />
     </mesh>
