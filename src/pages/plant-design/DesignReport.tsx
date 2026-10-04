@@ -54,7 +54,15 @@ interface DesignReportProps {
   projectName: string;
   siteAddress: string | null;
   location: { lat: number; lon: number };
-  locationImageUrl: string | null;
+  // Satellite snapshots centered on the confirmed site location (world
+  // origin): `wide` (~500m across) for area context, `tight` (~120m) for the
+  // close-up. `siteFocus` is where the buildings actually are (world meters,
+  // relative to that origin) and how far they spread - frames the close-up.
+  locationImages: {
+    wide: { url: string; spanMeters: number } | null;
+    tight: { url: string; spanMeters: number } | null;
+  };
+  siteFocus: { x: number; y: number; radius: number };
   capacityKw: number;
   panelCount: number;
   panelSpec: any;
@@ -77,6 +85,42 @@ interface DesignReportProps {
 // Close-ups for at most this many roofs - more than that no longer fits
 // legibly on one page next to the overview.
 const MAX_ROOF_CLOSEUPS = 4;
+
+// Box size of each location image on the overview page (px, square) - must
+// match .pde-report-location-image in the CSS.
+const LOCATION_BOX = 255;
+
+// A satellite snapshot with a pin on the site location (the image's own
+// center). With `focus`, zoomed in (up to 4x) and re-centered on the
+// buildings instead, the pin following the location. Plain positioned HTML
+// rather than SVG so the PDF capture (html2canvas) draws it exactly.
+function LocationImage({ image, focus }: { image: { url: string; spanMeters: number } | null; focus: { x: number; y: number; radius: number } | null }) {
+  if (!image) return <div className="pde-report-figure-empty pde-report-location-image">No site image</div>;
+  const zoom = focus ? Math.min(4, Math.max(1, image.spanMeters / Math.max(focus.radius * 3, 25))) : 1;
+  const size = LOCATION_BOX * zoom;
+  const pxPerM = size / image.spanMeters;
+  // Image-center (= site location) offset from the box center, in px: shift
+  // so the buildings' center lands mid-box (y flipped - north is up).
+  const dx = focus ? -focus.x * pxPerM : 0;
+  const dy = focus ? focus.y * pxPerM : 0;
+  // Don't pan past the image's own edge (would show blank) - clamp so the
+  // box always stays inside the scaled image.
+  const maxShift = (size - LOCATION_BOX) / 2;
+  const sx = Math.max(-maxShift, Math.min(maxShift, dx));
+  const sy = Math.max(-maxShift, Math.min(maxShift, dy));
+  const pinX = LOCATION_BOX / 2 + sx, pinY = LOCATION_BOX / 2 + sy;
+  return (
+    <div className="pde-report-location-image">
+      <img
+        src={image.url}
+        alt=""
+        style={{ position: 'absolute', width: size, height: size, left: (LOCATION_BOX - size) / 2 + sx, top: (LOCATION_BOX - size) / 2 + sy, maxWidth: 'none' }}
+      />
+      <span className="pde-report-pin-ring" style={{ left: pinX, top: pinY }} />
+      <span className="pde-report-pin" style={{ left: pinX, top: pinY }} />
+    </div>
+  );
+}
 
 function Figure({ caption, children }: { caption: string; children: ReactNode }) {
   return (
@@ -275,7 +319,7 @@ function niceStep(raw: number) {
 
 export default function DesignReport(props: DesignReportProps) {
   const {
-    branding, client, projectName, siteAddress, location, locationImageUrl, capacityKw, panelCount,
+    branding, client, projectName, siteAddress, location, locationImages, siteFocus, capacityKw, panelCount,
     panelSpec, inverterChoice, inverterCount, gridConnection, dcAcRatio, designTemp, roofRows, output, ghiStatus, sld,
     sitePlan, renders3D, renders3DFailed, views3D,
   } = props;
@@ -322,12 +366,12 @@ export default function DesignReport(props: DesignReportProps) {
             </div>
           </div>
           <div className="pde-report-location">
-            {locationImageUrl ? (
-              <img src={locationImageUrl} alt="Site location" />
-            ) : (
-              <div className="pde-report-location-empty">No site image</div>
-            )}
-            <span className="pde-report-muted">Site location · {coords}</span>
+            <Figure caption={`Location · ${coords}`}>
+              <LocationImage image={locationImages.wide} focus={null} />
+            </Figure>
+            <Figure caption="Site close-up">
+              <LocationImage image={locationImages.tight} focus={siteFocus} />
+            </Figure>
           </div>
         </div>
       </Page>

@@ -6584,7 +6584,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 projectName={projectName}
                 siteAddress={reportContext?.siteAddress ?? null}
                 location={location}
-                locationImageUrl={siteImages.locationImage?.url ?? null}
+                locationImages={{
+                  wide: backdropWidePlacement ? { url: backdropWidePlacement.url, spanMeters: backdropWidePlacement.widthMeters } : null,
+                  tight: backdropPlacement ? { url: backdropPlacement.url, spanMeters: backdropPlacement.widthMeters } : null,
+                }}
+                siteFocus={(() => {
+                  const pts = roofs.flatMap((r) => getRoofPolygon(r));
+                  if (pts.length === 0) return { x: 0, y: 0, radius: 15 };
+                  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+                  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+                  return { x: cx, y: cy, radius: Math.max(...pts.map((p) => Math.hypot(p.x - cx, p.y - cy))) };
+                })()}
                 capacityKw={totalCapacityKW}
                 panelCount={totalPanelCount}
                 panelSpec={panelSpec}

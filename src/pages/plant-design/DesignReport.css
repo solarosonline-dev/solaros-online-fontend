@@ -148,28 +148,40 @@
   color: #6b7280;
 }
 .pde-report-location {
-  width: 330px;
+  width: 257px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 11px;
+  gap: 10px;
 }
-.pde-report-location img,
-.pde-report-location-empty {
-  width: 330px;
-  height: 330px;
-  object-fit: cover;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
+/* Fixed square - DesignReport.tsx's LOCATION_BOX positions the zoomed image
+   and pin in px against this exact size. */
+.pde-report-location-image {
+  position: relative;
+  width: 255px;
+  height: 255px;
+  overflow: hidden;
+  aspect-ratio: auto;
 }
-.pde-report-location-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-  color: #9ca3af;
-  font-size: 13px;
+/* Site location pin: a red dot with a soft ring, centered on its left/top. */
+.pde-report-pin,
+.pde-report-pin-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+.pde-report-pin {
+  width: 14px;
+  height: 14px;
+  background: #dc2626;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.pde-report-pin-ring {
+  width: 44px;
+  height: 44px;
+  background: rgba(220, 38, 38, 0.18);
+  border: 2px solid rgba(220, 38, 38, 0.75);
 }
 
 /* Stat tiles */
