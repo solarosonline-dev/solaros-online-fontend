@@ -852,21 +852,35 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       const grids = roof.grids.map((g) => {
         if (g.id !== gridId) return g;
         const preserveCount = patch.panelsPerRow === undefined && patch.orientation === undefined;
+        // The size this grid is meant to be (so tilt/spacing changes never
+        // grow it - see 6cfa974). Remembered as `panelCap` the first time it
+        // caps a repack, alongside the count that repack produced
+        // (`panelCapCount`), and reused while the grid still has that count:
+        // re-reading it from the *current* count instead made any temporary
+        // loss permanent - widening row spacing dropped rows, and setting it
+        // back to 0 was then capped at the smaller count. A different count
+        // means the user added/deleted panels since, so that becomes the new
+        // intended size.
+        const currentCount = g.panels ? g.panels.length : 0;
+        const cap = !preserveCount ? null
+          : (g.panelCap && g.panelCapCount === currentCount)
+            ? g.panelCap
+            : { maxPanels: currentCount, maxRows: g.panels ? new Set<number>(g.panels.map((p: any) => p.rackY)).size : undefined };
         const gridSettings = {
           panelTiltDeg: patch.panelTiltDeg !== undefined ? patch.panelTiltDeg : g.panelTiltDeg,
           rowSpacing: patch.rowSpacing !== undefined ? patch.rowSpacing : g.rowSpacing,
           structureStrategy: patch.structureStrategy ?? g.structureStrategy,
           panelsPerRow: patch.panelsPerRow ?? g.panelsPerRow,
           orientation: patch.orientation ?? g.orientation,
-          maxPanels: preserveCount ? (g.panels ? g.panels.length : undefined) : undefined,
-          maxRows: preserveCount ? (g.panels ? new Set<number>(g.panels.map((p: any) => p.rackY)).size : undefined) : undefined,
+          maxPanels: cap?.maxPanels,
+          maxRows: cap?.maxRows,
         };
         const next = generateLayout({ roof, footprintPolygon: g.footprintPolygon, gridSettings, panelSpec, obstacles, location });
         // `source` isn't set by generateLayout itself - carry it over so a
         // later "Generate Layout" run (see regenerateAllGrids) still finds
         // and replaces this grid instead of treating it as untouched and
         // appending a duplicate.
-        return { ...next, id: g.id, source: g.source, rotation: g.rotation || 0 };
+        return { ...next, id: g.id, source: g.source, rotation: g.rotation || 0, panelCap: cap ?? undefined, panelCapCount: cap ? next.panels.length : undefined };
       });
       return { ...roof, grids };
     }));
