@@ -393,10 +393,15 @@ function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick, palette = 
   );
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, onClick = undefined as any }) {
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, crossSlope = 0, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, onClick = undefined as any }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
+  // A pitched-roof rack filled from an edge other than the slope edge rises
+  // along its row (computeStructure's `crossSlope`, per metre of +rackX).
+  // The panel's own +x points along -rackX under rotationY, hence the sign;
+  // 'ZYX' rolls after tilting, so the row edge follows the rack exactly.
+  const rollRad = Math.atan(-crossSlope);
   // Selected wins over shading/efficiency tint - same "blue = selected"
   // rule as obstacles (SELECTED_COLOR).
   // Picked for deletion (delete row/column/panel mode) wins over everything
@@ -405,7 +410,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>
-      <mesh rotation={[-tiltRad, 0, 0]} castShadow={!ghost} receiveShadow={!ghost}>
+      <mesh rotation={[-tiltRad, 0, rollRad, 'ZYX']} castShadow={!ghost} receiveShadow={!ghost}>
         <boxGeometry args={[w, 0.03, len]} />
         {/* A real panel's glass surface glints as the sun moves across the
             sky - clearcoat (a thin glossy layer over the tinted base) gets
@@ -657,10 +662,18 @@ function StructureSegment({ segment, y, depth, azimuth, roofHeight, direction, g
   const rotationY = (-azimuth + gridRotation) * DEG;
   const localWorld = toSlopeWorld({ x: segment.midX, y: centerY }, direction);
   const world = gridRotation ? rotateAroundPivot(localWorld, gridPivot(grid), gridRotation) : localWorld;
+  // Members' x is +rackX (layoutEngine: px - midX), but under rotationY this
+  // group's own +x points along -rackX (same as Panel's), so flip it. Only
+  // visible once heights vary along a row (a pitched roof filled from an
+  // edge other than its slope edge) - every member used to be symmetric.
+  const members = useMemo(
+    () => segment.members.map((m) => ({ ...m, from: [-m.from[0], m.from[1], m.from[2]], to: [-m.to[0], m.to[1], m.to[2]] })),
+    [segment.members]
+  );
 
   return (
     <group position={toThree(world.x, world.y, roofHeight)} rotation={[0, rotationY, 0]}>
-      {segment.members.map((m, i) => (
+      {members.map((m, i) => (
         <StructureMember key={i} member={m} />
       ))}
     </group>
@@ -1238,6 +1251,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                       roofHeight={deckTop}
                       frontHeight={h?.frontHeight ?? 0}
                       backHeight={h?.backHeight ?? 0}
+                      crossSlope={h?.crossSlope ?? 0}
                       shaded={grid.shadedIds?.has(p.id)}
                       efficiencyPct={grid.efficiencyPct?.[p.id]}
                       ghost={ghostPanels}

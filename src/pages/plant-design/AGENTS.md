@@ -516,10 +516,13 @@ roof's shape.** The deck (`PitchedBuilding`/`BoundaryWall`,
 `roofSurfaceHeightAt`, skylight frames) always slopes along
 `getPitchedRoofSlopeAzimuth(roof)` (from `slopeDirection`), never
 `roof.azimuth`; an earlier version sloped the deck along the azimuth, so
-editing it visibly re-tilted the building. Auto panel tilt on a pitched
-roof is `pitchedFlushTilt(roof, azimuth)` — flush with the deck along the
-fill direction, `atan(tan(pitch)·cos(offset))`, exactly `pitchDeg` when
-azimuth = slope edge. `azimuth` is in
+editing it visibly re-tilted the building. A pitched roof packs along
+`packingAzimuth(roof, location)`, not the raw azimuth: it **snaps to the
+roof edge facing closest to the azimuth** (the "azimuth edge") — rows run
+parallel to that edge, fill from it, and panels face it. An off-edge angle
+used to cut diagonal staircase rows across the fixed roof plane. The Azimuth
+popover says so when the snapped facing differs from the typed value. Auto
+tilt stays `pitchDeg`. `azimuth` is in
 `ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
 resets the override to auto.
 
@@ -593,11 +596,16 @@ tan(pitch)). Four places must agree on it, and do:
 `polygonToSlopedBuildingGeometry` + `boundaryRingGeometry` (Scene3D),
 `roofSurfaceHeightAt` (geometry.ts, obstacles), and `computeStructure`'s
 `pitchedHeightAtY` (layoutEngine, panels/structure). The last works in the
-grid's own (rackX, rackY) frame via `pitchedRoofDeck`: when the grid's fill
-direction differs from the slope, the deck climbs more slowly along rackY
-and cross-slopes along rackX, so panel heights take each panel's rackX and
-pillars/chords are heighted per pillar (purlins get a different height at
-each end). Panels on a
+grid's own (rackX, rackY) frame via `pitchedRoofDeck` / `pitchedRackHeight`.
+Rows across the slope (`deck.aligned`, the usual case) keep the original
+continuous plane from the array's front edge. Rows filled from another edge
+are **separate tilted racks facing that edge**, each anchored on the deck at
+its own front; the deck then rises along each row, so heights take rackX
+(per panel, per pillar; purlins differ at each end) and `panelHeights`
+carries a `crossSlope` that Scene3D's `Panel` rolls by. `StructureSegment`
+negates member x: its group's +x points along −rackX under the azimuth
+rotation (as `Panel`'s does), which was invisible while every member was
+symmetric along its row. Panels on a
 pitched roof render from `buildingHeight` (no flat-roof deck slab).
 Two earlier bugs this replaced: a 4-sided roof's deck climbed perpendicular
 to its *eave edge* (so any azimuth ≠ that edge's normal tilted panels across

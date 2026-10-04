@@ -219,18 +219,19 @@ export function azimuthOffset(a: number, b: number): number {
   return d > 180 ? 360 - d : d;
 }
 
-// A pitched roof's "auto" panel tilt: flush with its deck along the
-// direction panels are filled in (`azimuthDeg`, the roof's Azimuth). The
-// roof plane itself always slopes along its own slope edge
-// (getPitchedRoofSlopeAzimuth) - the Azimuth only sets the fill direction -
-// so filling at an angle to the slope sees a shallower climb:
-// atan(tan(pitch) * cos(offset)). Exactly roof.pitchDeg when the two match,
-// so an un-rotated roof is unchanged; never negative (filling facing
-// uphill just lays panels flat).
-export function pitchedFlushTilt(roof: any, azimuthDeg: number): number {
-  const offset = toRad(azimuthOffset(azimuthDeg, getPitchedRoofSlopeAzimuth(roof)));
-  const tilt = Math.atan(Math.tan(toRad(roof?.pitchDeg || 0)) * Math.cos(offset)) * 180 / Math.PI;
-  return Math.abs(tilt - (roof?.pitchDeg || 0)) < 1e-9 ? (roof?.pitchDeg || 0) : Math.max(0, Math.round(tilt * 100) / 100);
+// The direction a roof is actually packed in (rows, starting edge and
+// panel facing) - getRoofAzimuth, except on a pitched roof, where it snaps
+// to the roof edge facing closest to that azimuth (the "azimuth edge").
+// Rows then always run parallel to a real edge and fill from it, rather
+// than cutting diagonally across a fixed roof plane (a staircase fill with
+// a broken structure). Panels on that edge's side tilt toward it as racks
+// sitting on the slope (see layoutEngine's pitchedRoofDeck). The auto
+// azimuth is already the slope edge, so an un-overridden roof is unchanged.
+export function packingAzimuth(roof: any, location: any): number {
+  const az = getRoofAzimuth(roof, location);
+  if (roof?.type !== 'pitched') return az;
+  const t = toRad(az);
+  return edgeFacingAzimuth(getRoofPolygon(roof), { x: Math.sin(t), y: Math.cos(t) }) ?? az;
 }
 
 export function getRoofAzimuth(roof: any, location: any): number {
