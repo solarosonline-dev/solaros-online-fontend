@@ -45,7 +45,7 @@ import {
   deleteGridRow,
   deleteGridColumn,
   deleteGridPanel,
-  columnIndexMatch,
+  columnMatch,
   bestRoofForGrid,
   reparentGridToRoof,
   gridDirection,
@@ -1050,7 +1050,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const out = new Set<any>();
     if (!gridDeleteMode || !gridDeleteSelection || selectedGrid?.id !== grid.id || gridOwnerRoof?.id !== roofId) return out;
     if (gridDeleteMode === 'row') grid.panels.forEach((p) => { if (p.rackY === gridDeleteSelection.rackY) out.add(p.id); });
-    else if (gridDeleteMode === 'column' && gridDeleteSelection.panelId != null) columnIndexMatch(grid, gridDeleteSelection.panelId).matches.forEach((p) => out.add(p.id));
+    else if (gridDeleteMode === 'column' && gridDeleteSelection.panelId != null) columnMatch(grid, gridDeleteSelection.panelId).matches.forEach((p) => out.add(p.id));
     else (gridDeleteSelection.panelIds || []).forEach((id) => out.add(id));
     return out;
   }
@@ -5529,15 +5529,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               // state comment) - every other grid's panels behave exactly
               // as normal (whole-grid select/move) regardless.
               const deleteModeActive = gridDeleteMode && selectedGrid?.id === g.id && gridOwnerRoof?.id === roof.id;
-              // "Select column" matches by position within each row (see
-              // layoutEngine.js's columnIndexMatch) rather than by rackX -
-              // rows can have different panel counts on a grid stepped by a
-              // tapered/rotated roof edge, so there's no single rackX every
-              // row's "column" panel actually shares. Computed once per grid
+              // "Select column" takes, from each row, the panel sitting
+              // under the clicked one (see layoutEngine.js's columnMatch) -
+              // rows with a gap there are left out. Computed once per grid
               // render (not per panel) so every panel's own deletePicked
               // check below is just a Set lookup.
               const columnMatchIds = (deleteModeActive && gridDeleteMode === 'column' && gridDeleteSelection?.panelId != null)
-                ? new Set(columnIndexMatch(g, gridDeleteSelection.panelId).matches.map((p) => p.id))
+                ? new Set(columnMatch(g, gridDeleteSelection.panelId).matches.map((p) => p.id))
                 : null;
               // resolvedGridPanels applies the grid's own `rotation` to each
               // panel's position (a presentation-only transform - see

@@ -1440,65 +1440,51 @@ export function deleteGridRow(grid, rackY, roof) {
   }));
 }
 
-// Groups a grid's panels by row (exact rackY, same invariant as everywhere
-// else in this file) and sorts each row left to right by rackX - the basis
-// for matching "the same column" by position instead of by a shared rackX,
-// since rows can have different panel counts (a grid stepped by a tapered
-// or rotated roof edge) and there's then no single geometric rackX every
-// row's "column" panel actually shares (see addGridColumn's own comment on
-// why it moved away from rackX-based matching for the same reason).
-function rowGroupsByPosition(grid) {
-  const rowGroups = new Map();
-  grid.panels.forEach((p) => {
-    if (!rowGroups.has(p.rackY)) rowGroups.set(p.rackY, []);
-    rowGroups.get(p.rackY).push(p);
-  });
-  rowGroups.forEach((ps) => ps.sort((a, b) => a.rackX - b.rackX));
-  return rowGroups;
-}
-
-// The "column" `panelId` belongs to, defined by its left-to-right position
-// within its own row rather than by rackX - every other row's panel at that
-// same position (if that row reaches that far) is the match; a row too
-// short to have a panel there is simply left out. `index` is 0 for the
-// leftmost panel in `panelId`'s own row. Shared by the "select column" UI
-// (for highlighting the match before it's deleted) and deleteGridColumn
-// (for actually deleting it) so both agree on exactly the same set.
-export function columnIndexMatch(grid, panelId) {
-  const rowGroups = rowGroupsByPosition(grid);
+// The "column" `panelId` belongs to: in every row (exact rackY, same
+// invariant as everywhere else in this file), the panel sitting under the
+// clicked one - the nearest by rackX, if it's within half a panel width.
+// A row with nothing at that spot (a gap, a hole, or a row that doesn't
+// reach that far) is simply left out. Matching by geometric position, not
+// by left-to-right index within the row: index matching picked "the 3rd
+// panel of every row", which on rows with gaps or different start points
+// (a grid stepped by a tapered/rotated roof, or panels deleted/added since)
+// landed on panels nowhere near the clicked column. Shared by the "select
+// column" UI (highlighting the match before it's deleted) and
+// deleteGridColumn (actually deleting it) so both agree on the same set.
+export function columnMatch(grid, panelId) {
   const clicked = grid.panels.find((p) => p.id === panelId);
-  if (!clicked) return { index: -1, matches: [], rowGroups };
-  const index = rowGroups.get(clicked.rackY).indexOf(clicked);
+  if (!clicked) return { clicked: null, matches: [] };
+  const rows = new Map();
+  grid.panels.forEach((p) => {
+    if (!rows.has(p.rackY)) rows.set(p.rackY, []);
+    rows.get(p.rackY).push(p);
+  });
   const matches: any[] = [];
-  rowGroups.forEach((ps) => { if (index < ps.length) matches.push(ps[index]); });
-  return { index, matches, rowGroups };
+  rows.forEach((ps) => {
+    const near = ps.reduce((b, p) => (Math.abs(p.rackX - clicked.rackX) < Math.abs(b.rackX - clicked.rackX) ? p : b), ps[0]);
+    if (Math.abs(near.rackX - clicked.rackX) < Math.min(near.w, clicked.w) / 2) matches.push(near);
+  });
+  return { clicked, matches };
 }
 
-// Same idea as deleteGridRow, but removes the panel at `panelId`'s own
-// column position (see columnIndexMatch above) from every row that reaches
-// it, splitting left/right on an interior position the same way deleteGridRow
-// splits front/back on an interior row.
+// Same idea as deleteGridRow, but removes `panelId`'s column (see
+// columnMatch above) from every row that has a panel there. If
+// panels remain on both sides of it, what's left splits into a left and a
+// right grid, the same way deleteGridRow splits front/back on an interior
+// row.
 export function deleteGridColumn(grid, panelId, roof) {
   const direction = gridDirection(grid, roof);
-  const { index, matches, rowGroups } = columnIndexMatch(grid, panelId);
-  if (index < 0) return [grid];
+  const { clicked, matches } = columnMatch(grid, panelId);
+  if (!clicked) return [grid];
 
   const removeIds = new Set(matches.map((p) => p.id));
   const panels = grid.panels.filter((p) => !removeIds.has(p.id));
-  const isInterior = index > 0 && matches.some((p) => index < rowGroups.get(p.rackY).length - 1);
-  if (!isInterior || panels.length === 0) {
+  const left = panels.filter((p) => p.rackX < clicked.rackX);
+  const right = panels.filter((p) => p.rackX >= clicked.rackX);
+  if (!left.length || !right.length) {
     return [{ ...withRecomputedTotals(grid, panels), footprintPolygon: footprintPolygonFromPanels(panels, direction) ?? grid.footprintPolygon }];
   }
-
-  const left: any[] = [];
-  const right: any[] = [];
-  rowGroups.forEach((ps) => {
-    ps.forEach((p, i) => {
-      if (removeIds.has(p.id)) return;
-      (i < index ? left : right).push(p);
-    });
-  });
-  return [left, right].filter((ps) => ps.length > 0).map((ps, i) => ({
+  return [left, right].map((ps, i) => ({
     ...withRecomputedTotals(grid, ps),
     footprintPolygon: footprintPolygonFromPanels(ps, direction),
     source: i === 0 ? grid.source : (grid.source === 'wholeRoof' ? 'drawn' : grid.source),

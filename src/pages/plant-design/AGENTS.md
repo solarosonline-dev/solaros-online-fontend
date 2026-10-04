@@ -1325,7 +1325,11 @@ rail instead, so the strip would just be redundant with it there).
   `deleteGridPanel` in `layoutEngine.ts`) arms a picking mode from the
   grid's popup; clicking a panel while it's active selects (highlights)
   that whole row (exact `rackY` match — deterministic within one grid),
-  column (`rackX` within `COLUMN_TOLERANCE`), or just that panel, and
+  column (`columnMatch`: from each row, the panel under the clicked one -
+  nearest `rackX` within half a panel width; rows with a gap there are
+  left out. An earlier version matched by left-to-right index within each
+  row, which picked "the Nth panel of every row" - wrong on any grid whose
+  rows have gaps or start at different points), or just that panel, and
   `Delete`/`Backspace` removes it — the same key handler whole-grid delete
   uses, so it checks `gridDeleteSelection` first and only falls through to
   whole-grid delete when nothing's picked. `Esc` exits the mode (handled
