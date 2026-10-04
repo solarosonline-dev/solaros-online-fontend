@@ -1448,6 +1448,12 @@ function buildPurlinMembers({ rackYs, footprintDepth, heightAtY, xStart, xEnd, c
   return members;
 }
 
+// True 3D length of a from/to member - a purlin on a rack that rises along
+// its row is longer than the row's plan length.
+function memberLength(m) {
+  return Math.hypot(m.to[0] - m.from[0], m.to[1] - m.from[1], m.to[2] - m.from[2]);
+}
+
 function addTotal(totals, kind, length, count) {
   if (!totals[kind]) totals[kind] = { length: 0, count: 0 };
   totals[kind].length += length;
@@ -1527,7 +1533,7 @@ function computeTrussStructure({ roof, layout }) {
 
       const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
       members.push(...purlinMembers);
-      addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
+      addTotal(totals, 'purlin', purlinMembers.reduce((sum, m) => sum + memberLength(m), 0), purlinMembers.length);
 
       return { xStart, xEnd, midX, members };
     });
@@ -1627,7 +1633,7 @@ function computeGroundMountStructure({ roof, layout }) {
 
       const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
       members.push(...purlinMembers);
-      addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
+      addTotal(totals, 'purlin', purlinMembers.reduce((sum, m) => sum + memberLength(m), 0), purlinMembers.length);
 
       return { xStart, xEnd, midX, members };
     });
@@ -1778,7 +1784,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
 
     const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
     members.push(...purlinMembers);
-    addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
+    addTotal(totals, 'purlin', purlinMembers.reduce((sum, m) => sum + memberLength(m), 0), purlinMembers.length);
 
     // One bay = one rack entry (not grouped back under a shared cluster
     // rack) - Scene3D positions each rack purely from its own `y`/`depth`,
