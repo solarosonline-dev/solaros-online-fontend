@@ -6,10 +6,11 @@
 // monthly climatology (one average per month), so every day within a month
 // would compute to near-identical bars.
 //
-// Shading: every figure has an "unshaded" twin (same layout, obstacles'
-// shadows ignored) from the same pass, so the monthly bars stack actual
+// Shading: every figure has a "lost to shading" twin from the same pass
+// (exactly 0 when nothing casts a shadow), so the monthly bars stack actual
 // output + what shading took away, and the hourly view overlays the
-// unshaded curve as a dashed line - the gap is when the shadow hits. A roof
+// unshaded curve (actual + lost) as a dashed line - the gap is when the
+// shadow hits. A roof
 // dropdown (only when there's more than one roof) swaps the whole site's
 // series for one roof's.
 import { useState } from 'react';
@@ -30,32 +31,32 @@ const UNSHADED_LINE = '#9ca3af';
 // summing computeOutput 'year' results grid by grid (addToOutputSeries).
 export interface OutputSeries {
   totalKWh: number;
-  totalUnshadedKWh: number;
+  totalLostKWh: number;
   monthlyKWh: number[];
-  monthlyUnshadedKWh: number[];
+  monthlyLostKWh: number[];
   hourlyByMonth: number[][];
-  hourlyUnshadedByMonth: number[][];
+  hourlyLostByMonth: number[][];
 }
 
 export function emptyOutputSeries(): OutputSeries {
   const months = () => new Array(12).fill(0);
   const hourly = () => Array.from({ length: 12 }, () => new Array(HOURS).fill(0));
   return {
-    totalKWh: 0, totalUnshadedKWh: 0,
-    monthlyKWh: months(), monthlyUnshadedKWh: months(),
-    hourlyByMonth: hourly(), hourlyUnshadedByMonth: hourly(),
+    totalKWh: 0, totalLostKWh: 0,
+    monthlyKWh: months(), monthlyLostKWh: months(),
+    hourlyByMonth: hourly(), hourlyLostByMonth: hourly(),
   };
 }
 
 export function addToOutputSeries(into: OutputSeries, r: any) {
   into.totalKWh += r.totalKWh;
-  into.totalUnshadedKWh += r.totalUnshadedKWh ?? r.totalKWh;
+  into.totalLostKWh += r.totalLostKWh ?? 0;
   for (let m = 0; m < 12; m++) {
     into.monthlyKWh[m] += r.monthlyKWh?.[m] ?? 0;
-    into.monthlyUnshadedKWh[m] += r.monthlyUnshadedKWh?.[m] ?? 0;
+    into.monthlyLostKWh[m] += r.monthlyLostKWh?.[m] ?? 0;
     for (let h = 0; h < HOURS; h++) {
       into.hourlyByMonth[m][h] += r.hourlyByMonth?.[m]?.[h] ?? 0;
-      into.hourlyUnshadedByMonth[m][h] += r.hourlyUnshadedByMonth?.[m]?.[h] ?? 0;
+      into.hourlyLostByMonth[m][h] += r.hourlyLostByMonth?.[m]?.[h] ?? 0;
     }
   }
 }
@@ -68,12 +69,21 @@ export function formatPct(v: number) {
   return `${v < 10 ? v.toFixed(1) : Math.round(v)}%`;
 }
 
-function lossPct(actual: number, unshaded: number) {
-  return unshaded > 0 ? Math.max(0, (100 * (unshaded - actual)) / unshaded) : 0;
+function lossPct(actual: number, lost: number) {
+  const unshaded = actual + lost;
+  return unshaded > 0 ? (100 * lost) / unshaded : 0;
 }
 
-export function shadingLossPct(s: { totalKWh: number; totalUnshadedKWh: number }) {
-  return lossPct(s.totalKWh, s.totalUnshadedKWh);
+export function shadingLossPct(s: { totalKWh: number; totalLostKWh: number }) {
+  return lossPct(s.totalKWh, s.totalLostKWh);
+}
+
+// Axis ticks: whole numbers normally, one decimal once the range is small
+// (a loss-only view can be single-digit kWh, where rounding every tick to
+// the same integer made the axis useless).
+function axisTick(v: unknown) {
+  const n = Number(v);
+  return n.toLocaleString('en-IN', { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
 }
 
 function hourLabel(h: number) {
@@ -140,7 +150,7 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
   const [hourlyHidden, setHourlyHidden] = useState<Set<string>>(new Set());
   const chartHeight = isMobile ? 260 : 360;
 
-  if (!result?.monthlyUnshadedKWh) {
+  if (!result?.monthlyLostKWh) {
     return (
       <div className="pde-step1-card pde-output-chart">
         <div className="pde-field-sm-hint">Calculating…</div>
@@ -166,12 +176,11 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
   const tooltipFormatter = (v: unknown, name: unknown) => [formatKWh(Number(v)), String(name)];
 
   if (drillMonth === null) {
-    const { monthlyKWh, monthlyUnshadedKWh } = series;
-    const data = monthlyKWh.map((kWh, m) => ({
-      name: MONTH_SHORT[m],
-      actual: kWh,
-      lost: Math.max(0, monthlyUnshadedKWh[m] - kWh),
-    }));
+    const { monthlyKWh, monthlyLostKWh } = series;
+    const data = monthlyKWh.map((kWh, m) => ({ name: MONTH_SHORT[m], actual: kWh, lost: monthlyLostKWh[m] }));
+    // Loss-only view of a roof/site nothing shades: say so, rather than
+    // an empty (or meaningless) chart.
+    const noLossToShow = monthlyHidden.has('actual') && series.totalLostKWh === 0;
     const best = monthlyKWh.indexOf(Math.max(...monthlyKWh));
     const worst = monthlyKWh.indexOf(Math.min(...monthlyKWh));
     return (
@@ -198,30 +207,36 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
           hidden={monthlyHidden}
           onChange={setMonthlyHidden}
         />
+        {noLossToShow ? (
+          <div className="pde-output-chart-empty" style={{ height: chartHeight }}>
+            No shading loss - nothing on {selectedRoof ? 'this roof' : 'this site'} casts a shadow on the panels during the year.
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="#eef0f3" />
             <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} interval={0} />
-            <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} tickFormatter={(v) => Number(v).toLocaleString('en-IN')} />
+            <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} tickFormatter={axisTick} />
             <Tooltip cursor={{ fill: 'rgba(37, 99, 235, 0.06)' }} formatter={tooltipFormatter} />
             <Bar dataKey="actual" name="Output" stackId="m" fill={ACCENT} hide={monthlyHidden.has('actual')} radius={monthlyHidden.has('lost') ? [4, 4, 0, 0] : 0} style={{ cursor: 'pointer' }} onClick={(_d: unknown, i: number) => onDrillMonth(i)} />
             <Bar dataKey="lost" name="Lost to shading" stackId="m" fill={LOSS} hide={monthlyHidden.has('lost')} radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }} onClick={(_d: unknown, i: number) => onDrillMonth(i)} />
           </BarChart>
         </ResponsiveContainer>
+        )}
         <div className="pde-field-sm-hint pde-output-chart-note">{sourceNote(ghiStatus)}</div>
       </div>
     );
   }
 
   const hours = series.hourlyByMonth[drillMonth];
-  const unshadedHours = series.hourlyUnshadedByMonth[drillMonth];
-  const data = hours.map((kWh, i) => ({ name: hourLabel(FIRST_HOUR + i), actual: kWh, unshaded: unshadedHours[i] }));
+  const lostHours = series.hourlyLostByMonth[drillMonth];
+  const data = hours.map((kWh, i) => ({ name: hourLabel(FIRST_HOUR + i), actual: kWh, unshaded: kWh + lostHours[i] }));
   const dayTotal = hours.reduce((a, b) => a + b, 0);
   const peakIdx = hours.indexOf(Math.max(...hours));
   // Same y-axis ceiling for every month, so stepping between months with
   // the arrows shows real seasonal differences instead of each curve
   // rescaling itself to fill the chart.
-  const yMax = Math.max(...series.hourlyUnshadedByMonth.flat()) || 1;
+  const yMax = Math.max(...series.hourlyByMonth.flatMap((hs, m) => hs.map((v, h) => v + series.hourlyLostByMonth[m][h]))) || 1;
 
   return (
     <div className="pde-step1-card pde-output-chart">
@@ -240,7 +255,7 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
           <span>Per day: <strong>{formatKWh(dayTotal)}</strong></span>
           <span>Month: <strong>{formatKWh(series.monthlyKWh[drillMonth])}</strong></span>
           <span>Peak: <strong>{hourLabel(FIRST_HOUR + peakIdx)}</strong></span>
-          <span>Shading loss: <strong>{formatPct(lossPct(series.monthlyKWh[drillMonth], series.monthlyUnshadedKWh[drillMonth]))}</strong></span>
+          <span>Shading loss: <strong>{formatPct(lossPct(series.monthlyKWh[drillMonth], series.monthlyLostKWh[drillMonth]))}</strong></span>
         </div>
       </div>
       <SeriesToggles
@@ -255,7 +270,7 @@ export default function OutputChartPanel({ result, drillMonth, onDrillMonth, ghi
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke="#eef0f3" />
           <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} interval={isMobile ? 2 : 1} />
-          <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} domain={[0, Math.ceil(yMax)]} tickFormatter={(v) => Number(v).toLocaleString('en-IN')} />
+          <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} domain={[0, Math.ceil(yMax)]} tickFormatter={axisTick} />
           <Tooltip formatter={tooltipFormatter} />
           <Area type="monotone" dataKey="actual" name="Output" stroke={ACCENT} strokeWidth={2} fill={ACCENT_MUTED} fillOpacity={0.35} hide={hourlyHidden.has('actual')} />
           <Line type="monotone" dataKey="unshaded" name="Without shading" stroke={UNSHADED_LINE} strokeWidth={1.5} strokeDasharray="5 4" dot={false} hide={hourlyHidden.has('unshaded')} />

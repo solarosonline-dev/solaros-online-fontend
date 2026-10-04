@@ -1833,11 +1833,14 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
     // bucket, so a bucket reads as that hour's kWh (= average kW). Feeds
     // Output estimate's typical-day hourly chart.
     const hourlyKWh = new Array(15).fill(0);
-    // The same energy with every obstacle's shadow ignored - the clear-sky
-    // ceiling this exact layout would reach. Output estimate's shading
-    // loss is just the gap between this and the real (shaded) figures.
-    const hourlyUnshadedKWh = new Array(15).fill(0);
-    let totalUnshadedKWh = 0;
+    // Energy shading took away - the beam component a shaded panel lost at
+    // each sample. Counted directly rather than as (unshaded - actual):
+    // the two totals are summed in different orders, so their difference
+    // came out as float noise (~1e-9 kWh) on a site with no shading at all,
+    // which Output estimate's loss-only chart then stretched to full height.
+    // Counted this way it's exactly 0 whenever nothing casts a shadow.
+    const hourlyLostKWh = new Array(15).fill(0);
+    let totalLostKWh = 0;
 
     samples.forEach(({ elevation, sunAz, hour }) => {
       // Distribute the day's known total insolation across samples by a
@@ -1863,9 +1866,11 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
         const kWh = iEffective * panelAreaEach * efficiency * systemDerate;
         perPanelKWh[p.id] += kWh;
         hourlyKWh[Math.floor(hour) - 5] += kWh;
-        const unshadedKWh = (iBeamTilt + iDiffuseTilt + iGroundTilt) * panelAreaEach * efficiency * systemDerate;
-        hourlyUnshadedKWh[Math.floor(hour) - 5] += unshadedKWh;
-        totalUnshadedKWh += unshadedKWh;
+        if (shaded) {
+          const lostKWh = iBeamTilt * panelAreaEach * efficiency * systemDerate;
+          hourlyLostKWh[Math.floor(hour) - 5] += lostKWh;
+          totalLostKWh += lostKWh;
+        }
         sampleCount++;
         if (shaded) shadedCount++;
       });
@@ -1873,7 +1878,7 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
 
     const totalKWh = Object.values(perPanelKWh).reduce((a, b) => a + b, 0);
     const avgShadedPct = sampleCount ? Math.round((100 * shadedCount) / sampleCount) : 0;
-    return { totalKWh, perPanelKWh, avgShadedPct, hourlyKWh, totalUnshadedKWh, hourlyUnshadedKWh };
+    return { totalKWh, perPanelKWh, avgShadedPct, hourlyKWh, totalLostKWh, hourlyLostKWh };
   }
 
   if (mode === 'day') {
@@ -1908,11 +1913,11 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
   // (hourlyByMonth) - Output estimate's monthly bar chart and its
   // click-a-month typical-day drill-down, both read straight off this one
   // pass rather than a second per-month computeOutput call.
-  let totalKWh = 0, shadedSum = 0, totalUnshadedKWh = 0;
+  let totalKWh = 0, shadedSum = 0, totalLostKWh = 0;
   const monthlyKWh: number[] = [];
   const hourlyByMonth: number[][] = [];
-  const monthlyUnshadedKWh: number[] = [];
-  const hourlyUnshadedByMonth: number[][] = [];
+  const monthlyLostKWh: number[] = [];
+  const hourlyLostByMonth: number[][] = [];
   const perPanelKWh: Record<string, number> = {};
   panels.forEach((p) => (perPanelKWh[p.id] = 0));
   for (let m = 0; m < 12; m++) {
@@ -1922,13 +1927,13 @@ export function computeOutput({ layout, obstacles, location, mode, date, monthly
     totalKWh += r.totalKWh * daysInMonth;
     monthlyKWh.push(r.totalKWh * daysInMonth);
     hourlyByMonth.push(r.hourlyKWh);
-    totalUnshadedKWh += r.totalUnshadedKWh * daysInMonth;
-    monthlyUnshadedKWh.push(r.totalUnshadedKWh * daysInMonth);
-    hourlyUnshadedByMonth.push(r.hourlyUnshadedKWh);
+    totalLostKWh += r.totalLostKWh * daysInMonth;
+    monthlyLostKWh.push(r.totalLostKWh * daysInMonth);
+    hourlyLostByMonth.push(r.hourlyLostKWh);
     shadedSum += r.avgShadedPct;
     Object.entries(r.perPanelKWh).forEach(([id, kwh]) => { perPanelKWh[id] += kwh * daysInMonth; });
   }
-  return { totalKWh, avgShadedPct: Math.round(shadedSum / 12), label: `${date.getFullYear()} (full year)`, perPanelKWh, monthlyKWh, hourlyByMonth, totalUnshadedKWh, monthlyUnshadedKWh, hourlyUnshadedByMonth };
+  return { totalKWh, avgShadedPct: Math.round(shadedSum / 12), label: `${date.getFullYear()} (full year)`, perPanelKWh, monthlyKWh, hourlyByMonth, totalLostKWh, monthlyLostKWh, hourlyLostByMonth };
 }
 
 export function computeCost({ layout, roofType, panelPricePerW, structureRatePerMeter, mountCostPerPanel }) {

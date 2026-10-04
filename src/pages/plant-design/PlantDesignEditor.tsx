@@ -6483,7 +6483,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <div className="pde-field-sm">
                     <label>Shading loss</label>
                     <div className="pde-stat-value">
-                      {formatPct(shadingLossPct(outputResult))} ({formatKWh(Math.max(0, outputResult.totalUnshadedKWh - outputResult.totalKWh))}/yr)
+                      {formatPct(shadingLossPct(outputResult))} ({formatKWh(outputResult.totalLostKWh)}/yr)
                     </div>
                   </div>
                 )}
