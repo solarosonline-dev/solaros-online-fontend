@@ -522,7 +522,12 @@ roof edge facing closest to the azimuth** (the "azimuth edge") — rows run
 parallel to that edge, fill from it, and panels face it. An off-edge angle
 used to cut diagonal staircase rows across the fixed roof plane. The Azimuth
 popover says so when the snapped facing differs from the typed value. Auto
-tilt stays `pitchDeg`. `azimuth` is in
+tilt stays `pitchDeg`. Row spacing defaults to **0 on pitched grids** (rows back
+to back, `Ls + gap`) and 1.0 on flat; it's editable on both (pitched: a
+value > 0 sets the row-to-row pitch, same clamp as flat). Pitched grids
+filled before this stored the flat default 1.0, which never had an effect
+there (below the minimum pitch) — the popover just shows "reset to
+default (0)" for them. `azimuth` is in
 `ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
 resets the override to auto.
 

@@ -219,7 +219,10 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
   const targetPolygon = footprintPolygon || roofPolygon;
   const isWholeRoofFootprint = targetPolygon === roofPolygon;
   const panelTiltDeg = gridSettings.panelTiltDeg ?? null;
-  const rowSpacing = gridSettings.rowSpacing ?? 1.0;
+  // Pitched grids default to 0 (rows packed back to back, as flush panels
+  // need no shading clearance); flat grids keep their 1.0 default. Either
+  // way the clamp below never lets rows overlap.
+  const rowSpacing = gridSettings.rowSpacing ?? (type === 'pitched' ? 0 : 1.0);
   const structureStrategy = gridSettings.structureStrategy ?? roof.structureStrategy ?? 'truss';
 
   let tilt, azimuth, rowPitch;
@@ -243,10 +246,11 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     // it explicitly instead.
     tilt = panelTiltDeg ?? roof.pitchDeg;
     azimuth = slopeDirectionAzimuth(direction);
-    // Assumes the rack sits close enough to flush that no extra inter-row
-    // shading clearance is needed - doesn't re-derive shading-safe spacing
-    // for a panel tilt set far steeper than the roof's own pitch.
-    rowPitch = Ls + gap;
+    // Default (0) assumes the rack sits close enough to flush that no extra
+    // inter-row shading clearance is needed; a manual row spacing (e.g. for
+    // racks tilted toward an edge other than the slope, or steeper than
+    // the roof) sets the row-to-row pitch the same way as on a flat roof.
+    rowPitch = typeof rowSpacing === 'number' && rowSpacing > 0 ? rowSpacing : Ls + gap;
   }
 
   const footprintDepth = type === 'flat' ? Ls * Math.cos(toRad(tilt)) : Ls;

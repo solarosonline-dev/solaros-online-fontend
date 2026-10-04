@@ -6295,7 +6295,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   const resolvedTilt = selectedGrid.panelTiltDeg ?? autoTilt;
                   const Ls = selectedGrid.orientation === 'landscape' ? panelSpec.width : panelSpec.height;
                   const recommendedRowSpacing = +computeAutoRowSpacing({ location, tilt: computeAutoTilt(location), Ls }).toFixed(2);
-                  const resolvedRowSpacing = selectedGrid.rowSpacing ?? 1.0;
+                  const isPitchedGrid = gridOwnerRoof.type === 'pitched';
+                  // Mirrors generateLayout's own default (pitched 0, flat 1.0).
+                  const defaultRowSpacing = isPitchedGrid ? 0 : 1.0;
+                  const resolvedRowSpacing = selectedGrid.rowSpacing ?? defaultRowSpacing;
                   return (
                     <>
                       <div style={{ fontSize: 10, color: '#555', fontWeight: 600, textAlign: 'center' }}>
@@ -6436,13 +6439,21 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </div>
 
                             <div style={labelStyle}>
-                              <span>Row spacing ({units}){gridOwnerRoof.type === 'pitched' ? ' (flat roof only)' : ''}</span>
+                              <span>Row spacing ({units})</span>
                               <SliderInput
-                                unit={units} min={0.5} max={10} step={0.05} disabled={gridOwnerRoof.type !== 'flat'}
+                                unit={units} min={isPitchedGrid ? 0 : 0.5} max={10} step={0.05}
                                 value={resolvedRowSpacing}
                                 onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: v })}
                               />
                             </div>
+                            {isPitchedGrid && resolvedRowSpacing !== 0 && (
+                              <button
+                                onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: 0 })}
+                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginBottom: 4 }}
+                              >
+                                reset to default (0)
+                              </button>
+                            )}
                             {gridOwnerRoof.type === 'flat' && (
                               <div style={{ display: 'flex', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                                 {selectedGrid.rowSpacing != null && selectedGrid.rowSpacing !== 1.0 && (
@@ -6464,7 +6475,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                               </div>
                             )}
                             <div style={{ fontSize: 11, color: '#888' }}>
+                              {isPitchedGrid ? (
+                                <>Default is 0: rows packed back to back, as flush panels on a pitched roof don't shade each other. Raise it to space out tilted racks (row-to-row pitch).</>
+                              ) : (<>
                               Default row spacing is 1.00m. Recommended uses the shading-safe row-to-row spacing computed from this site's own latitude ({formatLength(recommendedRowSpacing, units, 2)}).
+                              </>)}
                             </div>
                         </RailPopover>
                       </div>
