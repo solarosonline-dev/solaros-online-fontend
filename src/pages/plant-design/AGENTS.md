@@ -567,6 +567,18 @@ legacy gap: a southern-hemisphere flat-roof grid packed before this change
 stored `azimuth: 0` but was framed in `'S'` — re-fill it if editing it
 misbehaves.
 
+## Structure under partly-blocked multi-row racks
+
+A rack's x-segments (`iterateRacks`) come from runs of panels across *all*
+its rows, so in a 2-up+ rack an obstacle blocking only some rows (typically
+a skylight) didn't break the run - one full-depth chord/legs/purlins went
+straight over it. `splitRunByRowCoverage` now splits each run wherever the
+set of rows with a panel changes; each segment carries its own
+`top`/`depth`/`rowYs`, and truss/ground-mount size legs, chords, braces and
+purlins from those (heights still from the whole rack's plane, so panels
+don't move). A run with every row present is one segment, unchanged. A
+walkway usually crosses every row, which already split the run.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

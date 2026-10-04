@@ -1192,6 +1192,41 @@ const PANEL_PLANE_OFFSET = CHORD_THICKNESS / 2 + PURLIN_THICKNESS + PANEL_THICKN
 // `rackTop`/`xStart`/`xEnd`/`midX` values are therefore local-space too;
 // Scene3D rotates a rack's own anchor position back into the world via
 // the same toSlopeWorld transform when it renders one.
+// One run's structure segments, split wherever the set of rack rows that
+// actually have a panel changes. In a multi-row rack (panelsPerRow > 1) an
+// obstacle covering only some of its rows - typically a skylight - leaves a
+// hole in one row while the run carries on through the others; a single
+// full-depth segment there put chords, legs and purlins straight over the
+// skylight. Each piece gets its own `top`/`depth`/`rowYs` (the rows it
+// supports), so under the hole the structure is only as deep as the rows
+// that remain. Heights still come from the whole rack's plane - only the
+// extent of the supports changes. A run where every row is present (the
+// usual case, and any one-row rack) comes back as one piece, unchanged.
+function splitRunByRowCoverage(segPanels, footprintDepth) {
+  const left = (p) => p.rackX - p.w / 2;
+  const right = (p) => p.rackX + p.w / 2;
+  const edges: number[] = [...new Set<number>(segPanels.flatMap((p) => [left(p), right(p)]))].sort((a, b) => a - b);
+  // Slivers narrower than this (the inter-panel gap, rounding between rows)
+  // inherit their neighbour's rows instead of starting a piece of their own.
+  const MIN_PIECE = 0.1;
+  let pieces: any[] = [];
+  for (let k = 0; k < edges.length - 1; k++) {
+    const a = edges[k], b = edges[k + 1];
+    if (b - a < 1e-6) continue;
+    const rowYs: number[] = [...new Set<number>(segPanels.filter((p) => left(p) < b - 1e-6 && right(p) > a + 1e-6).map((p) => p.rackY))].sort((m, n) => m - n);
+    const key = rowYs.join(',');
+    const prev = pieces[pieces.length - 1];
+    if (prev && (key === prev.key || b - a < MIN_PIECE || rowYs.length === 0)) { prev.xEnd = b; continue; }
+    if (prev && prev.xEnd - prev.xStart < MIN_PIECE) { Object.assign(prev, { xEnd: b, rowYs, key }); continue; }
+    pieces.push({ xStart: a, xEnd: b, rowYs, key });
+  }
+  return pieces.map(({ xStart, xEnd, rowYs }) => ({
+    xStart, xEnd, rowYs,
+    top: rowYs[0] - footprintDepth / 2,
+    depth: rowYs[rowYs.length - 1] - rowYs[0] + footprintDepth,
+  }));
+}
+
 function* iterateRacks(layout) {
   const footprintDepth = layout.footprintDepth;
   const panelsPerRow = Math.max(1, layout.panelsPerRow || 1);
@@ -1239,10 +1274,7 @@ function* iterateRacks(layout) {
     }
     runs.push(current);
 
-    const xSegments = runs.map((segPanels) => ({
-      xStart: Math.min(...segPanels.map((p) => p.rackX - p.w / 2)),
-      xEnd: Math.max(...segPanels.map((p) => p.rackX + p.w / 2)),
-    }));
+    const xSegments = runs.flatMap((segPanels) => splitRunByRowCoverage(segPanels, footprintDepth));
 
     yield { rackYs, rackTop, rackDepth, xSegments, rowMap };
   }
@@ -1489,25 +1521,25 @@ function computeTrussStructure({ roof, layout }) {
   let racks: any[] = [];
   const totals = {};
 
-  for (const { rackYs, rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
+  for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
     const centerY = rackTop + rackDepth / 2;
-    const halfDepth = rackDepth / 2;
 
-    // Legs attach inset from the chord's own front/back ends too, so the
-    // chord overhangs a little past its two supports at both ends rather
-    // than a leg sitting right at the tip. Between those two inset ends,
-    // legs are spaced every PILLAR_SPACING along the depth axis (same rule
-    // used along a row's width) - `legYs` is just the two end legs when the
-    // usable depth fits in one PILLAR_SPACING, with intermediate legs added
-    // for anything deeper.
-    const legInset = Math.min(MAX_LEG_END_MARGIN, rackDepth * LEG_END_MARGIN_FRAC);
-    const usableLegDepth = Math.max(rackDepth - 2 * legInset, 0);
-    const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
-    const legYs = Array.from({ length: numDepthLegs }, (_, i) => rackTop + legInset + (usableLegDepth * i) / (numDepthLegs - 1));
-
-    const segments = xSegments.map(({ xStart, xEnd }) => {
+    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }) => {
       const length = xEnd - xStart;
       const midX = (xStart + xEnd) / 2;
+
+      // Legs attach inset from the chord's own front/back ends too, so the
+      // chord overhangs a little past its two supports at both ends rather
+      // than a leg sitting right at the tip. Between those two inset ends,
+      // legs are spaced every PILLAR_SPACING along the depth axis (same rule
+      // used along a row's width) - `legYs` is just the two end legs when the
+      // usable depth fits in one PILLAR_SPACING, with intermediate legs added
+      // for anything deeper. Spans only this segment's own rows
+      // (splitRunByRowCoverage) - the whole rack, except beside a hole.
+      const legInset = Math.min(MAX_LEG_END_MARGIN, depth * LEG_END_MARGIN_FRAC);
+      const usableLegDepth = Math.max(depth - 2 * legInset, 0);
+      const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
+      const legYs = Array.from({ length: numDepthLegs }, (_, i) => top + legInset + (usableLegDepth * i) / (numDepthLegs - 1));
 
       // Pillars stay inset from the segment's own left/right ends, rather
       // than sitting exactly at them.
@@ -1522,20 +1554,20 @@ function computeTrussStructure({ roof, layout }) {
         const localX = px - midX;
         // Per pillar, not per rack: on a pitched roof filled at an angle to
         // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
-        const frontHeight = heightAtY(rackTop, rackTop, px, rackDepth);
-        const backHeight = heightAtY(rackTop + rackDepth, rackTop, px, rackDepth);
+        const frontHeight = heightAtY(top, rackTop, px, rackDepth);
+        const backHeight = heightAtY(top + depth, rackTop, px, rackDepth);
         legYs.forEach((ly) => {
           const legHeight = heightAtY(ly, rackTop, px, rackDepth);
           const legZ = ly - centerY;
           members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
           addTotal(totals, 'pillar', legHeight, 1);
         });
-        members.push({ kind: 'chord', from: [localX, frontHeight, -halfDepth], to: [localX, backHeight, halfDepth], thickness: CHORD_THICKNESS });
+        members.push({ kind: 'chord', from: [localX, frontHeight, top - centerY], to: [localX, backHeight, top + depth - centerY], thickness: CHORD_THICKNESS });
 
-        addTotal(totals, 'chord', Math.hypot(rackDepth, backHeight - frontHeight), 1);
+        addTotal(totals, 'chord', Math.hypot(depth, backHeight - frontHeight), 1);
       });
 
-      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
+      const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
       members.push(...purlinMembers);
       addTotal(totals, 'purlin', purlinMembers.reduce((sum, m) => sum + memberLength(m), 0), purlinMembers.length);
 
@@ -1574,27 +1606,32 @@ function computeGroundMountStructure({ roof, layout }) {
   let racks: any[] = [];
   const totals = {};
 
-  for (const { rackYs, rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
+  for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
     const centerY = rackTop + rackDepth / 2;
-    const halfDepth = rackDepth / 2;
 
-    // Braces stay inset from the chord's own front/back ends (same as the
-    // truss strategy's legs - not attaching right at the chord's tips) and
-    // from the pillar's own base (not attaching right at ground/roof level).
-    const braceInset = Math.min(MAX_LEG_END_MARGIN, rackDepth * LEG_END_MARGIN_FRAC);
-    const braceHalfDepth = halfDepth - braceInset;
-
-    // Intermediate, unbraced depth supports between the braced front/back
-    // ends - same PILLAR_SPACING rule as the truss strategy's legs. Empty
-    // when the rack's usable depth fits in one PILLAR_SPACING, so a small
-    // rack's structure is unchanged from before.
-    const usableLegDepth = Math.max(rackDepth - 2 * braceInset, 0);
-    const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
-    const intermediateLegYs = Array.from({ length: numDepthLegs }, (_, i) => rackTop + braceInset + (usableLegDepth * i) / (numDepthLegs - 1)).slice(1, -1);
-
-    const segments = xSegments.map(({ xStart, xEnd }) => {
+    const segments = xSegments.map(({ xStart, xEnd, top, depth, rowYs }) => {
       const length = xEnd - xStart;
       const midX = (xStart + xEnd) / 2;
+      // This segment's own rows (splitRunByRowCoverage) - the whole rack,
+      // except beside a hole in some of its rows. Its central post sits at
+      // the middle of those rows; z is relative to the rack's center.
+      const segCenterY = top + depth / 2;
+      const segZ = segCenterY - centerY;
+      const halfDepth = depth / 2;
+
+      // Braces stay inset from the chord's own front/back ends (same as the
+      // truss strategy's legs - not attaching right at the chord's tips) and
+      // from the pillar's own base (not attaching right at ground/roof level).
+      const braceInset = Math.min(MAX_LEG_END_MARGIN, depth * LEG_END_MARGIN_FRAC);
+      const braceHalfDepth = halfDepth - braceInset;
+
+      // Intermediate, unbraced depth supports between the braced front/back
+      // ends - same PILLAR_SPACING rule as the truss strategy's legs. Empty
+      // when the rack's usable depth fits in one PILLAR_SPACING, so a small
+      // rack's structure is unchanged from before.
+      const usableLegDepth = Math.max(depth - 2 * braceInset, 0);
+      const numDepthLegs = Math.max(2, Math.ceil(usableLegDepth / PILLAR_SPACING) + 1);
+      const intermediateLegYs = Array.from({ length: numDepthLegs }, (_, i) => top + braceInset + (usableLegDepth * i) / (numDepthLegs - 1)).slice(1, -1);
 
       // Same end-margin philosophy as the truss strategy, just fewer
       // vertical pillars (one central post per position instead of two).
@@ -1609,16 +1646,16 @@ function computeGroundMountStructure({ roof, layout }) {
         const localX = px - midX;
         // Per pillar, not per rack: on a pitched roof filled at an angle to
         // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
-        const frontHeight = heightAtY(rackTop, rackTop, px, rackDepth);
-        const backHeight = heightAtY(rackTop + rackDepth, rackTop, px, rackDepth);
-        const centerHeight = heightAtY(centerY, rackTop, px, rackDepth);
-        const braceFrontHeight = heightAtY(rackTop + braceInset, rackTop, px, rackDepth);
-        const braceBackHeight = heightAtY(rackTop + rackDepth - braceInset, rackTop, px, rackDepth);
+        const frontHeight = heightAtY(top, rackTop, px, rackDepth);
+        const backHeight = heightAtY(top + depth, rackTop, px, rackDepth);
+        const centerHeight = heightAtY(segCenterY, rackTop, px, rackDepth);
+        const braceFrontHeight = heightAtY(top + braceInset, rackTop, px, rackDepth);
+        const braceBackHeight = heightAtY(top + depth - braceInset, rackTop, px, rackDepth);
         const baseMargin = Math.min(MAX_BRACE_BASE_MARGIN, centerHeight * BRACE_BASE_MARGIN_FRAC);
-        members.push({ kind: 'pillar', from: [localX, 0, 0], to: [localX, centerHeight, 0], thickness: PILLAR_THICKNESS });
-        members.push({ kind: 'chord', from: [localX, frontHeight, -halfDepth], to: [localX, backHeight, halfDepth], thickness: CHORD_THICKNESS });
-        members.push({ kind: 'brace', from: [localX, baseMargin, 0], to: [localX, braceFrontHeight, -braceHalfDepth], thickness: BRACE_THICKNESS });
-        members.push({ kind: 'brace', from: [localX, baseMargin, 0], to: [localX, braceBackHeight, braceHalfDepth], thickness: BRACE_THICKNESS });
+        members.push({ kind: 'pillar', from: [localX, 0, segZ], to: [localX, centerHeight, segZ], thickness: PILLAR_THICKNESS });
+        members.push({ kind: 'chord', from: [localX, frontHeight, segZ - halfDepth], to: [localX, backHeight, segZ + halfDepth], thickness: CHORD_THICKNESS });
+        members.push({ kind: 'brace', from: [localX, baseMargin, segZ], to: [localX, braceFrontHeight, segZ - braceHalfDepth], thickness: BRACE_THICKNESS });
+        members.push({ kind: 'brace', from: [localX, baseMargin, segZ], to: [localX, braceBackHeight, segZ + braceHalfDepth], thickness: BRACE_THICKNESS });
         intermediateLegYs.forEach((ly) => {
           const legHeight = heightAtY(ly, rackTop, px, rackDepth);
           const legZ = ly - centerY;
@@ -1627,7 +1664,7 @@ function computeGroundMountStructure({ roof, layout }) {
         });
 
         addTotal(totals, 'pillar', centerHeight, 1);
-        addTotal(totals, 'chord', Math.hypot(rackDepth, backHeight - frontHeight), 1);
+        addTotal(totals, 'chord', Math.hypot(depth, backHeight - frontHeight), 1);
         addTotal(
           totals, 'brace',
           Math.hypot(braceHalfDepth, braceFrontHeight - baseMargin) + Math.hypot(braceHalfDepth, braceBackHeight - baseMargin),
@@ -1635,7 +1672,7 @@ function computeGroundMountStructure({ roof, layout }) {
         );
       });
 
-      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
+      const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x, rackDepth), xStart, xEnd, centerY });
       members.push(...purlinMembers);
       addTotal(totals, 'purlin', purlinMembers.reduce((sum, m) => sum + memberLength(m), 0), purlinMembers.length);
 
