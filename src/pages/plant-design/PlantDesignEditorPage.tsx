@@ -13,8 +13,7 @@ import type { PlantDesignData } from "./types";
 // knows nothing about HTTP - see types.ts's PlantDesignEditorProps.
 import { useSearchParams } from "react-router-dom";
 import { uploadWorkOrderDocument } from "../../api/workOrders";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
+import { buildDesignReportPdf } from "./designReportPdf";
 
 export default function PlantDesignEditorPage() {
   const { user } = useAuth();
@@ -92,44 +91,7 @@ export default function PlantDesignEditorPage() {
     }
 
     try {
-      const pdf = new jsPDF("l", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      let pageCount = 0;
-
-      // Capture 2D/3D View
-      if (viewContainer) {
-        const canvas = await html2canvas(viewContainer, { useCORS: true, scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
-        const ratio = canvas.width / canvas.height;
-        const width = pdfWidth;
-        const height = pdfWidth / ratio;
-        
-        pdf.addImage(imgData, "PNG", 0, 10, width, height);
-        pageCount++;
-      }
-
-      // Capture SLD View
-      if (sldContainer) {
-        if (pageCount > 0) pdf.addPage();
-        
-        // SLD is often wider/taller, scale to fit
-        const canvas = await html2canvas(sldContainer, { useCORS: true, scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
-        const ratio = canvas.width / canvas.height;
-        let width = pdfWidth;
-        let height = pdfWidth / ratio;
-
-        if (height > pdfHeight) {
-          height = pdfHeight - 20;
-          width = height * ratio;
-        }
-
-        pdf.addImage(imgData, "PNG", (pdfWidth - width) / 2, 10, width, height);
-      }
-
-      const pdfBlob = pdf.output("blob");
+      const pdfBlob = await buildDesignReportPdf({ viewContainer, sldContainer });
       const file = new File([pdfBlob], "Site_Design_Report.pdf", { type: "application/pdf" });
 
       await uploadWorkOrderDocument(entityId, linkedWorkOrderId, file);
