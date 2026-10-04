@@ -14,6 +14,7 @@ import type { PlantDesignData } from "./types";
 import { useSearchParams } from "react-router-dom";
 import { uploadWorkOrderDocument } from "../../api/workOrders";
 import { buildDesignReportPdf, PDF_ROOT_CLASS } from "./designReportPdf";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function PlantDesignEditorPage() {
   const { user } = useAuth();
@@ -77,6 +78,11 @@ export default function PlantDesignEditorPage() {
     }
   }, [entityId, plantDesignId, leadIdParam]);
 
+  // Set once a report has been attached - drives the success dialog below,
+  // which offers a jump to the work order but lets the user stay put (it
+  // used to navigate away to the project automatically).
+  const [attachedToWorkOrderId, setAttachedToWorkOrderId] = useState<number | string | null>(null);
+
   async function handleGeneratePdf() {
     if (!linkedWorkOrderId) return;
     
@@ -96,15 +102,7 @@ export default function PlantDesignEditorPage() {
       const file = new File([pdfBlob], "Site_Design_Report.pdf", { type: "application/pdf" });
 
       await uploadWorkOrderDocument(entityId, linkedWorkOrderId, file);
-      
-      alert("Design Document generated and attached to Work Order successfully!");
-      
-      // Navigate back if we were created explicitly for a project
-      if (projectIdParam) {
-        navigate(`/app/projects/${projectIdParam}`);
-      } else {
-        navigate(`/app/work-orders/${linkedWorkOrderId}`);
-      }
+      setAttachedToWorkOrderId(linkedWorkOrderId);
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Failed to generate or upload the design document.");
@@ -158,12 +156,28 @@ export default function PlantDesignEditorPage() {
   }
 
   return (
-    <PlantDesignEditor
-      initialDesignData={initialDesignData}
-      onSave={handleSave}
-      onCaptureSiteImage={handleCaptureSiteImage}
-      linkedWorkOrderId={linkedWorkOrderId}
-      onGeneratePdf={handleGeneratePdf}
-    />
+    <>
+      <PlantDesignEditor
+        initialDesignData={initialDesignData}
+        onSave={handleSave}
+        onCaptureSiteImage={handleCaptureSiteImage}
+        linkedWorkOrderId={linkedWorkOrderId}
+        onGeneratePdf={handleGeneratePdf}
+      />
+      <ConfirmDialog
+        open={attachedToWorkOrderId != null}
+        title="PDF attached"
+        message="The design report was attached to the work order. You'll find it with the work order's documents."
+        confirmLabel="Go to work order"
+        cancelLabel="Stay here"
+        danger={false}
+        onConfirm={() => {
+          const id = attachedToWorkOrderId;
+          setAttachedToWorkOrderId(null);
+          navigate(`/app/work-orders/${id}`);
+        }}
+        onCancel={() => setAttachedToWorkOrderId(null)}
+      />
+    </>
   );
 }
