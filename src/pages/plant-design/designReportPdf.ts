@@ -50,7 +50,7 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
     useCORS: true,
     scale: 1.5,
     backgroundColor: '#ffffff',
-    onclone: (_doc, root) => {
+    onclone: (doc, root) => {
       // Same adjustments SldView's own @media print rules make: show the
       // whole thing rather than the on-screen scroll viewport, drop the
       // Print button, and let the diagram fit its column instead of
@@ -59,6 +59,18 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
       root.style.flex = 'none';
       root.style.overflow = 'visible';
       root.querySelectorAll<HTMLElement>('.sld-no-print').forEach((el) => { el.style.display = 'none'; });
+      // Single-line "…"-truncated cells (the Client/Date/Scale title
+      // block): html2canvas draws text a couple of px lower than the
+      // browser does, so overflow:hidden on a one-line box clipped the
+      // bottom of every value. Let them wrap instead - there's no
+      // horizontal space pressure on a printed page anyway.
+      root.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        if (doc.defaultView?.getComputedStyle(el).textOverflow === 'ellipsis') {
+          el.style.overflow = 'visible';
+          el.style.whiteSpace = 'normal';
+          el.style.textOverflow = 'clip';
+        }
+      });
       const scroll = root.querySelector<HTMLElement>('.sld-svg-scroll');
       if (scroll) scroll.style.overflow = 'visible';
       const svgClone = root.querySelector<SVGSVGElement>('.sld-svg-scroll svg');
@@ -85,6 +97,15 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
   // original's.
   const svgCopy = liveSvg.cloneNode(true) as SVGSVGElement;
   svgCopy.setAttribute('font-family', 'helvetica');
+  // jsPDF's built-in fonts only come in normal/bold, and svg2pdf only
+  // recognizes 700/"bold" as bold - any other numeric weight (the SLD's
+  // 600-weight inverter DC and MPPT labels) found no Helvetica variant and
+  // silently fell back to Times. Snap numeric weights to the nearest of
+  // the two that exist.
+  svgCopy.querySelectorAll('[font-weight]').forEach((el) => {
+    const w = Number(el.getAttribute('font-weight'));
+    if (!Number.isNaN(w)) el.setAttribute('font-weight', w >= 600 ? 'bold' : 'normal');
+  });
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:0;height:0;overflow:hidden;';
   holder.appendChild(svgCopy);
