@@ -13,8 +13,11 @@ import type { PlantDesignData } from "./types";
 // knows nothing about HTTP - see types.ts's PlantDesignEditorProps.
 import { useSearchParams } from "react-router-dom";
 import { uploadWorkOrderDocument } from "../../api/workOrders";
-import { buildDesignReportPdf, PDF_ROOT_CLASS } from "./designReportPdf";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { getEntity, type Entity } from "../../api/entity";
+import { getEntityPreferences, type EntityPreferences } from "../../api/entityPreferences";
+import type { LeadDetail } from "../../api/leads";
+import type { PlantDesignEditorProps } from "./types";
 
 export default function PlantDesignEditorPage() {
   const { user } = useAuth();
@@ -44,6 +47,47 @@ export default function PlantDesignEditorPage() {
 
   const [linkedWorkOrderId, setLinkedWorkOrderId] = useState<number | null>(workOrderIdParam ? Number(workOrderIdParam) : null);
 
+  // Design Report context (see PlantDesignEditorProps.reportContext): the
+  // entity's branding, plus client name/contact/address from the design's
+  // linked lead - the ?leadId= one for a new design, or the saved design's
+  // own lead_id. Best-effort: a failed fetch just leaves that part of the
+  // report blank rather than blocking the editor.
+  const [entity, setEntity] = useState<Entity | null>(null);
+  const [preferences, setPreferences] = useState<EntityPreferences | null>(null);
+  const [reportLeadId, setReportLeadId] = useState<number | null>(leadIdParam ? Number(leadIdParam) : null);
+  const [reportLead, setReportLead] = useState<LeadDetail | null>(null);
+  const [designAddress, setDesignAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    getEntity(entityId).then(setEntity).catch((err) => console.warn("Failed to load entity for report", err));
+    getEntityPreferences(entityId).then(setPreferences).catch((err) => console.warn("Failed to load branding for report", err));
+  }, [entityId]);
+
+  useEffect(() => {
+    // The ?leadId= path already fetched this lead in the load effect below.
+    if (reportLeadId == null || reportLead?.lead_id === reportLeadId) return;
+    getLead(entityId, reportLeadId).then(setReportLead).catch((err) => console.warn("Failed to load lead for report", err));
+  }, [entityId, reportLeadId, reportLead]);
+
+  const reportContext: PlantDesignEditorProps["reportContext"] = {
+    branding: {
+      entityName: entity?.name ?? "SolarOS",
+      primaryColor: preferences?.branding.primary_color,
+      logoUrl: preferences?.branding.logo_url,
+      tagline: preferences?.branding.company_tagline,
+      footerTag: preferences?.branding.footer_tag,
+      gstno: entity?.gstno,
+      taxIdLabel: entity?.tax_id_label,
+      address: entity?.address,
+      businessPhone: entity?.business_phone,
+      businessEmail: entity?.business_email,
+    },
+    client: reportLead
+      ? { name: reportLead.name, mobile: reportLead.mobile, email: reportLead.email, address: reportLead.address, discom: reportLead.discom }
+      : null,
+    siteAddress: reportLead?.address ?? designAddress,
+  };
+
   useEffect(() => {
     if (plantDesignId && justCreatedIdRef.current === Number(plantDesignId)) {
       justCreatedIdRef.current = null;
@@ -56,6 +100,8 @@ export default function PlantDesignEditorPage() {
         .then((detail) => {
           setInitialDesignData(detail.design_data);
           setSavedId(detail.plant_design_id);
+          setDesignAddress(detail.address);
+          if (detail.lead_id) setReportLeadId(detail.lead_id);
           if (detail.work_order_id) {
             setLinkedWorkOrderId(detail.work_order_id);
           }
@@ -67,6 +113,7 @@ export default function PlantDesignEditorPage() {
       setLoadError(null);
       getLead(entityId, Number(leadIdParam))
         .then((lead) => {
+          setReportLead(lead);
           if (lead.latitude != null && lead.longitude != null) {
             setInitialDesignData({
               location: { lat: lead.latitude, lon: lead.longitude, tz: 5.5 },
@@ -83,31 +130,11 @@ export default function PlantDesignEditorPage() {
   // used to navigate away to the project automatically).
   const [attachedToWorkOrderId, setAttachedToWorkOrderId] = useState<number | string | null>(null);
 
-  async function handleGeneratePdf() {
+  async function handleAttachPdf(pdf: Blob, filename: string) {
     if (!linkedWorkOrderId) return;
-    
-    // Captures whichever of these the editor is currently showing - the
-    // plan/3D view (`.pde-map-container`, design steps) and/or the SLD
-    // (PDF_ROOT_CLASS, SLD step) - see designReportPdf.ts.
-    const viewContainer = document.querySelector(".pde-map-container") as HTMLElement;
-    const sldContainer = document.querySelector(`.${PDF_ROOT_CLASS}`) as HTMLElement;
-    
-    if (!viewContainer && !sldContainer) {
-       alert("Nothing to capture. Please ensure you have a design or SLD generated.");
-       return;
-    }
-
-    try {
-      const pdfBlob = await buildDesignReportPdf({ viewContainer, sldContainer });
-      const file = new File([pdfBlob], "Site_Design_Report.pdf", { type: "application/pdf" });
-
-      await uploadWorkOrderDocument(entityId, linkedWorkOrderId, file);
-      setAttachedToWorkOrderId(linkedWorkOrderId);
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to generate or upload the design document.");
-      throw err; // bubble up to stop the button's loading state
-    }
+    const file = new File([pdf], filename, { type: "application/pdf" });
+    await uploadWorkOrderDocument(entityId, linkedWorkOrderId, file);
+    setAttachedToWorkOrderId(linkedWorkOrderId);
   }
 
   async function handleSave(
@@ -162,7 +189,8 @@ export default function PlantDesignEditorPage() {
         onSave={handleSave}
         onCaptureSiteImage={handleCaptureSiteImage}
         linkedWorkOrderId={linkedWorkOrderId}
-        onGeneratePdf={handleGeneratePdf}
+        onAttachPdf={handleAttachPdf}
+        reportContext={reportContext}
       />
       <ConfirmDialog
         open={attachedToWorkOrderId != null}

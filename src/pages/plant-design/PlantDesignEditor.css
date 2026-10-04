@@ -750,3 +750,19 @@
   border-radius: 8px;
   box-sizing: border-box;
 }
+
+/* Design Report step (8) - sticky bar above the report pages holding its
+   Download / Attach to Work Order buttons. */
+.plant-design-editor .pde-report-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  background: var(--app-surface, #fff);
+  border-bottom: 1px solid var(--app-border, #e2e5ea);
+}

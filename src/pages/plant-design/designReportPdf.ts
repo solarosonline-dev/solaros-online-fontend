@@ -1,46 +1,38 @@
-// Builds the "Attach PDF to Work Order" design report (PlantDesignEditorPage's
-// handleGeneratePdf): page 1 the site/plan view, page 2 the SLD.
+// Builds the Design Report PDF (the editor's final "Design Report" step):
+// one landscape A4 PDF page per on-screen report page (DesignReport.tsx's
+// `.pde-report-page` elements). Used by both of that step's buttons -
+// Download PDF and Attach to Work Order - so the two can never drift apart.
 //
-// Size matters here - work order documents are capped at 5 MB (see
-// WorkOrderDocuments.tsx). The first version captured both pages as 2x PNG
-// screenshots with jsPDF compression off, which stores every image as raw
-// uncompressed pixels - several MB per page before any content. Now:
-//
-// - Site view: real imagery (satellite tiles), so JPEG at 1.5x, same
-//   trade-off src/lib/capturePdf.ts already made for agreements.
-// - SLD: the diagram itself is an <svg>, so it goes into the PDF as true
-//   vector graphics via svg2pdf.js - tiny, sharp at any zoom, text
-//   selectable. Everything around it (title block, schedule/spec tables,
-//   legend, notes) is ordinary HTML, captured as a compressed PNG (flat
-//   colors and text - PNG stays small and crisp where JPEG would smear)
-//   with the diagram blanked out of that capture, then the vector diagram
-//   is drawn on top at exactly the position it occupied. The page keeps
-//   its on-screen layout without hand-rebuilding every table in jsPDF.
+// Each page is a hybrid, so it stays sharp without being huge (work order
+// documents are capped at 5 MB, see WorkOrderDocuments.tsx):
+// - Every <svg data-pdf-vector> (the SLD diagram, the monthly output chart)
+//   goes in as true vector graphics via svg2pdf.js - sharp at any zoom,
+//   text selectable.
+// - Everything else on the page (tables, text, logo, satellite image) is
+//   one html2canvas capture, with those SVGs blanked out of it; the vector
+//   versions are then drawn over it at exactly the positions they occupied.
+//   PNG for text-only pages (flat colors - stays small and crisp), JPEG for
+//   pages with photos (a PNG of satellite imagery is several MB).
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { svg2pdf } from 'svg2pdf.js';
 
-// SldView puts PDF_ROOT_CLASS on the element to capture (PlantDesignEditor-
-// Page's attach handler finds it by this class) and PDF_HIDE_CLASS on
-// on-screen-only controls inside it that the PDF leaves out.
-export const PDF_ROOT_CLASS = 'sld-pdf-root';
-export const PDF_HIDE_CLASS = 'sld-pdf-hide';
+export const REPORT_PAGE_CLASS = 'pde-report-page';
+const VECTOR_SELECTOR = 'svg[data-pdf-vector]';
 
-const MARGIN_MM = 10;
+const MARGIN_MM = 8;
 
-// The SLD's non-vector part (tables, legend, notes) is captured at 3x -
-// ~385 DPI across a landscape A4 page, up from 1.5x (~190 DPI), which read
-// slightly soft when zoomed. Flat colors and text compress well as PNG, so
-// this only cost ~2.4x the file size (a typical one-page SLD ~200 KB ->
-// ~500 KB, well under the 5 MB work order document cap). Capped by total
-// canvas area: Safari refuses canvases over 16,777,216 px (html2canvas then
-// renders blank), so a very large SLD steps its scale down to fit instead.
-const SLD_CAPTURE_SCALE = 3;
+// Capture resolution - ~385 DPI across a landscape A4 page at 3x (1.5x read
+// soft when zoomed; flat colors/text compress well as PNG, so 3x only cost
+// ~2.4x the size). Capped by total canvas area: Safari refuses canvases over
+// 16,777,216 px (html2canvas then renders blank), so a very tall page steps
+// its scale down to fit instead.
+const CAPTURE_SCALE = 3;
 const MAX_CANVAS_PIXELS = 16_000_000;
 
-function captureScale(el: HTMLElement, preferred: number) {
+function captureScale(el: HTMLElement) {
   const area = Math.max(1, el.scrollWidth * el.scrollHeight);
-  return Math.min(preferred, Math.sqrt(MAX_CANVAS_PIXELS / area));
+  return Math.min(CAPTURE_SCALE, Math.sqrt(MAX_CANVAS_PIXELS / area));
 }
 
 // Largest box with the given aspect ratio that fits the page inside the
@@ -54,37 +46,25 @@ function fitToPage(pdf: jsPDF, aspect: number) {
   return { x: (pdf.internal.pageSize.getWidth() - w) / 2, y: MARGIN_MM, w, h };
 }
 
-async function addSiteViewPage(pdf: jsPDF, viewContainer: HTMLElement) {
-  const canvas = await html2canvas(viewContainer, { useCORS: true, scale: 1.5, backgroundColor: '#ffffff' });
-  const box = fitToPage(pdf, canvas.width / canvas.height);
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', box.x, box.y, box.w, box.h, undefined, 'FAST');
-}
+type Box = { x: number; y: number; w: number; h: number };
 
-async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
-  const liveSvg = sldContainer.querySelector('.sld-svg-scroll svg') as SVGSVGElement | null;
-  // The diagram's position within the captured root, in CSS px - measured
-  // inside html2canvas's own cloned layout (after the tweaks below), since
-  // that's the layout the captured image actually shows.
-  let diagram: { x: number; y: number; w: number; h: number; rootW: number } | null = null;
+async function addReportPage(pdf: jsPDF, pageEl: HTMLElement) {
+  const liveSvgs = Array.from(pageEl.querySelectorAll<SVGSVGElement>(VECTOR_SELECTOR));
+  // Each vector SVG's position within the page, in CSS px - measured inside
+  // html2canvas's own cloned layout (after the tweaks below), since that's
+  // the layout the captured image actually shows. Same order as liveSvgs.
+  let boxes: Box[] = [];
+  let rootW = 1;
 
-  const canvas = await html2canvas(sldContainer, {
+  const canvas = await html2canvas(pageEl, {
     useCORS: true,
-    scale: captureScale(sldContainer, SLD_CAPTURE_SCALE),
+    scale: captureScale(pageEl),
     backgroundColor: '#ffffff',
     onclone: (doc, root) => {
-      // Show the whole thing rather than the on-screen scroll viewport,
-      // drop on-screen-only controls (the Download PDF button), and let the
-      // diagram fit its column instead of overflowing it at its on-screen
-      // min-width.
-      root.style.height = 'auto';
-      root.style.flex = 'none';
-      root.style.overflow = 'visible';
-      root.querySelectorAll<HTMLElement>(`.${PDF_HIDE_CLASS}`).forEach((el) => { el.style.display = 'none'; });
-      // Single-line "…"-truncated cells (the Client/Date/Scale title
-      // block): html2canvas draws text a couple of px lower than the
+      // Single-line "…"-truncated cells (e.g. the SLD's Client/Date/Scale
+      // title block): html2canvas draws text a couple of px lower than the
       // browser does, so overflow:hidden on a one-line box clipped the
-      // bottom of every value. Let them wrap instead - there's no
-      // horizontal space pressure in the PDF anyway.
+      // bottom of every value. Let them wrap instead.
       root.querySelectorAll<HTMLElement>('*').forEach((el) => {
         if (doc.defaultView?.getComputedStyle(el).textOverflow === 'ellipsis') {
           el.style.overflow = 'visible';
@@ -92,66 +72,80 @@ async function addSldPage(pdf: jsPDF, sldContainer: HTMLElement) {
           el.style.textOverflow = 'clip';
         }
       });
-      const scroll = root.querySelector<HTMLElement>('.sld-svg-scroll');
-      if (scroll) scroll.style.overflow = 'visible';
-      const svgClone = root.querySelector<SVGSVGElement>('.sld-svg-scroll svg');
-      if (!svgClone || !liveSvg) return;
-      svgClone.style.minWidth = '260px';
-      svgClone.style.width = '100%';
       const r = root.getBoundingClientRect();
-      const s = svgClone.getBoundingClientRect();
-      diagram = { x: s.left - r.left, y: s.top - r.top, w: s.width, h: s.height, rootW: r.width };
-      svgClone.style.visibility = 'hidden';
+      rootW = r.width;
+      boxes = Array.from(root.querySelectorAll<SVGSVGElement>(VECTOR_SELECTOR)).map((svgClone) => {
+        const s = svgClone.getBoundingClientRect();
+        svgClone.style.visibility = 'hidden';
+        return { x: s.left - r.left, y: s.top - r.top, w: s.width, h: s.height };
+      });
     },
   });
 
   const box = fitToPage(pdf, canvas.width / canvas.height);
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', box.x, box.y, box.w, box.h, undefined, 'FAST');
+  const hasPhoto = pageEl.querySelector('img') != null;
+  if (hasPhoto) {
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', box.x, box.y, box.w, box.h, undefined, 'FAST');
+  } else {
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', box.x, box.y, box.w, box.h, undefined, 'FAST');
+  }
 
-  const d = diagram as { x: number; y: number; w: number; h: number; rootW: number } | null;
-  if (!liveSvg || !d) return;
-  const mmPerPx = box.w / d.rootW;
-  // svg2pdf falls back to Times for text with no font-family; the diagram
-  // inherits the app's sans-serif on screen, so pin Helvetica (jsPDF's
+  const mmPerPx = box.w / rootW;
+  for (let i = 0; i < liveSvgs.length; i++) {
+    const b = boxes[i];
+    if (!b || b.w === 0 || b.h === 0) continue;
+    await addVectorSvg(pdf, liveSvgs[i], {
+      x: box.x + b.x * mmPerPx,
+      y: box.y + b.y * mmPerPx,
+      w: b.w * mmPerPx,
+      h: b.h * mmPerPx,
+    });
+  }
+}
+
+async function addVectorSvg(pdf: jsPDF, liveSvg: SVGSVGElement, at: Box) {
+  // svg2pdf falls back to Times for text with no font-family; the SVGs
+  // inherit the app's sans-serif on screen, so pin Helvetica (jsPDF's
   // built-in sans) on a copy rather than touching the live element.
-  // Mounted off-screen while converting so its styles resolve like the
-  // original's.
   const svgCopy = liveSvg.cloneNode(true) as SVGSVGElement;
   svgCopy.setAttribute('font-family', 'helvetica');
   // jsPDF's built-in fonts only come in normal/bold, and svg2pdf only
-  // recognizes 700/"bold" as bold - any other numeric weight (the SLD's
-  // 600-weight inverter DC and MPPT labels) found no Helvetica variant and
-  // silently fell back to Times. Snap numeric weights to the nearest of
-  // the two that exist.
+  // recognizes 700/"bold" as bold - any other numeric weight (e.g. the
+  // SLD's 600-weight inverter/MPPT labels) found no Helvetica variant and
+  // silently fell back to Times. Snap numeric weights to the nearest of the
+  // two that exist.
   svgCopy.querySelectorAll('[font-weight]').forEach((el) => {
     const w = Number(el.getAttribute('font-weight'));
     if (!Number.isNaN(w)) el.setAttribute('font-weight', w >= 600 ? 'bold' : 'normal');
   });
+  // Mounted off-screen while converting so its styles resolve like the
+  // original's.
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:0;height:0;overflow:hidden;';
   holder.appendChild(svgCopy);
   document.body.appendChild(holder);
   try {
-    await svg2pdf(svgCopy, pdf, {
-      x: box.x + d.x * mmPerPx,
-      y: box.y + d.y * mmPerPx,
-      width: d.w * mmPerPx,
-      height: d.h * mmPerPx,
-    });
+    await svg2pdf(svgCopy, pdf, { x: at.x, y: at.y, width: at.w, height: at.h });
   } finally {
     holder.remove();
   }
 }
 
-export async function buildDesignReportPdf({ viewContainer, sldContainer }: {
-  viewContainer: HTMLElement | null;
-  sldContainer: HTMLElement | null;
-}): Promise<Blob> {
+export async function buildReportPdf(container: HTMLElement): Promise<Blob> {
+  const pages = Array.from(container.querySelectorAll<HTMLElement>(`.${REPORT_PAGE_CLASS}`));
+  if (pages.length === 0) throw new Error('Nothing to export - the report has no pages.');
   const pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4', compress: true });
-  if (viewContainer) await addSiteViewPage(pdf, viewContainer);
-  if (sldContainer) {
-    if (viewContainer) pdf.addPage();
-    await addSldPage(pdf, sldContainer);
+  for (let i = 0; i < pages.length; i++) {
+    if (i > 0) pdf.addPage();
+    await addReportPage(pdf, pages[i]);
   }
   return pdf.output('blob');
+}
+
+// Download filename: SolarOS-Design-Report-<project>-<date>.pdf
+export function reportFilename(projectName: string | null | undefined) {
+  const safeName = (projectName || 'Untitled project').trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-');
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return `SolarOS-Design-Report-${safeName}-${dateStr}.pdf`;
 }

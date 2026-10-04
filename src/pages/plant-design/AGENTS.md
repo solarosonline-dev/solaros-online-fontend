@@ -130,16 +130,30 @@ wizard), but `index.css` wasn't purely that.
   it).
 - `SldView.tsx` — renders `assignSiteToInverters`'s output as a single-line
   diagram (SVG schematic + string/MPPT schedule table + plant details).
-  Its "Download PDF" button and the editor page's "Attach PDF to Work
-  Order" both go through one builder, `designReportPdf.ts` (single
-  landscape A4 page: the diagram as vector via `svg2pdf.js`, the
-  surrounding HTML as a compressed `html2canvas` PNG) - don't add a second
-  PDF path (the old `window.print()` + `@media print` route was removed).
-- `designReportPdf.ts` — that shared PDF builder (plus the site-view page
-  for the attach flow). Two `svg2pdf.js` gotchas it already handles:
-  numeric font weights other than 700 fall back to Times (snapped to
-  bold/normal on a copy), and `html2canvas` clips one-line ellipsis cells
-  (they're allowed to wrap in the capture).
+  Step 7 shows it with its live inverter/string-sizing controls; the Design
+  Report (step 8) embeds a read-only copy (`embedded` prop: full height,
+  diagram fitted to the page width, no controls). It has no export button
+  of its own any more.
+- `DesignReport.tsx` (+ `.css`) — step 8's customer-facing document, as
+  fixed landscape A4 pages (`.pde-report-page`, 1123x794 CSS px): overview
+  (client/site from the linked lead, headline numbers, location image),
+  system configuration, energy output (a plain-SVG monthly chart, not
+  recharts), and the SLD. Branded like the Quote document (entity logo,
+  tagline, contact, tax id) via `reportContext`, which
+  `PlantDesignEditorPage.tsx` builds (the editor has no HTTP access). No
+  pricing - the Quote covers that.
+- `designReportPdf.ts` — the only PDF path in this module: one PDF page per
+  `.pde-report-page`, used by step 8's Download PDF and Attach to Work
+  Order alike (don't add a second path - the old `window.print()` +
+  `@media print` SLD route and a separate SLD-only download were both
+  removed). Each page is one `html2canvas` capture (PNG, or JPEG when the
+  page has an `<img>`) with every `svg[data-pdf-vector]` blanked out and
+  redrawn on top as true vector via `svg2pdf.js`. Gotchas it already
+  handles: numeric font weights other than 700 fall back to Times (snapped
+  to bold/normal on a copy), `html2canvas` clips one-line ellipsis cells
+  (allowed to wrap in the capture), Safari's 16.7M-pixel canvas cap
+  (capture scale steps down), and svg2pdf can't resolve `var(--...)` -
+  use literal colors in any `data-pdf-vector` SVG.
 - `types.ts` — the persistence-boundary types (`PlantDesignData`,
   `PlantDesignEditorProps`) — everything else in this module stays loosely
   typed (`any`) per the mechanical-port decision; this file is the one
@@ -612,10 +626,10 @@ config.
 
 ## Step-based workflow / canvas state
 
-The whole module is a strict-but-revisitable 7-step wizard (`STEPS`,
+The whole module is a strict-but-revisitable 8-step wizard (`STEPS`,
 `currentStep` + `maxUnlockedStep`): Project & Location → Configuration →
-Roof setup → Panel/Grid setup → Output estimate → Cost estimate →
-Electrical Design (SLD). `goToStep`/`advanceToStep` are the only two
+Roof setup → Panel/Grid setup → Output estimate → Cost estimate (hidden,
+see `visibleSteps`) → Electrical Design (SLD) → Design Report. `goToStep`/`advanceToStep` are the only two
 places that change `currentStep` — `advanceToStep` also raises
 `maxUnlockedStep`; a step's own tab in the step bar is clickable once
 `step <= maxUnlockedStep`, and going back never re-locks anything
@@ -698,6 +712,12 @@ lands back on the same step, not step 1.
   condition would otherwise also match, e.g. `locationConfirmed &&
   currentStep !== 7`), rendering `<SldView>` at full width with no icon
   rails, no plan/3D toggle, nothing shared with steps 3–6 at all.
+- **Step 8** (Design Report) is a fourth branch of the same kind (the
+  canvas condition also excludes `currentStep !== 8`): `<DesignReport>` in
+  a scroll area under a sticky toolbar holding the module's only PDF
+  buttons - Download PDF, and Attach to Work Order when the design is
+  linked to one (`onAttachPdf`). Both export exactly the rendered pages
+  via `designReportPdf.ts`.
 
 **Known gotcha (bit us once — reported as "selecting a roof also fires
 in Panel/Grid setup"):** the roof polygon's own `onClick` only calls

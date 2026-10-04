@@ -8,19 +8,13 @@
 // physical MPPT channel is labeled with the grid it belongs to whenever an
 // inverter isn't dedicated to a single grid.
 //
-// Downloadable: the "Download PDF" button below builds the same single-page
-// landscape PDF that "Attach PDF to Work Order" attaches (one shared
-// builder, designReportPdf.ts - vector diagram, compressed tables), so the
-// two can never drift apart. It used to call window.print() with its own
-// @media print stylesheet instead, which gave a different,
-// browser-dependent, often multi-page result - both removed. PDF_ROOT_CLASS
-// marks the element the builder captures; PDF_HIDE_CLASS marks on-screen
-// controls inside it that the PDF leaves out.
+// Also rendered (read-only, `embedded`) as the last page of the Design
+// Report step (DesignReport.tsx), which is the only place the SLD gets
+// exported to PDF - see designReportPdf.ts. The diagram <svg> carries
+// data-pdf-vector so that export draws it as true vector graphics.
 
 import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
-import { useRef, useState } from 'react';
 import { CollapsibleSection, SliderInput } from './PlantDesignControls.jsx';
-import { buildDesignReportPdf, PDF_ROOT_CLASS, PDF_HIDE_CLASS } from './designReportPdf';
 
 // Compact throughout on purpose: an inverter used to be a large text-filled
 // box (~260x98) with every spec repeated per column, which - combined with
@@ -131,17 +125,10 @@ function PvModulePaths({ x, y, size }) {
   );
 }
 
-// Download filename (without extension): SolarOS-SLD-<project>-<date>.
-function buildPrintFilename(projectName) {
-  const safeName = (projectName || 'Untitled project').trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '-');
-  const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  return `SolarOS-SLD-${safeName}-${dateStr}`;
-}
-
 export default function SldView({
   projectName, gridConnection, panelSpec, inverterChoice, sitePlan, totalPanelCount, totalCapacityKW,
   targetDcAcRatio, mpptVoltageUtilizationPct = 100, onInverterChoiceChange, onTargetDcAcRatioChange, onMpptVoltageUtilizationPctChange,
+  embedded = false,
 }: {
   projectName?: any;
   capacityNote?: any;
@@ -156,33 +143,14 @@ export default function SldView({
   onInverterChoiceChange?: any;
   onTargetDcAcRatioChange?: any;
   onMpptVoltageUtilizationPctChange?: any;
+  // Inside a Design Report page rather than filling the SLD step: grows to
+  // its full content height (no inner scroll box) and fits the diagram to
+  // the page width instead of scrolling it horizontally, since a report
+  // page (and its PDF) has no scrollbars.
+  embedded?: boolean;
 }) {
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
   const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
-
-  const pdfRootRef = useRef<HTMLDivElement>(null);
-  const [downloading, setDownloading] = useState(false);
-
-  async function handleDownloadPdf() {
-    if (!pdfRootRef.current) return;
-    setDownloading(true);
-    try {
-      const blob = await buildDesignReportPdf({ viewContainer: null, sldContainer: pdfRootRef.current });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${buildPrintFilename(projectName)}.pdf`;
-      a.click();
-      // Revoked on the next tick, not immediately - some browsers haven't
-      // started reading the blob yet when click() returns.
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    } catch (err) {
-      console.error(err);
-      alert('Could not generate the SLD PDF.');
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   const svgWidth = Math.max(1000, inverters.length * (COL_WIDTH + COL_GAP) + COL_GAP);
   const svgHeight = MPPT_Y + MPPT_BLOCK_H + 20;
@@ -204,12 +172,11 @@ export default function SldView({
   // PlantDesignControls.jsx) so it looks and behaves identically rather
   // than reinventing a second style of input here. Sits above the
   // SLD card itself (not inside it) - it's a live editor for this page,
-  // not part of the diagram/schedule being drawn, so it sits outside
-  // PDF_ROOT_CLASS and never ends up in the PDF.
+  // not part of the diagram/schedule being drawn.
   // Collapsed by default (defaultOpen=false) - reviewing the diagram is
   // the common case, tweaking these is occasional. Only rendered when the
-  // caller wired the onChange props up - keeps this component still usable
-  // as pure read-only display (e.g. a future share/export view) otherwise.
+  // caller wired the onChange props up - the Design Report's read-only
+  // copy (`embedded`) leaves them off, so it gets no controls.
   const controls = onInverterChoiceChange && onTargetDcAcRatioChange && onMpptVoltageUtilizationPctChange && (
     <div style={{ flexShrink: 0 }}>
       <CollapsibleSection title="Inverter & string sizing" defaultOpen={false}>
@@ -253,24 +220,16 @@ export default function SldView({
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: embedded ? 'auto' : '100%', boxSizing: 'border-box' }}>
       {controls}
-      <div ref={pdfRootRef} className={PDF_ROOT_CLASS} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
+      <div style={embedded
+        ? { display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box', background: '#fff', color: '#222', fontSize: 14 }
+        : { display: 'flex', flexDirection: 'column', gap: 14, padding: 20, flex: 1, minHeight: 0, overflow: 'auto', boxSizing: 'border-box', background: '#fff', color: '#222', borderRadius: 10, border: '1px solid #d5d5d5', fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid #1c2b4a', paddingBottom: 6 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#1c2b4a' }}>SINGLE LINE DIAGRAM</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ fontSize: 13, color: '#777', textAlign: 'right' }}>
-            Grid: {gridConnection.voltage} V · {gridConnection.phase}-Phase{gridConnection.discom && ` · DISCOM: ${gridConnection.discom}`}
-            {gridConnection.sanctionedLoadKw !== '' && <><br />Sanctioned load: {gridConnection.sanctionedLoadKw} kW</>}
-          </div>
-          <button
-            className={PDF_HIDE_CLASS}
-            onClick={handleDownloadPdf}
-            disabled={downloading || inverters.length === 0}
-            style={{ padding: '8px 14px', borderRadius: 6, border: 'none', background: '#1c2b4a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: downloading || inverters.length === 0 ? 'default' : 'pointer', opacity: inverters.length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
-          >
-            {downloading ? 'Generating PDF…' : '⬇ Download PDF'}
-          </button>
+        <div style={{ fontSize: 13, color: '#777', textAlign: 'right' }}>
+          Grid: {gridConnection.voltage} V · {gridConnection.phase}-Phase{gridConnection.discom && ` · DISCOM: ${gridConnection.discom}`}
+          {gridConnection.sanctionedLoadKw !== '' && <><br />Sanctioned load: {gridConnection.sanctionedLoadKw} kW</>}
         </div>
       </div>
 
@@ -300,7 +259,7 @@ export default function SldView({
                   the CSS overflow spec - a flex item with non-visible overflow
                   on both axes collapses to its automatic minimum size (0) with
                   nothing else to constrain it, hiding the whole SVG on screen. */}
-              <div className="sld-svg-scroll" style={{ overflowX: 'auto', flexShrink: 0, border: '1px solid #e2e2e2', borderRadius: 8, background: '#fff' }}>
+              <div className="sld-svg-scroll" style={{ overflowX: embedded ? 'visible' : 'auto', flexShrink: 0, border: '1px solid #e2e2e2', borderRadius: 8, background: '#fff' }}>
             {/* No width/height attributes - viewBox alone plus CSS width:100%
                 lets the diagram stretch to fill the available pane when
                 there are few inverters (2 shouldn't sit cramped in a corner
@@ -308,7 +267,7 @@ export default function SldView({
                 readable size when there are many - at that point the
                 container's overflowX:auto kicks in and scrolls instead of
                 squeezing every column unreadably thin. */}
-            <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ display: 'block', width: '100%', minWidth: svgWidth, height: 'auto' }}>
+            <svg data-pdf-vector viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ display: 'block', width: '100%', minWidth: embedded ? 0 : svgWidth, height: 'auto' }}>
               {/* Grid -> net meter -> client's LT panel -> solar main LT panel */}
               <polygon points={`${centerX - 16},44 ${centerX + 16},44 ${centerX},20`} fill="none" stroke="#333" strokeWidth={1.5} />
               <text x={centerX + 26} y={38} fontSize={14} fill="#333">GRID · {gridConnection.voltage}V {gridConnection.phase}Ph</text>

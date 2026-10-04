@@ -1,3 +1,5 @@
+import type { ReportBranding, ReportClient } from './DesignReport';
+
 // Shared types for the Plant Design module. The wizard's internal engine
 // state (roofs/grids/panels/obstacles/geometry) stays untyped (`any`) per
 // the mechanical-port decision (see PlantDesignEditor.tsx) - these types
@@ -59,5 +61,16 @@ export interface PlantDesignEditorProps {
   ) => Promise<PlantDesignData | void>;
   onCaptureSiteImage?: (blob: Blob, contentType: string) => Promise<{ s3Key: string; url: string }>;
   linkedWorkOrderId?: number | null;
-  onGeneratePdf?: () => Promise<void>;
+  // Design Report step: hands the generated report PDF to the host page to
+  // upload to the linked work order. Only offered when linkedWorkOrderId
+  // is set.
+  onAttachPdf?: (pdf: Blob, filename: string) => Promise<void>;
+  // Customer-facing context the editor can't know itself (it has no HTTP
+  // access): the entity's branding, and the client/site address from the
+  // design's linked lead when there is one.
+  reportContext?: {
+    branding: ReportBranding;
+    client: ReportClient | null;
+    siteAddress: string | null;
+  };
 }

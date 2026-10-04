@@ -52,6 +52,8 @@ import useIsMobile from '../../hooks/useIsMobile';
 // own chunk keeps the everyday bundle lean without dropping the feature.
 const Scene3D = React.lazy(() => import('./Scene3D.jsx'));
 import SldView from './SldView.jsx';
+import DesignReport, { type ReportRoofRow } from './DesignReport';
+import { buildReportPdf, reportFilename } from './designReportPdf';
 import { MODULE_CATALOG, CUSTOM_MODULE_MAKE, moduleCatalogMakes, moduleCatalogModels, findModule } from './moduleCatalog.js';
 import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
 import { sizeStrings } from './stringSizing.js';
@@ -389,7 +391,7 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onGeneratePdf }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   const isMobile = useIsMobile();
 
@@ -3578,16 +3580,47 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the host page's onSave, which does the actual POST/PATCH. idle |
   // saving | saved | error, mirrored back to "idle" a few seconds after a
   // successful save so the indicator doesn't sit stale.
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'generating'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  async function handleGeneratePdf() {
-    if (!onGeneratePdf) return;
-    setSaveStatus('generating');
+  // Design Report step (8): both of its buttons export the exact pages
+  // rendered on screen (reportRef) through one builder, designReportPdf.ts.
+  // Kept separate from saveStatus so a failed export never reads as
+  // "Save failed".
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [reportBusy, setReportBusy] = useState<null | 'download' | 'attach'>(null);
+
+  async function handleDownloadReport() {
+    if (!reportRef.current) return;
+    setReportBusy('download');
     try {
-      await onGeneratePdf();
-      setSaveStatus('idle');
-    } catch (e) {
-      setSaveStatus('error');
+      const blob = await buildReportPdf(reportRef.current);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = reportFilename(projectName);
+      a.click();
+      // Revoked on the next tick, not immediately - some browsers haven't
+      // started reading the blob yet when click() returns.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      console.error(err);
+      alert('Could not generate the design report PDF.');
+    } finally {
+      setReportBusy(null);
+    }
+  }
+
+  async function handleAttachReport() {
+    if (!reportRef.current || !onAttachPdf) return;
+    setReportBusy('attach');
+    try {
+      const blob = await buildReportPdf(reportRef.current);
+      await onAttachPdf(blob, reportFilename(projectName));
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'Could not attach the design report to the work order.');
+    } finally {
+      setReportBusy(null);
     }
   }
 
@@ -3694,6 +3727,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     { n: 5, label: 'Output estimate', complete: true },
     { n: 6, label: 'Cost estimate', complete: true },
     { n: 7, label: 'Electrical Design (SLD)', complete: true },
+    { n: 8, label: 'Design Report', complete: true },
   ];
   // Cost estimate is hidden for now - still fully wired underneath (its
   // own step number, right-panel content and cost computation all still
@@ -3823,12 +3857,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         <div className={`pde-topbar-save-row${isMobile ? ' pde-topbar-save-row--mobile' : ''}`} style={{ marginLeft: isMobile ? 0 : 'auto' }}>
           {saveStatus === 'saved' && <span className="pde-save-status success">Saved</span>}
           {saveStatus === 'error' && <span className="pde-save-status error">Save failed - try again</span>}
-          {linkedWorkOrderId && onGeneratePdf && (
-            <button className="pde-save-btn" onClick={handleGeneratePdf} disabled={saveStatus === 'saving' || saveStatus === 'generating'}>
-              {saveStatus === 'generating' ? 'Generating PDF...' : 'Attach PDF to Work Order'}
-            </button>
-          )}
-          <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving' || saveStatus === 'generating'}>
+          <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving'}>
             {saveStatus === 'saving' ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -4120,7 +4149,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         </div>
       )}
 
-      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 5 && currentStep !== 7 && (
+      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 5 && currentStep !== 7 && currentStep !== 8 && (
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
         {/* On mobile, step 4's map gets a capped height instead of
             flex:1 filling the whole screen - otherwise the layout-summary
@@ -6393,7 +6422,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       )}
 
       {currentStep === 7 && (
-        <div style={{ flex: 1, minWidth: 0, height: '100%' }}>
+        <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ flex: 1, minHeight: 0 }}>
           <SldView
             projectName={projectName}
             capacityNote={capacityNote}
@@ -6409,8 +6439,101 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             onTargetDcAcRatioChange={setTargetDcAcRatio}
             onMpptVoltageUtilizationPctChange={setMpptVoltageUtilizationPct}
           />
+          </div>
+          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="pde-primary-btn" onClick={() => advanceToStep(8)}>
+              Continue to Design Report →
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Design Report (step 8) - the customer-facing document: overview,
+          configuration, output and SLD as fixed A4 pages (DesignReport.tsx).
+          The only place a PDF is produced - Download and Attach to Work
+          Order both export exactly these pages (designReportPdf.ts). */}
+      {currentStep === 8 && (() => {
+        const equatorAz = location.lat >= 0 ? 180 : 0;
+        const dirWord = equatorAz === 180 ? 'south' : 'north';
+        const roofRows: ReportRoofRow[] = roofs.flatMap((roof, roofIdx) => {
+          const withPanels = roof.grids.filter((g) => g.count > 0);
+          return withPanels.map((g, gi) => {
+            const az = Math.round(((resolvedGridAzimuth(g) % 360) + 360) % 360) % 360;
+            const off = Math.round(azimuthOffset(az, equatorAz));
+            return {
+              key: gridKey(roof.id, g.id),
+              name: roofLabel(roof, roofIdx) + (withPanels.length > 1 ? ` · Array ${gi + 1}` : ''),
+              type: roof.type === 'pitched' ? `Pitched (${Math.round(roof.pitchDeg ?? 0)}°)` : 'Flat',
+              tiltDeg: Math.round(g.tilt ?? 0),
+              azimuthDeg: az,
+              facing: off === 0 ? `due ${dirWord}` : `${off}° off ${dirWord}`,
+              panels: g.count,
+              kw: g.capacityKW ?? 0,
+            };
+          });
+        });
+        const inverterCount = sitePlan.inverters.length;
+        const acKw = inverterCount * (inverterChoice?.acPowerKw ?? 0);
+        const busy = reportBusy != null;
+        return (
+          <div ref={reportRef} style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'auto', background: 'var(--app-bg, #f3f4f6)', borderRadius: 10 }}>
+            <div className="pde-report-toolbar">
+              <div>
+                <div className="pde-step1-heading" style={{ marginBottom: 0 }}>Design Report</div>
+                <div className="pde-field-sm-hint">Customer-ready summary of this design. What you see below is exactly what gets downloaded or attached.</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="pde-save-btn" onClick={handleDownloadReport} disabled={busy || totalPanelCount === 0}>
+                  {reportBusy === 'download' ? 'Generating PDF…' : 'Download PDF'}
+                </button>
+                {linkedWorkOrderId && onAttachPdf && (
+                  <button className="pde-primary-btn" style={{ marginTop: 0 }} onClick={handleAttachReport} disabled={busy || totalPanelCount === 0}>
+                    {reportBusy === 'attach' ? 'Attaching…' : 'Attach to Work Order'}
+                  </button>
+                )}
+              </div>
+            </div>
+            {totalPanelCount === 0 ? (
+              <div className="pde-field-sm-hint" style={{ padding: 24 }}>Place at least one grid (Panel/Grid setup) to generate a report.</div>
+            ) : (
+              <DesignReport
+                branding={reportContext?.branding ?? { entityName: 'SolarOS' }}
+                client={reportContext?.client ?? null}
+                projectName={projectName}
+                siteAddress={reportContext?.siteAddress ?? null}
+                location={location}
+                locationImageUrl={siteImages.locationImage?.url ?? null}
+                capacityKw={totalCapacityKW}
+                panelCount={totalPanelCount}
+                panelSpec={panelSpec}
+                inverterChoice={inverterChoice}
+                inverterCount={inverterCount}
+                gridConnection={gridConnection}
+                dcAcRatio={acKw > 0 ? totalCapacityKW / acKw : null}
+                designTemp={designTemp ?? null}
+                roofRows={roofRows}
+                output={outputResult}
+                ghiStatus={ghiStatus}
+                sld={
+                  <SldView
+                    embedded
+                    projectName={projectName}
+                    capacityNote={capacityNote}
+                    gridConnection={gridConnection}
+                    panelSpec={panelSpec}
+                    inverterChoice={inverterChoice}
+                    sitePlan={sitePlan}
+                    totalPanelCount={totalPanelCount}
+                    totalCapacityKW={totalCapacityKW}
+                    targetDcAcRatio={targetDcAcRatio}
+                    mpptVoltageUtilizationPct={mpptVoltageUtilizationPct}
+                  />
+                }
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {/* Output estimate (step 5) - no canvas alongside it (see the CENTER
           block's own condition, excluding step 5), same simple single-

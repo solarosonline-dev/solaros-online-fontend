@@ -1,0 +1,302 @@
+/* Design Report step (DesignReport.tsx). Each .pde-report-page is a fixed
+   landscape A4 sheet (1123x794 CSS px = A4 at 96 DPI) - designReportPdf.ts
+   captures each one into a PDF page, so these styles are the PDF's layout
+   too. Plain px sizes on purpose (not the app's responsive tokens): the
+   sheet must look identical at any screen size. */
+.pde-report {
+  display: flex;
+  flex-direction: column;
+  /* Not align-items:center - a page wider than the pane (any phone, or a
+     narrow desktop window) would overflow off the *left* edge, out of
+     scroll reach. margin-inline:auto on the page centers it when there's
+     room and pins it left (scrollable) when there isn't. */
+  align-items: flex-start;
+  gap: 24px;
+  padding: 24px 16px 48px;
+  font-family: var(--app-font, Inter, system-ui, sans-serif);
+  color: #1f2937;
+}
+
+.pde-report-page {
+  width: 1123px;
+  margin-inline: auto;
+  min-height: 794px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.12);
+  border-radius: 4px;
+}
+
+.pde-report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 36px 14px;
+  border-bottom: 3px solid var(--report-primary);
+}
+.pde-report-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.pde-report-logo {
+  max-height: 44px;
+  max-width: 200px;
+  object-fit: contain;
+}
+.pde-report-logo-fallback {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--report-primary);
+}
+.pde-report-tagline {
+  font-size: 12px;
+  color: #6b7280;
+}
+.pde-report-header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: right;
+}
+.pde-report-header-meta strong {
+  font-size: 14px;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pde-report-body {
+  flex: 1;
+  padding: 20px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pde-report-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pde-report-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  padding: 10px 36px 16px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 10.5px;
+  color: #6b7280;
+}
+.pde-report-footer strong {
+  color: #374151;
+}
+.pde-report-footer-tag {
+  margin-top: 2px;
+  font-style: italic;
+}
+.pde-report-page-no {
+  white-space: nowrap;
+}
+
+/* Overview */
+.pde-report-overview {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+.pde-report-overview-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.pde-report-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.8fr;
+  gap: 18px;
+  font-size: 13px;
+}
+.pde-report-parties p {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+.pde-report-eyebrow {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--report-primary);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.pde-report-party-name {
+  font-size: 15px;
+  color: #111827;
+}
+.pde-report-muted {
+  color: #6b7280;
+}
+.pde-report-location {
+  width: 330px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+.pde-report-location img,
+.pde-report-location-empty {
+  width: 330px;
+  height: 330px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+.pde-report-location-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Stat tiles */
+.pde-report-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.pde-report-stats--row {
+  grid-template-columns: repeat(4, 1fr);
+}
+.pde-report-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid var(--report-primary);
+  border-radius: 6px;
+  background: #fafafa;
+}
+.pde-report-stat-label {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pde-report-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+.pde-report-stat-value small {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* Cards and tables */
+.pde-report-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.pde-report-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+.pde-report-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #374151;
+  margin-bottom: 8px;
+}
+.pde-report-kv,
+.pde-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pde-report-kv th,
+.pde-report-kv td {
+  text-align: left;
+  padding: 5px 0;
+  border-bottom: 1px solid #f1f2f4;
+  vertical-align: top;
+}
+.pde-report-kv th {
+  width: 45%;
+  font-weight: 500;
+  color: #6b7280;
+}
+.pde-report-kv td {
+  font-weight: 600;
+  color: #111827;
+}
+.pde-report-table th,
+.pde-report-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef0f3;
+}
+.pde-report-table thead th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+.pde-report-table--months {
+  margin-top: 8px;
+}
+.pde-report-table--months th,
+.pde-report-table--months td {
+  text-align: right;
+  padding: 5px 4px;
+}
+.pde-report-table--months tbody th {
+  text-align: left;
+  color: #6b7280;
+  font-weight: 500;
+}
+.pde-report-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #6b7280;
+}
+.pde-report-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+.pde-report-note {
+  margin: 0;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.5;
+}
