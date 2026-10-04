@@ -452,142 +452,58 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
 const SELECTED_COLOR = '#2f6fed';
 const selColor = (selected, normal) => (selected ? SELECTED_COLOR : normal);
 
-// Deterministic per-tree randomness (mulberry32) seeded from the
-// obstacle's id, so each tree is a little different from the next but the
-// same one looks identical every time it's rendered/reloaded.
-function seededRandom(seed) {
-  let t = (Math.abs(Math.floor(seed)) % 2147483647) || 1;
-  return () => {
-    t |= 0; t = (t + 0x6d2b79f5) | 0;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// A lumpy foliage clump: an icosphere whose vertices are pushed in/out by
-// a smooth function of their own position. Position-based (not per-vertex
-// random) so the duplicated vertices along face seams move identically and
-// the surface never cracks open. `phase` varies the lumps per clump.
-function foliageBlobGeometry(phase, lumpiness = 0.22) {
-  const g = new THREE.IcosahedronGeometry(1, 2);
-  const pos = g.attributes.position;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const n = Math.sin(v.x * 3.1 + phase) * Math.sin(v.y * 2.7 + phase * 1.7) * Math.sin(v.z * 3.3 + phase * 0.6)
-      + 0.5 * Math.sin(v.x * 6.2 - phase) * Math.sin(v.z * 5.9 + phase * 2.3);
-    v.multiplyScalar(1 + lumpiness * n);
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
-// Procedural tree (no external model): a tapered, slightly leaning trunk
-// with a few branches reaching into a crown built from many lumpy, faceted
-// foliage clumps in varied greens (lighter on top, where the sun hits),
-// laid out per canopy style - 'cone' a tiered conifer, 'round' a full
-// domed broadleaf, 'bushy' a wider, lower spreading crown. Overall height
-// and canopy radius still match the obstacle's own height/radius, so the
-// shading math (which treats a tree as a cylinder of that size) still lines
-// up with what's drawn.
 function Tree({ obstacle, baseHeight, selected = false }) {
   const h = obstacle.height;
-  const R = obstacle.radius;
-  const canopy = obstacle.canopy || 'cone';
   const [tx, , tz] = toThree(obstacle.x, obstacle.y);
+  const trunkHeight = h * 0.35;
+  const trunkRadius = Math.max(obstacle.radius * 0.15, 0.08);
+  const foliageHeight = h - trunkHeight;
+  const foliageRadius = obstacle.radius;
+  const foliageBaseY = baseHeight + trunkHeight;
+  const canopy = obstacle.canopy || 'cone';
 
-  const model = useMemo(() => {
-    const rnd = seededRandom((obstacle.id || 1) * 9973 + 17);
-    const trunkH = canopy === 'cone' ? h * 0.25 : canopy === 'bushy' ? h * 0.32 : h * 0.4;
-    const trunkR = Math.max(R * 0.09, 0.07);
-    const lean = { x: (rnd() - 0.5) * 0.12, z: (rnd() - 0.5) * 0.12 };
-    const shades = canopy === 'cone' ? ['#2f5a33', '#36653a', '#2a5030', '#3c6e40'] : ['#3f7a3a', '#4a8743', '#55924a', '#3a6f35', '#62a055'];
-    const clumps: any[] = [];
-    const branches: any[] = [];
-    const crownBottom = trunkH * 0.85;
-    const crownH = h - crownBottom;
-
-    if (canopy === 'cone') {
-      // Stacked, overlapping tiers - each a ring of clumps around a core -
-      // shrinking toward the tip, with the tip seated on the top tier.
-      const tiers = 5;
-      let topY = crownBottom, topR = R;
-      for (let t = 0; t < tiers; t++) {
-        const f = t / (tiers - 1);
-        const y = crownBottom + crownH * (0.1 + f * 0.68);
-        const ringR = R * (0.95 - f * 0.72);
-        const n = Math.max(3, Math.round(7 - f * 4));
-        for (let k = 0; k < n; k++) {
-          const a = (k / n) * Math.PI * 2 + rnd() * 0.6;
-          clumps.push({ x: Math.cos(a) * ringR * 0.5, y, z: Math.sin(a) * ringR * 0.5, s: ringR * (0.55 + rnd() * 0.15), sy: 0.85, f });
-        }
-        clumps.push({ x: 0, y: y + crownH * 0.05, z: 0, s: ringR * 0.62, sy: 1.0, f });
-        topY = y; topR = ringR;
-      }
-      clumps.push({ x: 0, y: topY + topR * 0.75, z: 0, s: Math.max(topR * 0.55, R * 0.14), sy: 1.6, f: 1 });
-    } else {
-      const spread = canopy === 'bushy' ? 1.0 : 0.75;
-      const crownMid = crownBottom + crownH * (canopy === 'bushy' ? 0.42 : 0.5);
-      // Core mass plus a shell of clumps around it (more of them on a
-      // bushy crown, spread wider and flatter).
-      clumps.push({ x: 0, y: crownMid, z: 0, s: R * 0.7, sy: canopy === 'bushy' ? 0.7 : 0.95, f: 0.5 });
-      const n = canopy === 'bushy' ? 11 : 9;
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * Math.PI * 2 + rnd() * 0.5;
-        const up = (rnd() - 0.35) * (canopy === 'bushy' ? 0.5 : 0.9);
-        const rr = R * spread * (0.5 + rnd() * 0.25);
-        const y = crownMid + up * crownH * 0.5;
-        clumps.push({ x: Math.cos(a) * rr, y, z: Math.sin(a) * rr, s: R * (0.38 + rnd() * 0.16), sy: canopy === 'bushy' ? 0.75 : 0.9, f: (y - crownBottom) / crownH });
-      }
-      clumps.push({ x: (rnd() - 0.5) * R * 0.2, y: Math.min(h - R * 0.3, crownMid + crownH * 0.35), z: (rnd() - 0.5) * R * 0.2, s: R * 0.45, sy: 0.85, f: 1 });
-      // A few branches from the trunk top out into the crown.
-      for (let k = 0; k < 4; k++) {
-        const a = (k / 4) * Math.PI * 2 + rnd();
-        branches.push({ a, len: R * (0.55 + rnd() * 0.25), tilt: 0.75 + rnd() * 0.3 });
-      }
-    }
-
-    // Keep the whole crown within the tree's own height.
-    clumps.forEach((c) => { c.y = Math.min(c.y, h - c.s * (c.sy ?? 1) * 0.9); });
-    clumps.forEach((c, i) => {
-      // Lighter greens toward the top of the crown.
-      const idx = Math.min(shades.length - 1, Math.floor((c.f ?? 0.5) * (shades.length - 1) + rnd() * 1.2));
-      c.color = shades[Math.max(0, idx)];
-      c.geo = foliageBlobGeometry(rnd() * 10 + i, canopy === 'cone' ? 0.18 : 0.24);
-      c.rot = rnd() * Math.PI;
-    });
-    return { trunkH, trunkR, lean, clumps, branches };
-  }, [obstacle.id, h, R, canopy]);
-
-  // The foliage geometries are built per tree (not shared), so free the
-  // old set whenever it's rebuilt (resize, canopy change) or the tree goes.
-  useEffect(() => () => model.clumps.forEach((c) => c.geo.dispose()), [model]);
-
-  const barkColor = selColor(selected, '#5b3d26');
-  const { trunkH, trunkR, lean, clumps, branches } = model;
   return (
-    <group position={[tx, baseHeight, tz]}>
-      <group rotation={[lean.z, 0, -lean.x]}>
-        <mesh position={[0, trunkH / 2, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[trunkR * 0.7, trunkR * 1.25, trunkH, 9]} />
-          <meshStandardMaterial color={barkColor} roughness={0.95} flatShading />
+    <group>
+      <mesh position={[tx, baseHeight + trunkHeight / 2, tz]} castShadow receiveShadow>
+        <cylinderGeometry args={[trunkRadius, trunkRadius * 1.3, trunkHeight, 8]} />
+        <meshStandardMaterial color={selColor(selected, '#6b4a2f')} />
+      </mesh>
+
+      {canopy === 'cone' && (
+        <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
+          <coneGeometry args={[foliageRadius, foliageHeight, 10]} />
+          <meshStandardMaterial color={selColor(selected, '#3f6b3a')} />
         </mesh>
-        {branches.map((b, i) => (
-          <group key={`b${i}`} position={[0, trunkH * 0.9, 0]} rotation={[0, b.a, b.tilt]}>
-            <mesh position={[0, b.len / 2, 0]} castShadow>
-              <cylinderGeometry args={[trunkR * 0.25, trunkR * 0.45, b.len, 6]} />
-              <meshStandardMaterial color={barkColor} roughness={0.95} flatShading />
-            </mesh>
-          </group>
-        ))}
-        {clumps.map((c, i) => (
-          <mesh key={`c${i}`} geometry={c.geo} position={[c.x, c.y, c.z]} scale={[c.s, c.s * (c.sy ?? 1), c.s]} rotation={[0, c.rot, 0]} castShadow receiveShadow>
-            <meshStandardMaterial color={selColor(selected, c.color)} roughness={0.85} flatShading />
+      )}
+
+      {canopy === 'round' && (
+        <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
+          <sphereGeometry args={[foliageHeight / 2, 12, 10]} />
+          <meshStandardMaterial color={selColor(selected, '#4a7a3f')} />
+        </mesh>
+      )}
+
+      {canopy === 'bushy' && (() => {
+        const r = foliageRadius * 0.5;
+        // Lower cluster sits with its center just above the trunk top, so its
+        // bottom overlaps the trunk slightly instead of floating above it.
+        const lowerY = foliageBaseY + r * 0.7;
+        const off = foliageRadius * 0.4;
+        const lobes = [0, 120, 240].map((angle) => {
+          const ax = Math.cos(angle * DEG) * off;
+          const az = Math.sin(angle * DEG) * off;
+          return { key: angle, x: tx + ax, y: lowerY, z: tz + az, r };
+        });
+        // A smaller top lobe adds height/volume without leaving a gap, since
+        // it overlaps the lower cluster below it.
+        (lobes as any[]).push({ key: 'top', x: tx, y: lowerY + r * 1.1, z: tz, r: r * 0.8 });
+        return lobes.map((l) => (
+          <mesh key={l.key} position={[l.x, l.y, l.z]} castShadow receiveShadow>
+            <sphereGeometry args={[l.r, 10, 8]} />
+            <meshStandardMaterial color={selColor(selected, '#4f7d44')} />
           </mesh>
-        ))}
-      </group>
+        ));
+      })()}
     </group>
   );
 }
