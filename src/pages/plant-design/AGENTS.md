@@ -678,6 +678,27 @@ thin shadow is ignored.
   panels; a count change from manual edits resets it).
 Both share `packingParams`, so a setting means the same thing either way.
 
+## Adding to a grid: "+" handles and Add → Panels
+
+The selected grid (Panel/Grid setup) shows a green "+" just outside the
+middle of each side, in both views (`gridSideHandles` in the editor,
+`AddHandle3D` in Scene3D): click adds one row (front/back) or column
+(left/right), drag outward adds as many as the drag covers - live ghosts
+(green = added, red = skipped) and a count label, applied on release.
+Rows/columns come from `previewGridAdd` (`addGridRow`/`addGridColumn`
+repeated), and only panels that pass `fittingAdditions` - wholly on the
+roof's usable area (`gridPanelFitsRoof`, rotation-aware) and clear of
+obstacles - are added (old add row/column force-added). The drag count is
+the pointer's projection onto one step in screen px; in 3D the step is
+projected through the camera on pointer-down, so one editor code path
+(`startAddDrag` + a document pointer listener) serves both. Handles share
+one size, scaled to the smaller on-screen row/column step (capped), so
+they don't dwarf a zoomed-out grid; hover shows "Add row"/"Add column".
+The rail's "+" popover hosts **Add → Panels**: free slots around the grid
+(`gridAddCandidates`, filtered by `fittingAdditions`) to add individually.
+This replaced separate Add row / Add column buttons that armed a mode
+where you then clicked one of two edges.
+
 ## Cutouts in 3D
 
 A Cutout removes roof in 3D on **flat roofs** by boolean difference, not

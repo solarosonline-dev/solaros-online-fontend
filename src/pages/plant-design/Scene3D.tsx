@@ -632,6 +632,103 @@ function RoofDimensions({ roof, frameAz, format }) {
   );
 }
 
+// A flat translucent outline just above the roof - a ghost of panels a "+"
+// drag would add, or an Add -> Panels slot (pickable via onPointerDown).
+// `corners` are world plan points; the shape lies in the plan at `height`.
+function FlatQuad({ corners, height, color, opacity, onPointerDown = undefined as any }) {
+  const geometry = useMemo(() => {
+    const shape = new THREE.Shape();
+    corners.forEach((c, i) => (i === 0 ? shape.moveTo(c.x, c.y) : shape.lineTo(c.x, c.y)));
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape);
+  }, [corners]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  // Each quad also gets its own outline, so neighbouring slots/ghosts read
+  // as separate panels instead of one merged patch.
+  const outline = useMemo(
+    () => [...corners, corners[0]].map((c) => toThree(c.x, c.y, height + 0.005)),
+    [corners, height]
+  );
+  return (
+    <>
+      <mesh
+        geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, height, 0]} renderOrder={6}
+        onPointerDown={onPointerDown}
+        onClick={onPointerDown ? (e) => e.stopPropagation() : undefined}
+      >
+        <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <Line points={outline} color={color === '#dc2626' ? '#b91c1c' : '#15803d'} lineWidth={1.2} transparent opacity={0.9} depthWrite={false} renderOrder={7} />
+    </>
+  );
+}
+
+// A grid's "+" handle in 3D: a screen-space button at `position`. Pressing it
+// hands the editor the pointer position plus one row/column outward in
+// screen pixels (`stepTo` projected through the camera), so the editor's
+// shared drag logic counts rows/columns exactly as on the 2D plan. Being an
+// HTML overlay, presses never reach OrbitControls, so dragging it doesn't
+// spin the camera.
+function AddHandle3D({ position, stepTo, sizeSteps, active, label, hoverLabel, onDown }) {
+  const { camera, size } = useThree();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [hovered, setHovered] = React.useState(false);
+  // The drag's live count wins; otherwise "Add row"/"Add column" on hover.
+  const shownLabel = label || (hovered ? hoverLabel : null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const stepPxOf = (from = position, to = stepTo) => {
+    const a = new THREE.Vector3(...from).project(camera);
+    const b = new THREE.Vector3(...to).project(camera);
+    return { x: ((b.x - a.x) * size.width) / 2, y: (-(b.y - a.y) * size.height) / 2 };
+  };
+  const onPointerDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onDown(e.clientX, e.clientY, stepPxOf());
+  };
+  // Sized every frame from one row/column step on screen (roughly a panel),
+  // capped at the normal 24px - zooming the camera doesn't re-render React,
+  // and a fixed-size button dwarfed the grid once zoomed far out.
+  useFrame(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const lens = (sizeSteps || [[position, stepTo]]).map(([a, b]) => { const st = stepPxOf(a, b); return Math.hypot(st.x, st.y); }).filter((l) => l > 0);
+    const base = lens.length ? Math.max(8, Math.min(24, Math.min(...lens) * 0.9)) : 24;
+    const d = active ? base * 1.15 : base;
+    btn.style.width = `${d}px`;
+    btn.style.height = `${d}px`;
+    btn.style.fontSize = `${Math.max(7, d * 0.7)}px`;
+    btn.style.borderWidth = `${Math.max(1, d / 12)}px`;
+    if (labelRef.current) labelRef.current.style.left = `${d + 6}px`;
+  });
+  return (
+    <Html position={position} center zIndexRange={[25, 0]}>
+      <div style={{ position: 'relative' }}>
+        <button
+          ref={buttonRef}
+          aria-label={hoverLabel}
+          onPointerDown={onPointerDown}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          style={{
+            width: 24, height: 24, borderRadius: '50%', padding: 0, cursor: 'pointer',
+            background: active ? '#15803d' : '#16a34a', color: '#fff', border: '2px solid #fff',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.35)', font: '700 17px/1 system-ui, sans-serif',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none',
+          }}
+        >
+          +
+        </button>
+        {shownLabel && (
+          <div ref={labelRef} style={{ ...DIM_LABEL_STYLE, position: 'absolute', left: (buttonRef.current?.offsetWidth ?? 24) + 6, top: '50%', transform: 'translateY(-50%)', color: '#14532d', borderColor: '#86efac' }}>
+            {shownLabel}
+          </div>
+        )}
+      </div>
+    </Html>
+  );
+}
+
 // Visual style per generic member kind - any structure strategy's members
 // render through this same table, so a new strategy only needs to emit
 // members with these `kind`s (or extend this table) to look right.
@@ -986,7 +1083,7 @@ function CaptureViews({ views, target, radius, onDone }: {
   return null;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, gridAdd = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1368,23 +1465,51 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
                 );
               })}
 
-              {/* Add row/column: the grid's two pickable sides as PickBars
-                  at roughly panel height above the roof surface. */}
-              {addSidePick && addSidePick.roofId === roof.id && addSidePick.edges.map(({ side, a, b }) => {
+              {/* Adding to the selected grid (editor's gridAdd): its "+"
+                  handles, the live ghost of a "+" drag, and Add -> Panels
+                  slots - same as the 2D plan, floating just above the panels. */}
+              {gridAdd && gridAdd.roofId === roof.id && (() => {
                 const lift = (roof.type === 'pitched' ? 0 : DECK_THICKNESS) + 0.35;
+                const at = (pt) => roofSurfaceHeightAt(roof, pt) + lift;
+                const centroid = (cs) => ({ x: cs.reduce((t, c) => t + c.x, 0) / cs.length, y: cs.reduce((t, c) => t + c.y, 0) / cs.length });
                 return (
-                  <PickBar
-                    key={`add-side-${side}`}
-                    a={a} b={b}
-                    ha={roofSurfaceHeightAt(roof, a) + lift} hb={roofSurfaceHeightAt(roof, b) + lift}
-                    state={addSidePick.hovered === side ? 'hover' : 'idle'}
-                    palette="add"
-                    onHover={(on) => addSidePick.onHover((h) => (on ? side : (h === side ? null : h)))}
-                    onPick={() => addSidePick.onPick(side)}
-                    isDragClick={isDragClick}
-                  />
+                  <>
+                    {gridAdd.ghosts.map((gh) => (
+                      <FlatQuad key={`add-ghost-${gh.key}`} corners={gh.corners} height={at(centroid(gh.corners))} color={gh.ok ? '#22c55e' : '#dc2626'} opacity={gh.ok ? 0.55 : 0.3} />
+                    ))}
+                    {gridAdd.slots.map((sl) => (
+                      <FlatQuad
+                        key={`add-slot-${sl.key}`} corners={sl.corners} height={at(centroid(sl.corners))}
+                        color="#22c55e" opacity={sl.picked ? 0.7 : 0.18}
+                        onPointerDown={(e) => { e.stopPropagation(); gridAdd.onSlotDown(sl.key); }}
+                      />
+                    ))}
+                    {(() => {
+                      const placed = gridAdd.handles.map((h) => {
+                        const len = Math.hypot(h.step.x, h.step.y) || 1;
+                        const out = 0.7 / len;
+                        const p = { x: h.mid.x + h.step.x * out, y: h.mid.y + h.step.y * out };
+                        const q = { x: p.x + h.step.x, y: p.y + h.step.y };
+                        const hgt = at(h.mid) + 0.1;
+                        return { h, position: toThree(p.x, p.y, hgt), stepTo: toThree(q.x, q.y, hgt) };
+                      });
+                      // Every handle sizes itself from all four steps (the
+                      // smallest), so row and column handles match.
+                      const sizeSteps = placed.map(({ position, stepTo }) => [position, stepTo]);
+                      return placed.map(({ h, position, stepTo }) => (
+                        <AddHandle3D
+                          key={`add-handle-${h.side}`}
+                          position={position} stepTo={stepTo} sizeSteps={sizeSteps}
+                          active={gridAdd.activeSide === h.side}
+                          label={gridAdd.activeSide === h.side ? gridAdd.label : null}
+                          hoverLabel={h.axis === 'row' ? 'Add row' : 'Add column'}
+                          onDown={(x, y, stepPx) => gridAdd.onHandleDown(h.side, x, y, stepPx)}
+                        />
+                      ));
+                    })()}
+                  </>
                 );
-              })}
+              })()}
             </group>
           );
         })}

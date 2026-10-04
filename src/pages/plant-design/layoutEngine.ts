@@ -1184,6 +1184,95 @@ export function addGridColumn(grid, roof, side) {
   };
 }
 
+// ============================================================
+// Adding panels to an existing grid: "+" side handles (rows/columns, by
+// click or drag) and Add -> Panels (pick individual free slots). Shared by
+// the 2D plan and the 3D view; the editor owns the interaction.
+// ============================================================
+
+// Whether a panel (rack coords of `grid`) sits wholly on the roof's usable
+// area - the same boundary "Fill roof" and placed grids use (outline inset
+// by the panel margins, per-edge overrides included) - measured where the
+// panel really is, grid rotation included (gridWorldToRack).
+export function gridPanelFitsRoof(roof, grid) {
+  const toRack = gridWorldToRack(grid, roof);
+  const poly = getRoofPolygon(roof);
+  const margins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1);
+  const usable = insetPolygon(poly.map(toRack), margins);
+  return (p) => !!usable && usable.length >= 3
+    && rectInsidePolygon(p.rackX - p.w / 2, p.rackY - p.d / 2, p.rackX + p.w / 2, p.rackY + p.d / 2, usable);
+}
+
+// The panels `count` more rows (side front/back) or columns (left/right)
+// would add - addGridRow/addGridColumn applied `count` times, so spacing,
+// rack clustering and per-row column positions match a plain "add row"
+// exactly. Returns only the new panels (rack + unrotated world coords).
+export function previewGridAdd(grid, roof, side, count) {
+  const ids = new Set(grid.panels.map((p) => p.id));
+  let g = grid;
+  for (let i = 0; i < count; i++) {
+    g = side === 'front' || side === 'back' ? addGridRow(g, roof, side) : addGridColumn(g, roof, side);
+  }
+  return g.panels.filter((p) => !ids.has(p.id));
+}
+
+// Free slots next to a grid for Add -> Panels: up to `ext` positions past
+// each row's ends, holes inside a row (a deleted panel), and one new row in
+// front and behind (on the front/back row's columns, also extended by
+// `ext`). Positions follow each row's own column step, and the new rows'
+// spacing comes from addGridRow itself. Slots already holding a panel are
+// skipped; roof/obstacle fit is the caller's call (see gridPanelFitsRoof).
+export function gridAddCandidates(grid, roof, ext = 3) {
+  if (!grid.panels.length) return [];
+  const direction = gridDirection(grid, roof);
+  const w = grid.panels[0].w, d = grid.footprintDepth ?? grid.panels[0].d;
+  const step = w + PANEL_GAP;
+  const rows = new Map();
+  grid.panels.forEach((p) => {
+    const k = Math.round(p.rackY * 1e4);
+    if (!rows.has(k)) rows.set(k, { y: p.rackY, xs: [] });
+    rows.get(k).xs.push(p.rackX);
+  });
+  const out = new Map();
+  const add = (rackX, rackY) => {
+    const key = `${Math.round(rackX * 100)}|${Math.round(rackY * 100)}`;
+    if (out.has(key)) return;
+    const world = toSlopeWorld({ x: rackX, y: rackY }, direction);
+    out.set(key, { key, rackX, rackY, x: world.x, y: world.y, w, d });
+  };
+  const rowSlots = (xs, y, includeRow) => {
+    const sorted = [...xs].sort((a, b) => a - b);
+    const x0 = sorted[0], x1 = sorted[sorted.length - 1];
+    const n = Math.round((x1 - x0) / step);
+    for (let k = -ext; k <= n + ext; k++) {
+      const x = x0 + k * step;
+      const occupied = includeRow && sorted.some((sx) => Math.abs(sx - x) < step * 0.3);
+      if (!occupied) add(x, y);
+    }
+  };
+  rows.forEach(({ y, xs }) => rowSlots(xs, y, true));
+  ['front', 'back'].forEach((side) => {
+    const added = previewGridAdd(grid, roof, side, 1);
+    if (added.length) rowSlots(added.map((p) => p.rackX), added[0].rackY, false);
+  });
+  return [...out.values()];
+}
+
+// Appends `panels` (rack coords; ids, world coords and size filled in here)
+// to a grid - totals and footprint recomputed, existing panels untouched.
+export function appendGridPanels(grid, roof, panels) {
+  if (!panels.length) return grid;
+  const direction = gridDirection(grid, roof);
+  let nextId = Math.max(0, ...grid.panels.map((p) => p.id)) + 1;
+  const w = grid.panels[0]?.w ?? panels[0].w, d = grid.footprintDepth ?? grid.panels[0]?.d ?? panels[0].d;
+  const added = panels.map((p) => {
+    const world = toSlopeWorld({ x: p.rackX, y: p.rackY }, direction);
+    return { id: nextId++, x: world.x, y: world.y, rackX: p.rackX, rackY: p.rackY, w, d };
+  });
+  const all = [...grid.panels, ...added];
+  return { ...withRecomputedTotals(grid, all), footprintPolygon: footprintPolygonFromPanels(all, direction) ?? grid.footprintPolygon };
+}
+
 // Removes every panel sharing `rackY` (a whole row - see the tolerance
 // comment above COLUMN_TOLERANCE; rows match exactly, no tolerance
 // needed). Deleting an *interior* row - one with other rows both in front
@@ -1710,7 +1799,7 @@ function pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad
 // transform Scene3D applies to a rotated grid's panels and structure, so
 // anything measured against the real roof under them (deck height, which
 // part of the roof a leg stands on) has to go through it too.
-function gridRackToWorld(layout, roof) {
+export function gridRackToWorld(layout, roof) {
   const direction = gridDirection(layout, roof);
   const rotation = layout?.rotation || 0;
   const pivot = rotation ? gridPivot(layout) : null;

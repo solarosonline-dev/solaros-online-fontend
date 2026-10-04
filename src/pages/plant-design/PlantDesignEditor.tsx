@@ -11,7 +11,7 @@ import {
   OBSTACLE_ICONS, Cube3DIcon, FlatRoofIcon, PitchedRoofIcon,
   CANOPY_ICONS, STRUCTURE_ICONS, DELETE_MODE_ICONS,
   CloseIcon, PlusIcon, TrashIcon, RulerIcon, MirrorIcon,
-  FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon, AddRowIcon, AddColumnIcon,
+  FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
   SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon, RotateIcon,
 } from './icons.js';
@@ -35,8 +35,11 @@ import {
   rotateAroundPivot,
   suggestMaxPanelsPerRow,
   gridLocalBounds,
-  addGridRow,
-  addGridColumn,
+  previewGridAdd,
+  gridAddCandidates,
+  gridPanelFitsRoof,
+  appendGridPanels,
+  gridRackToWorld,
   deleteGridRow,
   deleteGridColumn,
   deleteGridPanel,
@@ -757,13 +760,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the delta.
   const rotateDragRef = useRef<any>(null);
   const [rotatingGrids, setRotatingGrids] = useState(false);
-  // "Add row"/"Add column" side-picking (see README's "Panel grids"
-  // entry) - while set, the selected grid's own front/back (row) or
-  // left/right (column) edges become pickable on the 2D plan, same
-  // "click an edge" pattern as mirror mode. `axis` picks which pair of
-  // edges gets shown.
-  const [addSideMode, setAddSideMode] = useState<any>(null); // { roofId, gridId, axis: 'row' | 'column' } | null
-  const [hoveredAddSide, setHoveredAddSide] = useState<any>(null); // 'front' | 'back' | 'left' | 'right' | null
+  // Adding to a grid. The selected grid shows a "+" handle on each side
+  // (gridSideHandles): click adds one row/column, drag outward adds as many
+  // as the drag covers (`addDrag`, previewed live, applied on release).
+  // Add -> Panels (`addPanelsMode`) offers every free slot next to the grid
+  // (gridAddCandidates) to pick individually - click, or drag across slots
+  // on the 2D plan - then adds the picks in one go. Replaced a separate
+  // Add row / Add column mode where you then clicked one of two edges.
+  const [addDrag, setAddDrag] = useState<any>(null); // { roofId, gridId, side, count } | null
+  const [hoveredAddHandle, setHoveredAddHandle] = useState<any>(null); // 'front' | 'back' | 'left' | 'right' | null
+  const addDragRef = useRef<any>(null);
+  const [addPanelsMode, setAddPanelsMode] = useState<any>(null); // { roofId, gridId } | null
+  const [addPanelsPicks, setAddPanelsPicks] = useState<Set<string>>(new Set());
+  const addPaintRef = useRef<any>(null); // { adding: boolean } while drag-picking slots
   // Delete row/column/panel mode for the currently selected (single) grid
   // - a mode button in the grid popup arms one of these, which changes
   // what clicking a panel in that grid does (select a row/column/panel
@@ -900,46 +909,116 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setCost(null);
   }
 
-  // "Add row"/"Add column" - see addSideMode's own state comment above.
-  // Force-added (no roof-boundary/obstacle checks - see README's "Panel
-  // grids" entry): addGridRow/addGridColumn don't call generateLayout, so
-  // this never touches the roof's own obstacle list or edge margin at all.
-  // Also closes whichever rail popover is open (e.g. Delete) - its mode is
-  // already cleared by cancelActiveModes, but an open Delete popover kept
-  // its rail icon highlighted, so delete still looked active alongside
-  // add row/column.
-  function startAddRowMode(roofId, gridId) {
-    cancelActiveModes();
-    setRightPanelOpenGroup(null);
-    setAddSideMode({ roofId, gridId, axis: 'row' });
+  // ---- Adding to a grid ("+" handles, Add -> Panels) ----
+  // The panels from `added` (rack coords of `grid`) that can really go in:
+  // wholly on the roof's usable area (gridPanelFitsRoof - the same rule as
+  // Fill roof and placed grids) and clear of obstacles, both checked where
+  // the panel really is (grid rotation included). Force-adding regardless,
+  // as add row/column used to, put panels off the roof or into obstacles.
+  function fittingAdditions(roof, grid, added) {
+    if (!added.length) return [];
+    const fits = gridPanelFitsRoof(roof, grid);
+    const toWorld = gridRackToWorld(grid, roof);
+    return added.filter((p) => {
+      if (!fits(p)) return false;
+      const w = toWorld({ x: p.rackX, y: p.rackY });
+      return !obstacles.some((o) => !o.marker && panelOverlapsObstacle({ ...p, x: w.x, y: w.y }, o));
+    });
   }
-  function startAddColumnMode(roofId, gridId) {
-    cancelActiveModes();
-    setRightPanelOpenGroup(null);
-    setAddSideMode({ roofId, gridId, axis: 'column' });
+
+  // A rack-coords panel's four corners in world plan coords (grid rotation
+  // included) - for drawing ghost/slot outlines in both views.
+  function panelCornersWorld(roof, grid, p) {
+    const toWorld = gridRackToWorld(grid, roof);
+    return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => toWorld({ x: p.rackX + (sx * p.w) / 2, y: p.rackY + (sy * p.d) / 2 }));
   }
-  function cancelAddSideMode() {
-    setAddSideMode(null);
-  }
-  // The two pickable sides for Add row/column, in world plan coords - the
-  // grid's real (rotated) outline's front/back sides for a row, left/right
-  // for a column. Shared by the 2D plan's slivers and the 3D view's bars.
-  function addSideEdges() {
-    if (!addSideMode) return [];
-    const roof = roofs.find((r) => r.id === addSideMode.roofId);
-    const grid = findGrid(addSideMode.roofId, addSideMode.gridId);
-    if (!roof || !grid) return [];
+
+  // The selected grid's four "+" handles: the middle of each side of its
+  // real (rotated) outline, and the world vector one more row/column moves
+  // outward - taken from previewGridAdd itself, so a drag snaps exactly to
+  // where added rows/columns land.
+  function gridSideHandles(roof, grid) {
     const bounds = gridLocalBounds(grid);
     if (!bounds) return [];
-    const direction = gridDirection(grid, roof);
-    const pivot = gridPivot(grid);
-    const rot = grid.rotation || 0;
-    const toWorld = (pt) => rotateAroundPivot(toSlopeWorld(pt, direction), pivot, rot);
-    const fl = toWorld({ x: bounds.minX, y: bounds.minY }), fr = toWorld({ x: bounds.maxX, y: bounds.minY });
-    const bl = toWorld({ x: bounds.minX, y: bounds.maxY }), br = toWorld({ x: bounds.maxX, y: bounds.maxY });
-    return addSideMode.axis === 'row'
-      ? [{ side: 'front', a: fl, b: fr }, { side: 'back', a: bl, b: br }]
-      : [{ side: 'left', a: fl, b: bl }, { side: 'right', a: fr, b: br }];
+    const toWorld = gridRackToWorld(grid, roof);
+    const cx = (bounds.minX + bounds.maxX) / 2, cy = (bounds.minY + bounds.maxY) / 2;
+    const ys = grid.panels.map((p) => p.rackY), xs = grid.panels.map((p) => p.rackX);
+    const sides = [
+      { side: 'front', axis: 'row', mid: { x: cx, y: bounds.minY } },
+      { side: 'back', axis: 'row', mid: { x: cx, y: bounds.maxY } },
+      { side: 'left', axis: 'column', mid: { x: bounds.minX, y: cy } },
+      { side: 'right', axis: 'column', mid: { x: bounds.maxX, y: cy } },
+    ];
+    return sides.map(({ side, axis, mid }) => {
+      const next = previewGridAdd(grid, roof, side, 1);
+      let delta = { x: 0, y: 0 };
+      if (next.length) {
+        if (side === 'front') delta = { x: 0, y: next[0].rackY - Math.min(...ys) };
+        else if (side === 'back') delta = { x: 0, y: next[0].rackY - Math.max(...ys) };
+        else if (side === 'left') delta = { x: Math.min(...next.map((p) => p.rackX)) - Math.min(...xs), y: 0 };
+        else delta = { x: Math.max(...next.map((p) => p.rackX)) - Math.max(...xs), y: 0 };
+      }
+      const a = toWorld(mid), b = toWorld({ x: mid.x + delta.x, y: mid.y + delta.y });
+      return { side, axis, mid: a, step: { x: b.x - a.x, y: b.y - a.y } };
+    });
+  }
+
+  // Adds whichever of `added` fit (fittingAdditions); returns how many.
+  function addToGrid(roofId, gridId, added) {
+    const roof = roofs.find((r) => r.id === roofId);
+    const grid = findGrid(roofId, gridId);
+    if (!roof || !grid) return 0;
+    const ok = fittingAdditions(roof, grid, added);
+    if (ok.length) {
+      updateRoofGrids(roofId, (grids) => grids.map((g) => (g.id === gridId ? appendGridPanels(g, roof, ok) : g)));
+      setOutputResult(null);
+      setCost(null);
+    }
+    return ok.length;
+  }
+
+  // Pointer down on a "+" handle (2D plan or 3D view). `stepPx` is one
+  // row/column outward in screen pixels; the drag's projection onto it
+  // picks the count. Released without moving = add one.
+  function startAddDrag(roofId, gridId, side, clientX, clientY, stepPx, source: '2d' | '3d') {
+    cancelActiveModes();
+    setRightPanelOpenGroup(null);
+    addDragRef.current = { roofId, gridId, side, clientX, clientY, stepPx, source, moved: false, count: 0 };
+    setAddDrag({ roofId, gridId, side, count: 0 });
+  }
+
+  // Add -> Panels: enter/exit slot picking for one grid.
+  function startAddPanels(roofId, gridId) {
+    cancelActiveModes();
+    setAddPanelsMode({ roofId, gridId });
+    setAddPanelsPicks(new Set());
+  }
+  function exitAddPanels() {
+    setAddPanelsMode(null);
+    setAddPanelsPicks(new Set());
+    addPaintRef.current = null;
+  }
+  // Slot pick by pointer: pressing on a slot starts a stroke that either
+  // picks or un-picks (whichever that first slot needs); dragging across
+  // more slots on the 2D plan applies the same to each.
+  function paintSlot(key, starting) {
+    if (starting) addPaintRef.current = { adding: !addPanelsPicks.has(key) };
+    const stroke = addPaintRef.current;
+    if (!stroke) return;
+    setAddPanelsPicks((prev) => {
+      const next = new Set(prev);
+      if (stroke.adding) next.add(key); else next.delete(key);
+      return next;
+    });
+  }
+  function commitAddPanels() {
+    if (!addPanelsMode || addPanelsPicks.size === 0) return;
+    const roof = roofs.find((r) => r.id === addPanelsMode.roofId);
+    const grid = findGrid(addPanelsMode.roofId, addPanelsMode.gridId);
+    if (!roof || !grid) return;
+    const picked = gridAddCandidates(grid, roof).filter((c) => addPanelsPicks.has(c.key));
+    addToGrid(addPanelsMode.roofId, addPanelsMode.gridId, picked);
+    setAddPanelsPicks(new Set());
   }
 
   // Delete-mode picking (row/column/panel), shared by a panel click on the
@@ -980,20 +1059,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     setAlignEdgeRoofId(null);
     setHoveredAlignEdge(null);
-  }
-
-  function handleAddSide(side) {
-    if (!addSideMode) return;
-    const { roofId, gridId, axis } = addSideMode;
-    const roof = roofs.find((r) => r.id === roofId);
-    if (!roof) { setAddSideMode(null); return; }
-    updateRoofGrids(roofId, (grids) => grids.map((g) => {
-      if (g.id !== gridId) return g;
-      return axis === 'row' ? addGridRow(g, roof, side) : addGridColumn(g, roof, side);
-    }));
-    setAddSideMode(null);
-    setOutputResult(null);
-    setCost(null);
   }
 
   // deleteGridRow/deleteGridColumn return an array (one grid normally, two
@@ -1051,10 +1116,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       if (isTypingTarget(document.activeElement)) return;
       if (e.key === 'Escape') {
         if (placingShape === 'copy') { setPlacingShape(null); return; }
-        if (addSideMode) { setAddSideMode(null); return; }
+        if (addPanelsMode) { exitAddPanels(); return; }
         if (gridDeleteMode) { setGridDeleteMode(null); setGridDeleteSelection(null); }
         return;
       }
+      // Enter adds the slots picked in Add -> Panels.
+      if (e.key === 'Enter' && addPanelsMode && addPanelsPicks.size > 0) { e.preventDefault(); commitAddPanels(); return; }
       // Cmd/Ctrl+C copies the selected obstacle; Cmd/Ctrl+V drops a copy
       // just beside the original (pasteObstacleNearby). Obstacles only -
       // grids have their own Duplicate, roofs aren't copyable.
@@ -1081,7 +1148,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addSideMode, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints, obstacles, obstacleClipboard]);
+  }, [selectedGridKeys, selectedObstacleId, selectedRoofId, addPanelsMode, addPanelsPicks, roofs, gridDeleteMode, gridDeleteSelection, drawingRoof, placingGrid, placingShape, roofDrawPoints, obstacleDrawPoints, obstacles, obstacleClipboard]);
   // Set right before closing a roof trace by clicking back on its own first
   // point (see onSvgClick) — a real double-click landing there fires a
   // second click event a moment later that would otherwise immediately
@@ -1812,12 +1879,102 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // only ever meaningful for the specific object whose own rail armed
   // them.
   useEffect(() => {
-    setAddSideMode(null);
+    exitAddPanels();
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
     setRightPanelOpenGroup(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGrid?.id, selectedRoofId, selectedObstacleId]);
+
+  // Add -> Panels only lives while its popover is open.
+  useEffect(() => {
+    if (addPanelsMode && rightPanelOpenGroup !== 'gridAdd') exitAddPanels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rightPanelOpenGroup]);
+
+  // A slot-picking stroke ends wherever the pointer is released.
+  useEffect(() => {
+    const end = () => { addPaintRef.current = null; };
+    document.addEventListener('pointerup', end);
+    return () => document.removeEventListener('pointerup', end);
+  }, []);
+
+  // "+" handle drag, tracked across the whole page (the pointer leaves the
+  // handle at once). The count is the drag's projection onto one step
+  // outward; release adds that many rows/columns (one if it never moved,
+  // none if dragged back in).
+  useEffect(() => {
+    if (!addDrag) return;
+    function onMove(e) {
+      const d = addDragRef.current;
+      if (!d) return;
+      const dx = e.clientX - d.clientX, dy = e.clientY - d.clientY;
+      if (!d.moved && Math.hypot(dx, dy) > 4) d.moved = true;
+      if (!d.moved) return;
+      const len2 = d.stepPx.x * d.stepPx.x + d.stepPx.y * d.stepPx.y;
+      const count = len2 > 1 ? Math.max(0, Math.min(40, Math.round((dx * d.stepPx.x + dy * d.stepPx.y) / len2))) : 0;
+      if (count !== d.count) {
+        d.count = count;
+        setAddDrag((st) => (st ? { ...st, count } : st));
+      }
+    }
+    function onUp() {
+      const d = addDragRef.current;
+      addDragRef.current = null;
+      setAddDrag(null);
+      if (!d) return;
+      // The 2D plan's own click handler would otherwise treat the release
+      // as a background click and deselect the grid.
+      if (d.source === '2d') swallowClickAfterDragRef.current = true;
+      const count = d.moved ? d.count : 1;
+      if (count <= 0) return;
+      const roof = roofs.find((r) => r.id === d.roofId);
+      const grid = findGrid(d.roofId, d.gridId);
+      if (roof && grid) addToGrid(d.roofId, d.gridId, previewGridAdd(grid, roof, d.side, count));
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addDrag, roofs, obstacles]);
+
+  // Live ghost of what the current "+" drag would add: green = will be
+  // added, red = skipped (off the roof's usable area or into an obstacle).
+  const addDragPreview = useMemo(() => {
+    if (!addDrag || !addDrag.count) return null;
+    const roof = roofs.find((r) => r.id === addDrag.roofId);
+    const grid = findGrid(addDrag.roofId, addDrag.gridId);
+    if (!roof || !grid) return null;
+    const added = previewGridAdd(grid, roof, addDrag.side, addDrag.count);
+    const okSet = new Set(fittingAdditions(roof, grid, added));
+    const word = addDrag.side === 'front' || addDrag.side === 'back' ? 'row' : 'column';
+    const skipped = added.length - okSet.size;
+    return {
+      side: addDrag.side,
+      ghosts: added.map((p) => ({ key: String(p.id), ok: okSet.has(p), corners: panelCornersWorld(roof, grid, p) })),
+      label: `+${addDrag.count} ${word}${addDrag.count === 1 ? '' : 's'} · ${okSet.size} panel${okSet.size === 1 ? '' : 's'}${skipped ? ` (${skipped} won't fit)` : ''}`,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addDrag, roofs, obstacles]);
+
+  // Add -> Panels: every free slot next to the grid that would fit.
+  const addPanelSlots = useMemo(() => {
+    if (!addPanelsMode) return [];
+    const roof = roofs.find((r) => r.id === addPanelsMode.roofId);
+    const grid = findGrid(addPanelsMode.roofId, addPanelsMode.gridId);
+    if (!roof || !grid) return [];
+    return fittingAdditions(roof, grid, gridAddCandidates(grid, roof)).map((c) => ({ key: c.key, corners: panelCornersWorld(roof, grid, c) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addPanelsMode, roofs, obstacles]);
+
+  // The selected grid's "+" handles - only while nothing else is being done
+  // to it (delete/add-panels picking, moving, rotating, placing a grid).
+  const selectedGridHandles = (currentStep === 4 && selectedGrid && gridOwnerRoof && !gridDeleteMode && !addPanelsMode
+    && !placingGrid && !movingGrids && !rotatingGrids && rightPanelOpenGroup !== 'gridRotate')
+    ? gridSideHandles(gridOwnerRoof, selectedGrid) : [];
 
   const totalPanelCount = roofs.reduce((s, r) => s + r.grids.reduce((s2, g) => s2 + g.count, 0), 0);
 
@@ -2329,7 +2486,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setFillPickerOpen(false);
     setTablePickSize(null);
     setHoveredPickRoofId(null);
-    setAddSideMode(null);
+    setAddPanelsMode(null);
+    setAddPanelsPicks(new Set());
     setGridDeleteMode(null);
     setGridDeleteSelection(null);
   }
@@ -2778,9 +2936,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       return;
     }
 
-    if (addSideMode) {
-      setAddSideMode(null);
-      setHoveredAddSide(null);
+    if (addPanelsMode) {
+      exitAddPanels();
       return;
     }
 
@@ -4723,10 +4880,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     onHover: setHoveredAlignEdge, onPick: (i) => pickAlignEdge(alignEdgeRoofId, i),
                   } : null
                 }
-                // Add row/column side picking - same two sides as the 2D plan.
-                addSidePick={addSideMode ? {
-                  roofId: addSideMode.roofId, edges: addSideEdges(), hovered: hoveredAddSide,
-                  onHover: setHoveredAddSide, onPick: handleAddSide,
+                // Adding to the selected grid - same "+" handles, drag ghosts
+                // and Add -> Panels slots as the 2D plan.
+                gridAdd={gridOwnerRoof && selectedGrid && (selectedGridHandles.length || addDragPreview || addPanelsMode) ? {
+                  roofId: gridOwnerRoof.id,
+                  handles: selectedGridHandles,
+                  activeSide: addDrag?.side ?? null,
+                  label: addDragPreview?.label ?? null,
+                  ghosts: addDragPreview?.ghosts ?? [],
+                  slots: addPanelsMode ? addPanelSlots.map((sl) => ({ ...sl, picked: addPanelsPicks.has(sl.key) })) : [],
+                  onHandleDown: (side, x, y, stepPx) => startAddDrag(gridOwnerRoof.id, selectedGrid.id, side, x, y, stepPx, '3d'),
+                  onSlotDown: (key) => paintSlot(key, true),
                 } : null}
                 // Same step the 2D plan's panels are clickable in (see the
                 // panel <g>'s pointerEvents there).
@@ -5375,7 +5539,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       // entirely, so a click meant for the roof beneath
                       // (selecting/dragging it, or placing a new obstacle)
                       // reaches it instead of grabbing the panel on top.
-                      style={{ cursor: deleteModeActive ? 'pointer' : movingGrids ? 'grabbing' : 'pointer', pointerEvents: (currentStep !== 4 || placingGrid || addSideMode) ? 'none' : 'auto' }}
+                      style={{ cursor: deleteModeActive ? 'pointer' : movingGrids ? 'grabbing' : 'pointer', pointerEvents: (currentStep !== 4 || placingGrid || addPanelsMode || addDrag) ? 'none' : 'auto' }}
                       onMouseDown={(e) => {
                         if (deleteModeActive) {
                           e.stopPropagation();
@@ -5594,74 +5758,96 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               );
             })()}
 
-            {/* "Add row"/"Add column" side-picking - same "visible sliver +
-                wide invisible hit-area" pattern as mirror/margin mode above,
-                but the two pickable edges come from the grid's own local
-                bounding box (see gridLocalBounds), rotated the same way its
-                panels are rendered rotated (gridPivot/rotateAroundPivot),
-                rather than a roof polygon's edges. Rendered last (on top of
-                everything, including the roof's own edge/vertex handles) so
-                a "fill full roof" grid - whose edges sit exactly on the roof
-                boundary - doesn't have its hit-lines stolen by the roof's
-                own edit handles underneath. */}
-            {addSideMode && (() => {
-              // Bright orange "add here" targets (red on hover), deliberately
-              // not blue: a selected grid's panels are blue, and blue side
-              // lines sitting right on the panel edge disappeared into them. Each side is drawn
-              // pushed ~9px outside the grid (away from its center), dashed
-              // until hovered, with a "+" badge at its middle.
-              const edges = addSideEdges();
-              const pts = edges.flatMap(({ a, b }) => [toScreen(a.x, a.y), toScreen(b.x, b.y)]);
-              const gc = { sx: pts.reduce((t, p) => t + p.sx, 0) / pts.length, sy: pts.reduce((t, p) => t + p.sy, 0) / pts.length };
-              return edges.map(({ side, a, b }) => {
-                const p1 = toScreen(a.x, a.y);
-                const p2 = toScreen(b.x, b.y);
-                const mid = { sx: (p1.sx + p2.sx) / 2, sy: (p1.sy + p2.sy) / 2 };
-                let nx = mid.sx - gc.sx, ny = mid.sy - gc.sy;
-                const nl = Math.hypot(nx, ny) || 1;
-                nx /= nl; ny /= nl;
-                const off = 9;
-                const s1 = { sx: p1.sx + nx * off, sy: p1.sy + ny * off };
-                const s2 = { sx: p2.sx + nx * off, sy: p2.sy + ny * off };
-                const m = { sx: mid.sx + nx * off, sy: mid.sy + ny * off };
-                const hovered = hoveredAddSide === side;
-                const sideColor = hovered ? '#dc2626' : '#f97316';
-                return (
-                  <g key={`add-side-${side}`}>
-                    <line
-                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
-                      stroke="#fff" strokeWidth={hovered ? 8 : 6} strokeLinecap="round"
+            {/* Adding to the selected grid. A green "+" just outside the
+                middle of each side (gridSideHandles): click adds one row
+                (front/back) or column (left/right); drag outward to add more -
+                a live ghost shows what lands (green) and what's skipped for
+                falling off the roof's usable area or into an obstacle (red),
+                with a running count. Add -> Panels shows free slots around the
+                grid instead: click or drag across them to pick, Enter to add. */}
+            {addDragPreview && addDragPreview.ghosts.map((gh) => (
+              <polygon
+                key={`add-ghost-${gh.key}`}
+                points={gh.corners.map((c) => { const sp = toScreen(c.x, c.y); return `${sp.sx},${sp.sy}`; }).join(' ')}
+                fill={gh.ok ? 'rgba(34,197,94,0.35)' : 'rgba(220,38,38,0.16)'}
+                stroke={gh.ok ? '#16a34a' : '#dc2626'} strokeWidth={1.2} strokeDasharray={gh.ok ? undefined : '4 3'}
+                style={{ pointerEvents: 'none' }}
+              />
+            ))}
+            {(() => {
+              // One size for all four handles: from the smaller of the row and
+              // column steps on screen (each side used its own before, so row
+              // and column handles came out different sizes).
+              const stepLens = selectedGridHandles.map((h) => {
+                const a = toScreen(h.mid.x, h.mid.y), b = toScreen(h.mid.x + h.step.x, h.mid.y + h.step.y);
+                return Math.hypot(b.sx - a.sx, b.sy - a.sy);
+              }).filter((l) => l > 0);
+              const handleR = stepLens.length ? Math.max(3.5, Math.min(10, Math.min(...stepLens) * 0.45)) : 10;
+              return selectedGridHandles.map((h) => {
+              const m = toScreen(h.mid.x, h.mid.y);
+              const e2 = toScreen(h.mid.x + h.step.x, h.mid.y + h.step.y);
+              const stepPx = { x: e2.sx - m.sx, y: e2.sy - m.sy };
+              const len = Math.hypot(stepPx.x, stepPx.y) || 1;
+              const ux = stepPx.x / len, uy = stepPx.y / len;
+              // Sized from one row/column step on screen (roughly a panel),
+              // capped at the normal 10px - zoomed far out, a fixed-size
+              // handle dwarfed the grid it belongs to.
+              const r = handleR;
+              const c = { sx: m.sx + ux * (r + 6), sy: m.sy + uy * (r + 6) };
+              const active = addDrag?.side === h.side;
+              const fill = active ? '#15803d' : '#16a34a';
+              const rr = active ? r * 1.2 : r;
+              const arm = r * 0.45;
+              return (
+                <g key={`add-handle-${h.side}`}>
+                  <circle cx={c.sx} cy={c.sy} r={rr} fill={fill} stroke="#fff" strokeWidth={Math.max(1, r * 0.2)} style={{ pointerEvents: 'none' }} />
+                  <path d={`M ${c.sx - arm} ${c.sy} H ${c.sx + arm} M ${c.sx} ${c.sy - arm} V ${c.sy + arm}`} stroke="#fff" strokeWidth={Math.max(1, r * 0.22)} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
+                  <circle
+                    cx={c.sx} cy={c.sy} r={Math.max(8, r + 5)} fill="transparent" style={{ cursor: 'pointer' }}
+                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startAddDrag(gridOwnerRoof.id, selectedGrid.id, h.side, e.clientX, e.clientY, stepPx, '2d'); }}
+                    onMouseEnter={() => setHoveredAddHandle(h.side)}
+                    onMouseLeave={() => setHoveredAddHandle((cur) => (cur === h.side ? null : cur))}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {/* Hover hint (while not dragging - the drag shows its own count). */}
+                  {!addDrag && hoveredAddHandle === h.side && (
+                    <text
+                      x={c.sx + ux * (r + 10)} y={c.sy + uy * (r + 10) + 4} textAnchor={ux > 0.5 ? 'start' : ux < -0.5 ? 'end' : 'middle'}
+                      fontSize={12} fontWeight={700} fill="#14532d" stroke="#fff" strokeWidth={3} paintOrder="stroke"
                       style={{ pointerEvents: 'none' }}
-                    />
-                    <line
-                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
-                      stroke={sideColor} strokeWidth={hovered ? 5 : 3.5} strokeLinecap="round"
-                      strokeDasharray={hovered ? undefined : '7 5'}
+                    >
+                      {h.axis === 'row' ? 'Add row' : 'Add column'}
+                    </text>
+                  )}
+                  {active && addDragPreview && (
+                    // Past the far end of the preview, not over it.
+                    <text
+                      x={c.sx + stepPx.x * addDrag.count + ux * (r + 12)} y={c.sy + stepPx.y * addDrag.count + uy * (r + 12) + 4} textAnchor={ux > 0.5 ? 'start' : ux < -0.5 ? 'end' : 'middle'}
+                      fontSize={12} fontWeight={700} fill="#14532d" stroke="#fff" strokeWidth={3} paintOrder="stroke"
                       style={{ pointerEvents: 'none' }}
-                    />
-                    <g style={{ pointerEvents: 'none' }}>
-                      <circle cx={m.sx} cy={m.sy} r={hovered ? 11 : 9.5} fill={sideColor} stroke="#fff" strokeWidth={2} />
-                      <path d={`M ${m.sx - 4.5} ${m.sy} H ${m.sx + 4.5} M ${m.sx} ${m.sy - 4.5} V ${m.sy + 4.5}`} stroke="#fff" strokeWidth={2.2} strokeLinecap="round" />
-                    </g>
-                    <line
-                      x1={s1.sx} y1={s1.sy} x2={s2.sx} y2={s2.sy}
-                      stroke="transparent" strokeWidth={22}
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredAddSide(side)}
-                      onMouseLeave={() => setHoveredAddSide((h) => (h === side ? null : h))}
-                      onClick={(e) => { e.stopPropagation(); handleAddSide(side); }}
-                    />
-                    <circle
-                      cx={m.sx} cy={m.sy} r={13} fill="transparent"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredAddSide(side)}
-                      onMouseLeave={() => setHoveredAddSide((h) => (h === side ? null : h))}
-                      onClick={(e) => { e.stopPropagation(); handleAddSide(side); }}
-                    />
-                  </g>
-                );
+                    >
+                      {addDragPreview.label}
+                    </text>
+                  )}
+                </g>
+              );
               });
             })()}
+            {addPanelsMode && addPanelSlots.map((slot) => {
+              const picked = addPanelsPicks.has(slot.key);
+              return (
+                <polygon
+                  key={`add-slot-${slot.key}`}
+                  points={slot.corners.map((c) => { const sp = toScreen(c.x, c.y); return `${sp.sx},${sp.sy}`; }).join(' ')}
+                  fill={picked ? 'rgba(34,197,94,0.55)' : 'rgba(34,197,94,0.07)'}
+                  stroke="#16a34a" strokeWidth={picked ? 1.6 : 1} strokeDasharray={picked ? undefined : '4 3'}
+                  style={{ cursor: 'pointer' }}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); paintSlot(slot.key, true); }}
+                  onMouseEnter={() => paintSlot(slot.key, false)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              );
+            })}
 
             {/* Slope-direction arrow for every pitched roof - drawn last so
                 it stays visible even once the roof is full of panels.
@@ -6396,14 +6582,41 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         {(selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'P' : 'L'}
                       </button>
 
-                      {addSideMode && addSideMode.gridId === selectedGrid.id ? (
-                        <button data-tooltip={`Click a ${addSideMode.axis === 'row' ? 'front/back' : 'left/right'} edge… (click to cancel)`} aria-label="Cancel add row/column" className={iconBtn(true)} onClick={cancelAddSideMode}><CloseIcon /></button>
-                      ) : (
-                        <>
-                          <button data-tooltip="Add row" aria-label="Add row" className={iconBtn(false)} onClick={() => startAddRowMode(gridOwnerRoof.id, selectedGrid.id)}><AddRowIcon /></button>
-                          <button data-tooltip="Add column" aria-label="Add column" className={iconBtn(false)} onClick={() => startAddColumnMode(gridOwnerRoof.id, selectedGrid.id)}><AddColumnIcon /></button>
-                        </>
-                      )}
+                      <div style={{ position: 'relative' }}>
+                        <button data-tooltip="Add rows, columns or panels" aria-label="Add rows, columns or panels" className={iconBtn(rightPanelOpenGroup === 'gridAdd' || !!addPanelsMode)} onClick={() => toggleGroup('gridAdd')}><PlusIcon /></button>
+                        <RailPopover open={rightPanelOpenGroup === 'gridAdd'} width={280}>
+                          <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>Add</div>
+                          <div style={{ fontSize: 11, color: '#555', lineHeight: 1.45, marginBottom: 10 }}>
+                            <b>Rows &amp; columns:</b> drag a green <b>+</b> on any side of the grid outward - or click it to add just one.
+                            Panels that wouldn't fit on the roof or would hit an obstacle are skipped.
+                          </div>
+                          <button
+                            aria-pressed={!!addPanelsMode}
+                            className={btn(!!addPanelsMode)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px' }}
+                            onClick={() => (addPanelsMode ? exitAddPanels() : startAddPanels(gridOwnerRoof.id, selectedGrid.id))}
+                          >
+                            <DeletePanelIcon size={18} /> Panels
+                          </button>
+                          {addPanelsMode && (
+                            <>
+                              <div style={{ fontSize: 11, color: '#2f6fed', marginTop: 8, lineHeight: 1.4 }}>
+                                Click free slots around the grid to pick them, or drag across several on the 2D plan. Enter adds them, Esc exits.
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                <button
+                                  className={btn(true)} style={{ flex: 1, padding: '7px 8px' }}
+                                  disabled={addPanelsPicks.size === 0}
+                                  onClick={commitAddPanels}
+                                >
+                                  Add {addPanelsPicks.size} panel{addPanelsPicks.size === 1 ? '' : 's'}
+                                </button>
+                                <button className={btn(false)} style={{ padding: '7px 10px' }} disabled={addPanelsPicks.size === 0} onClick={() => setAddPanelsPicks(new Set())}>Clear</button>
+                              </div>
+                            </>
+                          )}
+                        </RailPopover>
+                      </div>
 
                       <div style={{ position: 'relative' }}>
                         {/* One delete button instead of two identical-looking
