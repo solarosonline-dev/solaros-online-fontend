@@ -137,8 +137,25 @@ wizard), but `index.css` wasn't purely that.
 - `DesignReport.tsx` (+ `.css`) — step 8's customer-facing document, as
   fixed landscape A4 pages (`.pde-report-page`, 1123x794 CSS px): overview
   (client/site from the linked lead, headline numbers, location image),
-  system configuration, energy output (a plain-SVG monthly chart, not
-  recharts), and the SLD. Branded like the Quote document (entity logo,
+  system configuration, site layout (2D plans), 3D views, energy output (a
+  plain-SVG monthly chart, not recharts), and the SLD. Every page must fit
+  794px tall - figure column widths in the CSS are fixed per case for
+  exactly that reason; check page heights after any layout change.
+- `SitePlanSvg.tsx` — the report's static 2D plan (satellite backdrop,
+  roofs, obstacles, panels, north arrow, scale bar), drawn straight from
+  design data rather than reusing the editor's interactive plan `<svg>`.
+  Site overview plus one close-up per roof (up to 4; one roof gets a wide
+  "context" overview plus its close-up). The backdrop is inlined as a JPEG
+  data URL (fetched on entering step 8) because an external href can't
+  load inside the vector PDF export. `chromeScale` keeps labels/legend
+  legible in small figures.
+- `Scene3D.tsx`'s `capture` prop — the report's 3D views: mounted
+  off-screen on step 8, no OrbitControls, `preserveDrawingBuffer` on;
+  `CaptureViews` waits for textures (`useProgress`, 10s cap) and ~30
+  frames, then renders each fixed camera angle (front-left, front-right,
+  bird's-eye, equator-facing) and returns JPEG data URLs. Redone on every
+  visit to step 8; the export buttons wait for it (20s fallback to a
+  "3D view unavailable" placeholder). Branded like the Quote document (entity logo,
   tagline, contact, tax id) via `reportContext`, which
   `PlantDesignEditorPage.tsx` builds (the editor has no HTTP access). No
   pricing - the Quote covers that.

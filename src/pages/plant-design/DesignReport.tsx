@@ -5,13 +5,14 @@
 // downloaded. Customer-facing, so it carries the entity's branding the same
 // way the Quote document does (logo, tagline, contact, tax id).
 //
-// Pages: 1 Overview (client/site, headline numbers, location image),
-// 2 System configuration, 3 Energy output (monthly chart), 4 SLD. Site
-// design images (2D plan / 3D renders) are a planned addition between 2
-// and 3. No pricing - the Quote covers that.
+// Pages: Overview (client/site, headline numbers, location image), System
+// configuration, Site layout (2D plans - SitePlanSvg), 3D views (fixed-angle
+// renders from Scene3D's capture mode), Energy output (monthly chart), SLD.
+// No pricing - the Quote covers that.
 import type { ReactNode } from 'react';
 import { REPORT_PAGE_CLASS } from './designReportPdf';
 import { formatKWh, formatPct, shadingLossPct, type OutputSeries } from './OutputChartPanel';
+import SitePlanSvg, { boundsOf, type SitePlanData } from './SitePlanSvg';
 import './DesignReport.css';
 
 export interface ReportBranding {
@@ -66,6 +67,76 @@ interface DesignReportProps {
   output: OutputSeries | null;
   ghiStatus: string;
   sld: ReactNode;
+  sitePlan: SitePlanData;
+  // One per view, in `views3D` order; null while still rendering.
+  renders3D: string[] | null;
+  renders3DFailed: boolean;
+  views3D: { label: string }[];
+}
+
+// Close-ups for at most this many roofs - more than that no longer fits
+// legibly on one page next to the overview.
+const MAX_ROOF_CLOSEUPS = 4;
+
+function Figure({ caption, children }: { caption: string; children: ReactNode }) {
+  return (
+    <figure className="pde-report-figure">
+      <div className="pde-report-figure-media">{children}</div>
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
+function SiteLayoutPage({ plan }: { plan: SitePlanData }) {
+  const roofs = plan.roofs.filter((r) => r.polygon.length >= 3);
+  if (roofs.length === 0) return <p className="pde-report-note">No roofs drawn yet.</p>;
+  const all = boundsOf(roofs.flatMap((r) => r.polygon));
+  // One roof: the overview pulls well back to show the surroundings, and
+  // the close-up is that roof alone. Several: the overview frames them
+  // all, and each gets its own close-up (the others shown muted).
+  const single = roofs.length === 1;
+  const closeups = roofs.slice(0, MAX_ROOF_CLOSEUPS);
+  const mode = closeups.length === 1 ? 'one' : closeups.length === 2 ? 'two' : 'many';
+  // Rendered widths per layout (see .pde-report-siteplan--* in the CSS),
+  // relative to the ~700px the plan's labels are sized for.
+  const chrome = { one: { main: 1.35, side: 1.35 }, two: { main: 1, side: 2 }, many: { main: 1.45, side: 2.5 } }[mode];
+  return (
+    <div className={`pde-report-siteplan pde-report-siteplan--${mode}`}>
+      <div className="pde-report-siteplan-main">
+        <Figure caption={single ? 'Site overview' : `Site overview · ${roofs.length} roofs`}>
+          <SitePlanSvg data={plan} focus={all} padFrac={single ? 0.9 : 0.15} minPad={single ? 15 : 6} chromeScale={chrome.main} />
+        </Figure>
+      </div>
+      <div className="pde-report-siteplan-side">
+        {closeups.map((r) => (
+          <Figure key={r.id} caption={`${r.label} · panel layout`}>
+            <SitePlanSvg data={plan} focus={boundsOf(r.polygon)} padFrac={0.1} minPad={1.5} highlightRoofId={single ? null : r.id} chromeScale={chrome.side} />
+          </Figure>
+        ))}
+        {roofs.length > MAX_ROOF_CLOSEUPS && (
+          <p className="pde-report-note">+{roofs.length - MAX_ROOF_CLOSEUPS} more roof{roofs.length - MAX_ROOF_CLOSEUPS === 1 ? '' : 's'} shown in the overview.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ViewsPage({ renders, failed, views }: { renders: string[] | null; failed: boolean; views: { label: string }[] }) {
+  const slot = (i: number) => (
+    <Figure key={i} caption={views[i]?.label ?? ''}>
+      {renders?.[i] ? (
+        <img src={renders[i]} alt={views[i]?.label ?? '3D view'} />
+      ) : (
+        <div className="pde-report-figure-empty">{failed ? '3D view unavailable' : 'Rendering 3D view…'}</div>
+      )}
+    </Figure>
+  );
+  return (
+    <div className="pde-report-views">
+      <div className="pde-report-views-main">{slot(0)}</div>
+      <div className="pde-report-views-side">{views.slice(1).map((_, i) => slot(i + 1))}</div>
+    </div>
+  );
 }
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -206,8 +277,9 @@ export default function DesignReport(props: DesignReportProps) {
   const {
     branding, client, projectName, siteAddress, location, locationImageUrl, capacityKw, panelCount,
     panelSpec, inverterChoice, inverterCount, gridConnection, dcAcRatio, designTemp, roofRows, output, ghiStatus, sld,
+    sitePlan, renders3D, renders3DFailed, views3D,
   } = props;
-  const pageCount = 4;
+  const pageCount = 6;
   const common = { branding, projectName };
   const coords = `${location.lat.toFixed(5)}, ${location.lon.toFixed(5)}`;
   const annual = output?.totalKWh ?? null;
@@ -315,8 +387,18 @@ export default function DesignReport(props: DesignReportProps) {
         </div>
       </Page>
 
-      {/* 3. Energy output */}
-      <Page {...common} page={3} pageCount={pageCount} title="Energy output">
+      {/* 3. Site layout (2D) */}
+      <Page {...common} page={3} pageCount={pageCount} title="Site layout">
+        <SiteLayoutPage plan={sitePlan} />
+      </Page>
+
+      {/* 4. 3D views */}
+      <Page {...common} page={4} pageCount={pageCount} title="3D views">
+        <ViewsPage renders={renders3D} failed={renders3DFailed} views={views3D} />
+      </Page>
+
+      {/* 5. Energy output */}
+      <Page {...common} page={5} pageCount={pageCount} title="Energy output">
         {output ? (
           <>
             <div className="pde-report-stats pde-report-stats--row">
@@ -354,8 +436,8 @@ export default function DesignReport(props: DesignReportProps) {
         )}
       </Page>
 
-      {/* 4. SLD - no page title, SldView carries its own drawing header */}
-      <Page {...common} page={4} pageCount={pageCount}>
+      {/* 6. SLD - no page title, SldView carries its own drawing header */}
+      <Page {...common} page={6} pageCount={pageCount}>
         {sld}
       </Page>
     </div>

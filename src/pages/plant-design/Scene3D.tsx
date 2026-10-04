@@ -1,6 +1,6 @@
 import React, { Suspense, useMemo, useRef, useEffect } from 'react';
-import { Canvas, useLoader } from '@react-three/fiber';
-import { Edges, OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
+import { Edges, OrbitControls, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
@@ -876,7 +876,58 @@ function compassAngleDeg(camera, target) {
   return Math.atan2(dx, dy) / DEG;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange }: any) {
+// Design Report renders (see Scene3D's `capture` prop): once the scene's
+// textures (satellite ground) have finished loading and a few frames have
+// let shadow maps settle, renders each requested view from a fixed camera
+// and hands back one JPEG data URL per view. Deterministic angles rather
+// than whatever the user last orbited to, so every report looks the same.
+// `active` from useProgress tracks three's DefaultLoadingManager, which
+// useLoader's TextureLoader goes through; the 10s cap means a texture that
+// never resolves (offline, CORS) still yields renders - just without it.
+function CaptureViews({ views, target, radius, onDone }: {
+  views: { azimuth: number; elevation: number }[];
+  target: [number, number, number];
+  radius: number;
+  onDone: (urls: string[]) => void;
+}) {
+  const { gl, scene, camera } = useThree();
+  const { active } = useProgress();
+  const frames = useRef(0);
+  const startedAt = useRef(performance.now());
+  const done = useRef(false);
+  useFrame(() => {
+    if (done.current) return;
+    frames.current += 1;
+    const waited = performance.now() - startedAt.current;
+    if (frames.current < 30 || (active && waited < 10000)) return;
+    done.current = true;
+    const cam = camera as THREE.PerspectiveCamera;
+    // A bounding sphere of `radius` fitted to the vertical field of view
+    // leaves the buildings small in a 3:2 frame (the sphere is far rounder
+    // than a typical low, wide site), so pull in to ~0.8 of that.
+    const distance = (radius / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2))) * 0.8;
+    const t = new THREE.Vector3(...target);
+    const urls = views.map(({ azimuth, elevation }) => {
+      // Compass azimuth (0 = north, 90 = east) in engine space, mapped to
+      // three's axes the same way toThree does: north is -Z, east is +X.
+      const az = THREE.MathUtils.degToRad(azimuth);
+      const el = THREE.MathUtils.degToRad(elevation);
+      cam.position.set(
+        t.x + distance * Math.cos(el) * Math.sin(az),
+        t.y + distance * Math.sin(el),
+        t.z - distance * Math.cos(el) * Math.cos(az),
+      );
+      cam.lookAt(t);
+      cam.updateMatrixWorld();
+      gl.render(scene, cam);
+      return gl.domElement.toDataURL('image/jpeg', 0.88);
+    });
+    onDone(urls);
+  });
+  return null;
+}
+
+export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, addSidePick = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1007,6 +1058,16 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
     };
   }, [roofs, obstacles]);
 
+  // How far the roofs/obstacles spread from contentCentroid - frames the
+  // Design Report's fixed-camera renders (CaptureViews).
+  const captureRadius = useMemo(() => {
+    const pts: { x: number; y: number }[] = [];
+    roofs.forEach((r) => r.polygon.forEach((p) => pts.push(p)));
+    obstacles.forEach((o) => pts.push({ x: o.x, y: o.y }));
+    const r = Math.max(0, ...pts.map((p) => Math.hypot(p.x - contentCentroid.x, p.y - contentCentroid.y)));
+    return Math.max(r, maxBuildingHeight, 8);
+  }, [roofs, obstacles, contentCentroid, maxBuildingHeight]);
+
   // The flat fallback plane sits directly under the map image (see
   // MapGround) and only shows at its edges/corners. It's sized far larger
   // than any building this app deals with (and colored identically to the
@@ -1076,7 +1137,10 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           depth buffer doesn't have enough precision at that ratio to keep
           those layers reliably sorted, which shows up as flickering/
           blocky z-fighting between them while orbiting. */}
-      <Canvas shadows gl={{ logarithmicDepthBuffer: true }} camera={{ position: [0, extent * 0.8 + maxBuildingHeight, extent * 1.2], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
+      {/* `capture` (Design Report renders, see CaptureViews): no orbit
+          controls, and preserveDrawingBuffer so toDataURL reads back the
+          frame just rendered instead of a cleared buffer. */}
+      <Canvas shadows gl={{ logarithmicDepthBuffer: true, preserveDrawingBuffer: !!capture }} dpr={capture ? 1.5 : undefined} camera={{ position: [0, extent * 0.8 + maxBuildingHeight, extent * 1.2], fov: 45, near: 0.1, far: INFINITE_GROUND_SIZE * 3 }}>
         <color attach="background" args={['#eef3ea']} />
         <SunLight elevation={sunElevation} azimuth={sunAzimuth} />
 
@@ -1270,7 +1334,15 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           );
         })}
 
-        <OrbitControls
+        {capture && (
+          <CaptureViews
+            views={capture.views}
+            target={toThree(contentCentroid.x, contentCentroid.y, maxBuildingHeight * 0.5) as [number, number, number]}
+            radius={captureRadius}
+            onDone={capture.onDone}
+          />
+        )}
+        {!capture && <OrbitControls
           ref={orbitControlsRef}
           target={orbitTarget as any}
           // With nothing selected, wheel-zoom heads toward whatever's under
@@ -1292,7 +1364,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
           onChange={reportCompassAngle}
-        />
+        />}
       </Canvas>
     </div>
   );

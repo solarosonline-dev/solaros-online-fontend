@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -53,6 +53,7 @@ import useIsMobile from '../../hooks/useIsMobile';
 const Scene3D = React.lazy(() => import('./Scene3D.jsx'));
 import SldView from './SldView.jsx';
 import DesignReport, { type ReportRoofRow } from './DesignReport';
+import type { SitePlanData } from './SitePlanSvg';
 import { buildReportPdf, reportFilename } from './designReportPdf';
 import { MODULE_CATALOG, CUSTOM_MODULE_MAKE, moduleCatalogMakes, moduleCatalogModels, findModule } from './moduleCatalog.js';
 import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
@@ -3589,6 +3590,81 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   const reportRef = useRef<HTMLDivElement>(null);
   const [reportBusy, setReportBusy] = useState<null | 'download' | 'attach'>(null);
 
+  // Report site images. 3D: fixed-angle renders from an off-screen Scene3D
+  // in capture mode (see the step 8 block below), redone on every visit to
+  // the step so they always match the current design; null while pending.
+  // 2D: SitePlanSvg drawn straight from the design data, with the satellite
+  // backdrop inlined as a JPEG data URL - an external image href wouldn't
+  // survive the PDF's vector export, and a JPEG keeps it small there.
+  const [renders3D, setRenders3D] = useState<string[] | null>(null);
+  const [renders3DFailed, setRenders3DFailed] = useState(false);
+  const [reportBackdrop, setReportBackdrop] = useState<{ url: string; dataUrl: string } | null>(null);
+
+  useEffect(() => {
+    if (currentStep !== 8) return;
+    setRenders3D(null);
+    setRenders3DFailed(false);
+  }, [currentStep]);
+
+  // Safety net if WebGL is unavailable or the capture never completes - the
+  // report still exports, with a "3D view unavailable" placeholder. Only
+  // armed while a capture is actually pending.
+  useEffect(() => {
+    if (currentStep !== 8 || renders3D != null || renders3DFailed) return;
+    const t = setTimeout(() => setRenders3DFailed(true), 20000);
+    return () => clearTimeout(t);
+  }, [currentStep, renders3D, renders3DFailed]);
+
+  useEffect(() => {
+    const url = siteImages.locationImage?.url;
+    if (currentStep !== 8 || !url || reportBackdrop?.url === url) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await (await fetch(url)).blob();
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+        if (!cancelled) setReportBackdrop({ url, dataUrl: canvas.toDataURL('image/jpeg', 0.85) });
+      } catch (err) {
+        // Plans still render, just on a plain background.
+        console.warn('Could not load the site image for the report', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentStep, siteImages.locationImage?.url, reportBackdrop?.url]);
+
+  const reportSitePlan: SitePlanData = useMemo(() => ({
+    roofs: roofs.map((r, i) => ({ id: r.id, label: roofLabel(r, i), polygon: getRoofPolygon(r) })),
+    panels: roofs.flatMap((r) => r.grids.flatMap((g) => resolvedGridPanels(g).map((p) => ({ roofId: r.id, corners: panelFootprint(p, g, r) })))),
+    obstacles: obstacles
+      .filter((o) => o.label !== 'Cutout')
+      .map((o) => ({
+        polygon: obstacleFootprintPoints(o).slice(1),
+        round: o.shape !== 'box' && o.shape !== 'polygon',
+        cx: o.x, cy: o.y, r: o.radius || 0,
+      })),
+    backdrop: reportBackdrop && backdropPlacement && reportBackdrop.url === siteImages.locationImage?.url
+      ? { dataUrl: reportBackdrop.dataUrl, widthMeters: backdropPlacement.widthMeters, heightMeters: backdropPlacement.heightMeters }
+      : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [roofs, obstacles, reportBackdrop, backdropPlacement, siteImages.locationImage?.url]);
+
+  // Three fixed camera angles, framed on the equator-facing side (where the
+  // panels face): front-left and front-right at 32° up, then a steep
+  // bird's-eye. Named by the compass direction the camera looks *from*.
+  const reportViews3D = useMemo(() => {
+    const front = location.lat >= 0 ? 180 : 0;
+    const name = (az) => ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round((((az % 360) + 360) % 360) / 45) % 8];
+    return [
+      { azimuth: front - 40, elevation: 32, label: `View from the ${name(front - 40)}` },
+      { azimuth: front + 40, elevation: 32, label: `View from the ${name(front + 40)}` },
+      { azimuth: front, elevation: 68, label: "Bird's-eye view" },
+    ];
+  }, [location.lat]);
+
   async function handleDownloadReport() {
     if (!reportRef.current) return;
     setReportBusy('download');
@@ -6474,7 +6550,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         });
         const inverterCount = sitePlan.inverters.length;
         const acKw = inverterCount * (inverterChoice?.acPowerKw ?? 0);
-        const busy = reportBusy != null;
+        const rendering3D = renders3D == null && !renders3DFailed;
+        const busy = reportBusy != null || rendering3D;
+        // Mid-morning on the March equinox: soft, readable shadows the same
+        // for every report, rather than whatever time the sun slider was
+        // last left at.
+        const captureSun = solarPosition(location.lat, location.lon, new Date(selectedDate.getFullYear(), 2, 21), 10.5, location.tz);
         return (
           <div ref={reportRef} style={{ flex: 1, minWidth: 0, height: '100%', overflow: 'auto', background: 'var(--app-bg, #f3f4f6)', borderRadius: 10 }}>
             <div className="pde-report-toolbar">
@@ -6486,6 +6567,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 <button className="pde-save-btn" onClick={handleDownloadReport} disabled={busy || totalPanelCount === 0}>
                   {reportBusy === 'download' ? 'Generating PDF…' : 'Download PDF'}
                 </button>
+                {rendering3D && totalPanelCount > 0 && <span className="pde-field-sm-hint" style={{ alignSelf: 'center' }}>Preparing 3D views…</span>}
                 {linkedWorkOrderId && onAttachPdf && (
                   <button className="pde-primary-btn" style={{ marginTop: 0 }} onClick={handleAttachReport} disabled={busy || totalPanelCount === 0}>
                     {reportBusy === 'attach' ? 'Attaching…' : 'Attach to Work Order'}
@@ -6514,6 +6596,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 roofRows={roofRows}
                 output={outputResult}
                 ghiStatus={ghiStatus}
+                sitePlan={reportSitePlan}
+                renders3D={renders3D}
+                renders3DFailed={renders3DFailed}
+                views3D={reportViews3D}
                 sld={
                   <SldView
                     embedded
@@ -6530,6 +6616,41 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   />
                 }
               />
+            )}
+            {/* Off-screen Scene3D in capture mode - renders the report's
+                fixed-angle 3D views once, then unmounts (renders3D set). */}
+            {rendering3D && totalPanelCount > 0 && (
+              <div aria-hidden style={{ position: 'fixed', left: -10000, top: 0, width: 1200, height: 800, pointerEvents: 'none' }}>
+                <React.Suspense fallback={null}>
+                  <Scene3D
+                    roofs={roofs.map((roof) => ({
+                      id: roof.id,
+                      polygon: getRoofPolygon(roof),
+                      usablePolygon: roofUsablePolygons.find((u) => u.id === roof.id)?.polygon ?? [],
+                      buildingHeight: roof.buildingHeight,
+                      boundaryHeight: roof.boundaryHeight,
+                      type: roof.type,
+                      pitchDeg: roof.pitchDeg,
+                      slopeDirection: roof.slopeDirection,
+                      azimuth: getRoofAzimuth(roof, location),
+                      grids: roof.grids.map((g) => ({
+                        id: g.id,
+                        selected: false,
+                        deleteMode: false,
+                        layout: g,
+                        structure: structuresByGrid[gridKey(roof.id, g.id)],
+                      })),
+                    }))}
+                    panelSpec={panelSpec}
+                    obstacles={obstacles}
+                    sunElevation={captureSun.elevation}
+                    sunAzimuth={captureSun.azimuth}
+                    mapImagePlacement={backdropPlacement}
+                    mapImageWidePlacement={backdropWidePlacement}
+                    capture={{ views: reportViews3D, onDone: setRenders3D }}
+                  />
+                </React.Suspense>
+              </div>
             )}
           </div>
         );

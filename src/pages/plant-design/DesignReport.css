@@ -300,3 +300,79 @@
   color: #6b7280;
   line-height: 1.5;
 }
+
+/* Figures (site layout plans, 3D renders) */
+.pde-report-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.pde-report-figure-media {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+.pde-report-figure-media img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.pde-report-figure-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.pde-report-figure figcaption {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Site layout page: overview left, roof close-ups right. Column widths
+   are fixed per case so every figure (4:3) fits the A4 page body (~560px
+   tall): one close-up sits beside the overview at equal width; two stack
+   in a narrow column; three or four go 2x2 beside a smaller overview. */
+.pde-report-siteplan {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.pde-report-siteplan--one { grid-template-columns: 1fr 1fr; }
+.pde-report-siteplan--two { grid-template-columns: 1fr 340px; }
+.pde-report-siteplan--many { grid-template-columns: 480px 1fr; }
+.pde-report-siteplan-main,
+.pde-report-siteplan-side {
+  min-width: 0;
+}
+.pde-report-siteplan-side {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.pde-report-siteplan--many .pde-report-siteplan-side {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 3D views page: hero render left, two smaller ones stacked right. */
+.pde-report-views {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.pde-report-views-main {
+  flex: 2;
+  min-width: 0;
+}
+.pde-report-views-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
