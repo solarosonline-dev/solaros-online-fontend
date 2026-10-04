@@ -362,7 +362,7 @@ export default function DesignReport(props: DesignReportProps) {
               <Stat label="Annual generation" value={annual != null ? num(annual) : '-'} unit="kWh" />
               <Stat label="Specific yield" value={specificYield != null ? num(specificYield) : '-'} unit="kWh/kWp/yr" />
               <Stat label="Shading loss" value={lossPct != null ? formatPct(lossPct) : '-'} />
-              <Stat label="Inverters" value={`${inverterCount} × ${inverterChoice?.acPowerKw ?? '-'} kW`} />
+              <Stat label="Inverters" value={`${inverterCount} × ${inverterChoice?.acPowerKw ?? '-'}`} unit="kW" />
             </div>
           </div>
           <div className="pde-report-location">
