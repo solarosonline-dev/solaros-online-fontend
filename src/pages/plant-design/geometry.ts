@@ -219,6 +219,20 @@ export function azimuthOffset(a: number, b: number): number {
   return d > 180 ? 360 - d : d;
 }
 
+// A pitched roof's "auto" panel tilt: flush with its deck along the
+// direction panels are filled in (`azimuthDeg`, the roof's Azimuth). The
+// roof plane itself always slopes along its own slope edge
+// (getPitchedRoofSlopeAzimuth) - the Azimuth only sets the fill direction -
+// so filling at an angle to the slope sees a shallower climb:
+// atan(tan(pitch) * cos(offset)). Exactly roof.pitchDeg when the two match,
+// so an un-rotated roof is unchanged; never negative (filling facing
+// uphill just lays panels flat).
+export function pitchedFlushTilt(roof: any, azimuthDeg: number): number {
+  const offset = toRad(azimuthOffset(azimuthDeg, getPitchedRoofSlopeAzimuth(roof)));
+  const tilt = Math.atan(Math.tan(toRad(roof?.pitchDeg || 0)) * Math.cos(offset)) * 180 / Math.PI;
+  return Math.abs(tilt - (roof?.pitchDeg || 0)) < 1e-9 ? (roof?.pitchDeg || 0) : Math.max(0, Math.round(tilt * 100) / 100);
+}
+
 export function getRoofAzimuth(roof: any, location: any): number {
   if (typeof roof?.azimuth === 'number' && Number.isFinite(roof.azimuth)) {
     return ((roof.azimuth % 360) + 360) % 360;
@@ -356,18 +370,19 @@ export function longEdgeAngle(poly: Array<{ x: number; y: number }>): number {
 
 // Height of a roof's own top surface at plan point `pt`. Flat roofs are
 // just buildingHeight (Scene3D adds its deck slab on top). A pitched roof
-// is one flat plane climbing along its azimuth (the direction panels are
-// packed in) from the lowest point of its outline - exactly what Scene3D's
-// polygonToSlopedBuildingGeometry draws, and what computeStructure's panel
-// heights are measured from, so panels, obstacles and the roof all agree.
-// `direction` is roof.azimuth if the caller already resolved it, else the
-// slope edge from getPitchedRoofSlopeAzimuth.
+// is one flat plane climbing along its own slope edge
+// (getPitchedRoofSlopeAzimuth, from slopeDirection) from the lowest point of
+// its outline - exactly what Scene3D's polygonToSlopedBuildingGeometry
+// draws, and what computeStructure's panel heights are measured from, so
+// panels, obstacles and the roof all agree. Deliberately *not* roof.azimuth:
+// that only sets the direction panels are filled in, and must never change
+// the roof's own shape.
 export function roofSurfaceHeightAt(roof: any, pt: { x: number; y: number }): number {
   const base = roof.buildingHeight || 0;
   if (roof.type !== 'pitched') return base;
   const poly = getRoofPolygon(roof);
   const tanPitch = Math.tan(toRad(roof.pitchDeg || 0));
-  const direction = typeof roof.azimuth === 'number' ? roof.azimuth : getPitchedRoofSlopeAzimuth(roof);
+  const direction = getPitchedRoofSlopeAzimuth(roof);
   const front = Math.min(...poly.map((p) => toSlopeLocal(p, direction).y));
   return base + Math.max(0, toSlopeLocal(pt, direction).y - front) * tanPitch;
 }

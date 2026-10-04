@@ -703,7 +703,7 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick, slope
       : polygonExtrudeGeometry(obstacle.polygon, h)),
     [obstacle.shape, obstacle.polygon, h, slopeRoof, baseHeight]
   );
-  const slopeDirection = slopeRoof ? slopeRoof.azimuth : null;
+  const slopeDirection = slopeRoof ? getPitchedRoofSlopeAzimuth(slopeRoof) : null;
   const slopePitch = slopeRoof ? slopeRoof.pitchDeg : null;
 
   // A Cutout has no 3D body of its own - on a flat roof it's already
@@ -1194,8 +1194,8 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
             <group key={roof.id}>
               {roof.type === 'pitched' ? (
                 <>
-                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={roof.azimuth ?? getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
-                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={roof.azimuth ?? getPitchedRoofSlopeAzimuth(roof)} pitchDeg={roof.pitchDeg} />
+                  <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
+                  <BoundaryWall polygon={roofPoly} baseHeight={roof.buildingHeight} height={roof.boundaryHeight} direction={getPitchedRoofSlopeAzimuth(roof)} pitchDeg={roof.pitchDeg} />
                 </>
               ) : (
                 <>

@@ -1,7 +1,7 @@
 import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
-  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, getRoofAzimuth,
+  slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, getRoofAzimuth, pitchedFlushTilt,
   obstacleRoofSurfaceRange,
 } from './geometry.js';
 
@@ -241,8 +241,8 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
     // default too ("auto" = flush with the roof's own pitch, matching the
     // previous fixed 15°/15° default exactly) - a plain field override sets
     // it explicitly instead.
-    tilt = panelTiltDeg ?? roof.pitchDeg;
     azimuth = slopeDirectionAzimuth(direction);
+    tilt = panelTiltDeg ?? pitchedFlushTilt(roof, azimuth);
     // Assumes the rack sits close enough to flush that no extra inter-row
     // shading clearance is needed - doesn't re-derive shading-safe spacing
     // for a panel tilt set far steeper than the roof's own pitch.
@@ -644,7 +644,7 @@ export function reparentGridToRoof(grid, newRoof, location) {
   const isPitched = newRoof.type === 'pitched';
   const tilt = grid.panelTiltDeg != null
     ? grid.panelTiltDeg
-    : (isPitched ? newRoof.pitchDeg : computeAutoTilt(location));
+    : (isPitched ? pitchedFlushTilt(newRoof, direction) : computeAutoTilt(location));
   const azimuth = direction;
   return {
     ...grid,
@@ -850,7 +850,7 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
   const Wp = orientation === 'landscape' ? panelSpec.height : panelSpec.width;
   const Ls = orientation === 'landscape' ? panelSpec.width : panelSpec.height;
 
-  const tilt = isPitched ? roof.pitchDeg : computeAutoTilt(location);
+  const tilt = isPitched ? pitchedFlushTilt(roof, direction) : computeAutoTilt(location);
   const azimuth = direction;
 
   const footprintDepth = isPitched
@@ -1288,28 +1288,40 @@ function pitchedRoofRidgeY(layout) {
 //    and gets *taller* toward the eave rather than the ridge.
 //
 // Heights are relative to the roof's *eave* (its lowest point along the
-// slope, `roofFrontY` - see pitchedRoofDeckFrontY), the same plane Scene3D
-// draws the pitched building's top as: deck(y) = (y - roofFrontY)*tan(pitch).
+// slope - see pitchedRoofDeck), the same plane Scene3D draws the pitched
+// building's top as. `x` matters once the grid's packing direction differs
+// from the roof's slope (the deck then cross-slopes along rackX), so the
+// stand is anchored against the deck at that same rackX.
 // This used to treat the deck as being at eave height right under the
 // *front panel row* - but that row sits up the slope by the edge margin (or
 // more, past an obstacle), so every panel was buried by that distance ×
 // tan(pitch) minus its stand height.
-function pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) {
-  const deck = (yy) => (yy - roofFrontY) * Math.tan(pitchRad);
-  if (tiltRad >= pitchRad) {
-    return minPillarHeight + deck(frontY) + (y - frontY) * Math.tan(tiltRad);
+function pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad }) {
+  if (Math.tan(tiltRad) >= deck.tanAlongY) {
+    return minPillarHeight + deck.at(x, frontY) + (y - frontY) * Math.tan(tiltRad);
   }
-  return minPillarHeight + deck(ridgeY) - (ridgeY - y) * Math.tan(tiltRad);
+  return minPillarHeight + deck.at(x, ridgeY) - (ridgeY - y) * Math.tan(tiltRad);
 }
 
-// The pitched roof's eave in this grid's own local (rackY) frame - the
-// lowest point of the roof outline along the slope - which is where the
-// sloped deck starts climbing (see roofSurfaceHeightAt in geometry.ts and
-// Scene3D's polygonToSlopedBuildingGeometry, which climb along the same
-// direction from the same point).
-function pitchedRoofDeckFrontY(roof, layout) {
-  const direction = gridDirection(layout, roof);
-  return Math.min(...getRoofPolygon(roof).map((p) => toSlopeLocal(p, direction).y));
+// The pitched roof's deck height (above its eave) at a point in this
+// grid's own (rackX, rackY) frame. The roof plane always climbs along the
+// roof's own slope edge (getPitchedRoofSlopeAzimuth, from slopeDirection) -
+// the same plane roofSurfaceHeightAt (geometry.ts) and Scene3D's
+// polygonToSlopedBuildingGeometry draw. The grid's packing direction (the
+// roof's Azimuth control, stored as grid.azimuth) only decides which way
+// panels are filled, never the roof's shape - so when the two differ the
+// deck climbs more slowly along rackY (`tanAlongY`) and cross-slopes along
+// rackX. Both frames are pure rotations, so slope-local y is linear in
+// (rackX, rackY); identical to the old 1D climb when they match.
+function pitchedRoofDeck(roof, layout) {
+  const slopeAz = getPitchedRoofSlopeAzimuth(roof);
+  const gridAz = gridDirection(layout, roof);
+  const along = (p) => toSlopeLocal(toSlopeWorld(p, gridAz), slopeAz).y;
+  const ax = along({ x: 1, y: 0 });
+  const ay = along({ x: 0, y: 1 });
+  const front = Math.min(...getRoofPolygon(roof).map((p) => toSlopeLocal(p, slopeAz).y));
+  const tanPitch = Math.tan(toRad(roof.pitchDeg || 0));
+  return { at: (x, y) => (ax * x + ay * y - front) * tanPitch, tanAlongY: ay * tanPitch };
 }
 
 // Every panel on a rack shares the one continuous tilted plane, so a panel
@@ -1323,12 +1335,11 @@ function pitchedRoofDeckFrontY(roof, layout) {
 function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
   const isPitched = roof.type === 'pitched';
   const tiltRad = toRad(layout.tilt);
-  const pitchRad = isPitched ? toRad(roof.pitchDeg) : 0;
   const footprintDepth = layout.footprintDepth;
   const panelHeights = new Map();
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
-  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
+  const deck = isPitched ? pitchedRoofDeck(roof, layout) : null;
 
   for (const { rackTop, panels } of groups) {
     panels.forEach((p) => {
@@ -1336,8 +1347,8 @@ function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
       const footprintBackY = footprintFrontY + footprintDepth;
       if (isPitched) {
         panelHeights.set(p.id, {
-          frontHeight: pitchedHeightAtY(footprintFrontY, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
-          backHeight: pitchedHeightAtY(footprintBackY, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad }) + PANEL_PLANE_OFFSET,
+          frontHeight: pitchedHeightAtY(footprintFrontY, p.rackX, { frontY, ridgeY, deck, minPillarHeight, tiltRad }) + PANEL_PLANE_OFFSET,
+          backHeight: pitchedHeightAtY(footprintBackY, p.rackX, { frontY, ridgeY, deck, minPillarHeight, tiltRad }) + PANEL_PLANE_OFFSET,
         });
         return;
       }
@@ -1397,9 +1408,8 @@ function buildPurlinMembers({ rackYs, footprintDepth, heightAtY, xStart, xEnd, c
     const frontEdge = y - footprintDepth / 2;
     PURLIN_FRACTIONS.forEach((f) => {
       const py = frontEdge + f * footprintDepth;
-      const h = heightAtY(py) + PURLIN_PLANE_OFFSET;
       const z = py - centerY;
-      members.push({ kind: 'purlin', from: [-halfLen, h, z], to: [halfLen, h, z], thickness: PURLIN_THICKNESS });
+      members.push({ kind: 'purlin', from: [-halfLen, heightAtY(py, xStart) + PURLIN_PLANE_OFFSET, z], to: [halfLen, heightAtY(py, xEnd) + PURLIN_PLANE_OFFSET, z], thickness: PURLIN_THICKNESS });
     });
   });
   return members;
@@ -1426,22 +1436,19 @@ function addTotal(totals, kind, length, count) {
 function computeTrussStructure({ roof, layout }) {
   const isPitched = roof.type === 'pitched';
   const tiltRad = toRad(layout.tilt);
-  const pitchRad = isPitched ? toRad(roof.pitchDeg) : 0;
   const footprintDepth = layout.footprintDepth;
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
-  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
-  const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
+  const deck = isPitched ? pitchedRoofDeck(roof, layout) : null;
+  const heightAtY = (y, rackTop, x) => isPitched
+    ? pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
   const totals = {};
 
   for (const { rackYs, rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
-    const frontHeight = heightAtY(rackTop, rackTop);
-    const backHeight = heightAtY(rackTop + rackDepth, rackTop);
     const centerY = rackTop + rackDepth / 2;
     const halfDepth = rackDepth / 2;
 
@@ -1472,8 +1479,12 @@ function computeTrussStructure({ roof, layout }) {
       let members: any[] = [];
       pillarXs.forEach((px) => {
         const localX = px - midX;
+        // Per pillar, not per rack: on a pitched roof filled at an angle to
+        // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
+        const frontHeight = heightAtY(rackTop, rackTop, px);
+        const backHeight = heightAtY(rackTop + rackDepth, rackTop, px);
         legYs.forEach((ly) => {
-          const legHeight = heightAtY(ly, rackTop);
+          const legHeight = heightAtY(ly, rackTop, px);
           const legZ = ly - centerY;
           members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
           addTotal(totals, 'pillar', legHeight, 1);
@@ -1483,7 +1494,7 @@ function computeTrussStructure({ roof, layout }) {
         addTotal(totals, 'chord', Math.hypot(rackDepth, backHeight - frontHeight), 1);
       });
 
-      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y) => heightAtY(y, rackTop), xStart, xEnd, centerY });
+      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x), xStart, xEnd, centerY });
       members.push(...purlinMembers);
       addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
 
@@ -1512,34 +1523,27 @@ function computeTrussStructure({ roof, layout }) {
 function computeGroundMountStructure({ roof, layout }) {
   const isPitched = roof.type === 'pitched';
   const tiltRad = toRad(layout.tilt);
-  const pitchRad = isPitched ? toRad(roof.pitchDeg) : 0;
   const footprintDepth = layout.footprintDepth;
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
-  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
-  const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
+  const deck = isPitched ? pitchedRoofDeck(roof, layout) : null;
+  const heightAtY = (y, rackTop, x) => isPitched
+    ? pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
   const totals = {};
 
   for (const { rackYs, rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
-    const frontHeight = heightAtY(rackTop, rackTop);
-    const backHeight = heightAtY(rackTop + rackDepth, rackTop);
     const centerY = rackTop + rackDepth / 2;
-    const centerHeight = heightAtY(centerY, rackTop);
     const halfDepth = rackDepth / 2;
 
     // Braces stay inset from the chord's own front/back ends (same as the
     // truss strategy's legs - not attaching right at the chord's tips) and
     // from the pillar's own base (not attaching right at ground/roof level).
     const braceInset = Math.min(MAX_LEG_END_MARGIN, rackDepth * LEG_END_MARGIN_FRAC);
-    const braceFrontHeight = heightAtY(rackTop + braceInset, rackTop);
-    const braceBackHeight = heightAtY(rackTop + rackDepth - braceInset, rackTop);
     const braceHalfDepth = halfDepth - braceInset;
-    const baseMargin = Math.min(MAX_BRACE_BASE_MARGIN, centerHeight * BRACE_BASE_MARGIN_FRAC);
 
     // Intermediate, unbraced depth supports between the braced front/back
     // ends - same PILLAR_SPACING rule as the truss strategy's legs. Empty
@@ -1564,12 +1568,20 @@ function computeGroundMountStructure({ roof, layout }) {
       let members: any[] = [];
       pillarXs.forEach((px) => {
         const localX = px - midX;
+        // Per pillar, not per rack: on a pitched roof filled at an angle to
+        // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
+        const frontHeight = heightAtY(rackTop, rackTop, px);
+        const backHeight = heightAtY(rackTop + rackDepth, rackTop, px);
+        const centerHeight = heightAtY(centerY, rackTop, px);
+        const braceFrontHeight = heightAtY(rackTop + braceInset, rackTop, px);
+        const braceBackHeight = heightAtY(rackTop + rackDepth - braceInset, rackTop, px);
+        const baseMargin = Math.min(MAX_BRACE_BASE_MARGIN, centerHeight * BRACE_BASE_MARGIN_FRAC);
         members.push({ kind: 'pillar', from: [localX, 0, 0], to: [localX, centerHeight, 0], thickness: PILLAR_THICKNESS });
         members.push({ kind: 'chord', from: [localX, frontHeight, -halfDepth], to: [localX, backHeight, halfDepth], thickness: CHORD_THICKNESS });
         members.push({ kind: 'brace', from: [localX, baseMargin, 0], to: [localX, braceFrontHeight, -braceHalfDepth], thickness: BRACE_THICKNESS });
         members.push({ kind: 'brace', from: [localX, baseMargin, 0], to: [localX, braceBackHeight, braceHalfDepth], thickness: BRACE_THICKNESS });
         intermediateLegYs.forEach((ly) => {
-          const legHeight = heightAtY(ly, rackTop);
+          const legHeight = heightAtY(ly, rackTop, px);
           const legZ = ly - centerY;
           members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
           addTotal(totals, 'pillar', legHeight, 1);
@@ -1584,7 +1596,7 @@ function computeGroundMountStructure({ roof, layout }) {
         );
       });
 
-      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y) => heightAtY(y, rackTop), xStart, xEnd, centerY });
+      const purlinMembers = buildPurlinMembers({ rackYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x), xStart, xEnd, centerY });
       members.push(...purlinMembers);
       addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
 
@@ -1686,7 +1698,6 @@ function* iterateSteppedRackBays(layout) {
 function computeSteppedTrussStructure({ roof, layout }) {
   const isPitched = roof.type === 'pitched';
   const tiltRad = toRad(layout.tilt);
-  const pitchRad = isPitched ? toRad(roof.pitchDeg) : 0;
   const footprintDepth = layout.footprintDepth;
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   // Reuses the plain (unmodified) iterateRacks/pitchedRoofFrontY/RidgeY -
@@ -1694,17 +1705,15 @@ function computeSteppedTrussStructure({ roof, layout }) {
   // correct for this strategy's grids too.
   const frontY = isPitched ? pitchedRoofFrontY(layout) : 0;
   const ridgeY = isPitched ? pitchedRoofRidgeY(layout) : 0;
-  const roofFrontY = isPitched ? pitchedRoofDeckFrontY(roof, layout) : 0;
-  const heightAtY = (y, rackTop) => isPitched
-    ? pitchedHeightAtY(y, { frontY, ridgeY, roofFrontY, minPillarHeight, tiltRad, pitchRad })
+  const deck = isPitched ? pitchedRoofDeck(roof, layout) : null;
+  const heightAtY = (y, rackTop, x) => isPitched
+    ? pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad })
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
   const totals = {};
 
   for (const { rackTop, rackDepth, xStart, xEnd, rowYs } of iterateSteppedRackBays(layout)) {
-    const frontHeight = heightAtY(rackTop, rackTop);
-    const backHeight = heightAtY(rackTop + rackDepth, rackTop);
     const centerY = rackTop + rackDepth / 2;
     const halfDepth = rackDepth / 2;
     const length = xEnd - xStart;
@@ -1726,8 +1735,12 @@ function computeSteppedTrussStructure({ roof, layout }) {
     let members: any[] = [];
     pillarXs.forEach((px) => {
       const localX = px - midX;
+      // Per pillar, not per rack: on a pitched roof filled at an angle to
+      // its slope the deck cross-slopes along the row (see pitchedRoofDeck).
+      const frontHeight = heightAtY(rackTop, rackTop, px);
+      const backHeight = heightAtY(rackTop + rackDepth, rackTop, px);
       legYs.forEach((ly) => {
-        const legHeight = heightAtY(ly, rackTop);
+        const legHeight = heightAtY(ly, rackTop, px);
         const legZ = ly - centerY;
         members.push({ kind: 'pillar', from: [localX, 0, legZ], to: [localX, legHeight, legZ], thickness: PILLAR_THICKNESS });
         addTotal(totals, 'pillar', legHeight, 1);
@@ -1736,7 +1749,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
       addTotal(totals, 'chord', Math.hypot(rackDepth, backHeight - frontHeight), 1);
     });
 
-    const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y) => heightAtY(y, rackTop), xStart, xEnd, centerY });
+    const purlinMembers = buildPurlinMembers({ rackYs: rowYs, footprintDepth, heightAtY: (y, x) => heightAtY(y, rackTop, x), xStart, xEnd, centerY });
     members.push(...purlinMembers);
     addTotal(totals, 'purlin', purlinMembers.length * length, purlinMembers.length);
 

@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, pitchedFlushTilt } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -1667,8 +1667,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         cols.push(col);
       }
       if (points.length === 0) return;
-      const tilt = roof.type === 'pitched' ? roof.pitchDeg : computeAutoTilt(location);
       const azimuth = getRoofAzimuth(roof, location);
+      const tilt = roof.type === 'pitched' ? pitchedFlushTilt(roof, azimuth) : computeAutoTilt(location);
       const r = computeOutput({
         layout: { tilt, azimuth, panels: points },
         obstacles, location, mode: 'year', date: selectedDate,
@@ -6268,7 +6268,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
                 {selectedGrid && (() => {
                   const gridIndex = gridOwnerRoof.grids.findIndex((g) => g.id === selectedGrid.id);
-                  const autoTilt = gridOwnerRoof.type === 'pitched' ? gridOwnerRoof.pitchDeg : computeAutoTilt(location);
+                  const autoTilt = gridOwnerRoof.type === 'pitched' ? pitchedFlushTilt(gridOwnerRoof, slopeDirectionAzimuth(gridDirection(selectedGrid, gridOwnerRoof))) : computeAutoTilt(location);
                   const resolvedTilt = selectedGrid.panelTiltDeg ?? autoTilt;
                   const Ls = selectedGrid.orientation === 'landscape' ? panelSpec.width : panelSpec.height;
                   const recommendedRowSpacing = +computeAutoRowSpacing({ location, tilt: computeAutoTilt(location), Ls }).toFixed(2);

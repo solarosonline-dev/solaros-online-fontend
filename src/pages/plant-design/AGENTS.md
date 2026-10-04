@@ -510,9 +510,16 @@ take any angle, not just the four cardinal shortcuts above. Flat roofs
 used to always pack in the `'S'` identity frame and face due south/north,
 which left rows skewed on any building not aligned to the compass — so a
 flat roof drawn square to north still gets exactly the old result (auto =
-180), but a rotated one now gets rows parallel to its own edges. A pitched
-roof's deck (`PitchedBuilding`/`BoundaryWall`) slopes along the same
-azimuth (passed to Scene3D as `roof.azimuth`). `azimuth` is in
+180), but a rotated one now gets rows parallel to its own edges. **On a
+pitched roof the azimuth is only the fill direction — it never changes the
+roof's shape.** The deck (`PitchedBuilding`/`BoundaryWall`,
+`roofSurfaceHeightAt`, skylight frames) always slopes along
+`getPitchedRoofSlopeAzimuth(roof)` (from `slopeDirection`), never
+`roof.azimuth`; an earlier version sloped the deck along the azimuth, so
+editing it visibly re-tilted the building. Auto panel tilt on a pitched
+roof is `pitchedFlushTilt(roof, azimuth)` — flush with the deck along the
+fill direction, `atan(tan(pitch)·cos(offset))`, exactly `pitchDeg` when
+azimuth = slope edge. `azimuth` is in
 `ROOF_FIELDS_NEEDING_REPACK`, and changing type/slope direction or mirroring
 resets the override to auto.
 
@@ -579,13 +586,18 @@ the body by the rise so its top is `height` above the highest point
 
 ## One pitched-roof plane for deck, walls, panels and obstacles
 
-A pitched roof's top is **one flat plane climbing along the roof's azimuth
-from the outline's lowest point** (`toSlopeLocal(p, direction).y` above its
-minimum, × tan(pitch)). Four places must agree on it, and do:
+A pitched roof's top is **one flat plane climbing along the roof's slope
+edge (`getPitchedRoofSlopeAzimuth`, not `roof.azimuth`) from the outline's
+lowest point** (`toSlopeLocal(p, slopeAz).y` above its minimum, ×
+tan(pitch)). Four places must agree on it, and do:
 `polygonToSlopedBuildingGeometry` + `boundaryRingGeometry` (Scene3D),
 `roofSurfaceHeightAt` (geometry.ts, obstacles), and `computeStructure`'s
-`pitchedHeightAtY` (layoutEngine, panels/structure - measured from
-`pitchedRoofDeckFrontY`, the eave in the grid's own frame). Panels on a
+`pitchedHeightAtY` (layoutEngine, panels/structure). The last works in the
+grid's own (rackX, rackY) frame via `pitchedRoofDeck`: when the grid's fill
+direction differs from the slope, the deck climbs more slowly along rackY
+and cross-slopes along rackX, so panel heights take each panel's rackX and
+pillars/chords are heighted per pillar (purlins get a different height at
+each end). Panels on a
 pitched roof render from `buildingHeight` (no flat-roof deck slab).
 Two earlier bugs this replaced: a 4-sided roof's deck climbed perpendicular
 to its *eave edge* (so any azimuth ≠ that edge's normal tilted panels across
