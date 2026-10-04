@@ -4,6 +4,7 @@ import { Edges, Html, Line, OrbitControls, useProgress } from '@react-three/drei
 import * as THREE from 'three';
 import { getRoofPolygon, insetPolygon, subtractPolygons, obstacleRoofSurfaceRange, roofSurfaceHeightAt, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, treeTrunkHeight } from './geometry.js';
 import { gridPivot, rotateAroundPivot, gridDirection } from './layoutEngine.js';
+import { sunExposureColor } from './heatmapColor.js';
 
 // The Static Maps image can fail to load as a WebGL texture (network error,
 // CORS) — texture loading throws inside the R3F render tree, which
@@ -345,15 +346,6 @@ function SkylightFrame({ polygon, baseHeight, direction = null as any, pitchDeg 
 // back edge heights (from computeStructure's panelHeights map), which sit
 // exactly on the rack's shared tilted plane. The panel itself doesn't draw
 // its own supports any more - it rests on the purlins drawn by StructureSegment.
-// Same green(100)->yellow->red(0) hue sweep the 2D plan's Efficiency view
-// uses (see efficiencyColor in solar_layout_engine.jsx) - kept as its own
-// tiny copy here rather than importing across the UI/render-only boundary,
-// same as this file's other small pure helpers.
-function efficiencyColor(pct) {
-  const hue = Math.max(0, Math.min(100, pct)) * 1.2;
-  return `hsl(${hue}, 75%, 45%)`;
-}
-
 // A clickable bar between two plan points `a`/`b` at heights `ha`/`hb` -
 // the 3D stand-in for the 2D plan's "visible sliver + wide invisible hit
 // line" picking (roof edges for mirror/margin/align, grid sides for add
@@ -409,7 +401,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
   // Overlapping an obstacle / another grid (`overlaps`): the 2D plan's light
   // red fill and red edge - in a selected grid the panel stays blue and
   // keeps just the red edge, also as in 2D.
-  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : overlaps ? '#f5b7b1' : efficiencyPct != null ? efficiencyColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
+  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : overlaps ? '#f5b7b1' : efficiencyPct != null ? sunExposureColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>

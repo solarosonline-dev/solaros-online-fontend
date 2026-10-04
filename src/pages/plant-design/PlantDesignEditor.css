@@ -817,3 +817,48 @@
 .plant-design-editor .pde-save-btn--secondary:hover:not(:disabled) {
   background: var(--app-bg, #f3f4f6);
 }
+
+/* HeatmapLegend - color key for Shadow analysis / Efficiency view. */
+.plant-design-editor .pde-heatmap-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 220px;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--app-border, #e2e5ea);
+  border-radius: 8px;
+  box-shadow: var(--app-shadow, 0 1px 3px rgba(16, 24, 40, 0.08));
+  font-size: 10px;
+  color: var(--app-text-muted, #666);
+  pointer-events: none;
+}
+.plant-design-editor .pde-heatmap-legend-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-text, #222);
+  margin-bottom: 5px;
+}
+.plant-design-editor .pde-heatmap-legend-bar {
+  height: 10px;
+  border-radius: 3px;
+}
+.plant-design-editor .pde-heatmap-legend-ticks {
+  position: relative;
+  height: 13px;
+  margin-top: 2px;
+}
+.plant-design-editor .pde-heatmap-legend-ticks span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.plant-design-editor .pde-heatmap-legend-ticks span:last-child {
+  transform: translateX(-100%);
+}
+.plant-design-editor .pde-heatmap-legend-ends {
+  display: flex;
+  justify-content: space-between;
+}

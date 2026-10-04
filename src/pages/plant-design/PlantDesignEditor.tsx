@@ -67,6 +67,8 @@ import { sizeStrings } from './stringSizing.js';
 import { assignSiteToInverters } from './gridInverterAssignment.js';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
+import { sunExposureColor } from './heatmapColor.js';
+import HeatmapLegend from './HeatmapLegend.jsx';
 import OutputChartPanel, { formatKWh, formatPct, shadingLossPct, emptyOutputSeries, addToOutputSeries, type OutputSeries } from './OutputChartPanel.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -1349,6 +1351,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // and AGENTS.md's "Panel selection & editing" for why panel-level
   // features stay 2D-only in this app).
   const [efficiencyView, setEfficiencyView] = useState(false);
+  // Not offered on Roof setup (panels are only faint ghosts there) - the
+  // toggle is hidden and its coloring/badge off on that step, but the
+  // choice is kept for when you move on.
+  const efficiencyActive = efficiencyView && currentStep !== 3;
   // Roof-wide sun exposure heatmap (see roofSunSamples/sunExposureColor
   // below) - independent of efficiencyView, which is per-panel and needs
   // an actual grid to exist first.
@@ -1662,7 +1668,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // in the output math, not just its pre-rotation azimuth.
   const efficiencyByGrid = useMemo(() => {
     const byGrid: Record<string, any> = {};
-    if (!efficiencyView) return byGrid;
+    if (!efficiencyActive) return byGrid;
     let maxKWh = 0;
     const perGridKWh: Record<string, any> = {};
     roofs.forEach((roof) => {
@@ -1692,11 +1698,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     });
     return byGrid;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [efficiencyView, roofs, obstacles, location, selectedDate, panelSpec, assumptions]);
+  }, [efficiencyActive, roofs, obstacles, location, selectedDate, panelSpec, assumptions]);
 
-  // Reuses Shadow analysis's own gradient (sunExposureColor, defined further
-  // down - function declarations hoist, so the forward reference is fine)
-  // rather than a separate green-to-red hue sweep, so the two heatmaps read
+  // Reuses Shadow analysis's own gradient (sunExposureColor, heatmapColor.ts
+  // - Scene3D's 3D panels use it too) rather than a separate green-to-red hue sweep, so the two heatmaps read
   // as the same visual language: blue (worst) through to red (best) either
   // way, instead of each toggle needing its own color key.
   function efficiencyColor(pct) {
@@ -1718,7 +1723,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // for a full year (see computeOutput's own 'year' comment).
   //
   // Each point is colored by its own output as a % of *that same roof's own
-  // clear-sky baseline* (same tilt/azimuth, zero obstacles) - not relative
+  // clear-sky baseline* (same tilt, facing the equator, zero obstacles - so
+  // a roof's facing direction counts as well as shading) - not relative
   // to whatever the darkest/brightest point *elsewhere on site* happens to
   // be. Two earlier attempts tried a shared, relative scale (plain min/max,
   // then a 5th/95th percentile stretch) and both had the same underlying
@@ -1782,13 +1788,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         systemDerate: 1, diffuseFraction: assumptions.diffuseFraction,
         roofs, targetBuildingHeight: roof.buildingHeight,
       });
-      // This roof's own clear-sky ceiling - same tilt/azimuth, zero
-      // obstacles, so every point on the roof would read identically (no
-      // shading to differ by); one point is enough. Each point's color
-      // below is this roof's own actual/baseline ratio, not a comparison
-      // to any other point on site (see this whole memo's own comment).
+      // This roof's own clear-sky ceiling - same tilt, zero obstacles, but
+      // facing the equator rather than the roof's own direction, so an
+      // east/west slope reads below 100% even with nothing shading it
+      // (otherwise direction cancelled out and every unshaded roof read
+      // 100%, while Efficiency view showed the same slope losing output).
+      // Still a fixed reference per roof, not a comparison to any other
+      // point on site (see this whole memo's own comment) - one point is
+      // enough since nothing shades it.
       const baselineResult = computeOutput({
-        layout: { tilt, azimuth, panels: [{ id: 'baseline', x: 0, y: 0 }] },
+        layout: { tilt, azimuth: location.lat >= 0 ? 180 : 0, panels: [{ id: 'baseline', x: 0, y: 0 }] },
         obstacles: [], location, mode: 'year', date: selectedDate,
         monthlyGHI, panelSpec: SUN_SAMPLE_SPEC,
         systemDerate: 1, diffuseFraction: assumptions.diffuseFraction,
@@ -1832,37 +1841,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     return byRoof;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shadowAnalysis, roofs, obstacles, location, selectedDate, monthlyGHI, assumptions.diffuseFraction, panelSpec.width, panelSpec.height]);
-
-  // Classic blue (least sun) -> cyan -> green -> yellow -> orange -> red
-  // (most) "jet" scale, matching how dedicated insolation-analysis tools
-  // (PVsyst, Sefaira, Ladybug...) usually show this exact kind of map -
-  // red reads as "hottest"/most exposed far more intuitively than yellow
-  // ever did, and six stops spread real variation across visibly distinct
-  // colors instead of one smooth blend between two.
-  const SUN_EXPOSURE_STOPS = [
-    [0, 20, 130], [0, 190, 220], [40, 200, 90], [255, 230, 20], [255, 140, 0], [214, 30, 30],
-  ];
-  function sunExposureColor(pct) {
-    const raw = Math.max(0, Math.min(100, pct)) / 100;
-    // A real obstacle's worst annual impact - even one that's tall, wide,
-    // and close - still routinely lands in the 60-90% range at a low
-    // latitude like this (see this feature's own history: the sun sits
-    // high overhead most of the year here, so shadows are short for most
-    // of it even from a substantial obstacle). Cubing first pulls that
-    // same practically-relevant range much further toward the low end of
-    // the scale before mapping to a color, so a genuine (if not total)
-    // reduction actually lands somewhere visibly distinct (green/yellow
-    // territory) instead of every real case bunching up in red - still
-    // reaching pure red at 100% and pure blue at 0%, unchanged.
-    const t = raw ** 3;
-    const segments = SUN_EXPOSURE_STOPS.length - 1;
-    const scaled = t * segments;
-    const i = Math.min(segments - 1, Math.floor(scaled));
-    const localT = scaled - i;
-    const a = SUN_EXPOSURE_STOPS[i], b = SUN_EXPOSURE_STOPS[i + 1];
-    const rgb = a.map((c, k) => Math.round(c + (b[k] - c) * localT));
-    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-  }
 
   const selectedRoof = roofs.find((r) => r.id === selectedRoofId) ?? null;
   const selectedObstacle = obstacles.find((o) => o.id === selectedObstacleId) ?? null;
@@ -4553,6 +4531,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               stops short of the fixed compass (see the right-side rail
               further down - always rendered, 44px wide there) instead of
               running the full width and wrapping underneath/behind it. */}
+          {/* Color key for whichever heatmaps are showing - bottom-right,
+              lifted above the 3D view's sun-time bar. Shadow analysis is
+              2D only (see its toggle). */}
+          <HeatmapLegend
+            style={{ position: 'absolute', right: 12, bottom: viewMode === '3d' ? 84 : 12, zIndex: 6 }}
+            rows={[
+              ...(shadowAnalysis && viewMode === 'plan' ? [{ key: 'sun', title: `Sun exposure · % of unshaded, facing ${location.lat >= 0 ? 'south' : 'north'}`, low: 'Less sun', high: 'Most sun' }] : []),
+              ...(efficiencyActive ? [{ key: 'eff', title: 'Panel output · % of best panel', low: 'Lower', high: 'Best' }] : []),
+            ]}
+          />
           <div style={{ position: 'absolute', top: 12, left: 12, right: isMobile ? 64 : 12, zIndex: 6, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, pointerEvents: 'none' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', pointerEvents: 'auto' }}>
             {/* One toggle instead of two separate buttons - always shows
@@ -4643,7 +4631,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 panel count used to also float as its own badge at top-right
                 - moved inline here once that started sitting right under
                 the compass/properties rail, which also docks there. */}
-            {totalPanelCount > 0 && (
+            {totalPanelCount > 0 && currentStep !== 3 && (
               isMobile ? (
                 <button
                   className={iconBtn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
@@ -4903,7 +4891,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       layout: g,
                       structure: structuresByGrid[gridKey(roof.id, g.id)],
                       shadedIds: instantByGrid[gridKey(roof.id, g.id)]?.shadedIds,
-                      efficiencyPct: efficiencyView ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined,
+                      efficiencyPct: efficiencyActive ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined,
                     })),
                   };
                 })}
@@ -4967,7 +4955,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               />
               </React.Suspense>
 
-              {efficiencyView && (
+              {efficiencyActive && (
                 <div
                   style={{
                     position: 'absolute', right: 12, top: 12, zIndex: 6,
@@ -5534,7 +5522,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             {roofs.flatMap((roof) => roof.grids.flatMap((g) => {
               const shadedIds = instantByGrid[gridKey(roof.id, g.id)]?.shadedIds || new Set();
               const overlappingIds = overlapPanelIdsByGrid[gridKey(roof.id, g.id)] || new Set();
-              const pctMap = efficiencyView ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined;
+              const pctMap = efficiencyActive ? efficiencyByGrid[gridKey(roof.id, g.id)] : undefined;
               const gSelected = selectedGridKeys.has(gridKey(roof.id, g.id));
               // Delete row/column/panel mode is only ever active for the
               // one grid whose own popup armed it (see gridDeleteMode's
