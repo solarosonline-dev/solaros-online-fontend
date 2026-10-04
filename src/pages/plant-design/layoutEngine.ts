@@ -1433,8 +1433,11 @@ function rectOverlapsPolygon(x0, y0, x1, y1, poly) {
 // roof there. Pillars already on the roof come back exactly as they were.
 const LEG_ROOF_MARGIN = 0.1;
 function rooftopLegs(roof, layout) {
-  const direction = gridDirection(layout, roof);
-  const local = getRoofPolygon(roof).map((p) => toSlopeLocal(p, direction));
+  // In the grid's rack frame, rotation included (gridWorldToRack) - a
+  // rotated grid's legs stand where Scene3D draws them, not where they'd
+  // be unrotated.
+  const toRack = gridWorldToRack(layout, roof);
+  const local = getRoofPolygon(roof).map(toRack);
   const inset = LEG_ROOF_MARGIN + ((roof.boundaryHeight || 0) > 0 ? BOUNDARY_WALL_THICKNESS : 0);
   const shrunk = insetPolygon(local, inset);
   const poly = shrunk.length >= 3 ? shrunk : local;
@@ -1702,6 +1705,27 @@ function pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad
   return minPillarHeight + deck.at(x, ridgeY) - (ridgeY - y) * Math.tan(tiltRad);
 }
 
+// A grid's own rack frame (rackX/rackY) -> world plan point and back,
+// including its presentation-only `rotation` about gridPivot - exactly the
+// transform Scene3D applies to a rotated grid's panels and structure, so
+// anything measured against the real roof under them (deck height, which
+// part of the roof a leg stands on) has to go through it too.
+function gridRackToWorld(layout, roof) {
+  const direction = gridDirection(layout, roof);
+  const rotation = layout?.rotation || 0;
+  const pivot = rotation ? gridPivot(layout) : null;
+  return (p) => {
+    const w = toSlopeWorld(p, direction);
+    return rotation ? rotateAroundPivot(w, pivot, rotation) : w;
+  };
+}
+function gridWorldToRack(layout, roof) {
+  const direction = gridDirection(layout, roof);
+  const rotation = layout?.rotation || 0;
+  const pivot = rotation ? gridPivot(layout) : null;
+  return (p) => toSlopeLocal(rotation ? rotateAroundPivot(p, pivot, -rotation) : p, direction);
+}
+
 // The pitched roof's deck height (above its eave) at a point in this
 // grid's own (rackX, rackY) frame. The roof plane always climbs along the
 // roof's own slope edge (getPitchedRoofSlopeAzimuth, from slopeDirection) -
@@ -1715,14 +1739,19 @@ function pitchedHeightAtY(y, x, { frontY, ridgeY, deck, minPillarHeight, tiltRad
 // = the grid's rows run straight across the slope (no cross-slope).
 function pitchedRoofDeck(roof, layout) {
   const slopeAz = getPitchedRoofSlopeAzimuth(roof);
-  const gridAz = gridDirection(layout, roof);
-  const along = (p) => toSlopeLocal(toSlopeWorld(p, gridAz), slopeAz).y;
-  const ax = along({ x: 1, y: 0 });
-  const ay = along({ x: 0, y: 1 });
+  // Rack coords -> world, *including* the grid's presentation rotation about
+  // its pivot (how Scene3D places a rotated grid's panels and structure) -
+  // heights used to be taken at the unrotated positions, so rotating a grid
+  // on a pitched roof sank its panels into the slope (or floated them).
+  const toWorld = gridRackToWorld(layout, roof);
+  const along = (p) => toSlopeLocal(toWorld(p), slopeAz).y;
+  const o = along({ x: 0, y: 0 });
+  const ax = along({ x: 1, y: 0 }) - o;
+  const ay = along({ x: 0, y: 1 }) - o;
   const front = Math.min(...getRoofPolygon(roof).map((p) => toSlopeLocal(p, slopeAz).y));
   const tanPitch = Math.tan(toRad(roof.pitchDeg || 0));
   return {
-    at: (x, y) => (ax * x + ay * y - front) * tanPitch,
+    at: (x, y) => (o + ax * x + ay * y - front) * tanPitch,
     tanAlongY: ay * tanPitch,
     tanAlongX: ax * tanPitch,
     aligned: Math.abs(ax) < 1e-6,

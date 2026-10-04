@@ -726,9 +726,13 @@ pitched roof render from `buildingHeight` (no flat-roof deck slab).
 Two earlier bugs this replaced: a 4-sided roof's deck climbed perpendicular
 to its *eave edge* (so any azimuth ≠ that edge's normal tilted panels across
 the roof), and panel heights treated the deck as eave-height under the
-*front panel row* (burying every panel by margin × tan(pitch)). Known gap:
-a grid's presentation-only `rotation` still isn't reflected in pitched
-panel heights (heights use the unrotated packed rackY).
+*front panel row* (burying every panel by margin × tan(pitch)). A grid's
+presentation-only `rotation` is part of that frame: `gridRackToWorld` /
+`gridWorldToRack` (rotation about `gridPivot`, exactly as Scene3D draws a
+rotated grid) feed `pitchedRoofDeck` and `rooftopLegs`, so a rotated grid
+on a pitched roof is heighted against the deck where its panels really are
+(it used to use the unrotated positions, burying panels up to ~1.8m at
+90°) and its legs are checked against the roof where they really stand.
 
 ## Pitched roof deck
 
