@@ -4124,6 +4124,53 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // floating corner overlay and the mobile in-flow block below the canvas
   // (see their own call sites further down) so the content itself isn't
   // duplicated between the two presentations.
+  // Roof-setup (step 3) counterpart of renderLayoutSummary: one line per
+  // roof with its plan (footprint) area, plus the sloped surface area for a
+  // pitched roof (footprint / cos(pitch)) - that's the surface panels
+  // actually sit on. Selected roof is bold.
+  const renderRoofSummary = () => {
+    const fmtArea = (m2) => (units === 'ft' ? `${Math.round(m2 * 10.7639)} ft²` : `${m2.toFixed(1)} m²`);
+    const rows = roofs.map((r, i) => {
+      const poly = getRoofPolygon(r);
+      let a = 0;
+      for (let k = 0; k < poly.length; k++) { const p = poly[k], q = poly[(k + 1) % poly.length]; a += p.x * q.y - q.x * p.y; }
+      const plan = Math.abs(a) / 2;
+      // Width x length = smallest rectangle (aligned to one of the roof's
+      // own edges) that encloses the outline, so a rotated roof isn't
+      // measured along the compass axes.
+      let bw = Infinity, bl = 0, best = Infinity;
+      for (let k = 0; k < poly.length; k++) {
+        const p = poly[k], q = poly[(k + 1) % poly.length];
+        const len = Math.hypot(q.x - p.x, q.y - p.y);
+        if (len < 1e-9) continue;
+        const ux = (q.x - p.x) / len, uy = (q.y - p.y) / len;
+        let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+        for (const t of poly) {
+          const u = (t.x - p.x) * ux + (t.y - p.y) * uy, v = -(t.x - p.x) * uy + (t.y - p.y) * ux;
+          u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+        }
+        if ((u1 - u0) * (v1 - v0) < best) { best = (u1 - u0) * (v1 - v0); bw = Math.min(u1 - u0, v1 - v0); bl = Math.max(u1 - u0, v1 - v0); }
+      }
+      const dims = Number.isFinite(bw) ? ` · ${formatLength(bw, units, 1)} × ${formatLength(bl, units, 1)}` : '';
+      const pitched = r.type === 'pitched';
+      const sloped = pitched ? plan / Math.max(0.05, Math.cos(((r.pitchDeg || 0) * Math.PI) / 180)) : plan;
+      return { r, i, plan, sloped, pitched, dims };
+    });
+    const total = rows.reduce((n, x) => n + x.sloped, 0);
+    return (
+      <>
+        <div>{roofs.length} roof{roofs.length === 1 ? '' : 's'} · {fmtArea(total)} total</div>
+        <div style={{ marginTop: 3, color: '#555' }}>
+          {rows.map(({ r, i, plan, sloped, pitched, dims }) => (
+            <div key={r.id} style={{ fontWeight: r.id === selectedRoofId ? 600 : 400 }}>
+              {roofLabel(r, i)} · {pitched ? `Pitched ${r.pitchDeg ?? 0}° · ${fmtArea(sloped)} (footprint ${fmtArea(plan)})${dims}` : `Flat · ${fmtArea(plan)}${dims}`}
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  };
+
   const renderLayoutSummary = () => (
     <>
       <div>{totalPanelCount} panels · {totalCapacityKW.toFixed(1)} kW across {roofs.length} roof{roofs.length === 1 ? '' : 's'}</div>
@@ -5443,8 +5490,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const midX = (a.sx + b.sx) / 2, midY = (a.sy + b.sy) / 2;
                 return (
                   <g style={{ pointerEvents: 'none' }}>
-                    <line x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy} stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="1.5 3" opacity={0.8} />
-                    <circle cx={b.sx} cy={b.sy} r={4} fill="none" stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="1.5 1.5" />
+                    {/* Bold segment to the pointer, then a dotted guide
+                        continuing the same direction past it so the next
+                        click can be lined up with this edge's angle. */}
+                    <line x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy} stroke="#2f6fed" strokeWidth={3} strokeLinecap="round" />
+                    <line
+                      x1={b.sx} y1={b.sy}
+                      x2={b.sx + (dx / Math.hypot(dx, dy)) * 160} y2={b.sy + (dy / Math.hypot(dx, dy)) * 160}
+                      stroke="#2f6fed" strokeWidth={1.5} strokeDasharray="1.5 4" strokeLinecap="round" opacity={0.7}
+                    />
+                    <circle cx={b.sx} cy={b.sy} r={4} fill="#fff" stroke="#2f6fed" strokeWidth={2} />
                     <g transform={`translate(${midX + 8}, ${midY - 8})`}>
                       <rect x={0} y={-11} width={30} height={15} rx={3} fill="#fff" stroke="#2f6fed" strokeWidth={1} />
                       <text x={15} y={0} fontSize={9} fontWeight={600} fill="#2f6fed" textAnchor="middle">{angleDeg}°</text>
@@ -6005,6 +6060,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               an in-flow block below the canvas (see further down, after
               this canvas box closes) sharing the same renderLayoutSummary
               content. */}
+          {!isMobile && currentStep === 3 && roofs.length > 0 && (
+            <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: '6px 10px', fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}>
+              {renderRoofSummary()}
+            </div>
+          )}
+
           {!isMobile && currentStep === 4 && totalPanelCount > 0 && (
             <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: '6px 10px', fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}>
               {renderLayoutSummary()}
@@ -6926,6 +6987,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             in-flow block below the canvas instead of a corner overlay, so
             it scrolls into view under the map rather than sitting on top
             of it and covering panels/roofs with text. */}
+        {isMobile && currentStep === 3 && roofs.length > 0 && (
+          <div style={{ ...sectionStyle, margin: '8px 12px 12px', fontSize: 12, flexShrink: 0 }}>
+            {renderRoofSummary()}
+          </div>
+        )}
         {isMobile && currentStep === 4 && totalPanelCount > 0 && (
           <div style={{ ...sectionStyle, margin: '8px 12px 12px', fontSize: 12, flexShrink: 0 }}>
             {renderLayoutSummary()}
