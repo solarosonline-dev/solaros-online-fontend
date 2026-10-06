@@ -210,6 +210,25 @@ export function assignSiteToInverters({ grids, module, inverter, designMinTempC,
     clusters.splice(bestJ, 1);
   }
 
+  // Why the grids that ended up on separate inverters weren't pooled -
+  // surfaced in the UI beside "Inverters needed". Only pairs that are both
+  // pool-eligible (the small grids above) are reported; a grid that needs
+  // its own inverter(s) by power/capacity was never a pooling candidate.
+  let mergeNotes: any[] = [];
+  for (let i = 0; i < clusters.length; i++) {
+    for (let j = i + 1; j < clusters.length; j++) {
+      const combined = clusters[i].channels + clusters[j].channels;
+      const labels = (c) => [...new Set(c.members.map((m) => String(m.label).split(' · ')[0]))].join(' + ');
+      const d = clusterDistance(clusters[i], clusters[j]);
+      const numStrings = [...clusters[i].members, ...clusters[j].members].reduce((n, m) => n + m.strings.length, 0);
+      // Both can hold at once (too many MPPT inputs AND too far apart) -
+      // report every one, not just the first that applies.
+      const mppt = combined > inverter.mpptCount ? { channels: combined, mpptCount: inverter.mpptCount, strings: numStrings, stringsPerMppt: sizing.maxStringsPerMppt } : null;
+      const distance = d > maxPoolingDistanceM ? { distance: d, limit: maxPoolingDistanceM } : null;
+      if (mppt || distance) mergeNotes.push({ a: labels(clusters[i]), b: labels(clusters[j]), mppt, distance });
+    }
+  }
+
   clusters.forEach((cluster) => {
     const id = inverters.length + 1;
     const entries = cluster.members.map((g) => ({
@@ -221,5 +240,5 @@ export function assignSiteToInverters({ grids, module, inverter, designMinTempC,
     cluster.members.forEach((g) => perGrid.push({ ...g, valid: true, pooled: cluster.members.length > 1, inverterIds: [id] }));
   });
 
-  return { valid: perGrid.every((g) => g.valid), sizing, perGrid, inverters };
+  return { valid: perGrid.every((g) => g.valid), sizing, perGrid, inverters, mergeNotes };
 }

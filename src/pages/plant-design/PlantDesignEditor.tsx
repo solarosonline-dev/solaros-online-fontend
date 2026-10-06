@@ -4201,6 +4201,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 : g.reason}
             </div>
           ))}
+          {(sitePlan.mergeNotes || []).map((n, i) => (
+            <div key={i} style={{ color: '#b8860b' }}>
+              <div>💡 {n.a} and {n.b} weren't sharing one inverter:</div>
+              <div style={{ paddingLeft: 18 }}>
+                {[
+                  n.mppt && `needs ${n.mppt.channels} MPPT inputs (${n.mppt.strings} strings, ${n.mppt.stringsPerMppt}/MPPT), inverter has ${n.mppt.mpptCount}`,
+                  n.distance && `${formatLength(n.distance.distance, units, 1)} apart (limit ${formatLength(n.distance.limit, units, 0)})`,
+                ].filter(Boolean).join(' · ')}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </>
@@ -5475,10 +5486,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               // The "next" segment, from the last placed point to wherever
               // the pointer is right now - finer-dotted than the already-
               // placed segments (which use a wider dash) so it reads as
-              // "not committed yet", with the angle it'd land at (0/90/180/
-              // 270 = perfectly horizontal/vertical on screen) labeled at
-              // its midpoint so a straight or clean-angle edge is easy to
-              // line up by eye before clicking.
+              // "not committed yet", with its length and corner angle labeled at
+              // its midpoint (see the label block below).
               function previewSegment(points) {
                 if (points.length === 0 || !drawCursorWorld) return null;
                 const last = points[points.length - 1];
@@ -5486,7 +5495,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const b = toScreen(drawCursorWorld.x, drawCursorWorld.y);
                 const dx = b.sx - a.sx, dy = b.sy - a.sy;
                 if (Math.hypot(dx, dy) < 1) return null;
-                const angleDeg = Math.round((((Math.atan2(-dy, dx) * 180) / Math.PI) + 360) % 360);
+                // Label: this edge's real length, plus (from the 2nd segment
+                // on) the angle at the last point between the previous edge
+                // and this one - 90 = square corner, 180 = straight on.
+                // Turns green when within 1 degree of either.
+                const lenM = Math.hypot(drawCursorWorld.x - last.x, drawCursorWorld.y - last.y);
+                let cornerDeg: number | null = null;
+                if (points.length >= 2) {
+                  const prev = points[points.length - 2];
+                  const v1x = prev.x - last.x, v1y = prev.y - last.y;
+                  const v2x = drawCursorWorld.x - last.x, v2y = drawCursorWorld.y - last.y;
+                  const m = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y);
+                  if (m > 1e-9) cornerDeg = (Math.acos(Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / m))) * 180) / Math.PI;
+                }
+                const snapped = cornerDeg !== null && (Math.abs(cornerDeg - 90) < 1 || Math.abs(cornerDeg - 180) < 1);
+                const labelColor = snapped ? '#1e8e3e' : '#2f6fed';
+                const label = `${formatLength(lenM, units, 1)}${cornerDeg !== null ? ` · ${Math.round(cornerDeg)}°` : ''}`;
+                const labelW = 12 + label.length * 5.6;
                 const midX = (a.sx + b.sx) / 2, midY = (a.sy + b.sy) / 2;
                 return (
                   <g style={{ pointerEvents: 'none' }}>
@@ -5501,8 +5526,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     />
                     <circle cx={b.sx} cy={b.sy} r={4} fill="#fff" stroke="#2f6fed" strokeWidth={2} />
                     <g transform={`translate(${midX + 8}, ${midY - 8})`}>
-                      <rect x={0} y={-11} width={30} height={15} rx={3} fill="#fff" stroke="#2f6fed" strokeWidth={1} />
-                      <text x={15} y={0} fontSize={9} fontWeight={600} fill="#2f6fed" textAnchor="middle">{angleDeg}°</text>
+                      <rect x={0} y={-11} width={labelW} height={15} rx={3} fill="#fff" stroke={labelColor} strokeWidth={1} />
+                      <text x={labelW / 2} y={0} fontSize={9} fontWeight={600} fill={labelColor} textAnchor="middle">{label}</text>
                     </g>
                   </g>
                 );
