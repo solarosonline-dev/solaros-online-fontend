@@ -1,0 +1,19 @@
+.vendor-kyc-page { max-width: 640px; }
+.vendor-kyc-page h1 { font-size: 20px; margin: 0 0 8px; }
+.vendor-kyc-intro { color: var(--app-text-muted); font-size: 14px; margin: 0 0 16px; }
+.vendor-kyc-banner { padding: 10px 14px; border-radius: var(--app-radius); font-size: 14px; margin-bottom: 16px; border: 1px solid var(--app-border); background: var(--app-surface); }
+.vendor-kyc-banner.verified { border-color: var(--app-success, #2e7d32); }
+.vendor-kyc-banner.rejected { border-color: var(--app-danger, #c62828); background: var(--app-danger-bg, #fdecea); }
+.vendor-kyc-form { background: var(--app-surface); border: 1px solid var(--app-border); border-radius: var(--app-radius); padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.vendor-kyc-field { display: flex; flex-direction: column; gap: 4px; }
+.vendor-kyc-field.full { grid-column: 1 / -1; }
+.vendor-kyc-field label { font-size: 13px; font-weight: 500; }
+.vendor-kyc-field input { font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--app-border); border-radius: 6px; }
+.vendor-kyc-field input:disabled { background: var(--app-bg); }
+.vendor-kyc-hint { font-size: 12px; color: var(--app-text-muted); }
+.vendor-kyc-error { color: var(--app-danger, #c62828); font-size: 13px; grid-column: 1 / -1; margin: 0; }
+.vendor-kyc-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.vendor-kyc-btn { font-family: inherit; font-size: 14px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--app-accent); background: var(--app-accent); color: var(--app-accent-contrast); cursor: pointer; }
+.vendor-kyc-btn:hover:not(:disabled) { background: var(--app-accent-hover); }
+.vendor-kyc-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+@media (max-width: 600px) { .vendor-kyc-form { grid-template-columns: 1fr; } }

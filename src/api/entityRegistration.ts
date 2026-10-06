@@ -6,6 +6,8 @@ export type EntityRegistrationInput = {
     type: string;
     gstno: string;
     address: string;
+    // Platform role: EPC (default) or VENDOR (sells on the marketplace).
+    kind?: "EPC" | "VENDOR";
   };
   admin_user: {
     full_name: string;

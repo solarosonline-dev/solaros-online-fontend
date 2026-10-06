@@ -16,6 +16,9 @@ import "./EntitiesPage.css";
 const FEATURES: { key: Feature; label: string }[] = [
   { key: "CRM", label: "CRM" },
   { key: "DESIGN", label: "Design" },
+  { key: "MARKETPLACE_BUY", label: "Marketplace buy" },
+  { key: "MARKETPLACE_SELL", label: "Marketplace sell" },
+  { key: "DELIVERY", label: "Delivery" },
 ];
 
 const STATE_FILTERS: { label: string; value: EntityState | undefined }[] = [
@@ -162,7 +165,10 @@ export default function EntitiesPage() {
 
                 return (
                   <tr key={entity.entity_id}>
-                    <td>{entity.name}</td>
+                    <td>
+                      {entity.name}
+                      {entity.kind !== "EPC" && <div>{entity.kind}</div>}
+                    </td>
                     <td>{entity.gstno}</td>
                     <td>{entity.type}</td>
                     <td>

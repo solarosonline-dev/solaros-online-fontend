@@ -14,6 +14,14 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import TrialExpiredPage from "./pages/TrialExpiredPage";
 import LandingPage from "./pages/public/LandingPage";
 import HomeRedirect from "./pages/HomeRedirect";
+import VendorKycPage from "./pages/vendor/VendorKycPage";
+import KycReviewPage from "./pages/admin/KycReviewPage";
+import ListingsPage from "./pages/vendor/ListingsPage";
+import BulkUploadPage from "./pages/vendor/BulkUploadPage";
+import ProposeProductPage from "./pages/vendor/ProposeProductPage";
+import CatalogAdminPage from "./pages/admin/marketplace/CatalogAdminPage";
+import MarketsAdminPage from "./pages/admin/marketplace/MarketsAdminPage";
+import ConfigAdminPage from "./pages/admin/marketplace/ConfigAdminPage";
 import EntitiesPage from "./pages/admin/EntitiesPage";
 import EntityManagementPage from "./pages/entity/EntityManagementPage";
 import UsersPage from "./pages/entity/UsersPage";
@@ -80,6 +88,12 @@ const router = createBrowserRouter(
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
             </Route>
+            <Route element={<RequireFeature feature="MARKETPLACE_SELL" />}>
+              <Route path="/app/vendor/kyc" element={<VendorKycPage />} />
+              <Route path="/app/vendor/listings" element={<ListingsPage />} />
+              <Route path="/app/vendor/bulk" element={<BulkUploadPage />} />
+              <Route path="/app/vendor/products" element={<ProposeProductPage />} />
+            </Route>
             <Route element={<RequireFeature feature="DESIGN" />}>
               <Route path="/app/plant-design" element={<PlantDesignListPage />} />
               <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
@@ -89,6 +103,10 @@ const router = createBrowserRouter(
           <Route element={<RequireSystemAdmin />}>
             <Route path="/app/admin/entities" element={<EntitiesPage />} />
             <Route path="/app/admin/users" element={<AdminUsersPage />} />
+            <Route path="/app/admin/kyc" element={<KycReviewPage />} />
+            <Route path="/app/admin/marketplace/catalog" element={<CatalogAdminPage />} />
+            <Route path="/app/admin/marketplace/markets" element={<MarketsAdminPage />} />
+            <Route path="/app/admin/marketplace/config" element={<ConfigAdminPage />} />
             <Route path="/app/admin/dashboard" element={<AdminDashboardPage />} />
             <Route path="/app/admin/entities/:entityId/metrics" element={<EntityMetricsDrilldownPage />} />
             {/* SYSTEM_SUPER_ADMIN only -- stricter than the rest of this

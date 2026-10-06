@@ -8,8 +8,14 @@ import "./auth.css";
 
 const ENTITY_TYPES = ["EPC", "Financier (NBFC/Bank)", "RESCO Investor/Asset Owner", "O&M Vendor"];
 
+const ACCOUNT_KINDS = [
+  { value: "EPC", label: "Solar EPC / installer" },
+  { value: "VENDOR", label: "Product vendor (sell on the marketplace)" },
+] as const;
+
 export default function RegisterPage() {
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<"EPC" | "VENDOR">("EPC");
   const [type, setType] = useState(ENTITY_TYPES[0]);
   const [gstno, setGstno] = useState("");
   const [address, setAddress] = useState("");
@@ -44,7 +50,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const res = await registerEntity({
-        entity: { name, type, gstno: gstno.trim().toUpperCase(), address },
+        entity: { name, type, kind, gstno: gstno.trim().toUpperCase(), address },
         admin_user: { full_name: fullName, email, phone, password },
       });
       setSuccessMessage(res.message);
@@ -88,6 +94,17 @@ export default function RegisterPage() {
             <label htmlFor="name">Business name</label>
             <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
             {fieldErrors.name && <p className="auth-field-error">{fieldErrors.name}</p>}
+          </div>
+
+          <div className="auth-field">
+            <label htmlFor="kind">I want to</label>
+            <select id="kind" value={kind} onChange={(e) => setKind(e.target.value as "EPC" | "VENDOR")}>
+              {ACCOUNT_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="auth-field-row">

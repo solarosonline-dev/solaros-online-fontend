@@ -3,7 +3,7 @@ import { apiRequest } from "./client";
 // Product modules an entity can have enabled -- mirrors the backend's
 // EntityFeature enum. CRM is everything except plant design; DESIGN is plant
 // design only. A SYSTEM admin toggles them per entity (Entities page).
-export type Feature = "CRM" | "DESIGN";
+export type Feature = "CRM" | "DESIGN" | "MARKETPLACE_BUY" | "MARKETPLACE_SELL" | "DELIVERY";
 
 export type LoginResponse = {
   token: string;
@@ -21,6 +21,9 @@ export type LoginResponse = {
     trial_ends_at: string | null;
     // The user's entity's enabled modules -- empty for SYSTEM-scope users.
     features: Feature[];
+    // Platform role of the user's entity (EPC | VENDOR | LOGISTICS); null for
+    // SYSTEM-scope users. Distinct from the entity's free-text business type.
+    entity_kind: "EPC" | "VENDOR" | "LOGISTICS" | null;
   };
 };
 

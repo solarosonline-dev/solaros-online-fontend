@@ -156,11 +156,22 @@ function AppLayoutInner() {
           <nav className="app-nav">
             {systemAdmin && <NavLink to="/app/admin/dashboard">Dashboard</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
+            {systemAdmin && <NavLink to="/app/admin/kyc">Vendor KYC</NavLink>}
+            {systemAdmin && <NavLink to="/app/admin/marketplace/catalog">MP Catalog</NavLink>}
+            {systemAdmin && <NavLink to="/app/admin/marketplace/markets">MP Markets</NavLink>}
+            {systemAdmin && <NavLink to="/app/admin/marketplace/config">MP Config</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
             {superAdmin && <NavLink to="/app/admin/email">Email</NavLink>}
             {!systemAdmin && entityAdmin && crm && <NavLink to="/app/dashboard">Dashboard</NavLink>}
             {!systemAdmin && entityAdmin && crm && <NavLink to="/app/leads">Leads</NavLink>}
             {!systemAdmin && entityAdmin && crm && <NavLink to="/app/projects">Projects</NavLink>}
+            {!systemAdmin && entityAdmin && hasFeature(user, "MARKETPLACE_SELL") && (
+              <>
+                <NavLink to="/app/vendor/listings">My listings</NavLink>
+                <NavLink to="/app/vendor/products">Propose product</NavLink>
+                <NavLink to="/app/vendor/kyc">KYC &amp; payouts</NavLink>
+              </>
+            )}
             {!systemAdmin && entityAdmin && design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
             {!systemAdmin && !entityAdmin && user?.entity_id && crm && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>

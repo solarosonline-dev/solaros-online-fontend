@@ -16,6 +16,8 @@ export type AdminEntity = {
   approved_at: string | null;
   trial_ends_at: string | null;
   features: Feature[];
+  // Platform role: EPC | VENDOR | LOGISTICS.
+  kind: string;
 };
 
 export type AdminEntityList = {
