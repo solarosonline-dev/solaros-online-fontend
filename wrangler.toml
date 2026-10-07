@@ -2,7 +2,11 @@ name = "solaros-online"
 main = "worker/index.ts"
 compatibility_date = "2025-01-01"
 
+[vars]
+API_ORIGIN = "https://api.solaros.online"
+
 [assets]
+run_worker_first = ["/api/*"]
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
