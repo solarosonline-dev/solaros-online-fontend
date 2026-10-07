@@ -21,6 +21,36 @@
 
 export interface Env {
   ASSETS: Fetcher;
+  /** Backend origin (no trailing slash), set in wrangler.toml [vars]. */
+  API_ORIGIN: string;
+}
+
+/** Same-origin API proxy: the browser calls solaros.online/api/* and this
+ * Worker forwards to the backend. Corporate firewalls / web filters
+ * (Sophos, Zscaler, ...) that block the separate api.solaros.online host
+ * then never see it, and no CORS preflight is needed. */
+async function proxyApi(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const target = new URL(env.API_ORIGIN + url.pathname + url.search);
+
+  const headers = new Headers(request.headers);
+  headers.delete("host");
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (clientIp) headers.set("X-Forwarded-For", clientIp);
+  headers.set("X-Forwarded-Host", url.host);
+  headers.set("X-Forwarded-Proto", url.protocol.replace(":", ""));
+
+  const hasBody = request.method !== "GET" && request.method !== "HEAD";
+  const upstream = await fetch(target.toString(), {
+    method: request.method,
+    headers,
+    body: hasBody ? request.body : undefined,
+    redirect: "manual",
+  });
+
+  const out = new Response(upstream.body, upstream);
+  out.headers.set("Cache-Control", "no-store");
+  return out;
 }
 
 const OG_IMAGE_PATH = "/pwa-512x512.png";
@@ -59,6 +89,7 @@ function ogTagsHtml(meta: { title: string; description: string; image: string; u
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/")) return proxyApi(request, env);
     const match = url.pathname.match(/^\/(q|a)\/[^/]+\/?$/);
     const response = await env.ASSETS.fetch(request);
 
