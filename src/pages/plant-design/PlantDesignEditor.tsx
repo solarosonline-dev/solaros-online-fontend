@@ -693,6 +693,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     ro.observe(el);
     return () => ro.disconnect();
   }, [currentStep]);
+
+  // Plan-view wheel/pinch zoom has to be a *native, non-passive* listener:
+  // React attaches onWheel as a passive listener at the root, so the
+  // e.preventDefault() inside onPlanWheel is silently ignored and the
+  // browser zooms the whole page too (a trackpad pinch arrives as
+  // ctrl+wheel) - pushing the step controls off-screen. onPlanWheel is
+  // re-created every render (it closes over zoom/pan state), so the stable
+  // listener calls it through a ref.
+  const onPlanWheelRef = useRef<any>(null);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => onPlanWheelRef.current?.(e);
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [currentStep, mapMode, locationConfirmed]);
   // Selected grids, keyed `${roofId}:${gridId}` - clicking any panel
   // selects every panel in its own grid (see README's "Panel grids" entry),
   // not just that one panel, so selection is tracked at the grid level.
@@ -1508,6 +1524,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     setPanOffset(clampPanOffsetForZoom(next, nextZoom));
   }
+
+  onPlanWheelRef.current = onPlanWheel;
 
   // Where the site-wide satellite captures (see handleLocationConfirm) sit
   // in the engine's local-meters space, so they can be drawn under the plan
@@ -5085,10 +5103,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
           <svg
             ref={svgRef} viewBox={`0 0 ${planViewBoxWidth} ${PLAN_VIEWBOX_HEIGHT}`} preserveAspectRatio="xMidYMid meet"
-            style={{ display: viewMode === 'plan' ? 'block' : 'none', flex: 1, minHeight: 0, width: '100%', height: '100%', background: '#eef3ea', borderRadius: 10, border: '1px solid #d5d5d5', cursor: (placingShape || drawingRoof || placingGrid) ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
+            style={{ display: viewMode === 'plan' ? 'block' : 'none', touchAction: 'pan-x pan-y', flex: 1, minHeight: 0, width: '100%', height: '100%', background: '#eef3ea', borderRadius: 10, border: '1px solid #d5d5d5', cursor: (placingShape || drawingRoof || placingGrid) ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
             onClick={onSvgClick}
             onDoubleClick={onSvgDoubleClick}
-            onWheel={onPlanWheel}
             onMouseDown={onSvgMouseDown}
             onMouseMove={onSvgDrawMouseMove}
             onMouseLeave={() => { if (shadowAnalysis) setSunHoverInfo(null); if (drawCursorWorld) setDrawCursorWorld(null); }}
