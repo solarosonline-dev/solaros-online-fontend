@@ -607,6 +607,9 @@
   color: var(--app-text, #222);
   text-align: right;
 }
+.plant-design-editor .pde-slider-out-of-range {
+  opacity: 0.45;
+}
 .plant-design-editor .pde-slider-num:disabled {
   background: #f2f2f2;
   color: #999;

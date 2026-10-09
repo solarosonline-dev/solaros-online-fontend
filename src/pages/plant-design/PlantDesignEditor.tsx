@@ -4397,11 +4397,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             <>
               <div className="pde-field-sm"><label>Model name</label><input type="text" value={panelSpec.model} onChange={(e) => setPanelSpec({ ...panelSpec, model: e.target.value })} placeholder="e.g. My module 550W" /></div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Width ({units})</label><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.width} onChange={(v) => setPanelSpec({ ...panelSpec, width: v })} /></div>
-                <div className="pde-field-sm"><label>Height ({units})</label><SliderInput unit={units} min={0.3} max={2.5} step={0.05} value={panelSpec.height} onChange={(v) => setPanelSpec({ ...panelSpec, height: v })} /></div>
+                <div className="pde-field-sm"><label>Width ({units})</label><SliderInput unit={units} min={0.3} max={2.5} hardMax={5} step={0.05} value={panelSpec.width} onChange={(v) => setPanelSpec({ ...panelSpec, width: v })} /></div>
+                <div className="pde-field-sm"><label>Height ({units})</label><SliderInput unit={units} min={0.3} max={2.5} hardMax={5} step={0.05} value={panelSpec.height} onChange={(v) => setPanelSpec({ ...panelSpec, height: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Wattage (W)</label><SliderInput min={100} max={800} step={10} value={panelSpec.wattage} onChange={(v) => setPanelSpec({ ...panelSpec, wattage: v })} /></div>
+                <div className="pde-field-sm"><label>Wattage (W)</label><SliderInput min={100} max={800} hardMax={1000} step={10} value={panelSpec.wattage} onChange={(v) => setPanelSpec({ ...panelSpec, wattage: v })} /></div>
                 <div className="pde-field-sm"><label>Temp coeff. Voc (%/°C)</label><input type="number" step="0.01" value={panelSpec.tempCoeffVoc} onChange={(e) => setPanelSpec({ ...panelSpec, tempCoeffVoc: +e.target.value })} /></div>
               </div>
               <div className="pde-field-row">
@@ -4492,14 +4492,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           )}
           <div className="pde-field-sm" style={{ marginTop: 10 }}>
             <label>MPPT voltage utilization (%)</label>
-            <SliderInput min={100} max={140} step={1} value={mpptVoltageUtilizationPct} onChange={setMpptVoltageUtilizationPct} />
+            <SliderInput min={100} max={140} hardMax={150} step={1} value={mpptVoltageUtilizationPct} onChange={setMpptVoltageUtilizationPct} />
           </div>
           <div className="pde-field-sm-hint">
             how far a string's cold-weather voltage may push past this inverter's rated MPPT window (100% = never exceed it) when sizing modules per string - still capped by its absolute max DC voltage rating either way.
           </div>
         </CollapsibleSection>
         <CollapsibleSection title="String sizing">
-          <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
+          <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
           <div className="pde-field-row">
             <div className="pde-field-sm"><label>Design min temp (°C)</label><input type="number" step="1" value={designTemp.min} onChange={(e) => setDesignTemp({ ...designTemp, min: +e.target.value })} /></div>
             <div className="pde-field-sm"><label>Design max temp (°C)</label><input type="number" step="1" value={designTemp.max} onChange={(e) => setDesignTemp({ ...designTemp, max: +e.target.value })} /></div>
@@ -6220,9 +6220,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}><RulerIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'} width={300}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={500} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={500} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} hardMax={200} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
                             {selectedRoof.type === 'pitched' && (
                               // A pitched roof's building height is its eave (the low
                               // edge, where the deck starts climbing); the ridge is
@@ -6232,7 +6232,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 Ridge (highest point): {formatLength(Math.max(...getRoofPolygon(selectedRoof).map((p) => roofSurfaceHeightAt(selectedRoof, p))), units, 1)} at {selectedRoof.pitchDeg ?? 0}° pitch
                               </div>
                             )}
-                            <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={10} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                               {selectedRoof.polygon
                                 ? `${selectedRoof.polygon.length} points. Width runs along the panel rows, length across them — or drag corner handles on the 2D plan.`
@@ -6264,7 +6264,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                   <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Panel margin</div>
                                   <div style={sliderRowStyle}>
                                     {sliderRowLabel('Default', units)}
-                                    <SliderInput unit={units} numberWidth={58} min={0} max={3} step={0.05} value={defaultMargin} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
+                                    <SliderInput unit={units} numberWidth={58} min={0} max={3} hardMax={20} step={0.05} value={defaultMargin} onChange={(v) => updateRoof(selectedRoof.id, 'edgeMargin', v)} />
                                   </div>
 
                                   <button
@@ -6289,7 +6289,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                         <>
                                           <div style={sliderRowStyle}>
                                             {sliderRowLabel(`${sel.length} edge${sel.length === 1 ? '' : 's'}`, units)}
-                                            <SliderInput unit={units} numberWidth={58} min={0} max={3} step={0.05} value={selValue} onChange={(v) => setEdgeMarginOverrides(selectedRoof.id, sel, v)} />
+                                            <SliderInput unit={units} numberWidth={58} min={0} max={3} hardMax={20} step={0.05} value={selValue} onChange={(v) => setEdgeMarginOverrides(selectedRoof.id, sel, v)} />
                                           </div>
                                           <button
                                             className={btn(false)}
@@ -6371,7 +6371,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             </div>
                             {selectedRoof.type === 'pitched' && (
                               <>
-                                <div style={{ ...labelStyle, marginTop: 12 }}><span>pitch (°)</span><SliderInput min={0} max={60} step={1} value={selectedRoof.pitchDeg} onChange={(v) => updateRoof(selectedRoof.id, 'pitchDeg', v)} /></div>
+                                <div style={{ ...labelStyle, marginTop: 12 }}><span>pitch (°)</span><SliderInput min={0} max={60} hardMax={90} step={1} value={selectedRoof.pitchDeg} onChange={(v) => updateRoof(selectedRoof.id, 'pitchDeg', v)} /></div>
                                 <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'flex-start' }}>
                                   <div>
                                     <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>Slope direction</div>
@@ -6431,7 +6431,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                   </div>
                                   <div style={labelStyle}>
                                     <span style={{ whiteSpace: 'nowrap' }}>facing (°)</span>
-                                    <SliderInput min={0} max={359} step={1} value={Math.round(az) % 360} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
+                                    <SliderInput min={0} max={359} hardMax={359} step={1} value={Math.round(az) % 360} onChange={(v) => updateRoof(selectedRoof.id, 'azimuth', v)} />
                                   </div>
                                   <div style={{ fontSize: 11, color: off > 45 ? '#c0392b' : '#888', marginBottom: 10 }}>
                                     {off === 0 ? `Due ${dirWord}` : `${off}° off ${dirWord}`}
@@ -6533,8 +6533,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
                             {isTree ? (
                               <>
-                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                  <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} hardMax={100} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} hardMax={30} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
                                   {(() => {
                                     // Trunk height: auto (a fixed share of the height) until
                                     // set by hand. Canopy height is what's left - shown, not
@@ -6544,7 +6544,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     const { trunk, manual } = treeTrunkHeight(selectedObstacle);
                                     return (
                                       <>
-                                        <div style={sliderRowStyle}>{sliderRowLabel(manual ? 'Trunk height' : 'Trunk (auto)', units)}<SliderInput unit={units} numberWidth={58} min={0} max={+(selectedObstacle.height * 0.9).toFixed(1)} step={0.1} value={+trunk.toFixed(1)} onChange={(v) => updateObstacle(selectedObstacle.id, 'trunkHeight', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel(manual ? 'Trunk height' : 'Trunk (auto)', units)}<SliderInput unit={units} numberWidth={58} min={0} max={+(selectedObstacle.height * 0.9).toFixed(1)} hardMax={+(selectedObstacle.height * 0.9).toFixed(1)} exactCap step={0.1} value={+trunk.toFixed(1)} onChange={(v) => updateObstacle(selectedObstacle.id, 'trunkHeight', v)} /></div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 11, color: '#555', margin: '-4px 0 6px' }}>
                                           <span>Canopy: {formatLength(Math.max(0, selectedObstacle.height - trunk), units, 1)} tall</span>
                                           {manual && (
@@ -6572,8 +6572,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     const ext = orientedRoofExtents(selectedObstacle.polygon, longestEdgeFrameAzimuth(selectedObstacle.polygon));
                                     return (
                                       <>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={200} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={200} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
                                       </>
                                     );
                                   })()}
@@ -6587,23 +6587,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     </div>
                                   ) : (
                                     <>
-                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                      <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} hardMax={isFlush ? 2 : undefined} exactCap step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={10} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
                                     </>
                                   )}
                                   <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4 }}>Length runs along its longest edge. {selectedObstacle.polygon?.length ?? 0} points — drag corners on the 2D plan to reshape, or the shape to move it.</div>
                                 </>
                             ) : selectedObstacle.shape === 'cylinder' ? (
                               <>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Radius', units)}<SliderInput unit={units} numberWidth={58} min={0.01} max={5} step={0.01} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} hardMax={50} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Radius', units)}<SliderInput unit={units} numberWidth={58} min={0.01} max={5} hardMax={20} step={0.01} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                               </>
                             ) : (
                               <>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.width} onChange={(v) => updateObstacle(selectedObstacle.id, 'width', v)} /></div>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Depth', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} step={0.05} value={selectedObstacle.depth} onChange={(v) => updateObstacle(selectedObstacle.id, 'depth', v)} /></div>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} hardMax={50} step={0.05} value={selectedObstacle.width} onChange={(v) => updateObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Depth', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={10} hardMax={50} step={0.05} value={selectedObstacle.depth} onChange={(v) => updateObstacle(selectedObstacle.id, 'depth', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} hardMax={50} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                               </>
                             )}
@@ -6621,7 +6621,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 <>
                                   <div style={sliderRowStyle}>
                                     {sliderRowLabel('Rotation', '°')}
-                                    <SliderInput numberWidth={58} min={-180} max={180} step={1} value={Math.round((((selectedObstacle.rotation || 0) + 180) % 360 + 360) % 360 - 180)} onChange={(v) => updateObstacle(selectedObstacle.id, 'rotation', v)} />
+                                    <SliderInput numberWidth={58} min={-180} max={180} hardMax={180} step={1} value={Math.round((((selectedObstacle.rotation || 0) + 180) % 360 + 360) % 360 - 180)} onChange={(v) => updateObstacle(selectedObstacle.id, 'rotation', v)} />
                                   </div>
                                   <button className={btn(false)} disabled={!selectedObstacle.rotation} style={{ width: '100%', marginTop: 2 }} onClick={() => updateObstacle(selectedObstacle.id, 'rotation', 0)}>
                                     ↺ Reset to 0°
@@ -6631,7 +6631,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 <>
                                   <div style={sliderRowStyle}>
                                     {sliderRowLabel('Angle', '°')}
-                                    <SliderInput numberWidth={58} min={0} max={179} step={1} value={Math.round(longEdgeAngle(selectedObstacle.polygon)) % 180} onChange={(v) => setDrawnObstacleAngle(selectedObstacle.id, v)} />
+                                    <SliderInput numberWidth={58} min={0} max={179} hardMax={179} step={1} value={Math.round(longEdgeAngle(selectedObstacle.polygon)) % 180} onChange={(v) => setDrawnObstacleAngle(selectedObstacle.id, v)} />
                                   </div>
                                   <button className={btn(false)} disabled={Math.round(longEdgeAngle(selectedObstacle.polygon)) % 180 === 0} style={{ width: '100%', marginTop: 2 }} onClick={() => setDrawnObstacleAngle(selectedObstacle.id, 0)}>
                                     ⇆ Square to east–west
@@ -6848,7 +6848,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                   <div style={labelStyle}>
                                     <span>Panels per row (depth)</span>
                                     <SliderInput
-                                      min={1} max={20} step={1} disabled={flush}
+                                      min={1} max={20} hardMax={50} step={1} disabled={flush}
                                       value={flush ? 1 : selectedGrid.panelsPerRow}
                                       onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { panelsPerRow: Math.max(1, Math.round(v)) })}
                                     />
@@ -6865,7 +6865,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={labelStyle}>
                               <span>Panel tilt (°)</span>
                               <SliderInput
-                                min={0} max={90} step={1}
+                                min={0} max={90} hardMax={90} step={1}
                                 value={resolvedTilt}
                                 onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { panelTiltDeg: v })}
                               />
@@ -6887,7 +6887,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={labelStyle}>
                               <span>Row spacing ({units})</span>
                               <SliderInput
-                                unit={units} min={isPitchedGrid ? 0 : 0.5} max={10} step={0.05}
+                                unit={units} min={isPitchedGrid ? 0 : 0.5} max={10} hardMax={50} step={0.05}
                                 value={resolvedRowSpacing}
                                 onChange={(v) => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: v })}
                               />
@@ -6958,7 +6958,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={{ ...sliderRowStyle, marginTop: 12 }}>
                               {sliderRowLabel('Min pillar', units)}
                               <SliderInput
-                                unit={units} numberWidth={58} min={0} max={5} step={0.05}
+                                unit={units} numberWidth={58} min={0} max={5} hardMax={20} step={0.05}
                                 value={gridOwnerRoof.minPillarHeight ?? 0}
                                 onChange={(v) => updateRoof(gridOwnerRoof.id, 'minPillarHeight', v)}
                               />
@@ -6975,7 +6975,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={sliderRowStyle}>
                               {sliderRowLabel('Rotation', '°')}
                               <SliderInput
-                                numberWidth={58} min={-180} max={180} step={1}
+                                numberWidth={58} min={-180} max={180} hardMax={180} step={1}
                                 value={Math.round(selectedGrid.rotation || 0)}
                                 onChange={(v) => updateRoofGrids(gridOwnerRoof.id, (grids) => grids.map((g) => (g.id === selectedGrid.id ? { ...g, rotation: v } : g)))}
                               />
@@ -7313,8 +7313,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             )}
 
             <CollapsibleSection title="Assumptions">
-                <div className="pde-field-sm"><label>System derate</label><SliderInput min={0} max={1} step={0.01} value={assumptions.systemDerate} onChange={(v) => setAssumptions({ ...assumptions, systemDerate: v })} /></div>
-                <div className="pde-field-sm"><label>Diffuse fraction</label><SliderInput min={0} max={1} step={0.05} value={assumptions.diffuseFraction} onChange={(v) => setAssumptions({ ...assumptions, diffuseFraction: v })} /></div>
+                <div className="pde-field-sm"><label>System derate</label><SliderInput min={0} max={1} hardMax={1} step={0.01} value={assumptions.systemDerate} onChange={(v) => setAssumptions({ ...assumptions, systemDerate: v })} /></div>
+                <div className="pde-field-sm"><label>Diffuse fraction</label><SliderInput min={0} max={1} hardMax={1} step={0.05} value={assumptions.diffuseFraction} onChange={(v) => setAssumptions({ ...assumptions, diffuseFraction: v })} /></div>
                 <div className="pde-field-sm-hint">
                   Irradiance:{' '}
                   {ghiStatus === 'loading' && 'fetching this site\'s own monthly averages (NASA POWER)…'}
@@ -7362,9 +7362,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 </CollapsibleSection>
               )}
               <CollapsibleSection title="Pricing (editable)" defaultOpen>
-                <div style={labelStyle}><span>₹/Wp panel</span><SliderInput min={0} max={100} step={1} value={pricing.panelPricePerW} onChange={(v) => setPricing({ ...pricing, panelPricePerW: v })} /></div>
-                <div style={labelStyle}><span>₹/m rail</span><SliderInput min={0} max={2000} step={50} value={pricing.structureRatePerMeter} onChange={(v) => setPricing({ ...pricing, structureRatePerMeter: v })} /></div>
-                <div style={labelStyle}><span>₹/mount (pitched)</span><SliderInput min={0} max={2000} step={50} value={pricing.mountCostPerPanel} onChange={(v) => setPricing({ ...pricing, mountCostPerPanel: v })} /></div>
+                <div style={labelStyle}><span>₹/Wp panel</span><SliderInput min={0} max={100} hardMax={1000} step={1} value={pricing.panelPricePerW} onChange={(v) => setPricing({ ...pricing, panelPricePerW: v })} /></div>
+                <div style={labelStyle}><span>₹/m rail</span><SliderInput min={0} max={2000} hardMax={100000} step={50} value={pricing.structureRatePerMeter} onChange={(v) => setPricing({ ...pricing, structureRatePerMeter: v })} /></div>
+                <div style={labelStyle}><span>₹/mount (pitched)</span><SliderInput min={0} max={2000} hardMax={100000} step={50} value={pricing.mountCostPerPanel} onChange={(v) => setPricing({ ...pricing, mountCostPerPanel: v })} /></div>
               </CollapsibleSection>
         </div>
       )}

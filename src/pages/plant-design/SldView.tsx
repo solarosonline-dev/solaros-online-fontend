@@ -213,8 +213,8 @@ export default function SldView({
             </div>
           )}
         </div>
-        <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} step={0.01} value={targetDcAcRatio} onChange={onTargetDcAcRatioChange} /></div>
-        <div className="pde-field-sm"><label>MPPT voltage utilization (%)</label><SliderInput min={100} max={140} step={1} value={mpptVoltageUtilizationPct} onChange={onMpptVoltageUtilizationPctChange} /></div>
+        <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={onTargetDcAcRatioChange} /></div>
+        <div className="pde-field-sm"><label>MPPT voltage utilization (%)</label><SliderInput min={100} max={140} hardMax={150} step={1} value={mpptVoltageUtilizationPct} onChange={onMpptVoltageUtilizationPctChange} /></div>
       </CollapsibleSection>
     </div>
   );
