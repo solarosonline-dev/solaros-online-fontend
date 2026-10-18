@@ -1196,6 +1196,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   }
 
   const [showPanels, setShowPanels] = useState(true);
+  const [summaryMinimized, setSummaryMinimized] = useState(false);
   // `panelsPerRow` and `orientation` used to live here too - both are
   // per-grid now (see README's "Panel grids" entry), editable once a grid
   // is selected (orientation's own default lives in generateLayout, see
@@ -4189,6 +4190,31 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     );
   };
 
+  // Bottom-left floating summary card (steps 3/4, desktop): height/width
+  // capped and scrollable so a long per-grid list can't cover the left rail's
+  // popovers, plus a minimize/maximize toggle.
+  const renderSummaryOverlay = (renderBody, title) => (
+    <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: 0, fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)', maxWidth: 'min(380px, 40%)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '4px 6px 4px 10px', fontWeight: 600 }}>
+        <span>{title}</span>
+        <button
+          type="button"
+          onClick={() => setSummaryMinimized((v) => !v)}
+          aria-label={summaryMinimized ? `Maximize ${title}` : `Minimize ${title}`}
+          title={summaryMinimized ? 'Maximize' : 'Minimize'}
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '2px 6px' }}
+        >
+          {summaryMinimized ? '▢' : '—'}
+        </button>
+      </div>
+      {!summaryMinimized && (
+        <div style={{ padding: '0 10px 6px', maxHeight: 'min(220px, 35vh)', overflowY: 'auto' }}>
+          {renderBody()}
+        </div>
+      )}
+    </div>
+  );
+
   const renderLayoutSummary = () => (
     <>
       <div>{totalPanelCount} panels · {totalCapacityKW.toFixed(1)} kW across {roofs.length} roof{roofs.length === 1 ? '' : 's'}</div>
@@ -6103,15 +6129,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               this canvas box closes) sharing the same renderLayoutSummary
               content. */}
           {!isMobile && currentStep === 3 && roofs.length > 0 && (
-            <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: '6px 10px', fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}>
-              {renderRoofSummary()}
-            </div>
+            renderSummaryOverlay(renderRoofSummary, 'Roof summary')
           )}
 
           {!isMobile && currentStep === 4 && totalPanelCount > 0 && (
-            <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: '6px 10px', fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}>
-              {renderLayoutSummary()}
-            </div>
+            renderSummaryOverlay(renderLayoutSummary, 'Layout summary')
           )}
 
           {/* Right-side rail: a fixed compass (see its own comment) plus,
