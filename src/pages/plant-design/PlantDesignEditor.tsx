@@ -4193,22 +4193,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // Bottom-left floating summary card (steps 3/4, desktop): height/width
   // capped and scrollable so a long per-grid list can't cover the left rail's
   // popovers, plus a minimize/maximize toggle.
-  const renderSummaryOverlay = (renderBody, title) => (
-    <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: 0, fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)', maxWidth: 'min(380px, 40%)', display: 'flex', flexDirection: 'column' }}>
+  const renderSummaryOverlay = (renderBody, title, minimizedText) => (
+    <div style={{ position: 'absolute', left: 12, bottom: viewMode === '3d' ? 88 : 12, zIndex: 6, ...sectionStyle, padding: 0, fontSize: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.12)', maxWidth: summaryMinimized ? 'min(420px, 50%)' : 'min(520px, 55%)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '4px 6px 4px 10px', fontWeight: 600 }}>
-        <span>{title}</span>
+        <span>{summaryMinimized ? minimizedText : title}</span>
         <button
           type="button"
           onClick={() => setSummaryMinimized((v) => !v)}
           aria-label={summaryMinimized ? `Maximize ${title}` : `Minimize ${title}`}
-          title={summaryMinimized ? 'Maximize' : 'Minimize'}
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '2px 6px' }}
+          title={summaryMinimized ? 'Maximize to see full details' : 'Minimize'}
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: '2px 6px', whiteSpace: 'nowrap' }}
         >
-          {summaryMinimized ? '▢' : '—'}
+          {summaryMinimized ? '▢ Expand for details' : '—'}
         </button>
       </div>
       {!summaryMinimized && (
-        <div style={{ padding: '0 10px 6px', maxHeight: 'min(220px, 35vh)', overflowY: 'auto' }}>
+        <div style={{ padding: '0 10px 6px', maxHeight: 'min(380px, 55vh)', overflowY: 'auto' }}>
           {renderBody()}
         </div>
       )}
@@ -6129,11 +6129,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               this canvas box closes) sharing the same renderLayoutSummary
               content. */}
           {!isMobile && currentStep === 3 && roofs.length > 0 && (
-            renderSummaryOverlay(renderRoofSummary, 'Roof summary')
+            renderSummaryOverlay(renderRoofSummary, 'Roof summary', `${roofs.length} roof${roofs.length === 1 ? '' : 's'}`)
           )}
 
           {!isMobile && currentStep === 4 && totalPanelCount > 0 && (
-            renderSummaryOverlay(renderLayoutSummary, 'Layout summary')
+            renderSummaryOverlay(renderLayoutSummary, 'Layout summary', `${totalPanelCount} panels · ${totalCapacityKW.toFixed(1)} kW across ${roofs.length} roof${roofs.length === 1 ? '' : 's'}`)
           )}
 
           {/* Right-side rail: a fixed compass (see its own comment) plus,
