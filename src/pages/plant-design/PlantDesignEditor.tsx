@@ -909,11 +909,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // the old roof-level fields, editing a grid's own settings doesn't clear
   // it and wait for "Generate Layout" again; it just re-runs the packer
   // right away with the new settings, same footprint.
-  function updateGridSettings(roofId, gridId, patch) {
+  function updateGridSettings(roofId, gridId, patch, forceAll = false) {
+    const toAll = applySettingsToAll || forceAll;
     setRoofs((rs) => rs.map((roof) => {
-      if (roof.id !== roofId) return roof;
+      if (!toAll && roof.id !== roofId) return roof;
       const grids = roof.grids.map((g) => {
-        if (g.id !== gridId) return g;
+        if (!toAll && g.id !== gridId) return g;
         const preserveCount = patch.panelsPerRow === undefined && patch.orientation === undefined;
         // The size this grid is meant to be (so tilt/spacing changes never
         // grow it - see 6cfa974). Remembered as `panelCap` the first time it
@@ -1219,6 +1220,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   const [showPanels, setShowPanels] = useState(true);
   const [summaryMinimized, setSummaryMinimized] = useState(false);
+  // Rack/structure/orientation edits normally touch only the selected grid;
+  // with this on they're applied to every grid on the site.
+  const [applySettingsToAll, setApplySettingsToAll] = useState(false);
   // `panelsPerRow` and `orientation` used to live here too - both are
   // per-grid now (see README's "Panel grids" entry), editable once a grid
   // is selected (orientation's own default lives in generateLayout, see
@@ -4206,6 +4210,33 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     );
   };
 
+  // "Apply to all grids" toggle shown in the grid settings popovers - only
+  // when there's more than one grid to apply to.
+  const totalGridCount = roofs.reduce((n, r) => n + (r.grids?.length || 0), 0);
+  const renderApplyToAll = () => (
+    totalGridCount > 1 ? (
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox" checked={applySettingsToAll}
+          onChange={(e) => {
+            setApplySettingsToAll(e.target.checked);
+            // Turning it on pushes the selected grid's current settings to
+            // every other grid right away, not only on the next edit.
+            if (e.target.checked && selectedGrid && gridOwnerRoof) {
+              const { panelTiltDeg, rowSpacing, structureStrategy, panelsPerRow, orientation } = selectedGrid;
+              const patch: any = { panelTiltDeg: panelTiltDeg ?? null, rowSpacing: rowSpacing ?? null };
+              if (structureStrategy) patch.structureStrategy = structureStrategy;
+              if (panelsPerRow) patch.panelsPerRow = panelsPerRow;
+              if (orientation) patch.orientation = orientation;
+              updateGridSettings(gridOwnerRoof.id, selectedGrid.id, patch, true);
+            }
+          }}
+        />
+        Apply changes to all grids ({totalGridCount})
+      </label>
+    ) : null
+  );
+
   // Bottom-left floating summary card (steps 3/4, desktop): height/width
   // capped and scrollable so a long per-grid list can't cover the left rail's
   // popovers, plus a minimize/maximize toggle.
@@ -6605,7 +6636,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                           {manual && (
                                             <button
                                               onClick={() => updateObstacle(selectedObstacle.id, 'trunkHeight', null)}
-                                              style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                              className="pde-mini-btn"
                                             >
                                               reset to auto
                                             </button>
@@ -6791,7 +6822,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       </div>
 
                       <button
-                        data-tooltip={(selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'Portrait - click for Landscape' : 'Landscape - click for Portrait'}
+                        data-tooltip={((selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'Portrait - click for Landscape' : 'Landscape - click for Portrait') + (applySettingsToAll && totalGridCount > 1 ? ' (all grids)' : '')}
                         aria-label="Toggle panel orientation"
                         className={iconBtn(true)}
                         onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { orientation: (selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'landscape' : 'portrait' })}
@@ -6891,6 +6922,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Rack settings" aria-label="Rack settings" className={iconBtn(rightPanelOpenGroup === 'gridRack')} onClick={() => toggleGroup('gridRack')}><RackTiltIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridRack'}>
+                            {renderApplyToAll()}
                             {(() => {
                               // Flush on the slope (pitched roof filled toward its
                               // slope edge): back-to-back rows, no racks - the engine
@@ -6928,7 +6960,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             {selectedGrid.panelTiltDeg != null && (
                               <button
                                 onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { panelTiltDeg: null })}
-                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginBottom: 4 }}
+                                className="pde-mini-btn"
                               >
                                 reset to auto ({autoTilt}°)
                               </button>
@@ -6950,7 +6982,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             {isPitchedGrid && resolvedRowSpacing !== 0 && (
                               <button
                                 onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: 0 })}
-                                style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0, marginBottom: 4 }}
+                                className="pde-mini-btn"
                               >
                                 reset to default (0)
                               </button>
@@ -6960,7 +6992,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 {selectedGrid.rowSpacing != null && selectedGrid.rowSpacing !== 1.0 && (
                                   <button
                                     onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: 1.0 })}
-                                    style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                    className="pde-mini-btn"
                                   >
                                     reset to default (1.00m)
                                   </button>
@@ -6968,7 +7000,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 {selectedGrid.rowSpacing !== recommendedRowSpacing && (
                                   <button
                                     onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { rowSpacing: recommendedRowSpacing })}
-                                    style={{ border: 'none', background: 'none', color: '#2f6fed', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                                    className="pde-mini-btn"
                                   >
                                     use recommended ({formatLength(recommendedRowSpacing, units, 2)})
                                   </button>
@@ -6988,6 +7020,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       <div style={{ position: 'relative' }}>
                         <button data-tooltip="Mounting" aria-label="Mounting" className={iconBtn(rightPanelOpenGroup === 'gridStructure')} onClick={() => toggleGroup('gridStructure')}><GroundMountIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridStructure'} width={300}>
+                            {renderApplyToAll()}
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Mounting</div>
                             {/* Full-width rows rather than side-by-side cards -
                                 the strategy names ("Ground mount (min.

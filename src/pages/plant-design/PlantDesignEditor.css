@@ -865,3 +865,21 @@
   display: flex;
   justify-content: space-between;
 }
+
+/* Small secondary action buttons in settings popovers ("reset to auto",
+   "use recommended") - bordered so they read as buttons, not plain text. */
+.plant-design-editor .pde-mini-btn {
+  border: 1px solid #c7d4f5;
+  background: #f4f7ff;
+  color: #2f6fed;
+  border-radius: 4px;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.plant-design-editor .pde-mini-btn:hover:not(:disabled) {
+  background: #e6edff;
+  border-color: #2f6fed;
+}
