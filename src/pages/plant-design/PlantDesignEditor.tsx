@@ -39,7 +39,6 @@ import {
   gridAddCandidates,
   gridAddRun,
   gridAddBlock, growAddSlotExt, ADD_SLOT_LOOKAHEAD,
-  gridPanelFitsRoof,
   appendGridPanels,
   gridRackToWorld,
   deleteGridRow,
@@ -965,16 +964,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // ---- Adding to a grid ("+" handles, Add -> Panels) ----
   // The panels from `added` (rack coords of `grid`) that can really go in:
-  // mostly on the roof's usable area (gridPanelFitsRoof - up to 70% of a
-  // panel may overhang its edge) and clear of obstacles, both checked where
-  // the panel really is (grid rotation included). Force-adding regardless,
-  // as add row/column used to, put panels off the roof or into obstacles.
+  // those clear of obstacles, checked where the panel really is (grid
+  // rotation included). The roof boundary isn't enforced - a placed grid is
+  // freely placed (like move/rotate), so a row/column is added whole even
+  // when it runs past the roof's edge.
   function fittingAdditions(roof, grid, added) {
     if (!added.length) return [];
-    const fits = gridPanelFitsRoof(roof, grid);
     const toWorld = gridRackToWorld(grid, roof);
     return added.filter((p) => {
-      if (!fits(p)) return false;
       const w = toWorld({ x: p.rackX, y: p.rackY });
       return !obstacles.some((o) => !o.marker && panelOverlapsObstacle({ ...p, x: w.x, y: w.y }, o));
     });
@@ -1979,7 +1976,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   }, [addDrag, roofs, obstacles]);
 
   // Live ghost of what the current "+" drag would add: green = will be
-  // added, red = skipped (off the roof's usable area or into an obstacle).
+  // added, red = skipped (into an obstacle).
   const addDragPreview = useMemo(() => {
     if (!addDrag || !addDrag.count) return null;
     const roof = roofs.find((r) => r.id === addDrag.roofId);
@@ -2011,9 +2008,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // Grow the slots ahead of the pointer: hovering (or dragging a block onto)
   // a slot near the edge of what's shown adds more on that side, so there
-  // are always ADD_SLOT_LOOKAHEAD more past it wherever the roof allows -
-  // slots that don't fit (gridPanelFitsRoof) are filtered out, which is
-  // what stops the growth at the roof's edge.
+  // are always ADD_SLOT_LOOKAHEAD more past it -
+  // growth follows the pointer, so it only extends as far as it's dragged.
   useEffect(() => {
     if (!addPanelsMode) return;
     const key = slotDrag?.cur ?? hoveredSlotKey;
@@ -3751,11 +3747,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       return;
     }
     const grid = generateFixedGrid({ roof, rows, cols, panelSpec, location });
-    // generateFixedGrid keeps only panels wholly on the roof's usable area.
-    if (grid.panels.length === 0) {
-      setGridPlacementError(`A ${rows} × ${cols} grid doesn't fit on this roof's usable area.`);
-      return;
-    }
     setGridPlacementError(null);
     setRoofs((rs) => rs.map((r) => (r.id === roof.id ? { ...r, grids: [...r.grids, grid] } : r)));
     setSelectedGridKeys(new Set([gridKey(roof.id, grid.id)]));

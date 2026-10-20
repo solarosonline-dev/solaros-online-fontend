@@ -288,18 +288,6 @@ function rectInsidePolygon(x0, y0, x1, y1, poly) {
   return true;
 }
 
-// The panels (rackX/rackY in `direction`'s frame, w x d footprints) that sit
-// wholly on the roof's usable area - its outline inset by the panel margins,
-// per-edge overrides included - the same boundary "Fill roof" packs within.
-// A placed grid keeps only these (see generateFixedGrid/respaceFixedGrid).
-function onRoofPanels(roof, panels, direction) {
-  const poly = getRoofPolygon(roof);
-  const margins = poly.map((_, i) => roof.edgeMarginOverrides?.[i] ?? roof.edgeMargin ?? 0.1);
-  const usable = insetPolygon(poly.map((p) => toSlopeLocal(p, direction)), margins);
-  if (!usable || usable.length < 3) return [];
-  return panels.filter((p) => rectInsidePolygon(p.rackX - p.w / 2, p.rackY - p.d / 2, p.rackX + p.w / 2, p.rackY + p.d / 2, usable));
-}
-
 // A placed grid's full layout (`layoutPanels`, off-roof panels included),
 // brought up to date with what the user did to its visible panels since it
 // was last laid out (`layoutVisibleIds`): panels deleted since are dropped
@@ -382,15 +370,9 @@ export function respaceFixedGrid({ roof, grid, gridSettings, panelSpec, location
   });
   // Same roof boundary as "Fill roof": panels pushed past the roof's usable
   // edge are left out (kept in layoutPanels for later).
-  // A grid can be dragged/rotated freely, so some of its visible panels may
-  // already sit outside the usable area (overhanging a corner, or even
-  // wholly off it). Re-clipping strictly would wipe those on any settings
-  // change - so only panels this change pushes off the roof are dropped;
-  // ones that were already visible and off-roof stay where they are.
-  const visibleBefore = new Set((grid.panels || []).map((p) => p.id));
-  const onRoofBefore = new Set(onRoofPanels(roof, panels, direction).map((p) => p.id));
-  const onRoofNow = new Set(onRoofPanels(roof, layout, direction).map((p) => p.id));
-  const next = layout.filter((p) => onRoofNow.has(p.id) || (visibleBefore.has(p.id) && !onRoofBefore.has(p.id)));
+  // A placed grid is freely placed (like move/rotate): the roof boundary
+  // isn't enforced, so every panel of the re-spaced layout stays.
+  const next = layout;
   return {
     ...grid,
     ...settingsFields,
@@ -1049,10 +1031,9 @@ export function generateFixedGrid({ roof, rows, cols, panelSpec, location, cente
 
   const gridId = Date.now() + Math.floor(Math.random() * 1000);
   const wattPerPanel = panelSpec.wattage || 550;
-  // Only the panels that land wholly on the roof's usable area (same
-  // boundary as "Fill roof"); the full rows x cols layout is kept as
-  // layoutPanels so re-spacing can bring the rest back if they fit later.
-  const onRoof = onRoofPanels(roof, panels, direction);
+  // The roof boundary isn't enforced on a placed grid (it's freely placed,
+  // like move/rotate): every panel of the rows x cols layout is kept.
+  const onRoof = panels;
   const footprintPolygon = footprintPolygonFromPanels(onRoof, direction) ?? footprintPolygonFromPanels(panels, direction);
 
   return {
