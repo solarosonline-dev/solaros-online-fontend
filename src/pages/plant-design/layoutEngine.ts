@@ -382,7 +382,15 @@ export function respaceFixedGrid({ roof, grid, gridSettings, panelSpec, location
   });
   // Same roof boundary as "Fill roof": panels pushed past the roof's usable
   // edge are left out (kept in layoutPanels for later).
-  const next = onRoofPanels(roof, layout, direction);
+  // A grid can be dragged/rotated freely, so some of its visible panels may
+  // already sit outside the usable area (overhanging a corner, or even
+  // wholly off it). Re-clipping strictly would wipe those on any settings
+  // change - so only panels this change pushes off the roof are dropped;
+  // ones that were already visible and off-roof stay where they are.
+  const visibleBefore = new Set((grid.panels || []).map((p) => p.id));
+  const onRoofBefore = new Set(onRoofPanels(roof, panels, direction).map((p) => p.id));
+  const onRoofNow = new Set(onRoofPanels(roof, layout, direction).map((p) => p.id));
+  const next = layout.filter((p) => onRoofNow.has(p.id) || (visibleBefore.has(p.id) && !onRoofBefore.has(p.id)));
   return {
     ...grid,
     ...settingsFields,
