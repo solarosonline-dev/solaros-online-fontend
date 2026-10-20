@@ -369,6 +369,14 @@ function RoofPickerList({ title, subtitle = null as any, rows, allOption = null 
 
 function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) {
   const [hover, setHover] = useState({ rows: 1, cols: 1 });
+  // Manual entry for grids bigger than the 10 x 10 picker.
+  const [customRows, setCustomRows] = useState('');
+  const [customCols, setCustomCols] = useState('');
+  const MAX_CUSTOM = 100;
+  const parseDim = (v: string) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 && n <= MAX_CUSTOM ? n : null; };
+  const rowsN = parseDim(customRows), colsN = parseDim(customCols);
+  const submitCustom = () => { if (rowsN && colsN) onSelect(rowsN, colsN); };
+  const numInputStyle = { width: 46, padding: '3px 4px', fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 4, boxSizing: 'border-box' as const };
 
   return (
     <div
@@ -422,6 +430,23 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
       </div>
       <div style={{ fontSize: 11, color: '#475569', marginTop: 6, textAlign: 'center', fontWeight: 600 }}>
         {hover.rows} × {hover.cols} ({hover.rows * hover.cols} panel{hover.rows * hover.cols === 1 ? '' : 's'})
+      </div>
+      <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 8, paddingTop: 8 }}>
+        <div style={{ fontSize: 11, color: '#475569', marginBottom: 4, fontWeight: 600 }}>Or enter a custom size (max {MAX_CUSTOM})</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input type="text" inputMode="numeric" autoComplete="off" placeholder="Rows" aria-label="Rows" value={customRows}
+            onChange={(e) => { if (/^\d{0,3}$/.test(e.target.value)) setCustomRows(e.target.value); }} onKeyDown={(e) => { if (e.key === 'Enter') submitCustom(); }} style={numInputStyle} />
+          <span style={{ fontSize: 12, color: '#475569' }}>×</span>
+          <input type="text" inputMode="numeric" autoComplete="off" placeholder="Cols" aria-label="Columns" value={customCols}
+            onChange={(e) => { if (/^\d{0,3}$/.test(e.target.value)) setCustomCols(e.target.value); }} onKeyDown={(e) => { if (e.key === 'Enter') submitCustom(); }} style={numInputStyle} />
+          <button
+            type="button" onClick={submitCustom} disabled={!rowsN || !colsN}
+            style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid #1d4ed8', background: rowsN && colsN ? '#2563eb' : '#cbd5e1', borderColor: rowsN && colsN ? '#1d4ed8' : '#cbd5e1', color: '#fff', cursor: rowsN && colsN ? 'pointer' : 'not-allowed' }}
+          >
+            Place
+          </button>
+        </div>
+        {rowsN && colsN && <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>{rowsN} × {colsN} ({rowsN * colsN} panels)</div>}
       </div>
     </div>
   );
