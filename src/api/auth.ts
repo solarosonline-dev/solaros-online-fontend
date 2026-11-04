@@ -3,7 +3,7 @@ import { apiRequest } from "./client";
 // Product modules an entity can have enabled -- mirrors the backend's
 // EntityFeature enum. CRM is everything except plant design; DESIGN is plant
 // design only. A SYSTEM admin toggles them per entity (Entities page).
-export type Feature = "CRM" | "DESIGN";
+export type Feature = "CRM" | "DESIGN" | "AGENTS";
 
 export type LoginResponse = {
   token: string;

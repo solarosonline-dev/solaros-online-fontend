@@ -37,6 +37,11 @@ import EmailPage from "./pages/admin/EmailPage";
 import EmailCampaignDetailPage from "./pages/admin/EmailCampaignDetailPage";
 import PlantDesignListPage from "./pages/plant-design/PlantDesignListPage";
 import PlantDesignEditorPage from "./pages/plant-design/PlantDesignEditorPage";
+import AgentDashboardPage from "./pages/epc-agents/AgentDashboardPage";
+import EpcDashboardPage from "./pages/epc-agents/EpcDashboardPage";
+import EpcAgentLeadsPage from "./pages/epc-agents/EpcAgentLeadsPage";
+import EpcConfigPage from "./pages/epc-agents/EpcConfigPage";
+import EpcPaymentsPage from "./pages/epc-agents/EpcPaymentsPage";
 
 // A data router (createBrowserRouter) rather than <BrowserRouter>, so
 // pages can use useBlocker - the plant-design editor relies on it to ask
@@ -60,21 +65,34 @@ const router = createBrowserRouter(
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/app" element={<HomeRedirect />} />
+          
+          {/* Agent individual workspace */}
+          <Route path="/app/agent/dashboard" element={<AgentDashboardPage />} />
+          <Route path="/app/agent/leads" element={<EpcAgentLeadsPage />} />
+          <Route path="/app/agent/payments" element={<EpcPaymentsPage />} />
+
           {/* Product-module gates (see RequireFeature.tsx / the backend's
               require_feature): CRM is everything but plant design, DESIGN is
               plant design only. Entity Settings and Users are core. */}
           <Route element={<RequireFeature feature="CRM" />}>
             <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
             <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
+            {/* Leads creation and editing are shared by both admins and agents */}
+            <Route path="/app/leads/new" element={<AddLeadPage />} />
+            <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
           </Route>
           <Route element={<RequireEntityAdmin />}>
             <Route path="/app/entity" element={<EntityManagementPage />} />
             <Route path="/app/users" element={<UsersPage />} />
+
+            {/* EPC Manager Agent workspaces */}
+            <Route path="/app/epc/dashboard" element={<EpcDashboardPage />} />
+            <Route path="/app/epc/leads" element={<EpcAgentLeadsPage />} />
+            <Route path="/app/epc/config" element={<EpcConfigPage />} />
+            <Route path="/app/epc/payments" element={<EpcPaymentsPage />} />
             <Route element={<RequireFeature feature="CRM" />}>
               <Route path="/app/dashboard" element={<EntityDashboardPage />} />
               <Route path="/app/leads" element={<LeadsPage />} />
-              <Route path="/app/leads/new" element={<AddLeadPage />} />
-              <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
               <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
               <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
               <Route path="/app/projects" element={<ProjectsPage />} />

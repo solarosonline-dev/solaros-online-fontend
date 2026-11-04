@@ -10,6 +10,10 @@ import DraftRestoredBanner from "../../components/DraftRestoredBanner";
 import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import LocationPicker from "../../components/map/LocationPicker";
+import { useAuth } from "../../lib/AuthContext";
+import { hasFeature, isAgent } from "../../lib/roles";
+import { listEntityUsers } from "../../api/entityUsers";
+import { getLeadAssignments, saveLeadAssignments, MOCK_AGENTS } from "../../lib/epcAgentStorage";
 
 type DraftFields = {
   name: string;
@@ -55,6 +59,9 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const [requirement, setRequirement] = useState("");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  
+  const [assignedAgentId, setAssignedAgentId] = useState<number | "">("");
+  const [agents, setAgents] = useState<any[]>([]);
 
   const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null);
 
@@ -85,6 +92,39 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
     setDraftRestoredAt(draft.timestamp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const { user } = useAuth();
+  const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
+  const agentUser = user ? isAgent(user.roles) : false;
+
+  useEffect(() => {
+    if (hasAgentsFeature) {
+      listEntityUsers(entityId)
+        .then((res) => {
+          const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
+          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
+            user_id: ma.user_id,
+            full_name: ma.full_name,
+            email: ma.email,
+            phone: ma.phone,
+            roles: ma.roles,
+            state: "ACTIVE",
+          }));
+          setAgents([...dbAgents, ...mockAgentsMapped]);
+        })
+        .catch(() => {
+          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
+            user_id: ma.user_id,
+            full_name: ma.full_name,
+            email: ma.email,
+            phone: ma.phone,
+            roles: ma.roles,
+            state: "ACTIVE",
+          }));
+          setAgents(mockAgentsMapped);
+        });
+    }
+  }, [hasAgentsFeature, entityId]);
 
   function resetFields() {
     setName("");
@@ -244,7 +284,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
 
     setSubmitting(true);
     try {
-      await createLead(entityId, {
+      const res = await createLead(entityId, {
         name: name.trim(),
         mobile: mobile.replace(/\D/g, ""),
         address: address.trim() || undefined,
@@ -263,6 +303,17 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
       });
+
+      if (agentUser && user) {
+        const currentAssignments = getLeadAssignments();
+        currentAssignments[res.lead_id] = user.user_id;
+        saveLeadAssignments(currentAssignments);
+      } else if (assignedAgentId) {
+        const currentAssignments = getLeadAssignments();
+        currentAssignments[res.lead_id] = Number(assignedAgentId);
+        saveLeadAssignments(currentAssignments);
+      }
+
       clearDraft(draftKeys.leadNew());
       setDraftRestoredAt(null);
       onCreated();
@@ -317,6 +368,35 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
             </select>
           </div>
         </div>
+
+        {hasAgentsFeature && !agentUser && (
+          <div className="add-lead-field" style={{ marginBottom: "16px" }}>
+            <label htmlFor="leadAgent">Assigned Agent</label>
+            <select
+              id="leadAgent"
+              value={assignedAgentId}
+              onChange={(e) => setAssignedAgentId(e.target.value ? Number(e.target.value) : "")}
+              style={{
+                fontFamily: "inherit",
+                fontSize: "14px",
+                padding: "9px 12px",
+                border: "1px solid var(--app-border)",
+                borderRadius: "8px",
+                background: "var(--app-surface)",
+                color: "var(--app-text)",
+                width: "100%",
+                boxSizing: "border-box"
+              }}
+            >
+              <option value="">— Unassigned —</option>
+              {agents.map((ag) => (
+                <option key={ag.user_id} value={ag.user_id}>
+                  {ag.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="add-lead-field">
           <label htmlFor="leadAddress">Address</label>

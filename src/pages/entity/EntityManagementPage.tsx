@@ -12,6 +12,7 @@ import {
 } from "../../api/entityPreferences";
 import { ApiError } from "../../api/client";
 import BusinessInfoTab, { type BusinessInfoDraft } from "./tabs/BusinessInfoTab";
+import EpcAgentConfigTab from "./tabs/EpcAgentConfigTab";
 import BrandingTypographyTab from "./tabs/BrandingTypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
@@ -32,7 +33,8 @@ type Tab =
   | "payment_schedule"
   | "vendors"
   | "warehouses"
-  | "amc";
+  | "amc"
+  | "agents_config";
 
 // `crm` tabs only configure CRM documents/operations (quotes, agreements,
 // procurement, AMC) and are hidden for an entity without the CRM module --
@@ -54,7 +56,7 @@ const TABS: { key: Tab; label: string; crm?: boolean }[] = [
 // deactivate all hit the API immediately) rather than the draft-then-Save
 // pattern every other tab here uses, so it doesn't participate in the
 // shared Save/Reset bar below.
-const SELF_MANAGED_TABS: Tab[] = ["amc", "warehouses", "vendors"];
+const SELF_MANAGED_TABS: Tab[] = ["amc", "warehouses", "vendors", "agents_config"];
 
 // "branding" here covers the merged Branding & Typography tab -- resetting
 // it resets both underlying categories (see handleReset), so this only
@@ -67,19 +69,24 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
   payment_schedule: "payment_schedule",
 };
 
-function visibleTabs(crm: boolean) {
-  return TABS.filter((t) => crm || !t.crm);
+function visibleTabs(crm: boolean, hasAgents: boolean) {
+  const list = TABS.filter((t) => crm || !t.crm);
+  if (hasAgents) {
+    list.push({ key: "agents_config", label: "EPC Agent Config" });
+  }
+  return list;
 }
 
-function isTabKey(value: string | null, crm: boolean): value is Tab {
-  return visibleTabs(crm).some((t) => t.key === value);
+function isTabKey(value: string | null, crm: boolean, hasAgents: boolean): value is Tab {
+  return visibleTabs(crm, hasAgents).some((t) => t.key === value);
 }
 
 export default function EntityManagementPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const crm = hasFeature(user, "CRM");
-  const tabs = visibleTabs(crm);
+  const hasAgents = hasFeature(user, "AGENTS");
+  const tabs = visibleTabs(crm, hasAgents);
 
   // Supports deep-linking straight to a tab (e.g. `?tab=amc`) -- used by the
   // "no AMC plans defined" guided-tour prompt (see QuoteBuilderPage.tsx /
@@ -88,9 +95,9 @@ export default function EntityManagementPage() {
   // which one the tour meant, without leaving a highlight lingering forever.
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(isTabKey(initialTab, crm) ? initialTab : "business");
+  const [tab, setTab] = useState<Tab>(isTabKey(initialTab, crm, hasAgents) ? (initialTab as Tab) : "business");
   const [tourPulseTab, setTourPulseTab] = useState<Tab | null>(
-    searchParams.get("tour") === "1" && isTabKey(initialTab, crm) ? initialTab : null,
+    searchParams.get("tour") === "1" && isTabKey(initialTab, crm, hasAgents) ? (initialTab as Tab) : null,
   );
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const [entity, setEntity] = useState<Entity | null>(null);
@@ -345,6 +352,7 @@ export default function EntityManagementPage() {
         {tab === "vendors" && <VendorsTab entityId={entityId} />}
         {tab === "warehouses" && <WarehousesTab entityId={entityId} />}
         {tab === "amc" && <AmcPlansPage />}
+        {tab === "agents_config" && <EpcAgentConfigTab />}
       </div>
 
       {/* Branding & Typography renders this same bar itself, before its live

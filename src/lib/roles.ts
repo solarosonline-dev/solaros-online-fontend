@@ -18,6 +18,10 @@ export function isEntityAdmin(roles: string[]): boolean {
   return roles.some((r) => ENTITY_ADMIN_ROLES.includes(r));
 }
 
+export function isAgent(roles: string[]): boolean {
+  return roles.includes("ENTITY_AGENT");
+}
+
 // Entity-scoped roles that can view the cross-project "AMC visits due" tab
 // and create/assign AMC work orders -- mirrors the backend's
 // AMC_MANAGER_ROLES (app/api/deps.py). ENTITY_ADMIN/ENTITY_SUPER_ADMIN can

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin, hasFeature } from "./roles";
+import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin, hasFeature, isAgent } from "./roles";
+import { getEpcAgentSettings } from "./epcAgentStorage";
 import { TourProvider, useTour } from "./TourContext";
 import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
 import { sweepExpiredDrafts } from "./drafts";
@@ -46,6 +47,7 @@ function AppLayoutInner() {
   // device). Runs once `user` first resolves, not on every render.
   useEffect(() => {
     if (!user) return;
+    if (isAgent(user.roles)) return;
     // CRM-only walkthrough -- see tourAvailable below.
     if (!isSystemAdmin(user.roles) && !hasFeature(user, "CRM")) return;
     if (!localStorage.getItem(onboardingTourSeenKey(user.user_id))) {
@@ -110,6 +112,12 @@ function AppLayoutInner() {
   // Product modules (mirrors the RequireFeature route guards in App.tsx).
   const crm = hasFeature(user, "CRM");
   const design = hasFeature(user, "DESIGN");
+  
+  const agentUser = user ? isAgent(user.roles) : false;
+  const hasAgentsFeature = hasFeature(user, "AGENTS");
+  const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
+  const showAgentsExclusive = hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace;
+  const showAgentsCoexist = hasAgentsFeature && agentSettings.enabled && !agentSettings.onlyWorkspace;
   // The guided tour is a Lead -> Quote -> Agreement -> Project walkthrough
   // (plus the worker's work-order queue) -- all CRM, so a Design-only
   // entity's users don't get it at all.
@@ -158,11 +166,44 @@ function AppLayoutInner() {
             {systemAdmin && <NavLink to="/app/admin/entities">Entities</NavLink>}
             {systemAdmin && <NavLink to="/app/admin/users">System Admins</NavLink>}
             {superAdmin && <NavLink to="/app/admin/email">Email</NavLink>}
-            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/dashboard">Dashboard</NavLink>}
-            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/leads">Leads</NavLink>}
-            {!systemAdmin && entityAdmin && crm && <NavLink to="/app/projects">Projects</NavLink>}
-            {!systemAdmin && entityAdmin && design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
-            {!systemAdmin && !entityAdmin && user?.entity_id && crm && (
+            
+            {/* Agent user links */}
+            {agentUser && (
+              <>
+                <NavLink to="/app/agent/dashboard">My Dashboard</NavLink>
+                <NavLink to="/app/agent/leads">My Leads</NavLink>
+                <NavLink to="/app/agent/payments">My Commissions</NavLink>
+              </>
+            )}
+
+            {/* EPC Admin links in Exclusive vs Coexistence Mode */}
+            {!systemAdmin && entityAdmin && !agentUser && (
+              <>
+                {showAgentsExclusive ? (
+                  <>
+                    <NavLink to="/app/epc/dashboard">EPC Dashboard</NavLink>
+                    <NavLink to="/app/epc/leads">All Leads</NavLink>
+                    <NavLink to="/app/epc/config">Agent Config</NavLink>
+                    <NavLink to="/app/epc/payments">Agent Payments</NavLink>
+                  </>
+                ) : (
+                  <>
+                    {crm && <NavLink to="/app/dashboard">Dashboard</NavLink>}
+                    {crm && <NavLink to="/app/leads">Leads</NavLink>}
+                    {crm && <NavLink to="/app/projects">Projects</NavLink>}
+                    {design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
+                    {showAgentsCoexist && (
+                      <>
+                        <NavLink to="/app/epc/config">Agent Config</NavLink>
+                        <NavLink to="/app/epc/payments">Agent Payments</NavLink>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {!systemAdmin && !entityAdmin && !agentUser && user?.entity_id && crm && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>
             )}
           </nav>

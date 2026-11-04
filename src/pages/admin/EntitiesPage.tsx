@@ -16,6 +16,7 @@ import "./EntitiesPage.css";
 const FEATURES: { key: Feature; label: string }[] = [
   { key: "CRM", label: "CRM" },
   { key: "DESIGN", label: "Design" },
+  { key: "AGENTS", label: "Agent Module" },
 ];
 
 const STATE_FILTERS: { label: string; value: EntityState | undefined }[] = [

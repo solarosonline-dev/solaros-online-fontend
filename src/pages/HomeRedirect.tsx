@@ -1,11 +1,23 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
-import { isSystemAdmin, isEntityAdmin, hasFeature } from "../lib/roles";
+import { isSystemAdmin, isEntityAdmin, hasFeature, isAgent } from "../lib/roles";
+import { getEpcAgentSettings } from "../lib/epcAgentStorage";
 
 export default function HomeRedirect() {
   const { user } = useAuth();
   if (user && isSystemAdmin(user.roles)) return <Navigate to="/app/admin/entities" replace />;
+  
+  if (user?.entity_id && isAgent(user.roles)) {
+    return <Navigate to="/app/agent/dashboard" replace />;
+  }
+
   if (user?.entity_id && isEntityAdmin(user.roles)) {
+    if (hasFeature(user, "AGENTS")) {
+      const settings = getEpcAgentSettings();
+      if (settings.enabled && settings.onlyWorkspace) {
+        return <Navigate to="/app/epc/dashboard" replace />;
+      }
+    }
     if (hasFeature(user, "CRM")) return <Navigate to="/app/leads" replace />;
     if (hasFeature(user, "DESIGN")) return <Navigate to="/app/plant-design" replace />;
     return <Navigate to="/app/entity" replace />;

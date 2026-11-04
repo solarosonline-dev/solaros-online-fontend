@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { hasFeature, isAgent } from "../../lib/roles";
+import { listEntityUsers } from "../../api/entityUsers";
+import {
+  getLeadAssignments,
+  saveLeadAssignments,
+  getLeadStates,
+  getLeadCustomStates,
+  getLeadDealValues,
+  saveLeadCustomStates,
+  saveLeadDealValues,
+  getEpcAgentSettings,
+  MOCK_AGENTS,
+} from "../../lib/epcAgentStorage";
 import {
   getLead,
   updateLead,
@@ -109,14 +122,69 @@ export default function LeadDetailPage() {
 
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [assignedAgentId, setAssignedAgentId] = useState<number | "">("");
+  const [agents, setAgents] = useState<any[]>([]);
   const [transitioning, setTransitioning] = useState(false);
   const [project, setProject] = useState<ProjectForLead | null>(null);
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
   // Snapshot of `draft` as of the last successful save -- compared against
   // the live draft (see isDirtySinceSave) so the Save button can flip to a
   // disabled "Saved" and back without wiring an onChange handler onto every
   // one of the form's dozen-plus fields individually.
   const [savedSnapshot, setSavedSnapshot] = useState<typeof draft>(null);
+  
+  const [customStates, setCustomStates] = useState<Record<number, string>>({});
+  const [dealValues, setDealValues] = useState<Record<number, number>>({});
+  const [leadStates, setLeadStates] = useState<string[]>([]);
+  const [terminalState, setTerminalState] = useState("");
+  const [orderState, setOrderState] = useState("");
+
+  const [updatingLeadId, setUpdatingLeadId] = useState<number | null>(null);
+  const [selectedState, setSelectedState] = useState("");
+  const [dealValueInput, setDealValueInput] = useState("");
+
+  useEffect(() => {
+    const states = getLeadStates();
+    setLeadStates(states);
+    setTerminalState(states[states.length - 1]);
+    setOrderState(states[states.length - 2]);
+    setCustomStates(getLeadCustomStates());
+    setDealValues(getLeadDealValues());
+  }, []);
+  
+  const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
+  const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
+  const showAgentsExclusive = hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace;
+
+  useEffect(() => {
+    if (hasAgentsFeature && entityId) {
+      listEntityUsers(entityId)
+        .then((res) => {
+          const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
+          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
+            user_id: ma.user_id,
+            full_name: ma.full_name,
+            email: ma.email,
+            phone: ma.phone,
+            roles: ma.roles,
+            state: "ACTIVE",
+          }));
+          setAgents([...dbAgents, ...mockAgentsMapped]);
+        })
+        .catch(() => {
+          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
+            user_id: ma.user_id,
+            full_name: ma.full_name,
+            email: ma.email,
+            phone: ma.phone,
+            roles: ma.roles,
+            state: "ACTIVE",
+          }));
+          setAgents(mockAgentsMapped);
+        });
+    }
+  }, [hasAgentsFeature, entityId]);
 
   function load() {
     if (!leadId) return;
@@ -136,6 +204,14 @@ export default function LeadDetailPage() {
         } else {
           setDraft(fetched);
         }
+        const savedAssignments = getLeadAssignments();
+        const assignedId = savedAssignments[Number(leadId)];
+        if (user && isAgent(user.roles) && assignedId !== user.user_id) {
+          setAccessError("Access Denied. This lead is not assigned to you.");
+        } else {
+          setAccessError(null);
+        }
+        setAssignedAgentId(assignedId || "");
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load lead"))
       .finally(() => setLoading(false));
@@ -217,6 +293,15 @@ export default function LeadDetailPage() {
         latitude: draft.latitude ?? undefined,
         longitude: draft.longitude ?? undefined,
       });
+
+      const savedAssignments = getLeadAssignments();
+      if (assignedAgentId) {
+        savedAssignments[Number(leadId)] = Number(assignedAgentId);
+      } else {
+        delete savedAssignments[Number(leadId)];
+      }
+      saveLeadAssignments(savedAssignments);
+
       setLead(updated);
       setSavedSnapshot(draft);
       fetchedDraftRef.current = draft;
@@ -244,14 +329,41 @@ export default function LeadDetailPage() {
     }
   }
 
+  function handleStateChangeTrigger(leadId: number, newState: string) {
+    setUpdatingLeadId(leadId);
+    setSelectedState(newState);
+    setDealValueInput(String(dealValues[leadId] || ""));
+  }
+
+  function handleStateSave() {
+    if (!updatingLeadId) return;
+
+    const nextStates = { ...customStates, [updatingLeadId]: selectedState };
+    setCustomStates(nextStates);
+    saveLeadCustomStates(nextStates);
+
+    if (selectedState === orderState || selectedState === terminalState) {
+      const val = parseFloat(dealValueInput) || 0;
+      const nextValues = { ...dealValues, [updatingLeadId]: val };
+      setDealValues(nextValues);
+      saveLeadDealValues(nextValues);
+    }
+
+    setUpdatingLeadId(null);
+  }
+
   if (loading) return <div className="leads-loading">Loading…</div>;
-  if (loadError || !lead || !draft) {
+
+  const isAgentUser = user ? isAgent(user.roles) : false;
+  const backPath = isAgentUser ? "/app/agent/leads" : showAgentsExclusive ? "/app/epc/leads" : "/app/leads";
+
+  if (accessError || loadError || !lead || !draft) {
     return (
       <div className="leads-page">
-        <Link to="/app/leads" className="lead-detail-back">
+        <Link to={backPath} className="lead-detail-back">
           ← Back to leads
         </Link>
-        <p className="leads-status error">{loadError ?? "Lead not found."}</p>
+        <p className="leads-status error">{accessError || loadError || "Lead not found."}</p>
       </div>
     );
   }
@@ -293,7 +405,7 @@ export default function LeadDetailPage() {
 
   return (
     <div className="leads-page">
-      <Link to="/app/leads" className="lead-detail-back">
+      <Link to={backPath} className="lead-detail-back">
         ← Back to leads
       </Link>
 
@@ -306,31 +418,52 @@ export default function LeadDetailPage() {
           {lead.name} <LeadStatusBadge status={lead.status} />
         </h1>
         <div className="lead-detail-actions">
-          <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">
-            {lead.status === "NEW" ? "Generate quote" : "View quote"}
-          </Link>
-          {(lead.status === "QUOTE_ACCEPTED" ||
-            lead.status === "AGREEMENT_GENERATED" ||
-            lead.status === "AGREEMENT_ACCEPTED") && (
-            <Link to={`/app/leads/${lead.lead_id}/agreement`} className="leads-btn primary">
-              {lead.status === "QUOTE_ACCEPTED" ? "Generate agreement" : "View agreement"}
-            </Link>
+          {isAgentUser ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 13, color: "var(--app-text-muted)", fontWeight: 500 }}>Lead Stage:</span>
+              <select
+                value={customStates[Number(leadId)] || "NEW"}
+                disabled={customStates[Number(leadId)] === terminalState}
+                onChange={(e) => handleStateChangeTrigger(Number(leadId), e.target.value)}
+                className={`mini-select state-select ${customStates[Number(leadId)] === terminalState ? "locked" : ""}`}
+                style={{ height: "36px", padding: "6px 12px", fontSize: "14px" }}
+              >
+                {leadStates.map((st) => (
+                  <option key={st} value={st}>
+                    {st} {st === terminalState ? " (Terminal)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <>
+              <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">
+                {lead.status === "NEW" ? "Generate quote" : "View quote"}
+              </Link>
+              {(lead.status === "QUOTE_ACCEPTED" ||
+                lead.status === "AGREEMENT_GENERATED" ||
+                lead.status === "AGREEMENT_ACCEPTED") && (
+                <Link to={`/app/leads/${lead.lead_id}/agreement`} className="leads-btn primary">
+                  {lead.status === "QUOTE_ACCEPTED" ? "Generate agreement" : "View agreement"}
+                </Link>
+              )}
+              {project && (
+                <Link to={`/app/projects/${project.project_id}`} className="leads-btn primary">
+                  View project
+                </Link>
+              )}
+              {actions.map((a) => (
+                <button
+                  key={a.target}
+                  className={`leads-btn${a.primary ? " primary" : ""}${a.target === "REJECTED" ? " danger" : ""}`}
+                  disabled={transitioning}
+                  onClick={() => (a.target === "REJECTED" ? setRejectConfirmOpen(true) : handleTransition(a.target))}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </>
           )}
-          {project && (
-            <Link to={`/app/projects/${project.project_id}`} className="leads-btn primary">
-              View project
-            </Link>
-          )}
-          {actions.map((a) => (
-            <button
-              key={a.target}
-              className={`leads-btn${a.primary ? " primary" : ""}${a.target === "REJECTED" ? " danger" : ""}`}
-              disabled={transitioning}
-              onClick={() => (a.target === "REJECTED" ? setRejectConfirmOpen(true) : handleTransition(a.target))}
-            >
-              {a.label}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -405,6 +538,35 @@ export default function LeadDetailPage() {
               </select>
             </div>
           </div>
+
+          {hasAgentsFeature && (
+            <div className="add-lead-field" style={{ marginBottom: "16px" }}>
+              <label htmlFor="detailAgent">Assigned Agent</label>
+              <select
+                id="detailAgent"
+                value={assignedAgentId}
+                onChange={(e) => setAssignedAgentId(e.target.value ? Number(e.target.value) : "")}
+                style={{
+                  fontFamily: "inherit",
+                  fontSize: "14px",
+                  padding: "9px 12px",
+                  border: "1px solid var(--app-border)",
+                  borderRadius: "8px",
+                  background: "var(--app-surface)",
+                  color: "var(--app-text)",
+                  width: "100%",
+                  boxSizing: "border-box"
+                }}
+              >
+                <option value="">— Unassigned —</option>
+                {agents.map((ag) => (
+                  <option key={ag.user_id} value={ag.user_id}>
+                    {ag.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="add-lead-field">
             <label htmlFor="detailAddress">Address</label>
@@ -557,7 +719,7 @@ export default function LeadDetailPage() {
             <button type="submit" className="leads-btn primary" disabled={saving || showSaved}>
               {saving ? "Saving…" : showSaved ? "Saved" : "Save"}
             </button>
-            <button type="button" className="leads-btn" onClick={() => navigate("/app/leads")}>
+            <button type="button" className="leads-btn" onClick={() => navigate(backPath)}>
               Back to leads
             </button>
           </div>
@@ -571,6 +733,38 @@ export default function LeadDetailPage() {
         <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
       </div>
       </div>
+
+      {updatingLeadId && (
+        <div className="epc-modal-backdrop">
+          <div className="epc-modal" style={{ color: "var(--app-text)" }}>
+            <h3>Update Lead State</h3>
+            <p>You are moving the lead to stage: <strong>{selectedState}</strong></p>
+
+            {(selectedState === orderState || selectedState === terminalState) && (
+              <div className="epc-form-group">
+                <label>Realized Deal Value (INR)</label>
+                <input
+                  type="number"
+                  placeholder="Enter total contract value"
+                  value={dealValueInput}
+                  onChange={(e) => setDealValueInput(e.target.value)}
+                  className="epc-input"
+                />
+                <span className="input-hint">Commission calculations are derived directly from this value.</span>
+              </div>
+            )}
+
+            <div className="epc-modal-actions">
+              <button className="entity-btn" onClick={() => setUpdatingLeadId(null)}>
+                Cancel
+              </button>
+              <button className="entity-btn primary" onClick={handleStateSave}>
+                Save Changes {selectedState === terminalState && "🔒"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

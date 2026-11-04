@@ -1,5 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { isAgent, hasFeature } from "../../lib/roles";
+import { getEpcAgentSettings } from "../../lib/epcAgentStorage";
 import AddLeadForm from "./AddLeadForm";
 import "./LeadsPage.css";
 
@@ -8,9 +10,20 @@ export default function AddLeadPage() {
   const entityId = user!.entity_id!;
   const navigate = useNavigate();
 
+  const isAgentUser = user ? isAgent(user.roles) : false;
+  const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
+  const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
+
+  let targetPath = "/app/leads";
+  if (isAgentUser) {
+    targetPath = "/app/agent/leads";
+  } else if (hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace) {
+    targetPath = "/app/epc/leads";
+  }
+
   return (
     <div className="leads-page">
-      <Link to="/app/leads" className="lead-detail-back">
+      <Link to={targetPath} className="lead-detail-back">
         ← Back to leads
       </Link>
 
@@ -18,8 +31,8 @@ export default function AddLeadPage() {
 
       <AddLeadForm
         entityId={entityId}
-        onCreated={() => navigate("/app/leads")}
-        onCancel={() => navigate("/app/leads")}
+        onCreated={() => navigate(targetPath)}
+        onCancel={() => navigate(targetPath)}
       />
     </div>
   );
