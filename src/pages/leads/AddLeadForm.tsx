@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createLead, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
+import { createLead, leadsAccess, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
@@ -11,7 +11,7 @@ import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import LocationPicker from "../../components/map/LocationPicker";
 import { useAuth } from "../../lib/AuthContext";
-import { hasFeature, isAgent } from "../../lib/roles";
+import { hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
 import { listEntityUsers } from "../../api/entityUsers";
 import { getLeadAssignments, saveLeadAssignments, MOCK_AGENTS } from "../../lib/epcAgentStorage";
 
@@ -98,7 +98,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const agentUser = user ? isAgent(user.roles) : false;
 
   useEffect(() => {
-    if (hasAgentsFeature) {
+    // Agents can't list users (403) and don't get the assign-to-agent dropdown.
+    if (hasAgentsFeature && !agentUser) {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
@@ -124,7 +125,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           setAgents(mockAgentsMapped);
         });
     }
-  }, [hasAgentsFeature, entityId]);
+  }, [hasAgentsFeature, agentUser, entityId]);
 
   function resetFields() {
     setName("");
@@ -302,7 +303,12 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         entry_duration_ms: getElapsedMs(),
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
-      });
+        // Real (non-demo) agent picked by an admin -> the backend records the lead as theirs.
+        agent_user_id:
+          assignedAgentId && !MOCK_AGENTS.some((m) => m.user_id === Number(assignedAgentId))
+            ? Number(assignedAgentId)
+            : undefined,
+      }, leadsAccess(user));
 
       if (agentUser && user) {
         const currentAssignments = getLeadAssignments();
@@ -330,12 +336,14 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
       )}
 
-      <BillUploadWidget
-        entityId={entityId}
-        onExtracted={handleExtracted}
-        hasExistingDetails={isDirty}
-        onResetDetails={resetFields}
-      />
+      {!isAgentModuleUser(user) && (
+        <BillUploadWidget
+          entityId={entityId}
+          onExtracted={handleExtracted}
+          hasExistingDetails={isDirty}
+          onResetDetails={resetFields}
+        />
+      )}
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="add-lead-field">

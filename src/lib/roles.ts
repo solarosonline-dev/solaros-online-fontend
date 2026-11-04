@@ -1,4 +1,5 @@
 import type { Feature } from "../api/auth";
+import { getEpcAgentSettings } from "./epcAgentStorage";
 
 export const SYSTEM_ROLES = ["SYSTEM_SUPER_ADMIN", "SYSTEM_ADMIN"];
 
@@ -51,4 +52,19 @@ export function isSystemSuperAdmin(roles: string[]): boolean {
 // the backend is the real gate.
 export function hasFeature(user: { features?: Feature[] } | null | undefined, feature: Feature): boolean {
   return !!user?.features?.includes(feature);
+}
+
+// The Agent-module experience: agents themselves, and entity admins working in
+// the agent workspace (an AGENTS entity without CRM, or one set to "agent
+// workspace only"). Both get the lean lead view -- no AI bill parsing, quote
+// generation, rejecting, or work orders; those are CRM features.
+export function isAgentModuleUser(
+  user: { roles: string[]; features?: Feature[] } | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (isAgent(user.roles)) return true;
+  if (!isEntityAdmin(user.roles) || !hasFeature(user, "AGENTS")) return false;
+  if (!hasFeature(user, "CRM")) return true;
+  const settings = getEpcAgentSettings();
+  return settings.enabled && settings.onlyWorkspace;
 }

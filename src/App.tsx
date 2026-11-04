@@ -77,7 +77,10 @@ const router = createBrowserRouter(
           <Route element={<RequireFeature feature="CRM" />}>
             <Route path="/app/my-work-orders" element={<MyWorkOrdersPage />} />
             <Route path="/app/work-orders/:workOrderId" element={<WorkOrderDetailPage />} />
-            {/* Leads creation and editing are shared by both admins and agents */}
+          </Route>
+          {/* Leads creation and detail are shared by admins (CRM) and agents
+              (AGENTS -- agent-only entities have no CRM) */}
+          <Route element={<RequireFeature feature={["CRM", "AGENTS"]} />}>
             <Route path="/app/leads/new" element={<AddLeadPage />} />
             <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
           </Route>

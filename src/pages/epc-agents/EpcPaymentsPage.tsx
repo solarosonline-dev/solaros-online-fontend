@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../lib/AuthContext";
 import {
+  SERVER_PAYOUT_PREFIX,
+  payPayoutRequest,
+  requestPayout,
+  syncAgentWorkspace,
+} from "../../api/agentWorkspace";
+import { ApiError } from "../../api/client";
+import {
   getLeadStates,
   getLeadCustomStates,
   getLeadDealValues,
@@ -10,8 +17,9 @@ import {
   addPaymentRequest,
   approvePaymentRequest,
   MOCK_LEADS,
+  syncAssignmentsFromLeads,
 } from "../../lib/epcAgentStorage";
-import { listLeads, type Lead } from "../../api/leads";
+import { leadsAccess, listLeads, type Lead } from "../../api/leads";
 import { isAgent } from "../../lib/roles";
 import { formatMoney } from "../../lib/money";
 import "./EpcAgents.css";
@@ -36,14 +44,27 @@ export default function EpcPaymentsPage() {
     setRequests(getPaymentRequests());
   }, []);
 
+  // Stages, commission rules and payouts come from the backend (shared with the
+  // admin/agent on the other side); re-render once mirrored.
+  const [, setSyncTick] = useState(0);
+  useEffect(() => {
+    if (user)
+      syncAgentWorkspace(user).then(() => {
+        setRequests(getPaymentRequests());
+        setSyncTick((t) => t + 1);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.entity_id, user?.user_id]);
+
   // Fetch leads
   useEffect(() => {
     let cancelled = false;
     if (entityId) {
-      listLeads(entityId)
+      listLeads(entityId, {}, leadsAccess(user))
         .then((res) => {
           if (!cancelled) {
             const dbLeads = res.items;
+            syncAssignmentsFromLeads(dbLeads);
             const mockLeadsMapped = MOCK_LEADS.map(ml => ({
               lead_id: ml.lead_id,
               name: ml.name,
@@ -113,7 +134,12 @@ export default function EpcPaymentsPage() {
   const pendingRequests = filteredRequests.filter((r) => r.status === "PENDING");
   const paidHistory = filteredRequests.filter((r) => r.status === "PAID");
 
-  function handleRequestPayout(e: React.FormEvent) {
+  async function refreshFromServer() {
+    if (user) await syncAgentWorkspace(user);
+    setRequests(getPaymentRequests());
+  }
+
+  async function handleRequestPayout(e: React.FormEvent) {
     e.preventDefault();
     setRequestError(null);
     const amt = parseFloat(requestAmount);
@@ -127,15 +153,31 @@ export default function EpcPaymentsPage() {
       return;
     }
 
-    const newReq = addPaymentRequest(loggedInUserId, loggedInUserName, amt);
-    setRequests([newReq, ...requests]);
+    try {
+      // The backend re-checks the balance (earned - paid - already requested).
+      if (entityId) await requestPayout(entityId, amt);
+      else addPaymentRequest(loggedInUserId, loggedInUserName, amt);
+    } catch (err) {
+      setRequestError(err instanceof ApiError ? err.message : "Failed to submit the request.");
+      return;
+    }
+    await refreshFromServer();
     setRequestAmount("");
     alert("Payout request submitted successfully!");
   }
 
-  function handleApprovePayout(reqId: string) {
-    approvePaymentRequest(reqId);
-    setRequests(getPaymentRequests());
+  async function handleApprovePayout(reqId: string) {
+    try {
+      if (reqId.startsWith(SERVER_PAYOUT_PREFIX) && entityId) {
+        await payPayoutRequest(entityId, Number(reqId.slice(SERVER_PAYOUT_PREFIX.length)));
+      } else {
+        approvePaymentRequest(reqId); // demo request, local only
+      }
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to mark the payout as paid.");
+      return;
+    }
+    await refreshFromServer();
     alert("Payout request marked as PAID successfully!");
   }
 
@@ -212,7 +254,7 @@ export default function EpcPaymentsPage() {
               {pendingRequests.length === 0 ? (
                 <div className="empty-state">No pending payout requests found.</div>
               ) : (
-                <table className="mini-table">
+                <table className="mini-table stack-table">
                   <thead>
                     <tr>
                       <th>Request ID</th>
@@ -226,15 +268,15 @@ export default function EpcPaymentsPage() {
                   <tbody>
                     {pendingRequests.map((r) => (
                       <tr key={r.id}>
-                        <td>{r.id}</td>
-                        <td><strong>{r.agentName}</strong></td>
-                        <td>{formatMoney(r.amount, "INR")}</td>
-                        <td>{new Date(r.requestedAt).toLocaleDateString()}</td>
-                        <td>
+                        <td data-label="Request">{r.id}</td>
+                        <td data-label="Agent"><strong>{r.agentName}</strong></td>
+                        <td data-label="Amount">{formatMoney(r.amount, "INR")}</td>
+                        <td data-label="Requested">{new Date(r.requestedAt).toLocaleDateString()}</td>
+                        <td data-label="Status">
                           <span className="badge state-NEW">AWAITING RELEASE</span>
                         </td>
                         {!isAgentUser && (
-                          <td>
+                          <td data-label="Action">
                             <button className="entity-btn primary mini-btn" onClick={() => handleApprovePayout(r.id)}>
                               Approve & Pay
                             </button>
@@ -253,7 +295,7 @@ export default function EpcPaymentsPage() {
               {paidHistory.length === 0 ? (
                 <div className="empty-state">No payment release history found.</div>
               ) : (
-                <table className="mini-table">
+                <table className="mini-table stack-table">
                   <thead>
                     <tr>
                       <th>Transaction ID</th>
@@ -267,12 +309,12 @@ export default function EpcPaymentsPage() {
                   <tbody>
                     {paidHistory.map((r) => (
                       <tr key={r.id}>
-                        <td>{r.id}</td>
-                        <td><strong>{r.agentName}</strong></td>
-                        <td>{formatMoney(r.amount, "INR")}</td>
-                        <td>{new Date(r.requestedAt).toLocaleDateString()}</td>
-                        <td>{r.paidAt ? new Date(r.paidAt).toLocaleDateString() : "—"}</td>
-                        <td>
+                        <td data-label="Transaction">{r.id}</td>
+                        <td data-label="Agent"><strong>{r.agentName}</strong></td>
+                        <td data-label="Amount paid">{formatMoney(r.amount, "INR")}</td>
+                        <td data-label="Requested">{new Date(r.requestedAt).toLocaleDateString()}</td>
+                        <td data-label="Paid">{r.paidAt ? new Date(r.paidAt).toLocaleDateString() : "—"}</td>
+                        <td data-label="Status">
                           <span className="badge state-COMPLETED">PAID</span>
                         </td>
                       </tr>

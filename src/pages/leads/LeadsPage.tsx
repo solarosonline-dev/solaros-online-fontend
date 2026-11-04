@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
+import { isAgent } from "../../lib/roles";
 import { listLeads, type Lead, type LeadStatus } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import { LeadFunnelNav, LeadStatusBadge } from "./leadFunnel";
@@ -32,7 +33,7 @@ export default function LeadsPage() {
       search: search || undefined,
       page,
       page_size: PAGE_SIZE,
-    })
+    }, isAgent(user!.roles))
       .then((res) => {
         setLeads(res.items);
         setTotal(res.total);

@@ -17,7 +17,7 @@ export default function AddLeadPage() {
   let targetPath = "/app/leads";
   if (isAgentUser) {
     targetPath = "/app/agent/leads";
-  } else if (hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace) {
+  } else if (hasAgentsFeature && (!hasFeature(user, "CRM") || (agentSettings.enabled && agentSettings.onlyWorkspace))) {
     targetPath = "/app/epc/leads";
   }
 
