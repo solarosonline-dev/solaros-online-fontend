@@ -431,3 +431,161 @@
   padding: 6px 12px;
   font-size: 12px;
 }
+
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  .epc-agent-dashboard,
+  .epc-admin-dashboard,
+  .epc-leads-page,
+  .epc-config-page,
+  .epc-payments-page {
+    padding: 12px 0;
+  }
+
+  .epc-dashboard-header h1 {
+    font-size: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .epc-dashboard-header .subtitle {
+    margin-bottom: 16px;
+  }
+
+  .epc-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .epc-chart-panel,
+  .epc-payments-panel.card {
+    padding: 14px;
+  }
+
+  .epc-dashboard-charts-layout,
+  .epc-payments-split {
+    gap: 14px;
+  }
+
+  /* Tap-friendly controls; 16px inputs stop iOS zooming on focus. */
+  .epc-input,
+  .mini-select {
+    min-height: 40px;
+    font-size: 16px;
+    max-width: none;
+  }
+
+  .epc-filter-bar {
+    flex-wrap: wrap;
+  }
+
+  .epc-filter-bar .mini-select {
+    flex: 1 1 180px;
+  }
+
+  .epc-leads-panel,
+  .epc-panel {
+    padding: 8px;
+  }
+
+  /* Wide data tables scroll sideways inside their panel... */
+  .mini-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ...while the main lists become one card per row. */
+  .stack-table,
+  .stack-table tbody,
+  .stack-table tr,
+  .stack-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .stack-table thead {
+    display: none;
+  }
+
+  .stack-table tr {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+    margin-bottom: 10px;
+    padding: 4px 12px;
+  }
+
+  .stack-table td,
+  .leads-table.stack-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--app-border);
+    text-align: right;
+  }
+
+  .stack-table td:last-child {
+    border-bottom: 0;
+  }
+
+  /* Selects inside a card row (e.g. the stage picker) stay compact. */
+  .stack-table .mini-select {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 16px; /* >=16px stops iOS zooming in on focus */
+    width: auto;
+    max-width: 60%;
+    flex: 0 1 auto;
+  }
+
+  .stack-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--app-text-muted);
+    text-align: left;
+  }
+
+  /* Dialog: near full width, stacked buttons. */
+  .epc-modal-backdrop {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .epc-modal {
+    padding: 18px;
+    max-width: none;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .epc-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .epc-modal-actions .entity-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .balance-row.large .value {
+    font-size: 18px;
+  }
+
+  .mini-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .epc-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

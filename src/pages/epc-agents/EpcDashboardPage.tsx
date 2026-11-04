@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../lib/AuthContext";
+import { syncAgentWorkspace } from "../../api/agentWorkspace";
 import {
   getLeadStates,
   getLeadCustomStates,
@@ -10,8 +11,9 @@ import {
   getPaymentRequests,
   MOCK_AGENTS,
   MOCK_LEADS,
+  syncAssignmentsFromLeads,
 } from "../../lib/epcAgentStorage";
-import { listLeads, type Lead } from "../../api/leads";
+import { leadsAccess, listLeads, type Lead } from "../../api/leads";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { formatMoney } from "../../lib/money";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -26,15 +28,24 @@ export default function EpcDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedAgentId, setSelectedAgentId] = useState<number | "">("");
 
+  // Stages, commission rules and payouts come from the backend (shared with the
+  // admin/agent on the other side); re-render once mirrored.
+  const [, setSyncTick] = useState(0);
+  useEffect(() => {
+    if (user) syncAgentWorkspace(user).then(() => setSyncTick((t) => t + 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.entity_id, user?.user_id]);
+
   // Load leads and agents
   useEffect(() => {
     let cancelled = false;
     if (entityId) {
-      Promise.all([listLeads(entityId), listEntityUsers(entityId)])
+      Promise.all([listLeads(entityId, {}, leadsAccess(user)), listEntityUsers(entityId)])
         .then(([leadsRes, usersRes]) => {
           if (!cancelled) {
             // Merge real + mock leads
             const dbLeads = leadsRes.items;
+            syncAssignmentsFromLeads(dbLeads);
             const mockLeadsMapped = MOCK_LEADS.map(ml => ({
               lead_id: ml.lead_id,
               name: ml.name,

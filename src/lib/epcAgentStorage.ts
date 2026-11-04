@@ -144,6 +144,42 @@ export function saveLeadAssignments(assignments: Record<number, number>) {
   localStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(assignments));
 }
 
+/** A lead's "assigned agent" is whoever added it (not editable). The backend
+ * is the source of truth; mirror it into the local assignment map that the
+ * commission/dashboard maths reads. Leads with no recorded creator (entered
+ * by an admin, or before the field existed) keep whatever they had. */
+export function syncAssignmentsFromLeads(
+  leads: {
+    lead_id: number;
+    created_by_user_id?: number | null;
+    agent_stage?: string;
+    deal_value?: string | number | null;
+  }[],
+) {
+  const current = getLeadAssignments();
+  let changed = false;
+  for (const l of leads) {
+    if (l.created_by_user_id != null && current[l.lead_id] !== l.created_by_user_id) {
+      current[l.lead_id] = l.created_by_user_id;
+      changed = true;
+    }
+  }
+  if (changed) saveLeadAssignments(current);
+
+  // Stage + deal value live on the backend too (so agents see what admins set);
+  // mirror them into the local maps the dashboards read.
+  const states = getLeadCustomStates();
+  const values = getLeadDealValues();
+  for (const l of leads) {
+    if (l.agent_stage === undefined) continue;
+    states[l.lead_id] = l.agent_stage;
+    if (l.deal_value != null) values[l.lead_id] = Number(l.deal_value);
+    else delete values[l.lead_id];
+  }
+  saveLeadCustomStates(states);
+  saveLeadDealValues(values);
+}
+
 export function getLeadCustomStates(): Record<number, string> {
   const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_STATES);
   if (!data) {
@@ -294,4 +330,18 @@ export function approvePaymentRequest(id: string) {
     req.paidAt = new Date().toISOString();
     savePaymentRequests(requests);
   }
+}
+
+/** Merge backend commission rules into the local store. Rules for demo agents
+ * (ids >= 9000) stay; real agents' rules are replaced by the server's. */
+export function mirrorServerCommissions(serverRules: AgentCommission[]) {
+  const demo = getAgentCommissions().filter((c) => c.agentId >= 9000);
+  saveAgentCommissions([...demo, ...serverRules]);
+}
+
+/** Merge backend payout requests (ids "srv_<n>") into the local store; demo
+ * and legacy local requests stay. */
+export function mirrorServerPayouts(serverRequests: PaymentRequest[]) {
+  const local = getPaymentRequests().filter((r) => !r.id.startsWith("srv_") && r.agentId >= 9000);
+  savePaymentRequests([...serverRequests, ...local]);
 }

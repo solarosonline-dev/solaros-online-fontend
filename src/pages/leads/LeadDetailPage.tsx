@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { hasFeature, isAgent } from "../../lib/roles";
+import { hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
+import { leadsAccess } from "../../api/leads";
 import { listEntityUsers } from "../../api/entityUsers";
 import {
   getLeadAssignments,
+  syncAssignmentsFromLeads,
   saveLeadAssignments,
   getLeadStates,
   getLeadCustomStates,
@@ -136,12 +138,12 @@ export default function LeadDetailPage() {
   
   const [customStates, setCustomStates] = useState<Record<number, string>>({});
   const [dealValues, setDealValues] = useState<Record<number, number>>({});
-  const [leadStates, setLeadStates] = useState<string[]>([]);
+  const [, setLeadStates] = useState<string[]>([]);
   const [terminalState, setTerminalState] = useState("");
   const [orderState, setOrderState] = useState("");
 
   const [updatingLeadId, setUpdatingLeadId] = useState<number | null>(null);
-  const [selectedState, setSelectedState] = useState("");
+  const [selectedState] = useState("");
   const [dealValueInput, setDealValueInput] = useState("");
 
   useEffect(() => {
@@ -155,10 +157,13 @@ export default function LeadDetailPage() {
   
   const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
   const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
-  const showAgentsExclusive = hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace;
+  // No CRM => /app/leads doesn't exist for this entity; the EPC workspace is its lead view.
+  const showAgentsExclusive =
+    hasAgentsFeature && (!hasFeature(user, "CRM") || (agentSettings.enabled && agentSettings.onlyWorkspace));
 
   useEffect(() => {
-    if (hasAgentsFeature && entityId) {
+    // Agents can't list users (403); the list only feeds the admin assign dropdown.
+    if (hasAgentsFeature && entityId && !(user && isAgent(user.roles))) {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
@@ -184,7 +189,7 @@ export default function LeadDetailPage() {
           setAgents(mockAgentsMapped);
         });
     }
-  }, [hasAgentsFeature, entityId]);
+  }, [hasAgentsFeature, entityId, user]);
 
   function load() {
     if (!leadId) return;
@@ -192,7 +197,7 @@ export default function LeadDetailPage() {
     setLoadError(null);
     setSavedSnapshot(null);
     setDraftRestoredAt(null);
-    getLead(entityId, Number(leadId))
+    getLead(entityId, Number(leadId), leadsAccess(user))
       .then((res) => {
         setLead(res);
         const fetched = draftFieldsFromLead(res);
@@ -204,13 +209,13 @@ export default function LeadDetailPage() {
         } else {
           setDraft(fetched);
         }
-        const savedAssignments = getLeadAssignments();
-        const assignedId = savedAssignments[Number(leadId)];
-        if (user && isAgent(user.roles) && assignedId !== user.user_id) {
-          setAccessError("Access Denied. This lead is not assigned to you.");
-        } else {
-          setAccessError(null);
-        }
+        // Agents only ever get their own leads from the backend (404 otherwise), so
+        // no browser-side ownership check. Pull in the lead's stage + deal value.
+        setAccessError(null);
+        syncAssignmentsFromLeads([{ ...res, created_by_user_id: (res as { created_by_user_id?: number | null }).created_by_user_id }]);
+        const assignedId = getLeadAssignments()[Number(leadId)];
+        setCustomStates(getLeadCustomStates());
+        setDealValues(getLeadDealValues());
         setAssignedAgentId(assignedId || "");
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : "Failed to load lead"))
@@ -329,12 +334,6 @@ export default function LeadDetailPage() {
     }
   }
 
-  function handleStateChangeTrigger(leadId: number, newState: string) {
-    setUpdatingLeadId(leadId);
-    setSelectedState(newState);
-    setDealValueInput(String(dealValues[leadId] || ""));
-  }
-
   function handleStateSave() {
     if (!updatingLeadId) return;
 
@@ -355,6 +354,8 @@ export default function LeadDetailPage() {
   if (loading) return <div className="leads-loading">Loading…</div>;
 
   const isAgentUser = user ? isAgent(user.roles) : false;
+  // Agents and agent-workspace admins: no quote/reject/work orders/bill parsing.
+  const agentModuleView = isAgentModuleUser(user);
   const backPath = isAgentUser ? "/app/agent/leads" : showAgentsExclusive ? "/app/epc/leads" : "/app/leads";
 
   if (accessError || loadError || !lead || !draft) {
@@ -418,22 +419,12 @@ export default function LeadDetailPage() {
           {lead.name} <LeadStatusBadge status={lead.status} />
         </h1>
         <div className="lead-detail-actions">
-          {isAgentUser ? (
+          {agentModuleView ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 13, color: "var(--app-text-muted)", fontWeight: 500 }}>Lead Stage:</span>
-              <select
-                value={customStates[Number(leadId)] || "NEW"}
-                disabled={customStates[Number(leadId)] === terminalState}
-                onChange={(e) => handleStateChangeTrigger(Number(leadId), e.target.value)}
-                className={`mini-select state-select ${customStates[Number(leadId)] === terminalState ? "locked" : ""}`}
-                style={{ height: "36px", padding: "6px 12px", fontSize: "14px" }}
-              >
-                {leadStates.map((st) => (
-                  <option key={st} value={st}>
-                    {st} {st === terminalState ? " (Terminal)" : ""}
-                  </option>
-                ))}
-              </select>
+              <span className={`badge state-${customStates[Number(leadId)] || "NEW"}`}>
+                {customStates[Number(leadId)] || "NEW"}
+              </span>
             </div>
           ) : (
             <>
@@ -484,12 +475,14 @@ export default function LeadDetailPage() {
       <div className="lead-detail-layout">
       <div className="lead-detail-main">
       <div className="lead-detail-panel">
-        <BillUploadWidget
-          entityId={entityId}
-          onExtracted={handleExtracted}
-          hasExistingDetails={hasExistingDetails}
-          onResetDetails={handleResetDetailsBeforeExtract}
-        />
+        {!agentModuleView && (
+          <BillUploadWidget
+            entityId={entityId}
+            onExtracted={handleExtracted}
+            hasExistingDetails={hasExistingDetails}
+            onResetDetails={handleResetDetailsBeforeExtract}
+          />
+        )}
 
         <form onSubmit={handleSave} noValidate>
           <div className="add-lead-field">
@@ -729,9 +722,11 @@ export default function LeadDetailPage() {
       </div>
       </div>
 
-      <div className="lead-detail-side">
-        <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
-      </div>
+      {!agentModuleView && (
+        <div className="lead-detail-side">
+          <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
+        </div>
+      )}
       </div>
 
       {updatingLeadId && (

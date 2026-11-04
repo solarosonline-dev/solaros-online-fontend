@@ -14,7 +14,8 @@ export default function HomeRedirect() {
   if (user?.entity_id && isEntityAdmin(user.roles)) {
     if (hasFeature(user, "AGENTS")) {
       const settings = getEpcAgentSettings();
-      if (settings.enabled && settings.onlyWorkspace) {
+      // No CRM => no /app/leads; the EPC workspace is the only lead view.
+      if (!hasFeature(user, "CRM") || (settings.enabled && settings.onlyWorkspace)) {
         return <Navigate to="/app/epc/dashboard" replace />;
       }
     }

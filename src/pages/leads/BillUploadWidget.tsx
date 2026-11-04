@@ -1,5 +1,6 @@
+import { useAuth } from "../../lib/AuthContext";
 import { useRef, useState } from "react";
-import { extractLeadFromBill, type ExtractedLeadData } from "../../api/leads";
+import { extractLeadFromBill, leadsAccess, type ExtractedLeadData } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export default function BillUploadWidget({ entityId, onExtracted, hasExistingDetails, onResetDetails }: Props) {
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function BillUploadWidget({ entityId, onExtracted, hasExistingDet
     setExtractSummary(null);
     setExtracting(true);
     try {
-      const data = await extractLeadFromBill(entityId, file);
+      const data = await extractLeadFromBill(entityId, file, leadsAccess(user));
       onExtracted(data);
 
       const parts: string[] = [];

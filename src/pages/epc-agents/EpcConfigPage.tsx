@@ -8,6 +8,8 @@ import {
 } from "../../lib/epcAgentStorage";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { useAuth } from "../../lib/AuthContext";
+import { putAgentConfig, putCommissionRule, syncAgentWorkspace } from "../../api/agentWorkspace";
+import { ApiError } from "../../api/client";
 import "./EpcAgents.css";
 
 export default function EpcConfigPage() {
@@ -30,7 +32,37 @@ export default function EpcConfigPage() {
   useEffect(() => {
     setStates(getLeadStates());
     setCommissions(getAgentCommissions());
-  }, []);
+    // Backend is the source of truth (stages + rules shared with the agents).
+    if (user)
+      syncAgentWorkspace(user).then(() => {
+        setStates(getLeadStates());
+        setCommissions(getAgentCommissions());
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.entity_id]);
+
+  async function persistStages(updated: string[], message: string) {
+    const previous = states;
+    setStates(updated);
+    try {
+      if (entityId) await putAgentConfig(entityId, updated);
+      saveLeadStates(updated);
+      triggerFeedback(message);
+    } catch (err) {
+      setStates(previous);
+      alert(err instanceof ApiError ? err.message : "Failed to save the stages");
+    }
+  }
+
+  // Real agents' rules persist on the backend (demo agents, ids >= 9000, stay local).
+  async function persistRule(agentId: number, rule: { type: string; value: number }) {
+    try {
+      if (entityId && agentId < 9000) await putCommissionRule(entityId, agentId, rule);
+      triggerFeedback("Agent commission rule updated!");
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to save the commission rule");
+    }
+  }
 
   // Fetch agents
   useEffect(() => {
@@ -78,10 +110,8 @@ export default function EpcConfigPage() {
     if (!trimmed) return;
     if (states.includes(trimmed)) return;
     const updated = [...states, trimmed];
-    setStates(updated);
-    saveLeadStates(updated);
     setNewState("");
-    triggerFeedback("Project stages updated!");
+    persistStages(updated, "Project stages updated!");
   }
 
   function handleDeleteState(index: number) {
@@ -89,10 +119,7 @@ export default function EpcConfigPage() {
       alert("An EPC must have at least 2 pipeline states.");
       return;
     }
-    const updated = states.filter((_, i) => i !== index);
-    setStates(updated);
-    saveLeadStates(updated);
-    triggerFeedback("Project stage deleted!");
+    persistStages(states.filter((_, i) => i !== index), "Project stage deleted!");
   }
 
   function handleMoveState(index: number, direction: "up" | "down") {
@@ -105,13 +132,11 @@ export default function EpcConfigPage() {
     updated[index] = updated[targetIndex];
     updated[targetIndex] = temp;
 
-    setStates(updated);
-    saveLeadStates(updated);
-    triggerFeedback("Project stages re-ordered!");
+    persistStages(updated, "Project stages re-ordered!");
   }
 
   // Rates Handlers
-  function handleRateChange(agentId: number, field: "type" | "value", val: any) {
+  function handleRateChange(agentId: number, field: "type" | "value", val: any, persist = true) {
     const updated = [...commissions];
     const index = updated.findIndex((c) => c.agentId === agentId);
 
@@ -123,7 +148,8 @@ export default function EpcConfigPage() {
 
     setCommissions(updated);
     saveAgentCommissions(updated);
-    triggerFeedback("Agent commission rule updated!");
+    // Selects persist at once; the number box persists on blur (not per keystroke).
+    if (persist) persistRule(agentId, updated.find((c) => c.agentId === agentId));
   }
 
   function triggerFeedback(msg: string) {
@@ -235,7 +261,8 @@ export default function EpcConfigPage() {
                             <input
                               type="number"
                               value={rule.value}
-                              onChange={(e) => handleRateChange(ag.user_id, "value", parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleRateChange(ag.user_id, "value", parseFloat(e.target.value) || 0, false)}
+                              onBlur={() => persistRule(ag.user_id, rule)}
                               className="epc-input"
                               style={{ maxWidth: 100, padding: "4px 8px", fontSize: 13 }}
                             />

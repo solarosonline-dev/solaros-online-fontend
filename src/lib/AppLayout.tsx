@@ -116,8 +116,11 @@ function AppLayoutInner() {
   const agentUser = user ? isAgent(user.roles) : false;
   const hasAgentsFeature = hasFeature(user, "AGENTS");
   const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
-  const showAgentsExclusive = hasAgentsFeature && agentSettings.enabled && agentSettings.onlyWorkspace;
-  const showAgentsCoexist = hasAgentsFeature && agentSettings.enabled && !agentSettings.onlyWorkspace;
+  // An AGENTS entity without CRM has no /app/leads etc., so its admin always
+  // gets the EPC workspace (dashboard + All Leads) regardless of the setting.
+  const agentsOnly = hasAgentsFeature && !crm;
+  const showAgentsExclusive = hasAgentsFeature && (agentsOnly || (agentSettings.enabled && agentSettings.onlyWorkspace));
+  const showAgentsCoexist = hasAgentsFeature && !agentsOnly && agentSettings.enabled && !agentSettings.onlyWorkspace;
   // The guided tour is a Lead -> Quote -> Agreement -> Project walkthrough
   // (plus the worker's work-order queue) -- all CRM, so a Design-only
   // entity's users don't get it at all.
