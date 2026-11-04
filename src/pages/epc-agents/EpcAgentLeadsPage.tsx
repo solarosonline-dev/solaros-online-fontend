@@ -7,11 +7,7 @@ import {
   getLeadCustomStates,
   getLeadDealValues,
   getLeadAssignments,
-  saveLeadCustomStates,
-  saveLeadDealValues,
   syncAssignmentsFromLeads,
-  MOCK_AGENTS,
-  MOCK_LEADS,
 } from "../../lib/epcAgentStorage";
 import { leadsAccess, listLeads, updateLeadStage, type Lead } from "../../api/leads";
 import { ApiError } from "../../api/client";
@@ -70,7 +66,7 @@ export default function EpcAgentLeadsPage() {
       // An ENTITY_AGENT can't list entity users (403 -- the list only feeds the
       // admin assign-to-agent dropdown), and the backend already returns just
       // their own leads. Skipping the call matters: a rejected Promise.all
-      // would drop into the catch below and replace the real leads with mocks.
+      // would drop into the catch below and blank the page.
       Promise.all([
         listLeads(entityId, { created_by_user_id: agentFilter || undefined, page_size: 200 }, leadsAccess(user)),
         isAgentUser ? Promise.resolve({ items: [] as EntityUser[] }) : listEntityUsers(entityId),
@@ -90,74 +86,26 @@ export default function EpcAgentLeadsPage() {
             setAssignments(getLeadAssignments());
             setCustomStates(getLeadCustomStates());
             setDealValues(getLeadDealValues());
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads(isAgentUser || agentFilter !== "" ? dbLeads : [...dbLeads, ...mockLeadsMapped]);
+            setLeads(dbLeads);
 
             const dbAgents = usersRes.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
-            const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-              user_id: ma.user_id,
-              full_name: ma.full_name,
-              email: ma.email,
-              phone: ma.phone,
-              roles: ma.roles,
-              state: "ACTIVE",
-            }));
-            setAgents([...dbAgents, ...mockAgentsMapped]);
+            setAgents(dbAgents);
           }
         })
         .catch(() => {
           if (!cancelled) {
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads(mockLeadsMapped);
+            setLeads([]);
 
-            const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-              user_id: ma.user_id,
-              full_name: ma.full_name,
-              email: ma.email,
-              phone: ma.phone,
-              roles: ma.roles,
-              state: "ACTIVE",
-            }));
-            setAgents(mockAgentsMapped);
+            setAgents([]);
           }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
     } else {
-      const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-        lead_id: ml.lead_id,
-        name: ml.name,
-        mobile: ml.mobile,
-        status: "NEW" as const,
-        created_at: ml.created_at,
-        project_id: null,
-      }));
-      setLeads(mockLeadsMapped);
+      setLeads([]);
 
-      const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-        user_id: ma.user_id,
-        full_name: ma.full_name,
-        email: ma.email,
-        phone: ma.phone,
-        roles: ma.roles,
-        state: "ACTIVE",
-      }));
-      setAgents(mockAgentsMapped);
+      setAgents([]);
       setLoading(false);
     }
     return () => {
@@ -190,31 +138,19 @@ export default function EpcAgentLeadsPage() {
     // dashboards filter on state, so a proposal's value never inflates them.
     const val = needsDealValue ? parseFloat(dealValueInput) || 0 : undefined;
 
-    // Demo leads only exist in this browser; real ones persist on the backend
-    // so the agent sees the same stage and deal value.
-    if (!MOCK_LEADS.some((m) => m.lead_id === updatingLeadId)) {
-      try {
-        const saved = await updateLeadStage(entityId, updatingLeadId, {
-          stage: selectedState,
-          ...(val !== undefined ? { deal_value: val } : {}),
-        });
-        syncAssignmentsFromLeads([{ lead_id: saved.lead_id, agent_stage: saved.agent_stage, deal_value: saved.deal_value }]);
-      } catch (err) {
-        setSaveError(err instanceof ApiError ? err.message : "Failed to update the lead");
-        return;
-      }
-      setCustomStates(getLeadCustomStates());
-      setDealValues(getLeadDealValues());
-    } else {
-      const nextStates = { ...customStates, [updatingLeadId]: selectedState };
-      setCustomStates(nextStates);
-      saveLeadCustomStates(nextStates);
-      if (val !== undefined) {
-        const nextValues = { ...dealValues, [updatingLeadId]: val };
-        setDealValues(nextValues);
-        saveLeadDealValues(nextValues);
-      }
+    // Persist on the backend so the agent sees the same stage and deal value.
+    try {
+      const saved = await updateLeadStage(entityId, updatingLeadId, {
+        stage: selectedState,
+        ...(val !== undefined ? { deal_value: val } : {}),
+      });
+      syncAssignmentsFromLeads([{ lead_id: saved.lead_id, agent_stage: saved.agent_stage, deal_value: saved.deal_value }]);
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : "Failed to update the lead");
+      return;
     }
+    setCustomStates(getLeadCustomStates());
+    setDealValues(getLeadDealValues());
 
     setUpdatingLeadId(null);
   }
@@ -247,7 +183,6 @@ export default function EpcAgentLeadsPage() {
           >
             <option value="">All leads</option>
             {agents
-              .filter((ag) => ag.user_id < 9000)
               .map((ag) => (
                 <option key={ag.user_id} value={ag.user_id}>
                   {ag.full_name}'s leads

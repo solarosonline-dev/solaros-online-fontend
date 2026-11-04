@@ -9,8 +9,6 @@ import {
   getEarnedCommission,
   getPaidCommission,
   getPaymentRequests,
-  MOCK_AGENTS,
-  MOCK_LEADS,
   syncAssignmentsFromLeads,
 } from "../../lib/epcAgentStorage";
 import { leadsAccess, listLeads, type Lead } from "../../api/leads";
@@ -43,79 +41,29 @@ export default function EpcDashboardPage() {
       Promise.all([listLeads(entityId, {}, leadsAccess(user)), listEntityUsers(entityId)])
         .then(([leadsRes, usersRes]) => {
           if (!cancelled) {
-            // Merge real + mock leads
             const dbLeads = leadsRes.items;
             syncAssignmentsFromLeads(dbLeads);
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads([...dbLeads, ...mockLeadsMapped]);
+            setLeads(dbLeads);
 
             // Filter users who are ENTITY_AGENT
             const dbAgents = usersRes.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
-            const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-              user_id: ma.user_id,
-              full_name: ma.full_name,
-              email: ma.email,
-              phone: ma.phone,
-              roles: ma.roles,
-              state: "ACTIVE",
-            }));
-            setAgents([...dbAgents, ...mockAgentsMapped]);
+            setAgents(dbAgents);
           }
         })
         .catch(() => {
-          // Mock fallbacks
           if (!cancelled) {
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads(mockLeadsMapped);
+            setLeads([]);
 
-            const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-              user_id: ma.user_id,
-              full_name: ma.full_name,
-              email: ma.email,
-              phone: ma.phone,
-              roles: ma.roles,
-              state: "ACTIVE",
-            }));
-            setAgents(mockAgentsMapped);
+            setAgents([]);
           }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
     } else {
-      const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-        lead_id: ml.lead_id,
-        name: ml.name,
-        mobile: ml.mobile,
-        status: "NEW" as const,
-        created_at: ml.created_at,
-        project_id: null,
-      }));
-      setLeads(mockLeadsMapped);
+      setLeads([]);
 
-      const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-        user_id: ma.user_id,
-        full_name: ma.full_name,
-        email: ma.email,
-        phone: ma.phone,
-        roles: ma.roles,
-        state: "ACTIVE",
-      }));
-      setAgents(mockAgentsMapped);
+      setAgents([]);
       setLoading(false);
     }
     return () => {

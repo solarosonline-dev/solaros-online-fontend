@@ -16,7 +16,6 @@ import {
   getPaymentRequests,
   addPaymentRequest,
   approvePaymentRequest,
-  MOCK_LEADS,
   syncAssignmentsFromLeads,
 } from "../../lib/epcAgentStorage";
 import { leadsAccess, listLeads, type Lead } from "../../api/leads";
@@ -27,8 +26,8 @@ import "./EpcAgents.css";
 export default function EpcPaymentsPage() {
   const { user } = useAuth();
   const isAgentUser = user ? isAgent(user.roles) : false;
-  const loggedInUserId = user?.user_id || 9901;
-  const loggedInUserName = user?.full_name || "Aarav Sharma";
+  const loggedInUserId = user?.user_id ?? 0;
+  const loggedInUserName = user?.full_name ?? "";
   const entityId = user?.entity_id;
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -65,43 +64,19 @@ export default function EpcPaymentsPage() {
           if (!cancelled) {
             const dbLeads = res.items;
             syncAssignmentsFromLeads(dbLeads);
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads([...dbLeads, ...mockLeadsMapped]);
+            setLeads(dbLeads);
           }
         })
         .catch(() => {
           if (!cancelled) {
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads(mockLeadsMapped);
+            setLeads([]);
           }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
     } else {
-      const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-        lead_id: ml.lead_id,
-        name: ml.name,
-        mobile: ml.mobile,
-        status: "NEW" as const,
-        created_at: ml.created_at,
-        project_id: null,
-      }));
-      setLeads(mockLeadsMapped);
+      setLeads([]);
       setLoading(false);
     }
     return () => {

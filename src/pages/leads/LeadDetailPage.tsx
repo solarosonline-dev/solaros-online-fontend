@@ -14,7 +14,6 @@ import {
   saveLeadCustomStates,
   saveLeadDealValues,
   getEpcAgentSettings,
-  MOCK_AGENTS,
 } from "../../lib/epcAgentStorage";
 import {
   getLead,
@@ -167,26 +166,10 @@ export default function LeadDetailPage() {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents([...dbAgents, ...mockAgentsMapped]);
+          setAgents(dbAgents);
         })
         .catch(() => {
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents(mockAgentsMapped);
+          setAgents([]);
         });
     }
   }, [hasAgentsFeature, entityId, user]);

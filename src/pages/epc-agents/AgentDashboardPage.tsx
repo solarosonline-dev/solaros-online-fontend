@@ -9,7 +9,6 @@ import {
   getEarnedCommission,
   getPaidCommission,
   getPaymentRequests,
-  MOCK_LEADS,
   syncAssignmentsFromLeads,
 } from "../../lib/epcAgentStorage";
 import { leadsAccess, listLeads, type Lead } from "../../api/leads";
@@ -19,8 +18,8 @@ import "./EpcAgents.css";
 
 export default function AgentDashboardPage() {
   const { user } = useAuth();
-  const agentId = user?.user_id || 9901;
-  const agentName = user?.full_name || "Aarav Sharma";
+  const agentId = user?.user_id ?? 0;
+  const agentName = user?.full_name ?? "";
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,56 +32,30 @@ export default function AgentDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.entity_id, user?.user_id]);
 
-  // Load leads from DB + Mock Leads
+  // Load leads from the backend
   useEffect(() => {
     let cancelled = false;
     if (user?.entity_id) {
       listLeads(user.entity_id, {}, leadsAccess(user))
         .then((res) => {
           if (!cancelled) {
-            // Merge actual leads with mock leads to guarantee a rich dashboard experience
             const dbLeads = res.items;
             syncAssignmentsFromLeads(
               dbLeads.map((l) => ({ ...l, created_by_user_id: user.user_id })),
             );
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads([...dbLeads, ...mockLeadsMapped]);
+            setLeads(dbLeads);
           }
         })
         .catch(() => {
           if (!cancelled) {
-            // Fallback fully to mock leads on error or offline
-            const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-              lead_id: ml.lead_id,
-              name: ml.name,
-              mobile: ml.mobile,
-              status: "NEW" as const,
-              created_at: ml.created_at,
-              project_id: null,
-            }));
-            setLeads(mockLeadsMapped);
+            setLeads([]);
           }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
     } else {
-      const mockLeadsMapped = MOCK_LEADS.map(ml => ({
-        lead_id: ml.lead_id,
-        name: ml.name,
-        mobile: ml.mobile,
-        status: "NEW" as const,
-        created_at: ml.created_at,
-        project_id: null,
-      }));
-      setLeads(mockLeadsMapped);
+      setLeads([]);
       setLoading(false);
     }
     return () => {

@@ -13,7 +13,7 @@ import LocationPicker from "../../components/map/LocationPicker";
 import { useAuth } from "../../lib/AuthContext";
 import { hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
 import { listEntityUsers } from "../../api/entityUsers";
-import { getLeadAssignments, saveLeadAssignments, MOCK_AGENTS } from "../../lib/epcAgentStorage";
+import { getLeadAssignments, saveLeadAssignments } from "../../lib/epcAgentStorage";
 
 type DraftFields = {
   name: string;
@@ -103,26 +103,10 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents([...dbAgents, ...mockAgentsMapped]);
+          setAgents(dbAgents);
         })
         .catch(() => {
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents(mockAgentsMapped);
+          setAgents([]);
         });
     }
   }, [hasAgentsFeature, agentUser, entityId]);
@@ -303,11 +287,8 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         entry_duration_ms: getElapsedMs(),
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
-        // Real (non-demo) agent picked by an admin -> the backend records the lead as theirs.
-        agent_user_id:
-          assignedAgentId && !MOCK_AGENTS.some((m) => m.user_id === Number(assignedAgentId))
-            ? Number(assignedAgentId)
-            : undefined,
+        // Agent picked by an admin -> the backend records the lead as theirs.
+        agent_user_id: assignedAgentId ? Number(assignedAgentId) : undefined,
       }, leadsAccess(user));
 
       if (agentUser && user) {

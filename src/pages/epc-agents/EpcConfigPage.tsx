@@ -4,7 +4,6 @@ import {
   saveLeadStates,
   getAgentCommissions,
   saveAgentCommissions,
-  MOCK_AGENTS,
 } from "../../lib/epcAgentStorage";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
 import { useAuth } from "../../lib/AuthContext";
@@ -54,10 +53,10 @@ export default function EpcConfigPage() {
     }
   }
 
-  // Real agents' rules persist on the backend (demo agents, ids >= 9000, stay local).
+  // Rules persist on the backend.
   async function persistRule(agentId: number, rule: { type: string; value: number }) {
     try {
-      if (entityId && agentId < 9000) await putCommissionRule(entityId, agentId, rule);
+      if (entityId) await putCommissionRule(entityId, agentId, rule);
       triggerFeedback("Agent commission rule updated!");
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "Failed to save the commission rule");
@@ -70,37 +69,13 @@ export default function EpcConfigPage() {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents([...dbAgents, ...mockAgentsMapped]);
+          setAgents(dbAgents);
         })
         .catch(() => {
-          const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-            user_id: ma.user_id,
-            full_name: ma.full_name,
-            email: ma.email,
-            phone: ma.phone,
-            roles: ma.roles,
-            state: "ACTIVE",
-          }));
-          setAgents(mockAgentsMapped);
+          setAgents([]);
         });
     } else {
-      const mockAgentsMapped = MOCK_AGENTS.map(ma => ({
-        user_id: ma.user_id,
-        full_name: ma.full_name,
-        email: ma.email,
-        phone: ma.phone,
-        roles: ma.roles,
-        state: "ACTIVE",
-      }));
-      setAgents(mockAgentsMapped);
+      setAgents([]);
     }
   }, [entityId]);
 
