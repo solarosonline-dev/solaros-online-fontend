@@ -1,0 +1,276 @@
+.mobile-add-lead-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.15s ease-out;
+  padding-bottom: 90px; /* Leave space for bottom float controls */
+}
+
+.mobile-stepper-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.stepper-cancel-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.stepper-progress-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-text);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Stepper Progress Bar */
+.mobile-stepper-bar {
+  display: flex;
+  height: 6px;
+  background-color: var(--app-border);
+  border-radius: 3px;
+  gap: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.stepper-bar-segment {
+  flex: 1;
+  background-color: transparent;
+  transition: background-color 0.25s ease;
+}
+
+.stepper-bar-segment.active {
+  background-color: var(--app-accent);
+}
+
+/* Form Layout */
+.mobile-stepper-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mobile-step-card {
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--app-shadow);
+}
+
+.mobile-step-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  font-weight: 800;
+  font-family: "Bricolage Grotesque", sans-serif;
+  color: var(--app-text);
+}
+
+.step-description {
+  margin: 0 0 20px 0;
+  font-size: 12px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Form Input & Select Controls Override */
+.mobile-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.mobile-form-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mobile-form-field input,
+.mobile-form-field select,
+.mobile-form-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background-color: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  font-size: 16px !important; /* Force 16px on iOS to avoid auto zoom */
+  font-family: var(--app-font);
+  color: var(--app-text);
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobile-form-field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23667085' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
+.mobile-form-field input:focus,
+.mobile-form-field select:focus,
+.mobile-form-field textarea:focus {
+  border-color: var(--app-accent);
+  background-color: var(--app-surface);
+  outline: none;
+}
+
+.mobile-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.mobile-form-row .mobile-form-field {
+  flex: 1;
+}
+
+.field-error {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-danger);
+  margin-top: 2px;
+}
+
+/* Floating Stepper Control row */
+.mobile-stepper-controls {
+  position: fixed;
+  bottom: 80px; /* Floating above the bottom app nav tab bar */
+  left: 16px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
+  z-index: 150;
+}
+
+.stepper-btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prev-btn {
+  background-color: var(--app-surface);
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+}
+
+.prev-btn:active {
+  background-color: var(--app-bg);
+}
+
+.next-btn {
+  background-color: var(--app-accent);
+  color: #ffffff;
+}
+
+.next-btn:active {
+  background-color: var(--app-accent-hover);
+}
+
+/* Summary view */
+.mobile-stepper-summary-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.summary-section {
+  background-color: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.summary-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--app-accent);
+  letter-spacing: 0.03em;
+}
+
+.summary-section p {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  color: var(--app-text);
+}
+
+.summary-section p:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section strong {
+  color: var(--app-text-muted);
+  font-weight: 600;
+}
+
+.mobile-stepper-submit-btn {
+  width: 100%;
+  padding: 15px;
+  background-color: #10b981;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.mobile-stepper-submit-btn:active {
+  background-color: #059669;
+}
+
+.mobile-stepper-submit-error {
+  padding: 12px;
+  background-color: var(--app-danger-bg);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-danger);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* Slide animation */
+.animate-slide {
+  animation: slideUpIn 0.2s cubic-bezier(0.1, 0.76, 0.55, 0.94);
+}
+
+@keyframes slideUpIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

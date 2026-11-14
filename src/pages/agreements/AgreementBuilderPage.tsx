@@ -144,6 +144,9 @@ export default function AgreementBuilderPage() {
   const entityId = user!.entity_id!;
   const { leadId } = useParams();
 
+  const [activeStepMobile, setActiveStepMobile] = useState(1);
+  const isMobile = document.body.classList.contains("mobile-view");
+
   // Wall-clock time spent on this page, from mount to submit — sent as
   // generation_duration_ms (create only, see handleSubmit below) to power
   // the admin "p50/p95 time to generate an agreement" metric. Safe here:
@@ -564,6 +567,297 @@ export default function AgreementBuilderPage() {
           ← Back to lead
         </Link>
         <p className="quote-status-msg error">{loadError ?? "Lead not found."}</p>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    const showFormatSelection = !existingAgreement && activeStepMobile === 1;
+
+    return (
+      <div className="quote-builder mobile-view-container" style={{ padding: "12px", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <Link to={`/app/leads/${leadId}`} className="quote-builder-back no-print" style={{ margin: 0 }}>
+            ← Back to lead
+          </Link>
+          {existingAgreement && <span className="quote-status-badge">{existingAgreement.status}</span>}
+        </div>
+
+        {draftRestoredAt != null && (
+          <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          {showFormatSelection ? (
+            <div className="mobile-step-card animate-slide">
+              <h3 style={{ marginBottom: "8px" }}>Select Agreement Format</h3>
+              <p className="step-description" style={{ marginBottom: "20px" }}>
+                Choose the contract format for this solar installation project.
+              </p>
+              
+              <div className="mobile-form-field" style={{ marginBottom: "24px" }}>
+                <label style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "12px", display: "block" }}>
+                  Contract Template
+                </label>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <label 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "flex-start", 
+                      gap: "12px", 
+                      padding: "16px", 
+                      border: form.format === "pm_surya_ghar" ? "2px solid var(--app-accent)" : "1px solid var(--app-border)", 
+                      borderRadius: "12px", 
+                      cursor: "pointer",
+                      background: form.format === "pm_surya_ghar" ? "rgba(var(--app-accent-rgb, 0, 150, 255), 0.05)" : "var(--app-surface)"
+                    }}
+                  >
+                    <input 
+                      type="radio" 
+                      name="agreementFormat" 
+                      value="pm_surya_ghar"
+                      checked={form.format === "pm_surya_ghar"}
+                      onChange={() => setForm({ ...form, format: "pm_surya_ghar" })}
+                      style={{ marginTop: "4px" }}
+                    />
+                    <div>
+                      <strong style={{ display: "block", fontSize: "15px", color: "var(--app-text)" }}>PM Surya Ghar Format</strong>
+                      <span style={{ fontSize: "13px", color: "var(--app-text-muted)", marginTop: "4px", display: "block", lineHeight: "1.4" }}>
+                        Official government tripartite agreement format for residential solar systems.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label 
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "flex-start", 
+                      gap: "12px", 
+                      padding: "16px", 
+                      border: form.format === "standard" ? "2px solid var(--app-accent)" : "1px solid var(--app-border)", 
+                      borderRadius: "12px", 
+                      cursor: "pointer",
+                      background: form.format === "standard" ? "rgba(var(--app-accent-rgb, 0, 150, 255), 0.05)" : "var(--app-surface)"
+                    }}
+                  >
+                    <input 
+                      type="radio" 
+                      name="agreementFormat" 
+                      value="standard"
+                      checked={form.format === "standard"}
+                      onChange={() => setForm({ ...form, format: "standard" })}
+                      style={{ marginTop: "4px" }}
+                    />
+                    <div>
+                      <strong style={{ display: "block", fontSize: "15px", color: "var(--app-text)" }}>General Contract Format</strong>
+                      <span style={{ fontSize: "13px", color: "var(--app-text-muted)", marginTop: "4px", display: "block", lineHeight: "1.4" }}>
+                        Standard developer installation contract featuring warranties, AMC, and customized commercial terms.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <button 
+                type="button" 
+                className="mobile-user-submit-btn" 
+                onClick={() => setActiveStepMobile(2)}
+                style={{ width: "100%", height: "48px", fontSize: "15px", fontWeight: "bold" }}
+              >
+                Continue to Document Preview ➡️
+              </button>
+            </div>
+          ) : (
+            <div className="mobile-step-card animate-slide" style={{ padding: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h3 style={{ margin: 0 }}>Document Preview</h3>
+                {!existingAgreement && (
+                  <button 
+                    type="button" 
+                    onClick={() => setActiveStepMobile(1)}
+                    style={{ background: "none", border: "none", color: "var(--app-accent)", fontWeight: "bold", fontSize: "14px", cursor: "pointer" }}
+                  >
+                    ↩ Change Format
+                  </button>
+                )}
+              </div>
+              <p className="step-description" style={{ marginBottom: "12px" }}>
+                Verify the generated client-facing contract details below.
+              </p>
+              
+              <div className="mobile-quote-document-preview-wrapper" style={{ border: "1px solid var(--app-border)", borderRadius: "14px", overflow: "hidden", background: "var(--app-bg)", padding: "8px" }}>
+                {!computed || !quote ? (
+                  <p className="quote-status-msg">No quote data available.</p>
+                ) : form.format === "pm_surya_ghar" ? (
+                  <PmSuryaGharAgreementDocument
+                    agreementNumber={existingAgreement?.agreement_number ?? null}
+                    createdAt={existingAgreement?.created_at ?? null}
+                    consumerName={lead.name}
+                    consumerAddress={lead.address}
+                    vendorName={entity?.name ?? "SolarOS"}
+                    vendorAddress={entity?.address ?? null}
+                    vendorGstin={entity?.gstno ?? null}
+                    capacityKw={quote.capacity ?? 0}
+                    computed={computed}
+                    pricePerWatt={quote.price_per_watt ?? 0}
+                    taxRate={quote.tax_rate ?? 0}
+                    paymentSchedule={acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+                    branding={documentBranding}
+                    signature={{
+                      signed: existingAgreement?.status === "ACCEPTED",
+                      signerName: existingAgreement?.signer_name,
+                      signatureImage: existingAgreement?.signature_image,
+                      signedAt: existingAgreement?.signed_at,
+                      signedIp: existingAgreement?.signed_ip,
+                    }}
+                    vendorSignature={{
+                      signed: existingAgreement?.vendor_signature_image != null,
+                      signerName: existingAgreement?.vendor_signer_name,
+                      signatureImage: existingAgreement?.vendor_signature_image,
+                      signedAt: existingAgreement?.vendor_signed_at,
+                    }}
+                  />
+                ) : (
+                  <AgreementDocument
+                    agreementNumber={existingAgreement?.agreement_number ?? null}
+                    createdAt={existingAgreement?.created_at ?? null}
+                    validityDays={form.validityDays ? Number(form.validityDays) : null}
+                    notes={form.notes || null}
+                    quoteNumber={quote.quote_number}
+                    capacityKw={quote.capacity ?? 0}
+                    equipment={form.equipment.map((row) => ({
+                      label: row.label,
+                      make: row.make.trim() || null,
+                      model: row.model.trim() || null,
+                      warrantyYears: row.warrantyYears ? Number(row.warrantyYears) : null,
+                    }))}
+                    customerName={lead.name}
+                    customerAddress={lead.address}
+                    customerDiscom={getDiscomName(lead.discom)}
+                    customerMobile={lead.mobile}
+                    customerEmail={lead.email}
+                    pricePerWatt={quote.price_per_watt ?? 0}
+                    taxRate={quote.tax_rate ?? 0}
+                    computed={computed}
+                    amcFromQuote={quoteHasAmc}
+                    amc={
+                      acceptedSnapshot
+                        ? acceptedSnapshot.amc
+                          ? mapAmcPlan(acceptedSnapshot.amc)
+                          : null
+                        : quoteHasAmc
+                          ? quoteAmcPlan
+                            ? mapAmcPlan(quoteAmcPlan)
+                            : null
+                          : selectedAmcPlan
+                            ? mapAmcPlan(selectedAmcPlan)
+                            : null
+                    }
+                    amcPlans={
+                      acceptedSnapshot
+                        ? acceptedSnapshot.amc_plans.map(mapAmcPlan)
+                        : quoteHasAmc
+                          ? []
+                          : selectedAmcPlans.map(mapAmcPlan)
+                    }
+                    amcDurationYears={
+                      quoteHasAmc ? (quote.amc_duration_years ?? null) : form.amcDurationYears ? Number(form.amcDurationYears) : null
+                    }
+                    amcMode={quoteHasAmc ? (quote.amc_mode ?? "chargeable") : form.amcMode}
+                    amcPost5={{
+                      enabled: quoteHasAmc ? (quote.amc_post5_enabled ?? false) : form.amcPost5Enabled,
+                      plans: (acceptedSnapshot ? acceptedSnapshot.amc_post5_plans : quoteHasAmc ? quotePost5Plans : selectedPost5Plans).map(
+                        mapAmcPlan,
+                      ),
+                    }}
+                    paymentSchedule={acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE}
+                    terms={form.terms}
+                    branding={documentBranding}
+                    shareUrl={existingAgreement?.share_url ?? null}
+                    signature={{
+                      signed: existingAgreement?.status === "ACCEPTED",
+                      signerName: existingAgreement?.signer_name,
+                      signatureImage: existingAgreement?.signature_image,
+                      signedAt: existingAgreement?.signed_at,
+                      signedIp: existingAgreement?.signed_ip,
+                    }}
+                    highlightSections={highlightSections}
+                  />
+                )}
+              </div>
+
+              {!locked && (
+                <div className="quote-status-bar" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px", background: "var(--app-surface)", border: "1px solid var(--app-border)", borderRadius: "14px", padding: "12px", boxSizing: "border-box" }}>
+                  <button type="submit" className="quote-btn primary" disabled={saving || showSaved} style={{ width: "100%", height: "44px !important", minHeight: "44px !important" }}>
+                    {saving ? "Saving…" : showSaved ? "Saved" : existingAgreement ? "Save changes" : "Generate agreement"}
+                  </button>
+                  {existingAgreement?.share_url && (
+                    <CopyLinkButton url={existingAgreement.share_url} disabled={isDirtySinceLoad} />
+                  )}
+                  {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
+                </div>
+              )}
+              {locked && <p className="quote-status-msg" style={{ marginTop: "12px", textAlign: "center" }}>This agreement is {existingAgreement?.status.toLowerCase()} and can no longer be edited.</p>}
+
+              {existingAgreement?.pdf_key && (
+                <div style={{ marginTop: 12 }}>
+                  <button type="button" className="quote-btn" onClick={handleViewPdf} disabled={loadingPdf} style={{ width: "100%", height: "44px !important" }}>
+                    {loadingPdf ? "Loading…" : "📄 View signed PDF"}
+                  </button>
+                  {pdfError && (
+                    <p className="quote-status-msg error" style={{ marginTop: 6, textAlign: "center" }}>
+                      {pdfError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {form.format === "pm_surya_ghar" && existingAgreement && (
+                <div className="quote-form-section" style={{ marginTop: 16, background: "var(--app-surface)", border: "1px solid var(--app-border)", padding: "14px", borderRadius: "14px" }}>
+                  <p className="quote-section-label" style={{ fontWeight: "bold" }}>Vendor / EPC signature</p>
+                  {existingAgreement.vendor_signature_image ? (
+                    <p className="quote-status-msg" style={{ color: "var(--app-text-muted)", textAlign: "center" }}>
+                      Signed by {existingAgreement.vendor_signer_name} on{" "}
+                      {existingAgreement.vendor_signed_at ? new Date(existingAgreement.vendor_signed_at).toLocaleDateString("en-IN") : "—"}.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="quote-field-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+                        Optional — EPC digital signature for PM Surya Ghar registration.
+                      </p>
+                      <div className="mobile-form-field">
+                        <label htmlFor="aVendorSignerName">Signer name</label>
+                        <input
+                          id="aVendorSignerName"
+                          type="text"
+                          value={vendorSignerName}
+                          onChange={(e) => setVendorSignerName(e.target.value)}
+                          disabled={vendorSigning}
+                        />
+                      </div>
+                      <SignatureCapture ref={vendorSigPadRef} onChange={setVendorHasDrawnSignature} disabled={vendorSigning} />
+                      {vendorSignError && (
+                        <p className="quote-status-msg error" style={{ marginTop: 6 }}>
+                          {vendorSignError}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        className="mobile-user-submit-btn"
+                        style={{ marginTop: 10 }}
+                        onClick={handleVendorSign}
+                        disabled={vendorSigning || !vendorSignerName.trim() || !vendorHasDrawnSignature}
+                      >
+                        {vendorSigning ? "Signing…" : "Sign as vendor"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </form>
       </div>
     );
   }

@@ -42,3 +42,148 @@ input[type="radio"] {
     font-size: 16px !important;
   }
 }
+
+/* Global brand overrides for mobile PWA viewports */
+body.mobile-view {
+  --app-radius: 14px; /* Richer, smoother corners for mobile frames */
+}
+
+body.mobile-view input,
+body.mobile-view select,
+body.mobile-view textarea {
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+body.mobile-view select {
+  padding-right: 36px !important;
+}
+
+body.mobile-view button {
+  border-radius: 12px !important;
+  min-height: 44px; /* Thumb-friendly tap targets across form controls */
+  font-weight: 700;
+}
+
+/*
+   ==========================================================================
+   Global Form Fields, Labels, and Unified Textbox Look and Feel
+   ==========================================================================
+*/
+
+/* Spacious margins for all form field containers across the application */
+.mobile-form-field,
+.entity-field,
+.add-lead-field,
+.quote-field,
+.form-group,
+.auth-field,
+.form-field,
+.amc-field,
+.admin-users-field,
+.email-field,
+.projects-form-field {
+  margin-bottom: 22px !important;
+}
+
+/* Clear vertical separation between labels and inputs */
+.mobile-form-field label,
+.entity-field label,
+.add-lead-field label,
+.quote-field label,
+.form-group label,
+.auth-field label,
+.form-field label,
+.amc-field label,
+.admin-users-field label,
+.email-field label,
+.projects-form-field label {
+  margin-bottom: 8px !important;
+  display: block;
+}
+
+/* Universal premium aesthetic for all inputs, textareas, and selects */
+input[type="text"],
+input[type="tel"],
+input[type="email"],
+input[type="number"],
+input[type="password"],
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 14px !important;
+  border: 1px solid var(--app-border, #e2e5ea) !important;
+  border-radius: var(--app-radius, 10px) !important;
+  background: var(--app-surface, #ffffff) !important;
+  color: var(--app-text, #1a1d23) !important;
+  box-sizing: border-box !important;
+  width: 100%; /* Sized to container width by default, but overrideable by flex containers */
+  height: 42px !important; /* Touch-friendly and visual balance */
+  line-height: 1.5 !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  outline: none !important;
+}
+
+textarea {
+  height: auto !important;
+  min-height: 84px !important;
+}
+
+/* High-contrast premium focused outlines */
+input[type="text"]:focus,
+input[type="tel"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--app-accent, #2563eb) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+/* Table inputs reset - keeps tabular item lists compact & neat */
+.compb-table td input {
+  height: 32px !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  border-radius: 6px !important;
+}
+
+/* AMC Inclusions add row styling - ensures perfect inline alignment and standard look and feel */
+.amc-inclusion-add-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 12px !important;
+}
+
+.amc-inclusion-add-row select {
+  width: auto !important;
+  flex: 0 0 96px !important;
+  min-width: 96px !important;
+  height: 42px !important;
+  font-size: 14px !important;
+  padding: 10px 8px !important;
+  border-radius: 10px !important;
+  background-position: right 8px center !important;
+}
+
+.amc-inclusion-add-row input {
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  height: 42px !important;
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+}
+
+/* AMC inclusions list item reset for clean rendering */
+.amc-inclusion-editor-list li {
+  font-size: 13px !important;
+}
+

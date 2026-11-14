@@ -1,0 +1,415 @@
+.mobile-users-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.mobile-users-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-users-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  font-family: "Bricolage Grotesque", sans-serif;
+  color: var(--app-text);
+}
+
+.mobile-users-sub {
+  margin: -8px 0 8px 0;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+/* Card listing */
+.mobile-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-user-card {
+  position: relative; /* Setup anchor context for absolute child icon */
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--app-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-user-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-right: 28px; /* Leave breathing space so text never overlays trash icon */
+}
+
+.mobile-user-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.mobile-user-info p {
+  margin: 0 0 3px 0;
+  font-size: 12px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.user-state-badge {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 4px !important;
+}
+
+.mobile-user-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.mobile-user-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--app-accent);
+  background-color: rgba(37, 99, 235, 0.08);
+  padding: 3px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Small delete icon at absolute top-right */
+.user-card-delete-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--app-danger);
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  min-height: unset !important; /* Reset global button heights */
+  width: 28px;
+  height: 28px;
+  box-shadow: none !important;
+}
+
+.user-card-delete-icon:active {
+  background-color: var(--app-danger-bg);
+}
+
+.mobile-user-row-error {
+  padding: 8px 12px;
+  background-color: var(--app-danger-bg);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-danger);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Modal slide-up overlay */
+.mobile-user-modal-overlay {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mobile-user-modal-content {
+  width: 100%;
+  background-color: var(--app-surface);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding: 16px 20px 32px 20px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.25s cubic-bezier(0.1, 0.76, 0.55, 0.94);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.mobile-user-modal-handle {
+  width: 36px;
+  height: 4px;
+  background-color: var(--app-border);
+  border-radius: 2px;
+  margin: 0 auto 16px auto;
+  cursor: pointer;
+}
+
+.mobile-user-modal-header {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--app-border);
+  padding-bottom: 10px;
+}
+
+.mobile-user-modal-header h3 {
+  margin: 0 0 2px 0;
+  font-size: 16px; /* standard mobile heading */
+  font-weight: 800;
+  color: var(--app-text);
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+.mobile-user-modal-header p {
+  margin: 0;
+  font-size: 11px; /* standard mobile subtext */
+  color: var(--app-text-muted);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* Form Styles and Overrides (reproduces the elegant input dropdown look) */
+.mobile-user-invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobile-form-field label {
+  font-size: 11px; /* standard compact label */
+  font-weight: 700;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Inline standard controls */
+.mobile-form-field input,
+.mobile-form-field select,
+.mobile-form-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  font-size: 13px !important; /* Prevents bulk look, styles beautifully at standard scale */
+  font-family: var(--app-font);
+  color: var(--app-text);
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 40px !important; /* Sleeker standard mobile input height */
+}
+
+/* Custom Dropdown selectors to lock overlay inline beneath the trigger */
+.custom-dropdown-container {
+  position: relative;
+  width: 100%;
+}
+
+.custom-dropdown-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  font-size: 13px !important;
+  font-family: var(--app-font);
+  font-weight: 600;
+  color: var(--app-text);
+  height: 40px !important;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  box-shadow: none !important;
+  min-height: unset !important; /* resets global 44px buttons height */
+}
+
+.custom-dropdown-toggle:active {
+  background-color: var(--app-border);
+}
+
+.dropdown-arrow-indicator {
+  font-size: 9px;
+  color: var(--app-text-muted);
+  user-select: none;
+}
+
+.custom-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 250;
+  max-height: 180px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-item {
+  padding: 10px 12px;
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--app-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-item:active {
+  background-color: var(--app-bg);
+}
+
+.custom-dropdown-item.selected {
+  background-color: rgba(37, 99, 235, 0.08);
+  color: var(--app-accent);
+}
+
+/* Inline picker arrow indicator alignment */
+.mobile-form-field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23667085' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  padding-right: 32px;
+}
+
+.mobile-form-field input:focus,
+.mobile-form-field select:focus,
+.mobile-form-field textarea:focus {
+  border-color: var(--app-accent);
+  background-color: var(--app-surface);
+  outline: none;
+}
+
+.mobile-form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.mobile-form-row .mobile-form-field {
+  flex: 1;
+}
+
+.mobile-user-submit-error {
+  padding: 10px 14px;
+  background-color: var(--app-danger-bg);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-danger);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mobile-user-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mobile-user-submit-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+  min-height: 44px !important;
+}
+
+.mobile-user-submit-btn:active {
+  background-color: var(--app-accent-hover);
+}
+
+.mobile-user-cancel-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--app-text);
+  cursor: pointer;
+  min-height: 44px !important;
+}
+
+.mobile-user-cancel-btn:active {
+  background-color: var(--app-border);
+}
+
+/* Loader / Empty state elements */
+.mobile-users-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--app-text-muted);
+}
+
+.mobile-users-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--app-border);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 8px;
+}
+
+.mobile-users-state.error p {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
+.mobile-users-retry {
+  margin-top: 12px;
+  padding: 8px 20px;
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}

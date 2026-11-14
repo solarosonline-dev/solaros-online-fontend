@@ -126,6 +126,9 @@ export default function QuoteBuilderPage() {
   const { leadId } = useParams();
   const { setNeedsAmcSetup } = useTour();
 
+  const [activeStepMobile, setActiveStepMobile] = useState(1);
+  const isMobile = document.body.classList.contains("mobile-view");
+
   // Wall-clock time spent on this page, from mount to submit — sent as
   // generation_duration_ms (create only, see handleSubmit below) to power
   // the admin "p50/p95 time to generate a quote" metric. Safe here: this
@@ -613,7 +616,11 @@ export default function QuoteBuilderPage() {
       if (keyBeforeSave) clearDraft(keyBeforeSave);
       setDraftRestoredAt(null);
     } catch (err) {
-      setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Save failed" });
+      console.error("Submit failed:", err);
+      setStatus({
+        kind: "error",
+        message: err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Save failed",
+      });
     } finally {
       setSaving(false);
     }
@@ -627,6 +634,563 @@ export default function QuoteBuilderPage() {
           ← Back to lead
         </Link>
         <p className="quote-status-msg error">{loadError ?? "Lead not found."}</p>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className="quote-builder mobile-view-container" style={{ padding: "12px", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <Link to={`/app/leads/${leadId}`} className="quote-builder-back no-print" style={{ margin: 0 }}>
+            ← Back to lead
+          </Link>
+          {existingQuote && <span className="quote-status-badge">{existingQuote.status}</span>}
+        </div>
+
+        <div className="mobile-stepper-header" style={{ marginBottom: "16px" }}>
+          <div className="stepper-progress-text" style={{ fontSize: "14px", fontWeight: "bold" }}>
+            Step {activeStepMobile} of 8: {
+              activeStepMobile === 1 ? "System Specs" :
+              activeStepMobile === 2 ? "Pricing & Subsidy" :
+              activeStepMobile === 3 ? "AMC Setup" :
+              activeStepMobile === 4 ? "Financing" :
+              activeStepMobile === 5 ? "Terms & Conditions" :
+              activeStepMobile === 6 ? "Components Breakdowns" :
+              activeStepMobile === 7 ? "Site Design Images" : "Document Preview"
+            }
+          </div>
+          <div className="mobile-stepper-bar" style={{ display: "flex", gap: "4px", marginTop: "8px" }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+              <div key={s} className={`stepper-bar-segment ${s <= activeStepMobile ? "active" : ""}`} style={{ flex: 1, height: "4px", backgroundColor: s <= activeStepMobile ? "var(--app-accent)" : "var(--app-border)", borderRadius: "2px" }} />
+            ))}
+          </div>
+        </div>
+
+        {draftRestoredAt != null && (
+          <DraftRestoredBanner restoredAt={draftRestoredAt} onReset={handleResetDraft} />
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          {activeStepMobile === 1 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>System Specs</h3>
+              <p className="step-description">Define project generation capacity and solar panel types.</p>
+              <div className="mobile-form-field">
+                <label htmlFor="qCapacity">Capacity (kW)</label>
+                <input
+                  id="qCapacity"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  disabled={locked}
+                  value={form.capacity}
+                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                />
+              </div>
+              <div className="mobile-form-field">
+                <label htmlFor="qPanelType">Panel type</label>
+                <select
+                  id="qPanelType"
+                  disabled={locked}
+                  value={form.panelType}
+                  onChange={(e) => setForm({ ...form, panelType: e.target.value })}
+                >
+                  {PANEL_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mobile-form-field">
+                <label htmlFor="qDailyYield">Daily yield (kWh/kW/day)</label>
+                <input
+                  id="qDailyYield"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  disabled={locked}
+                  value={form.dailyYield}
+                  onChange={(e) => setForm({ ...form, dailyYield: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeStepMobile === 2 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Pricing & Commercials</h3>
+              <p className="step-description">Set unit pricing, grid tariff rates, and PM Surya Ghar subsidy levels.</p>
+              <div className="mobile-form-row">
+                <div className="mobile-form-field">
+                  <label htmlFor="qPricePerWatt">Price per watt (₹)</label>
+                  <input
+                    id="qPricePerWatt"
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    disabled={locked}
+                    value={form.pricePerWatt}
+                    onChange={(e) => setForm({ ...form, pricePerWatt: e.target.value })}
+                  />
+                </div>
+                <div className="mobile-form-field">
+                  <label htmlFor="qGstRate">{entity?.tax_label ?? "GST"} rate (%)</label>
+                  <input
+                    id="qGstRate"
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    max={100}
+                    disabled={locked}
+                    value={form.taxRate}
+                    onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="mobile-form-field">
+                <label htmlFor="qTariff">Grid tariff (₹/unit)</label>
+                <input
+                  id="qTariff"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  disabled={locked}
+                  value={form.tariff}
+                  onChange={(e) => setForm({ ...form, tariff: e.target.value })}
+                />
+              </div>
+              <div className="quote-checkbox-row" style={{ marginTop: "8px", marginBottom: "12px" }}>
+                <input
+                  id="qApplySubsidy"
+                  type="checkbox"
+                  disabled={locked}
+                  checked={form.applySubsidy}
+                  onChange={(e) => setForm({ ...form, applySubsidy: e.target.checked })}
+                />
+                <label htmlFor="qApplySubsidy">Apply subsidy</label>
+              </div>
+              {form.applySubsidy && (
+                <div className="mobile-form-field">
+                  <label htmlFor="qSubsidyAmount">Subsidy amount (₹)</label>
+                  <input
+                    id="qSubsidyAmount"
+                    type="number"
+                    min={0}
+                    disabled={locked}
+                    value={form.subsidyAmount}
+                    onChange={(e) => {
+                      setSubsidyTouched(true);
+                      setForm({ ...form, subsidyAmount: e.target.value });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeStepMobile === 3 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Annual Maintenance Contracts (AMC)</h3>
+              <p className="step-description">Add years 1-5 service plans.</p>
+              <div className="mobile-form-row">
+                <div className="mobile-form-field">
+                  <label htmlFor="qAmcId">AMC plan</label>
+                  <select
+                    id="qAmcId"
+                    disabled={locked}
+                    value={form.amcId}
+                    onChange={(e) => {
+                      const amcId = e.target.value;
+                      setForm({
+                        ...form,
+                        amcId,
+                        amcDurationYears: amcId && !form.amcDurationYears ? "1" : form.amcDurationYears,
+                      });
+                    }}
+                  >
+                    <option value="">None</option>
+                    {amcYear1to5Options.map((p) => (
+                      <option key={p.amc_id} value={p.amc_id}>
+                        {p.name}
+                        {!p.is_active ? " (Deactivated)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mobile-form-field">
+                  <label htmlFor="qAmcDuration">Duration (yrs)</label>
+                  <input
+                    id="qAmcDuration"
+                    type="number"
+                    min={0}
+                    disabled={locked || !form.amcId}
+                    value={form.amcDurationYears}
+                    onChange={(e) => setForm({ ...form, amcDurationYears: e.target.value })}
+                  />
+                </div>
+              </div>
+              {form.amcId && (
+                <div className="mobile-form-field">
+                  <label htmlFor="qAmcMode">Pricing Mode</label>
+                  <select
+                    id="qAmcMode"
+                    disabled={locked}
+                    value={form.amcMode}
+                    onChange={(e) => setForm({ ...form, amcMode: e.target.value as "included" | "chargeable" })}
+                  >
+                    <option value="chargeable">Chargeable — customer pays</option>
+                    <option value="included">Included — bundled free of cost</option>
+                  </select>
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {activeStepMobile === 4 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Financing & Loan Facilities</h3>
+              <p className="step-description">Configure on-grid project financing and interest tenures.</p>
+              <div className="mobile-form-field">
+                <label htmlFor="qLoanAmount">Loan amount (₹)</label>
+                <input
+                  id="qLoanAmount"
+                  type="number"
+                  min={0}
+                  disabled={locked}
+                  value={form.loanAmount}
+                  onChange={(e) => {
+                    setLoanAmountTouched(true);
+                    setForm({ ...form, loanAmount: e.target.value });
+                  }}
+                />
+              </div>
+              <div className="mobile-form-row">
+                <div className="mobile-form-field">
+                  <label htmlFor="qLoanRate">Interest Rate (% p.a.)</label>
+                  <input
+                    id="qLoanRate"
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    max={100}
+                    disabled={locked}
+                    value={form.loanRatePercent}
+                    onChange={(e) => setForm({ ...form, loanRatePercent: e.target.value })}
+                  />
+                </div>
+                <div className="mobile-form-field">
+                  <label htmlFor="qLoanTenure">Tenure (yrs)</label>
+                  <input
+                    id="qLoanTenure"
+                    type="number"
+                    min={0}
+                    disabled={locked}
+                    value={form.loanTenureYears}
+                    onChange={(e) => setForm({ ...form, loanTenureYears: e.target.value })}
+                  />
+                </div>
+              </div>
+              {loanEnabled && (
+                <div className="mobile-coordinates-alert" style={{ marginTop: "12px", background: "#f8fafc", color: "#475569" }}>
+                  💵 Self-funding Contribution: ₹{Math.max(0, (computed.totalCost || 0) - (Number(form.loanAmount) || 0)).toLocaleString("en-IN")}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeStepMobile === 5 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Validity & Custom Terms</h3>
+              <p className="step-description">Manage quote validity periods and custom legal/installation clauses.</p>
+              <div className="mobile-form-field">
+                <label htmlFor="qValidityDays">Validity (days)</label>
+                <input
+                  id="qValidityDays"
+                  type="number"
+                  min={0}
+                  disabled={locked}
+                  value={form.validityDays}
+                  onChange={(e) => setForm({ ...form, validityDays: e.target.value })}
+                />
+              </div>
+              <div className="mobile-form-field">
+                <label htmlFor="qNotes">Internal Notes</label>
+                <textarea
+                  id="qNotes"
+                  rows={2}
+                  disabled={locked}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+              <div className="mobile-form-field" style={{ marginTop: "12px" }}>
+                <label htmlFor="qTermInput">Terms &amp; conditions</label>
+                {form.terms.length > 0 && (
+                  <ul className="quote-terms-list" style={{ paddingLeft: 0, listStyle: "none" }}>
+                    {form.terms.map((term, i) => (
+                      <li key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--app-bg)", border: "1px solid var(--app-border)", borderRadius: "10px", marginBottom: "6px", fontSize: "13px" }}>
+                        <span style={{ flex: 1, paddingRight: "8px" }}>{term}</span>
+                        {!locked && (
+                          <button type="button" onClick={() => handleRemoveTerm(i)} style={{ border: "none", background: "none", color: "var(--app-danger)", fontSize: "16px", fontWeight: "bold" }}>
+                            ×
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!locked && (
+                  <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+                    <input
+                      id="qTermInput"
+                      type="text"
+                      placeholder="e.g. Quote valid for 15 days"
+                      value={newTerm}
+                      onChange={(e) => setNewTerm(e.target.value)}
+                      onKeyDown={handleTermKeyDown}
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" className="drawer-action-btn primary" onClick={handleAddTerm}>
+                      + Add
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeStepMobile === 6 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Component-wise Breakdown</h3>
+              <p className="step-description">Toggle itemized components, brand lists, and detailed price breakdowns.</p>
+              <div className="quote-checkbox-row" style={{ marginBottom: "8px" }}>
+                <input
+                  id="qComponentsEnabled"
+                  type="checkbox"
+                  disabled={locked}
+                  checked={form.componentsEnabled}
+                  onChange={(e) => setForm({ ...form, componentsEnabled: e.target.checked })}
+                />
+                <label htmlFor="qComponentsEnabled">Show component-wise details</label>
+              </div>
+              <div className="quote-checkbox-row" style={{ marginBottom: "16px" }}>
+                <input
+                  id="qComponentsPricingEnabled"
+                  type="checkbox"
+                  disabled={locked || !form.componentsEnabled}
+                  checked={form.componentsPricingEnabled}
+                  onChange={(e) => setForm({ ...form, componentsPricingEnabled: e.target.checked })}
+                />
+                <label htmlFor="qComponentsPricingEnabled">Enable pricing</label>
+              </div>
+
+              {form.componentsEnabled && (
+                <div style={{ marginTop: "12px" }}>
+                  <div className="mobile-users-list">
+                    {form.components.map((row, i) => (
+                      <div key={i} className="mobile-user-card" style={{ padding: "12px", border: "1px solid var(--app-border)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <h4 style={{ margin: 0, fontSize: "14px", fontWeight: 700 }}>Item {i + 1}</h4>
+                          {!locked && (
+                            <button type="button" onClick={() => handleRemoveComponentRow(i)} style={{ border: "none", background: "none", color: "var(--app-danger)", fontSize: "18px", fontWeight: "bold" }}>
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                        <div className="mobile-form-field">
+                          <label>Particular Name</label>
+                          <input
+                            type="text"
+                            disabled={locked}
+                            value={row.particular}
+                            onChange={(e) => handleComponentFieldChange(i, "particular", e.target.value)}
+                            placeholder="e.g. Solar Panels"
+                          />
+                        </div>
+                        <div className="mobile-form-row">
+                          <div className="mobile-form-field">
+                            <label>Qty</label>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={locked}
+                              value={row.qty ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "qty", e.target.value)}
+                            />
+                          </div>
+                          <div className="mobile-form-field">
+                            <label>Price (₹)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={locked}
+                              value={row.price ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "price", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="mobile-form-row">
+                          <div className="mobile-form-field">
+                            <label>Tax %</label>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={locked}
+                              value={row.tax_percent ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "tax_percent", e.target.value)}
+                            />
+                          </div>
+                          <div className="mobile-form-field">
+                            <label>Warranty (yrs)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              disabled={locked}
+                              value={row.warranty_years ?? ""}
+                              onChange={(e) => handleComponentFieldChange(i, "warranty_years", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!locked && (
+                    <button type="button" className="mobile-user-submit-btn" onClick={handleAddComponentRow} style={{ marginTop: "12px", minHeight: "40px !important" }}>
+                      ➕ Add Component Row
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeStepMobile === 7 && (
+            <div className="mobile-step-card animate-slide">
+              <h3>Site Layout Images</h3>
+              <p className="step-description">Upload actual site design patterns and layout graphics.</p>
+              {leadId && (
+                <LeadSiteImages
+                  entityId={entityId}
+                  leadId={Number(leadId)}
+                  images={siteImages}
+                  loading={siteImagesLoading}
+                  loadError={siteImagesLoadError}
+                  onImagesChange={setSiteImages}
+                  onPreviewChange={setSiteImagesPreview}
+                />
+              )}
+            </div>
+          )}
+
+          {activeStepMobile === 8 && (
+            <div className="mobile-step-card animate-slide" style={{ padding: "8px" }}>
+              <h3>Document Preview</h3>
+              <p className="step-description" style={{ marginBottom: "12px" }}>Verify the generated customer-facing document preview below.</p>
+              
+              <div className="mobile-quote-document-preview-wrapper" style={{ border: "1px solid var(--app-border)", borderRadius: "14px", overflow: "hidden", background: "var(--app-bg)", padding: "8px" }}>
+                <QuoteDocument
+                  quoteNumber={existingQuote?.quote_number ?? null}
+                  createdAt={existingQuote?.created_at ?? null}
+                  validityDays={form.validityDays ? Number(form.validityDays) : null}
+                  capacityKw={Number(form.capacity) || 0}
+                  panelMake={derivedPanelMake || null}
+                  inverterMake={derivedInverterMake || null}
+                  panelType={form.panelType || null}
+                  notes={form.notes || null}
+                  terms={form.terms}
+                  components={form.components}
+                  showComponentDetails={form.componentsEnabled}
+                  showComponentPricing={form.componentsEnabled && form.componentsPricingEnabled}
+                  customerName={lead.name}
+                  customerAddress={lead.address}
+                  customerDiscom={getDiscomName(lead.discom)}
+                  customerMobile={lead.mobile}
+                  customerEmail={lead.email}
+                  segment={lead.type}
+                  pricePerWatt={Number(form.pricePerWatt) || 0}
+                  taxRate={Number(form.taxRate) || 0}
+                  tariff={Number(form.tariff) || 9}
+                  computed={computed}
+                  amc={
+                    acceptedSnapshot
+                      ? acceptedSnapshot.amc
+                        ? {
+                            name: acceptedSnapshot.amc.name,
+                            ratePerKw: acceptedSnapshot.amc.rate_per_kw != null ? Number(acceptedSnapshot.amc.rate_per_kw) : null,
+                            inclusion: acceptedSnapshot.amc.inclusion.map(formatAmcInclusion),
+                          }
+                        : null
+                      : selectedAmcPlan
+                        ? {
+                            name: selectedAmcPlan.name,
+                            ratePerKw: selectedAmcPlan.rate_per_kw != null ? Number(selectedAmcPlan.rate_per_kw) : null,
+                            inclusion: selectedAmcPlan.inclusion.map(formatAmcInclusion),
+                          }
+                        : null
+                  }
+                  amcDurationYears={form.amcDurationYears ? Number(form.amcDurationYears) : null}
+                  amcMode={form.amcMode}
+                  amcPost5={{
+                    enabled: amcPost5Enabled,
+                    plans: (acceptedSnapshot ? acceptedSnapshot.amc_post5_plans : selectedPost5Plans).map((p) => ({
+                      name: p.name,
+                      ratePerKw: p.rate_per_kw != null ? Number(p.rate_per_kw) : null,
+                      inclusion: p.inclusion.map(formatAmcInclusion),
+                    })),
+                  }}
+                  loan={{
+                    enabled: loanEnabled,
+                    amount: form.loanAmount ? Number(form.loanAmount) : null,
+                    ratePercent: form.loanRatePercent ? Number(form.loanRatePercent) : null,
+                    tenureYears: form.loanTenureYears ? Number(form.loanTenureYears) : null,
+                  }}
+                  paymentSchedule={
+                    acceptedSnapshot?.payment_schedule ?? preferences?.payment_schedule.rows ?? DEFAULT_PAYMENT_SCHEDULE
+                  }
+                  branding={documentBranding}
+                  shareUrl={existingQuote?.share_url ?? null}
+                  siteImages={
+                    siteImagesPreview ??
+                    siteImages
+                      .filter((img) => img.url != null)
+                      .map((img) => ({ imageId: img.image_id, url: img.url as string, fileName: img.file_name }))
+                  }
+                  highlightSections={highlightSections}
+                />
+              </div>
+
+              {!locked && (
+                <div className="quote-status-bar" style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px", background: "var(--app-surface)", border: "1px solid var(--app-border)", borderRadius: "14px", padding: "12px", boxSizing: "border-box" }}>
+                  <button type="submit" className="quote-btn primary" disabled={saving || showSaved} style={{ width: "100%", height: "44px !important", minHeight: "44px !important" }}>
+                    {saving ? "Saving…" : showSaved ? "Saved" : existingQuote ? "Save changes" : "Generate quote"}
+                  </button>
+                  {existingQuote?.share_url && (
+                    <CopyLinkButton url={existingQuote.share_url} disabled={isDirtySinceLoad} />
+                  )}
+                  {status && <span className={`quote-status-msg ${status.kind}`}>{status.message}</span>}
+                </div>
+              )}
+              {locked && <p className="quote-status-msg" style={{ marginTop: "12px", textAlign: "center" }}>This quote is {existingQuote?.status.toLowerCase()} and can no longer be edited.</p>}
+            </div>
+          )}
+
+          {/* Stepper Navigation buttons */}
+          <div className="mobile-stepper-controls" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            {activeStepMobile > 1 && (
+              <button type="button" className="stepper-btn prev-btn" onClick={() => setActiveStepMobile((s) => s - 1)}>
+                ⬅️ Back
+              </button>
+            )}
+            {activeStepMobile < 8 ? (
+              <button type="button" className="stepper-btn next-btn" onClick={() => setActiveStepMobile((s) => s + 1)}>
+                Continue ➡️
+              </button>
+            ) : null}
+          </div>
+        </form>
       </div>
     );
   }

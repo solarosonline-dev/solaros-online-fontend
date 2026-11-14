@@ -1,0 +1,231 @@
+.mobile-dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.mobile-dashboard-welcome h2 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--app-text);
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+.mobile-dashboard-entity-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--app-text-muted);
+  font-weight: 600;
+}
+
+/* Hero Revenue Card */
+.mobile-dashboard-revenue-banner {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  border-radius: 16px;
+  padding: 20px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.revenue-banner-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.revenue-banner-value {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: "Bricolage Grotesque", sans-serif;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.revenue-banner-subtext {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 8px;
+}
+
+/* Tile Grid */
+.mobile-dashboard-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.mobile-dashboard-tile {
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--app-shadow);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.mobile-dashboard-tile:active {
+  transform: scale(0.97);
+  border-color: var(--app-accent);
+}
+
+.mobile-tile-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.mobile-tile-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--app-text);
+  font-family: "Bricolage Grotesque", sans-serif;
+  line-height: 1.2;
+}
+
+.mobile-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-muted);
+  margin-top: 4px;
+}
+
+/* Quick Actions Strip */
+.mobile-dashboard-quick-actions h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.mobile-dashboard-action-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow);
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  margin-bottom: 10px;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.mobile-dashboard-action-btn:active {
+  transform: scale(0.98);
+  border-color: var(--app-accent);
+}
+
+.action-btn-icon {
+  font-size: 24px;
+  width: 44px;
+  height: 44px;
+  background-color: var(--app-bg);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-btn-text {
+  flex: 1;
+}
+
+.action-btn-text h4 {
+  margin: 0 0 2px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.action-btn-text p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.action-btn-arrow {
+  font-size: 14px;
+  color: var(--app-text-muted);
+}
+
+/* Loaders & Errors */
+.mobile-dashboard-loading-container,
+.mobile-dashboard-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  font-family: var(--app-font);
+}
+
+.mobile-dashboard-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--app-border);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+
+.mobile-dashboard-loading-container p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.mobile-dashboard-error-container span {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.mobile-dashboard-error-container p {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.mobile-dashboard-retry-btn {
+  padding: 10px 24px;
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

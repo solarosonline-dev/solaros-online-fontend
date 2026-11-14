@@ -1,0 +1,142 @@
+import { useState, useEffect } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../lib/AuthContext";
+import { isEntityAdmin } from "../../lib/roles";
+import { TourProvider } from "../../lib/TourContext";
+import "./MobileLayout.css";
+
+export default function MobileLayout() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Close the slide-up sheet when routing changes
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [location.pathname]);
+
+  const handleSignOut = () => {
+    signOut();
+    navigate("/login");
+  };
+
+  const entityAdmin = user ? isEntityAdmin(user.roles) : false;
+
+  return (
+    <TourProvider>
+      <div className="mobile-shell">
+      {/* Top sticky header bar */}
+      <header className="mobile-header">
+        <div className="mobile-header-logo">
+          Solar<em>OS</em>
+        </div>
+        <div className="mobile-header-user">
+          {user?.full_name ? user.full_name.split(" ")[0] : "User"}
+        </div>
+      </header>
+
+      {/* Primary viewport content */}
+      <main className="mobile-main">
+        <Outlet />
+      </main>
+
+      {/* Bottom Navigation Tab Bar */}
+      <nav className="mobile-tab-bar">
+        {entityAdmin && (
+          <NavLink
+            to="/app/dashboard"
+            className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+          >
+            <span className="mobile-tab-icon">📊</span>
+            <span className="mobile-tab-label">Dashboard</span>
+          </NavLink>
+        )}
+
+        <NavLink
+          to="/app/leads"
+          className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+        >
+          <span className="mobile-tab-icon">👤</span>
+          <span className="mobile-tab-label">Leads</span>
+        </NavLink>
+
+        {entityAdmin && (
+          <NavLink
+            to="/app/projects"
+            className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+          >
+            <span className="mobile-tab-icon">📋</span>
+            <span className="mobile-tab-label">Projects</span>
+          </NavLink>
+        )}
+
+        <NavLink
+          to="/app/my-work-orders"
+          className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+        >
+          <span className="mobile-tab-icon">⚙️</span>
+          <span className="mobile-tab-label">My Work</span>
+        </NavLink>
+
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          className={`mobile-tab-item mobile-tab-more-btn ${moreOpen ? "active" : ""}`}
+        >
+          <span className="mobile-tab-icon">⚡</span>
+          <span className="mobile-tab-label">More</span>
+        </button>
+      </nav>
+
+      {/* Tactile Slide-up Bottom Sheet (More Menu) */}
+      {moreOpen && (
+        <div className="mobile-sheet-overlay" onClick={() => setMoreOpen(false)}>
+          <div className="mobile-sheet-content" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-sheet-handle-bar" onClick={() => setMoreOpen(false)} />
+            
+            <div className="mobile-sheet-header">
+              <h3>Options & Utilities</h3>
+              <p>{user?.email}</p>
+            </div>
+
+            <div className="mobile-sheet-links">
+              {entityAdmin && (
+                <>
+                  <NavLink to="/app/entity" className="mobile-sheet-link-item">
+                    <span className="sheet-link-icon">🏢</span>
+                    <span className="sheet-link-text">Entity Management Settings</span>
+                  </NavLink>
+                  <NavLink to="/app/users" className="mobile-sheet-link-item">
+                    <span className="sheet-link-icon">👥</span>
+                    <span className="sheet-link-text">Manage Team Users</span>
+                  </NavLink>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="mobile-sheet-link-item mobile-sheet-signout-btn"
+              >
+                <span className="sheet-link-icon">🚀</span>
+                <span className="sheet-link-text" style={{ color: "var(--app-danger)" }}>
+                  Sign Out of Session
+                </span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="mobile-sheet-close-btn"
+              onClick={() => setMoreOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    </TourProvider>
+  );
+}

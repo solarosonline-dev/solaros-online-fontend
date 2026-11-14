@@ -1,0 +1,316 @@
+.mobile-leads-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.mobile-leads-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mobile-leads-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  font-family: "Bricolage Grotesque", sans-serif;
+  color: var(--app-text);
+}
+
+.mobile-btn-add-primary {
+  padding: 10px 16px;
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+  user-select: none;
+}
+
+.mobile-btn-add-primary:active {
+  transform: scale(0.96);
+}
+
+/* Single-row top filter bar (no wrap, no scroll) */
+.mobile-leads-filter-scroll {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.mobile-filter-chip {
+  flex: 1;
+  padding: 8px 2px;
+  text-align: center;
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-filter-chip.selected {
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border-color: var(--app-accent);
+}
+
+/* Search bar styling */
+.mobile-leads-search input {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--app-text);
+  box-shadow: var(--app-shadow);
+  box-sizing: border-box;
+}
+
+.mobile-leads-search input:focus {
+  border-color: var(--app-accent);
+  outline: none;
+}
+
+/* Leads Cards */
+.mobile-leads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-lead-card {
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.mobile-lead-card.expanded {
+  border-color: var(--app-accent);
+}
+
+.lead-card-front {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lead-card-main-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.lead-card-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.lead-card-right-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lead-card-chevron {
+  font-size: 10px;
+  color: var(--app-text-muted);
+  width: 16px;
+  text-align: center;
+}
+
+/* Drawer details (Double down view) */
+.lead-card-drawer {
+  background-color: #fafbfc;
+  padding: 16px;
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.lead-card-divider {
+  height: 1px;
+  background-color: var(--app-border);
+  margin-bottom: 14px;
+}
+
+.lead-drawer-metadata {
+  margin-bottom: 14px;
+}
+
+.lead-drawer-metadata p {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: var(--app-text);
+}
+
+.lead-drawer-metadata strong {
+  color: var(--app-text-muted);
+  font-weight: 600;
+  display: inline-block;
+  width: 60px;
+}
+
+/* Call and Whatsapp row */
+.lead-drawer-communication {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.comm-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  text-align: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.call-btn {
+  background-color: #f1f5f9;
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+}
+
+.call-btn:active {
+  background-color: var(--app-border);
+}
+
+.wa-btn {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.wa-btn:active {
+  background-color: #bbf7d0;
+}
+
+/* Secondary CTA Action Buttons inside Card */
+.lead-drawer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-action-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--app-text);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.drawer-action-btn:active {
+  background-color: var(--app-bg);
+}
+
+.drawer-action-btn.primary {
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border-color: var(--app-accent);
+}
+
+.drawer-action-btn.primary:active {
+  background-color: var(--app-accent-hover);
+}
+
+.drawer-action-btn.success {
+  background-color: #10b981;
+  color: #ffffff;
+  border-color: #10b981;
+}
+
+.drawer-action-btn.success:active {
+  background-color: #059669;
+}
+
+/* Loading/Error state messages */
+.mobile-leads-state-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--app-text-muted);
+}
+
+.mobile-leads-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--app-border);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 8px;
+}
+
+.mobile-leads-state-msg p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mobile-leads-retry-btn {
+  margin-top: 12px;
+  padding: 8px 20px;
+  background-color: var(--app-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

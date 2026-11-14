@@ -194,6 +194,7 @@ function AppLayoutInner() {
                     {crm && <NavLink to="/app/dashboard">Dashboard</NavLink>}
                     {crm && <NavLink to="/app/leads">Leads</NavLink>}
                     {crm && <NavLink to="/app/projects">Projects</NavLink>}
+                    {crm && <NavLink to="/app/govt-demo">Govt Schemes 🌟</NavLink>}
                     {design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
                     {showAgentsCoexist && (
                       <>

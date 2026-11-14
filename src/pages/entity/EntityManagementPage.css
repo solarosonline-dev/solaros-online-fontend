@@ -926,6 +926,417 @@
     color: var(--app-text-muted);
     margin-right: 8px;
   }
+
+  /* High-Fidelity Mobile UI elements for settings, tabs and wizard sheets */
+  .mobile-components-stepper,
+  .mobile-payment-schedule-tab,
+  .mobile-vendors-tab,
+  .mobile-warehouses-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .mobile-stepper-info-box {
+    background-color: rgba(37, 99, 235, 0.05);
+    border: 1px solid rgba(37, 99, 235, 0.1);
+    border-radius: 12px;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  .stepper-count-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--app-accent);
+    background-color: rgba(37, 99, 235, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .mobile-stepper-info-box h3 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--app-text);
+  }
+
+  .step-description {
+    margin: 0;
+    font-size: 12px;
+    color: var(--app-text-muted);
+    line-height: 1.4;
+  }
+
+  .mobile-step-card {
+    background-color: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--app-shadow);
+    box-sizing: border-box;
+  }
+
+  .mobile-stepper-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    box-sizing: border-box;
+  }
+
+  .stepper-btn {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: center;
+    min-height: 44px !important;
+    box-sizing: border-box;
+  }
+
+  .stepper-btn.prev-btn {
+    background-color: var(--app-bg);
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
+  }
+
+  .stepper-btn.prev-btn:active {
+    background-color: var(--app-border);
+  }
+
+  .stepper-btn.next-btn {
+    background-color: var(--app-accent);
+    border: none;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+  }
+
+  .stepper-btn.next-btn:active {
+    background-color: var(--app-accent-hover);
+  }
+
+  /* Custom compact action button on mobile headers */
+  .mobile-btn-add-primary {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 14px;
+    background-color: var(--app-accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+    min-height: unset !important;
+    white-space: nowrap;
+  }
+
+  .mobile-btn-add-primary:active {
+    background-color: var(--app-accent-hover);
+  }
+
+  /* Mobile card listing layouts */
+  .mobile-users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mobile-user-card {
+    position: relative;
+    background-color: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--app-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-card-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding-right: 28px;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-info h3 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--app-text);
+  }
+
+  .mobile-user-info p {
+    margin: 0 0 3px 0;
+    font-size: 12px;
+    color: var(--app-text-muted);
+    font-weight: 500;
+  }
+
+  .user-card-delete-icon {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: var(--app-danger);
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    min-height: unset !important;
+    width: 28px;
+    height: 28px;
+    box-shadow: none !important;
+  }
+
+  .user-card-delete-icon:active {
+    background-color: var(--app-danger-bg);
+  }
+
+  .drawer-action-btn {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+    background-color: var(--app-bg);
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
+    border-radius: 8px;
+    cursor: pointer;
+    min-height: unset !important;
+    box-sizing: border-box;
+  }
+
+  .drawer-action-btn:active {
+    background-color: var(--app-border);
+  }
+
+  .drawer-action-btn.primary {
+    background-color: var(--app-accent);
+    border-color: var(--app-accent);
+    color: #ffffff;
+  }
+
+  .drawer-action-btn.primary:active {
+    background-color: var(--app-accent-hover);
+  }
+
+  /* Form Fields and Slide-Up Modal overlays */
+  .mobile-user-modal-overlay {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .mobile-user-modal-content {
+    width: 100%;
+    background-color: var(--app-surface);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    padding: 16px 20px 32px 20px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.25s cubic-bezier(0.1, 0.76, 0.55, 0.94);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-modal-handle {
+    width: 36px;
+    height: 4px;
+    background-color: var(--app-border);
+    border-radius: 2px;
+    margin: 0 auto 16px auto;
+    cursor: pointer;
+  }
+
+  .mobile-user-modal-header {
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--app-border);
+    padding-bottom: 10px;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-modal-header h3 {
+    margin: 0 0 2px 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--app-text);
+    font-family: "Bricolage Grotesque", sans-serif;
+  }
+
+  .mobile-user-modal-header p {
+    margin: 0;
+    font-size: 11px;
+    color: var(--app-text-muted);
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .mobile-user-invite-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+  }
+
+  .mobile-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+  }
+
+  .mobile-form-field label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--app-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .mobile-form-field input,
+  .mobile-form-field select,
+  .mobile-form-field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background-color: var(--app-bg);
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    font-size: 13px !important;
+    font-family: var(--app-font);
+    color: var(--app-text);
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 40px !important;
+  }
+
+  .mobile-form-field textarea {
+    height: auto !important;
+  }
+
+  .mobile-form-field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23667085' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px;
+    padding-right: 32px;
+  }
+
+  .mobile-form-field input:focus,
+  .mobile-form-field select:focus,
+  .mobile-form-field textarea:focus {
+    border-color: var(--app-accent);
+    background-color: var(--app-surface);
+    outline: none;
+  }
+
+  .mobile-form-row {
+    display: flex;
+    gap: 10px;
+    box-sizing: border-box;
+  }
+
+  .mobile-form-row .mobile-form-field {
+    flex: 1;
+  }
+
+  .mobile-user-submit-error {
+    padding: 10px 14px;
+    background-color: var(--app-danger-bg);
+    border: 1px solid var(--app-danger-border);
+    color: var(--app-danger);
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .mobile-user-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-submit-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--app-accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+    min-height: 44px !important;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-submit-btn:active {
+    background-color: var(--app-accent-hover);
+  }
+
+  .mobile-user-cancel-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--app-bg);
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--app-text);
+    cursor: pointer;
+    min-height: 44px !important;
+    box-sizing: border-box;
+  }
+
+  .mobile-user-cancel-btn:active {
+    background-color: var(--app-border);
+  }
+
+  .mobile-users-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--app-text-muted);
+    box-sizing: border-box;
+  }
+
+  .mobile-users-state.empty p {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+  }
 }
 
 @media (max-width: 400px) {

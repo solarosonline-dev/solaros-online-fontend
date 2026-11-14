@@ -362,6 +362,63 @@
      block — align-items: flex-start above keeps a long wrapped label from
      vertically centering the checkbox in the middle of the whole block. */
   margin-top: 3px;
+
+  /* Custom Checkmark styles */
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1.5px solid var(--app-border);
+  border-radius: 4px;
+  background-color: var(--app-bg);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.quote-checkbox-row input[type="checkbox"]:checked {
+  background-color: var(--app-accent);
+  border-color: var(--app-accent);
+}
+
+.quote-checkbox-row input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Custom Radio styles for mobile agreement format card selection */
+.mobile-step-card input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border: 1.5px solid var(--app-border);
+  border-radius: 50%;
+  background-color: var(--app-bg);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.mobile-step-card input[type="radio"]:checked {
+  background-color: var(--app-accent);
+  border-color: var(--app-accent);
+}
+
+.mobile-step-card input[type="radio"]:checked::after {
+  content: "✓";
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
 }
 
 .quote-checkbox-row label {

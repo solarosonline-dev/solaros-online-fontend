@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import type { Components } from "../../../api/entityPreferences";
 
 type Props = {
@@ -5,9 +6,48 @@ type Props = {
   onChange: (draft: Components) => void;
 };
 
+const STANDARD_COMPONENTS = [
+  { name: "Solar Panels", tax: 5, placeholderSpec: "e.g. Mono PERC, Half-Cut 550Wp" },
+  { name: "Inverter", tax: 5, placeholderSpec: "e.g. On-Grid String Inverter with WiFi" },
+  { name: "ACDB Box", tax: 18, placeholderSpec: "e.g. IP65 rated ACDB box, surge protection" },
+  { name: "AC Cable", tax: 18, placeholderSpec: "e.g. 4 Core XLPE armoured cable" },
+  { name: "DCDB Box", tax: 18, placeholderSpec: "e.g. IP65 rated DCDB box, fuses, surge protection" },
+  { name: "DC Cable", tax: 18, placeholderSpec: "e.g. 4 sqmm solar DC cable" },
+  { name: "Lightning Arrestor (LA)", tax: 18, placeholderSpec: "e.g. Solid copper lightning arrestor rod with base" },
+  { name: "Earthing Rods", tax: 18, placeholderSpec: "e.g. Copper bonded rods, chemical compound" },
+  { name: "Earthing Cable/GI Strip", tax: 18, placeholderSpec: "e.g. GI earthing strip, earthing cables" },
+  { name: "Structure", tax: 18, placeholderSpec: "e.g. Hot Dip Galvanized (HDG) / Aluminium elevated structure" },
+  { name: "I&C Cost", tax: 18, placeholderSpec: "e.g. Installation & commissioning standard labor & testing" },
+];
+
 export default function ComponentsTab({ draft, onChange }: Props) {
   const items = draft.items;
+  const isMobile = document.body.classList.contains("mobile-view");
+  const [currentStep, setCurrentStep] = useState(0);
 
+  // Pad or align loaded items to match the 11 standard steps for mobile view
+  useEffect(() => {
+    if (isMobile && items.length < 11) {
+      const padded = [...items];
+      for (let i = padded.length; i < 11; i++) {
+        padded.push({
+          particular: STANDARD_COMPONENTS[i].name,
+          tax_percent: STANDARD_COMPONENTS[i].tax,
+          warranty_years: null,
+          specification: null,
+        });
+      }
+      onChange({ items: padded });
+    }
+  }, [isMobile, items.length, onChange]);
+
+  function handleFieldChange(index: number, field: "particular" | "specification" | "tax_percent" | "warranty_years", value: any) {
+    onChange({
+      items: items.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    });
+  }
+
+  // Desktop Handlers
   function handleAdd() {
     onChange({
       items: [...items, { particular: "", tax_percent: 18, warranty_years: null, specification: null }],
@@ -18,39 +58,138 @@ export default function ComponentsTab({ draft, onChange }: Props) {
     onChange({ items: items.filter((_, i) => i !== index) });
   }
 
-  function handleParticularChange(index: number, value: string) {
-    onChange({
-      items: items.map((item, i) => (i === index ? { ...item, particular: value } : item)),
-    });
-  }
+  if (isMobile) {
+    const item = items[currentStep] || {
+      particular: "",
+      tax_percent: 18,
+      warranty_years: null,
+      specification: null,
+    };
 
-  function handleTaxChange(index: number, value: string) {
-    const tax_percent = value === "" ? 0 : Number(value);
-    onChange({
-      items: items.map((item, i) => (i === index ? { ...item, tax_percent } : item)),
-    });
-  }
+    const stepName = item.particular || "New Custom Component";
+    const defaultPlaceholder = "e.g. technical specifications & parameter metrics";
 
-  function handleWarrantyChange(index: number, value: string) {
-    const warranty_years = value === "" ? null : Number(value);
-    onChange({
-      items: items.map((item, i) => (i === index ? { ...item, warranty_years } : item)),
-    });
-  }
+    const handleAddStepMobile = () => {
+      const newItems = [...items, { particular: "", tax_percent: 18, warranty_years: null, specification: null }];
+      onChange({ items: newItems });
+      setCurrentStep(newItems.length - 1);
+    };
 
-  function handleSpecificationChange(index: number, value: string) {
-    const specification = value === "" ? null : value;
-    onChange({
-      items: items.map((item, i) => (i === index ? { ...item, specification } : item)),
-    });
+    const handleRemoveStepMobile = (index: number) => {
+      if (items.length <= 1) return;
+      const newItems = items.filter((_, i) => i !== index);
+      onChange({ items: newItems });
+      setCurrentStep(Math.max(0, index - 1));
+    };
+
+    return (
+      <div className="mobile-components-stepper">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+          <div className="stepper-count-badge">Component {currentStep + 1} of {items.length}</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {items.length > 1 && (
+              <button
+                type="button"
+                className="user-card-delete-icon"
+                onClick={() => handleRemoveStepMobile(currentStep)}
+                style={{ position: "static", background: "none", border: "none", color: "var(--app-danger)" }}
+                title="Remove component step"
+              >
+                🗑️
+              </button>
+            )}
+            <button
+              type="button"
+              className="mobile-btn-add-primary"
+              onClick={handleAddStepMobile}
+              style={{ fontSize: "11px", padding: "6px 12px" }}
+            >
+              ➕ Add Step
+            </button>
+          </div>
+        </div>
+
+        <div className="mobile-stepper-info-box">
+          <h3>{stepName} Specifications</h3>
+          <p className="step-description">Configure the default pricing row and warranty details for this component step.</p>
+        </div>
+
+        {/* Tactile Form Card */}
+        <div className="mobile-step-card animate-slide" style={{ padding: "16px", marginTop: "10px" }}>
+          <div className="mobile-form-field">
+            <label>Particular Name</label>
+            <input
+              type="text"
+              value={item.particular}
+              onChange={(e) => handleFieldChange(currentStep, "particular", e.target.value)}
+              placeholder="e.g. Panel Structure, DC Cable"
+            />
+          </div>
+
+          <div className="mobile-form-row">
+            <div className="mobile-form-field">
+              <label>GST Tax Rate (%)</label>
+              <select
+                value={item.tax_percent}
+                onChange={(e) => handleFieldChange(currentStep, "tax_percent", Number(e.target.value))}
+              >
+                <option value={0}>0% - Exempt</option>
+                <option value={5}>5% - Renewable concession</option>
+                <option value={12}>12% - Tech goods</option>
+                <option value={18}>18% - Standard supply</option>
+                <option value={28}>28% - Luxury rate</option>
+              </select>
+            </div>
+
+            <div className="mobile-form-field">
+              <label>Warranty (yrs)</label>
+              <input
+                type="number"
+                min={0}
+                placeholder="e.g. 5"
+                value={item.warranty_years ?? ""}
+                onChange={(e) => handleFieldChange(currentStep, "warranty_years", e.target.value === "" ? null : Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="mobile-form-field">
+            <label>Technical Specification Remarks</label>
+            <textarea
+              rows={2}
+              value={item.specification ?? ""}
+              onChange={(e) => handleFieldChange(currentStep, "specification", e.target.value === "" ? null : e.target.value)}
+              placeholder={STANDARD_COMPONENTS[currentStep]?.placeholderSpec ?? defaultPlaceholder}
+              style={{ fontSize: "13px !important", padding: "10px 12px", height: "auto" }}
+            />
+          </div>
+        </div>
+
+        {/* Stepper Navigation buttons */}
+        <div className="mobile-stepper-controls" style={{ position: "relative", bottom: "0", marginTop: "16px", padding: 0 }}>
+          {currentStep > 0 && (
+            <button type="button" className="stepper-btn prev-btn" onClick={() => setCurrentStep((c) => c - 1)}>
+              ⬅️ Back
+            </button>
+          )}
+          {currentStep < items.length - 1 ? (
+            <button type="button" className="stepper-btn next-btn" onClick={() => setCurrentStep((c) => c + 1)}>
+              Next Step ➡️
+            </button>
+          ) : (
+            <div style={{ flex: 1, textAlign: "center", padding: "12px", background: "#f0fdf4", color: "#166534", borderRadius: "10px", fontSize: "13px", fontWeight: 700 }}>
+              🎉 All steps completed! Use the bottom Save bar to persist changes.
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="entity-field" style={{ maxWidth: "100%" }}>
       <label>
         Default components{" "}
-        {/* Example/help copy, not a field label — this component only receives `draft`/`onChange`
-            props, no `entity`/`tax_label`, so "GST" here stays literal rather than guessing. */}
         <span className="entity-field-help">
           Shared with customers as the starting component-wise pricing rows on new quotes — qty/price are
           filled in per quote. Solar panels &amp; inverter default to 5% GST, other components to 18%.
@@ -71,11 +210,6 @@ export default function ComponentsTab({ draft, onChange }: Props) {
           <tbody>
             {items.map((item, i) => (
               <tr key={i}>
-                {/* data-label feeds the mobile ::before rule in EntityManagementPage.css --
-                    on narrow screens this row reflows into a bordered card (particulars on
-                    top, tax/warranty/remove in a row, specification below) instead of a
-                    horizontally-scrolling table, and the <thead> labels above are hidden
-                    then, so each field needs its own inline label to stay identifiable. */}
                 <td className="compb-particular" data-label="Particulars">
                   <input
                     type="text"
@@ -126,4 +260,21 @@ export default function ComponentsTab({ draft, onChange }: Props) {
       </button>
     </div>
   );
+
+  // Helper bindings for the legacy desktop views
+  function handleParticularChange(index: number, value: string) {
+    handleFieldChange(index, "particular", value);
+  }
+
+  function handleTaxChange(index: number, value: string) {
+    handleFieldChange(index, "tax_percent", value === "" ? 0 : Number(value));
+  }
+
+  function handleWarrantyChange(index: number, value: string) {
+    handleFieldChange(index, "warranty_years", value === "" ? null : Number(value));
+  }
+
+  function handleSpecificationChange(index: number, value: string) {
+    handleFieldChange(index, "specification", value === "" ? null : value);
+  }
 }
