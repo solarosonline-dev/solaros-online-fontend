@@ -24,6 +24,11 @@ import QuoteBuilderPage from "../pages/quotes/QuoteBuilderPage";
 import AgreementBuilderPage from "../pages/agreements/AgreementBuilderPage";
 import ProjectsPage from "../pages/projects/ProjectsPage";
 import ProjectDetailPage from "../pages/projects/ProjectDetailPage";
+import AgentDashboardPage from "../pages/epc-agents/AgentDashboardPage";
+import EpcDashboardPage from "../pages/epc-agents/EpcDashboardPage";
+import EpcAgentLeadsPage from "../pages/epc-agents/EpcAgentLeadsPage";
+import EpcConfigPage from "../pages/epc-agents/EpcConfigPage";
+import EpcPaymentsPage from "../pages/epc-agents/EpcPaymentsPage";
 
 // Mobile-Specific Components (Lazy loaded)
 import MobileLayout from "./layout/MobileLayout";
@@ -63,6 +68,11 @@ const router = createBrowserRouter(
       <Route element={<ProtectedRoute />}>
         <Route element={<MobileLayout />}>
           <Route path="/app" element={<HomeRedirect />} />
+          
+          {/* Agent individual workspace */}
+          <Route path="/app/agent/dashboard" element={<AgentDashboardPage />} />
+          <Route path="/app/agent/leads" element={<EpcAgentLeadsPage />} />
+          <Route path="/app/agent/payments" element={<EpcPaymentsPage />} />
           
           {/* CRM module gates */}
           <Route element={<RequireFeature feature="CRM" />}>
@@ -105,6 +115,12 @@ const router = createBrowserRouter(
           </Route>
           
           <Route element={<RequireEntityAdmin />}>
+            {/* EPC Manager Agent workspaces */}
+            <Route path="/app/epc/dashboard" element={<EpcDashboardPage />} />
+            <Route path="/app/epc/leads" element={<EpcAgentLeadsPage />} />
+            <Route path="/app/epc/config" element={<EpcConfigPage />} />
+            <Route path="/app/epc/payments" element={<EpcPaymentsPage />} />
+
             <Route path="/app/entity" element={<EntityManagementPage />} />
             <Route
               path="/app/users"

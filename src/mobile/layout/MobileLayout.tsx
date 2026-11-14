@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { isEntityAdmin } from "../../lib/roles";
+import { isEntityAdmin, isAgent, hasFeature, isSystemAdmin } from "../../lib/roles";
+import { getEpcAgentSettings } from "../../lib/epcAgentStorage";
 import { TourProvider } from "../../lib/TourContext";
 import "./MobileLayout.css";
 
@@ -22,6 +23,14 @@ export default function MobileLayout() {
   };
 
   const entityAdmin = user ? isEntityAdmin(user.roles) : false;
+  const systemAdmin = user ? isSystemAdmin(user.roles) : false;
+  const agentUser = user ? isAgent(user.roles) : false;
+  const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
+  const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
+  const crm = user ? hasFeature(user, "CRM") : false;
+  const agentsOnly = hasAgentsFeature && !crm;
+  const showAgentsExclusive = hasAgentsFeature && (agentsOnly || (agentSettings.enabled && agentSettings.onlyWorkspace));
+  const showAgentsCoexist = hasAgentsFeature && !agentsOnly && agentSettings.enabled && !agentSettings.onlyWorkspace;
 
   return (
     <TourProvider>
@@ -43,41 +52,97 @@ export default function MobileLayout() {
 
       {/* Bottom Navigation Tab Bar */}
       <nav className="mobile-tab-bar">
-        {entityAdmin && (
-          <NavLink
-            to="/app/dashboard"
-            className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
-          >
-            <span className="mobile-tab-icon">📊</span>
-            <span className="mobile-tab-label">Dashboard</span>
-          </NavLink>
+        {/* Agent mode */}
+        {agentUser && (
+          <>
+            <NavLink
+              to="/app/agent/dashboard"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">📊</span>
+              <span className="mobile-tab-label">Dashboard</span>
+            </NavLink>
+            <NavLink
+              to="/app/agent/leads"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">👤</span>
+              <span className="mobile-tab-label">Leads</span>
+            </NavLink>
+            <NavLink
+              to="/app/agent/payments"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">💰</span>
+              <span className="mobile-tab-label">Commissions</span>
+            </NavLink>
+          </>
         )}
 
-        <NavLink
-          to="/app/leads"
-          className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
-        >
-          <span className="mobile-tab-icon">👤</span>
-          <span className="mobile-tab-label">Leads</span>
-        </NavLink>
-
-        {entityAdmin && (
-          <NavLink
-            to="/app/projects"
-            className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
-          >
-            <span className="mobile-tab-icon">📋</span>
-            <span className="mobile-tab-label">Projects</span>
-          </NavLink>
+        {/* EPC Admin in Exclusive Workspace mode */}
+        {!systemAdmin && entityAdmin && !agentUser && showAgentsExclusive && (
+          <>
+            <NavLink
+              to="/app/epc/dashboard"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">📊</span>
+              <span className="mobile-tab-label">Dashboard</span>
+            </NavLink>
+            <NavLink
+              to="/app/epc/leads"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">👤</span>
+              <span className="mobile-tab-label">Leads</span>
+            </NavLink>
+            <NavLink
+              to="/app/epc/payments"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">💰</span>
+              <span className="mobile-tab-label">Payments</span>
+            </NavLink>
+          </>
         )}
 
-        <NavLink
-          to="/app/my-work-orders"
-          className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
-        >
-          <span className="mobile-tab-icon">⚙️</span>
-          <span className="mobile-tab-label">My Work</span>
-        </NavLink>
+        {/* Standard CRM mode / Coexisting mode */}
+        {!agentUser && (!entityAdmin || !showAgentsExclusive) && (
+          <>
+            {entityAdmin && (
+              <NavLink
+                to="/app/dashboard"
+                className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+              >
+                <span className="mobile-tab-icon">📊</span>
+                <span className="mobile-tab-label">Dashboard</span>
+              </NavLink>
+            )}
+            <NavLink
+              to="/app/leads"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">👤</span>
+              <span className="mobile-tab-label">Leads</span>
+            </NavLink>
+            {entityAdmin && (
+              <NavLink
+                to="/app/projects"
+                className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+              >
+                <span className="mobile-tab-icon">📋</span>
+                <span className="mobile-tab-label">Projects</span>
+              </NavLink>
+            )}
+            <NavLink
+              to="/app/my-work-orders"
+              className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
+            >
+              <span className="mobile-tab-icon">⚙️</span>
+              <span className="mobile-tab-label">My Work</span>
+            </NavLink>
+          </>
+        )}
 
         <button
           type="button"
@@ -110,6 +175,26 @@ export default function MobileLayout() {
                   <NavLink to="/app/users" className="mobile-sheet-link-item">
                     <span className="sheet-link-icon">👥</span>
                     <span className="sheet-link-text">Manage Team Users</span>
+                  </NavLink>
+                </>
+              )}
+
+              {entityAdmin && showAgentsExclusive && (
+                <NavLink to="/app/epc/config" className="mobile-sheet-link-item">
+                  <span className="sheet-link-icon">⚙️</span>
+                  <span className="sheet-link-text">Agent Config</span>
+                </NavLink>
+              )}
+
+              {entityAdmin && showAgentsCoexist && (
+                <>
+                  <NavLink to="/app/epc/config" className="mobile-sheet-link-item">
+                    <span className="sheet-link-icon">⚙️</span>
+                    <span className="sheet-link-text">Agent Config</span>
+                  </NavLink>
+                  <NavLink to="/app/epc/payments" className="mobile-sheet-link-item">
+                    <span className="sheet-link-icon">💰</span>
+                    <span className="sheet-link-text">Agent Payments</span>
                   </NavLink>
                 </>
               )}
