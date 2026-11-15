@@ -22,6 +22,8 @@ import HomeRedirect from "../pages/HomeRedirect";
 import EntityManagementPage from "../pages/entity/EntityManagementPage";
 import QuoteBuilderPage from "../pages/quotes/QuoteBuilderPage";
 import AgreementBuilderPage from "../pages/agreements/AgreementBuilderPage";
+import PlantDesignListPage from "../pages/plant-design/PlantDesignListPage";
+import PlantDesignEditorPage from "../pages/plant-design/PlantDesignEditorPage";
 import ProjectsPage from "../pages/projects/ProjectsPage";
 import ProjectDetailPage from "../pages/projects/ProjectDetailPage";
 import AgentDashboardPage from "../pages/epc-agents/AgentDashboardPage";
@@ -157,9 +159,9 @@ const router = createBrowserRouter(
             </Route>
             
             <Route element={<RequireFeature feature="DESIGN" />}>
-              <Route path="/app/plant-design" element={<MobileAdminFallback />} />
-              <Route path="/app/plant-design/new" element={<MobileAdminFallback />} />
-              <Route path="/app/plant-design/:plantDesignId" element={<MobileAdminFallback />} />
+              <Route path="/app/plant-design" element={<PlantDesignListPage />} />
+              <Route path="/app/plant-design/new" element={<PlantDesignEditorPage />} />
+              <Route path="/app/plant-design/:plantDesignId" element={<PlantDesignEditorPage />} />
             </Route>
           </Route>
           

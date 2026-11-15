@@ -5,6 +5,7 @@ import { isEntityAdmin, isAgent, hasFeature, isSystemAdmin } from "../../lib/rol
 import { getEpcAgentSettings } from "../../lib/epcAgentStorage";
 import { TourProvider } from "../../lib/TourContext";
 import "./MobileLayout.css";
+import "../mobile-system.css";
 
 export default function MobileLayout() {
   const { user, signOut } = useAuth();
@@ -177,6 +178,13 @@ export default function MobileLayout() {
                     <span className="sheet-link-text">Manage Team Users</span>
                   </NavLink>
                 </>
+              )}
+
+              {entityAdmin && user && hasFeature(user, "DESIGN") && (
+                <NavLink to="/app/plant-design" className="mobile-sheet-link-item">
+                  <span className="sheet-link-icon">☀️</span>
+                  <span className="sheet-link-text">Plant Design</span>
+                </NavLink>
               )}
 
               {entityAdmin && showAgentsExclusive && (

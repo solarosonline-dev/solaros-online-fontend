@@ -71,6 +71,24 @@ export default function PlantDesignListPage() {
           No plant designs yet. Click "New Design" to lay out a rooftop and generate a single-line diagram.
         </div>
       ) : (
+        <>
+        <div className="plant-design-cards">
+          {designs.map((d) => (
+            <div key={d.plant_design_id} className="m-card plant-design-card">
+              <button className="plant-design-card-main" onClick={() => navigate(`/app/plant-design/${d.plant_design_id}`)}>
+                <div className="plant-design-card-top">
+                  <strong>{d.name}</strong>
+                  <span className={`plant-design-status plant-design-status-${d.status.toLowerCase()}`}>{d.status}</span>
+                </div>
+                <div className="plant-design-card-meta">
+                  {d.capacity_kw != null ? `${d.capacity_kw.toFixed(1)} kW` : "— kW"} · {new Date(d.updated_at).toLocaleDateString()}
+                </div>
+                {d.address && <div className="plant-design-card-meta">{d.address}</div>}
+              </button>
+              <button className="m-btn danger sm" onClick={() => setDeleteTarget(d)}>Delete</button>
+            </div>
+          ))}
+        </div>
         <div className="plant-design-table-wrap">
           <table className="plant-design-table">
             <thead>
@@ -113,6 +131,7 @@ export default function PlantDesignListPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />

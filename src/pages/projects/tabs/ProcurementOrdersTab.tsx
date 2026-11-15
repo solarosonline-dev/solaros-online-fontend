@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { listProcurementOrders, updateProcurementOrder, type ProcurementOrderResponse } from "../../../api/procurement";
 import { listPayments, createPayment, type Payment, type PaymentCreate, type PaymentMethod, type PaymentStatus } from "../../../api/payments";
 import { ApiError } from "../../../api/client";
+import FullScreenForm from "../../../components/FullScreenForm";
 
 type Props = {
   entityId: number;
@@ -20,6 +21,7 @@ function statusBadgeClass(status: string) {
 }
 
 function ProcurementOrderCard({ order, entityId, onUpdate }: { order: ProcurementOrderResponse, entityId: number, onUpdate: () => void }) {
+  const isMobile = document.body.classList.contains("mobile-view");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   
@@ -101,6 +103,158 @@ function ProcurementOrderCard({ order, entityId, onUpdate }: { order: Procuremen
     .reduce((sum, p) => sum + p.amount, 0);
   
   const balance = (order.total_cost || 0) - totalPaid;
+
+  if (isMobile) {
+    return (
+      <div className="m-card">
+        <div className="m-card-top">
+          <div>
+            <div className="m-card-title">Order #{order.procurement_id}</div>
+            <div className="m-card-sub">
+              Created {new Date(order.created_at).toLocaleDateString()}
+              {order.notes ? ` · ${order.notes}` : ""}
+            </div>
+          </div>
+          <span className={`m-badge ${order.status === "FULFILLED" ? "success" : order.status === "CANCELLED" ? "danger" : order.status === "DRAFT" ? "" : "info"}`}>
+            {order.status}
+          </span>
+        </div>
+
+        <div className="m-kv-grid" style={{ marginTop: 14 }}>
+          <div className="m-kv">
+            <span className="m-kv-label">Total cost</span>
+            <span className="m-kv-value">{order.total_cost != null ? `₹${order.total_cost.toLocaleString()}` : "Not set"}</span>
+          </div>
+          <div className="m-kv">
+            <span className="m-kv-label">Paid</span>
+            <span className="m-kv-value">₹{totalPaid.toLocaleString()}</span>
+          </div>
+          <div className="m-kv">
+            <span className="m-kv-label">Balance due</span>
+            <span className="m-kv-value" style={{ color: balance > 0 ? "var(--app-danger)" : undefined }}>
+              ₹{Math.max(0, balance).toLocaleString()}
+            </span>
+          </div>
+        </div>
+
+        <div className="m-card-actions">
+          <button
+            type="button"
+            className="m-btn"
+            onClick={() => {
+              setCostInput(order.total_cost?.toString() || "");
+              setIsEditingCost(true);
+            }}
+          >
+            Edit cost
+          </button>
+          <button type="button" className="m-btn primary" onClick={() => setShowAddPayment(true)}>
+            + Payment
+          </button>
+        </div>
+
+        <p className="m-section-title" style={{ margin: "16px 0 8px" }}>Items ({order.items.length})</p>
+        {order.items.map((item) => (
+          <div key={item.item_id} className="m-card-foot" style={{ marginTop: 0, paddingTop: 8, marginBottom: 0 }}>
+            <span style={{ color: "var(--app-text)", fontWeight: 600 }}>
+              {item.material_type.replace(/_/g, " ")}
+              {item.make || item.model ? ` · ${`${item.make || ""} ${item.model || ""}`.trim()}` : ""}
+            </span>
+            <span>
+              {item.quantity} {item.unit.toLowerCase()}
+            </span>
+          </div>
+        ))}
+
+        <p className="m-section-title" style={{ margin: "16px 0 8px" }}>Vendor payments</p>
+        {loadingPayments ? (
+          <div className="m-card-sub">Loading…</div>
+        ) : payments.length === 0 ? (
+          <div className="m-card-sub">No payments recorded for this order yet.</div>
+        ) : (
+          payments.map((p) => (
+            <div key={p.payment_id} className="m-card-foot" style={{ marginTop: 0, paddingTop: 8 }}>
+              <span>
+                <strong style={{ color: "var(--app-text)" }}>₹{p.amount.toLocaleString()}</strong> · {p.payment_method} ·{" "}
+                {new Date(p.payment_date).toLocaleDateString()}
+              </span>
+              <span className={`m-badge ${p.status === "COMPLETED" ? "success" : p.status === "FAILED" ? "danger" : "warning"}`}>
+                {p.status === "COMPLETED" ? "PAID" : p.status}
+              </span>
+            </div>
+          ))
+        )}
+
+        {isEditingCost && (
+          <FullScreenForm
+            title="Edit total cost"
+            onClose={() => setIsEditingCost(false)}
+            footer={
+              <button type="button" className="m-btn primary block" disabled={savingCost} onClick={handleSaveCost}>
+                {savingCost ? "Saving…" : "Save cost"}
+              </button>
+            }
+          >
+            <div className="m-field">
+              <label>Total material cost (₹)</label>
+              <input type="number" inputMode="decimal" value={costInput} onChange={(e) => setCostInput(e.target.value)} placeholder="0.00" />
+            </div>
+          </FullScreenForm>
+        )}
+
+        {showAddPayment && (
+          <FullScreenForm
+            title="Record vendor payment"
+            onClose={() => setShowAddPayment(false)}
+            footer={
+              <button
+                type="button"
+                className="m-btn primary block"
+                disabled={savingPayment || !payAmount}
+                onClick={(e) => handleSavePayment(e as unknown as React.FormEvent)}
+              >
+                {savingPayment ? "Saving…" : "Save payment"}
+              </button>
+            }
+          >
+            <div className="m-field">
+              <label>Amount (₹)</label>
+              <input type="number" inputMode="decimal" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+            </div>
+            <div className="m-field">
+              <label>Date &amp; time</label>
+              <input type="datetime-local" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+            <div className="m-field">
+              <label>Method</label>
+              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}>
+                <option value="UPI">UPI</option>
+                <option value="NEFT">NEFT</option>
+                <option value="RTGS">RTGS</option>
+                <option value="IMPS">IMPS</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="CARD">Card</option>
+                <option value="CASH">Cash</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div className="m-field">
+              <label>Status</label>
+              <select value={payStatus} onChange={(e) => setPayStatus(e.target.value as PaymentStatus)}>
+                <option value="COMPLETED">Paid</option>
+                <option value="PENDING">Pending (e.g. uncleared cheque)</option>
+                <option value="FAILED">Failed</option>
+              </select>
+            </div>
+            <div className="m-field">
+              <label>Reference (UTR / cheque no.)</label>
+              <input type="text" value={payRef} onChange={(e) => setPayRef(e.target.value)} />
+            </div>
+          </FullScreenForm>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "var(--app-bg)", border: "1px solid var(--app-border)", borderRadius: "var(--app-radius)", padding: "16px", overflowX: "auto" }}>
@@ -303,8 +457,14 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
 
   useEffect(load, [entityId, projectId]);
 
-  if (loading) return <div className="entity-panel-empty">Loading procurement orders...</div>;
-  if (error) return <div className="entity-panel-empty error">{error}</div>;
+  if (loading) return <div className="projects-loading">Loading procurement orders…</div>;
+  if (error) return <p className="projects-status error">{error}</p>;
+
+  const isMobileTab = document.body.classList.contains("mobile-view");
+
+  if (isMobileTab && orders.length === 0) {
+    return <div className="m-empty">No vendor orders yet. Use Material routing (under More) to create one.</div>;
+  }
 
   if (orders.length === 0) {
     return (
@@ -316,8 +476,8 @@ export default function ProcurementOrdersTab({ entityId, projectId }: Props) {
 
   return (
     <div>
-      <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>
-      <div style={{ display: "grid", gap: "16px" }}>
+      {!isMobileTab && <h3 style={{ margin: "0 0 16px" }}>Procurement Orders</h3>}
+      <div style={{ display: "grid", gap: isMobileTab ? "12px" : "16px" }}>
         {orders.map((order) => (
           <ProcurementOrderCard key={order.procurement_id} order={order} entityId={entityId} onUpdate={load} />
         ))}

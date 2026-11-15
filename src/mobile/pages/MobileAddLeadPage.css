@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 12px;
   animation: fadeIn 0.15s ease-out;
-  padding-bottom: 90px; /* Leave space for bottom float controls */
+  padding-bottom: 110px; /* Leave space for bottom float controls */
 }
 
 .mobile-stepper-header {
@@ -149,7 +149,7 @@
 /* Floating Stepper Control row */
 .mobile-stepper-controls {
   position: fixed;
-  bottom: 80px; /* Floating above the bottom app nav tab bar */
+  bottom: 100px; /* Floating above the floating tab bar */
   left: 16px;
   right: 16px;
   display: flex;

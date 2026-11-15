@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { listPayments, createPayment, type Payment, type PaymentCreate, type PaymentMethod, type PaymentStatus } from "../../../api/payments";
 import { ApiError } from "../../../api/client";
+import FullScreenForm from "../../../components/FullScreenForm";
 
 export function ProjectPaymentsTab({
   entityId,
@@ -9,6 +10,7 @@ export function ProjectPaymentsTab({
   entityId: number;
   projectId: number;
 }) {
+  const isMobile = document.body.classList.contains("mobile-view");
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,108 @@ export function ProjectPaymentsTab({
   const totalReceived = payments
     .filter(p => p.status === "COMPLETED")
     .reduce((sum, p) => sum + p.amount, 0);
+
+  if (isMobile) {
+    return (
+      <div className="m-page">
+        <div className="m-card">
+          <div className="m-kv-label">Total received</div>
+          <div className="m-metric" style={{ marginTop: 4 }}>₹{totalReceived.toLocaleString()}</div>
+        </div>
+
+        <div className="m-section-head">
+          <p className="m-section-title">Payments ({payments.length})</p>
+          <button type="button" className="m-btn primary sm" onClick={() => setShowAddForm(true)}>
+            + Record
+          </button>
+        </div>
+
+        {error && !showAddForm && <p className="m-status error">{error}</p>}
+
+        {payments.length === 0 ? (
+          <div className="m-empty">No payments recorded yet.</div>
+        ) : (
+          <div className="m-list">
+            {payments.map((p) => (
+              <div key={p.payment_id} className="m-card">
+                <div className="m-card-top">
+                  <div className="m-card-title">₹{p.amount.toLocaleString()}</div>
+                  <span className={`m-badge ${p.status === "COMPLETED" ? "success" : p.status === "FAILED" ? "danger" : "warning"}`}>
+                    {p.status === "COMPLETED" ? "RECEIVED" : p.status}
+                  </span>
+                </div>
+                <div className="m-card-sub">
+                  {p.payment_method}
+                  {p.reference_number ? ` · ${p.reference_number}` : ""}
+                </div>
+                {p.notes && <div className="m-card-sub">{p.notes}</div>}
+                <div className="m-card-foot">
+                  <span>{new Date(p.payment_date).toLocaleDateString()}</span>
+                  <span>{new Date(p.payment_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAddForm && (
+          <FullScreenForm
+            title="Record payment"
+            onClose={() => setShowAddForm(false)}
+            footer={
+              <button
+                type="button"
+                className="m-btn primary block"
+                disabled={saving || !amount}
+                onClick={(e) => handleAddPayment(e as unknown as React.FormEvent)}
+              >
+                {saving ? "Saving…" : "Save payment"}
+              </button>
+            }
+          >
+          <div className="m-field">
+            <label>Amount (₹)</label>
+            <input type="number" inputMode="decimal" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div className="m-field">
+            <label>Date &amp; time</label>
+            <input type="datetime-local" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+          </div>
+          <div className="m-field">
+            <label>Method</label>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+              <option value="UPI">UPI</option>
+              <option value="NEFT">NEFT</option>
+              <option value="RTGS">RTGS</option>
+              <option value="IMPS">IMPS</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="CARD">Card</option>
+              <option value="CASH">Cash</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div className="m-field">
+            <label>Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value as PaymentStatus)}>
+              <option value="COMPLETED">Received</option>
+              <option value="PENDING">Pending (e.g. uncleared cheque)</option>
+              <option value="FAILED">Failed</option>
+            </select>
+          </div>
+          <div className="m-field">
+            <label>Reference (UTR / cheque no.)</label>
+            <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} />
+          </div>
+          <div className="m-field">
+            <label>Notes</label>
+            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          {error && <p className="m-status error">{error}</p>}
+          </FullScreenForm>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="project-payments-tab">

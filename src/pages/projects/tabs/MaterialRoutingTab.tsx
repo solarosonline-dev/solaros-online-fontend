@@ -2,6 +2,7 @@ import { useState } from "react";
 import { routeMaterials, createProcurementOrder, type RouteSuggestion, type RouteMaterialRequestItem } from "../../../api/procurement";
 import { type MaterialType, type MaterialUnit } from "../../../api/warehouses";
 import { ApiError } from "../../../api/client";
+import FullScreenForm from "../../../components/FullScreenForm";
 
 type Props = {
   entityId: number;
@@ -9,6 +10,8 @@ type Props = {
 };
 
 export default function MaterialRoutingTab({ entityId, projectId }: Props) {
+  const isMobile = document.body.classList.contains("mobile-view");
+  const [addOpen, setAddOpen] = useState(false);
   const [items, setItems] = useState<RouteMaterialRequestItem[]>([]);
   const [suggestions, setSuggestions] = useState<RouteSuggestion[] | null>(null);
   const [unfulfillable, setUnfulfillable] = useState<RouteMaterialRequestItem[] | null>(null);
@@ -99,6 +102,155 @@ export default function MaterialRoutingTab({ entityId, projectId }: Props) {
     } finally {
       setIsCreatingOrder(false);
     }
+  }
+
+  if (isMobile) {
+    return (
+      <div className="m-page">
+        <p className="m-fs-hint" style={{ margin: 0 }}>
+          Build a bill of materials, then find the closest warehouses that have stock.
+        </p>
+
+        <div className="m-section-head">
+          <p className="m-section-title">Bill of materials ({items.length})</p>
+          <button type="button" className="m-btn primary sm" onClick={() => setAddOpen(true)}>
+            + Add item
+          </button>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="m-empty">No items yet.</div>
+        ) : (
+          <div className="m-list">
+            {items.map((item, i) => (
+              <div key={i} className="m-card">
+                <div className="m-card-top">
+                  <div>
+                    <div className="m-card-title">{item.material_type.replace(/_/g, " ")}</div>
+                    {(item.make || item.model) && (
+                      <div className="m-card-sub">{`${item.make || ""} ${item.model || ""}`.trim()}</div>
+                    )}
+                  </div>
+                  <span className="m-badge info">
+                    {item.quantity} {item.unit.toLowerCase()}
+                  </span>
+                </div>
+                <div className="m-card-actions">
+                  <button type="button" className="m-btn danger sm" onClick={() => handleRemoveItem(i)}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button type="button" className="m-btn primary block" onClick={handleRoute} disabled={items.length === 0 || isRouting}>
+          {isRouting ? "Calculating routes…" : "Find warehouses"}
+        </button>
+        {routingError && <p className="m-status error">{routingError}</p>}
+
+        {(suggestions !== null || unfulfillable !== null) && (
+          <>
+            <p className="m-section-title">Fulfilment suggestions</p>
+            {suggestions?.length === 0 && <div className="m-empty">No active warehouses have stock for these items.</div>}
+            <div className="m-list">
+              {suggestions?.map((s) => (
+                <div key={s.warehouse_id} className="m-card">
+                  <div className="m-card-top">
+                    <div>
+                      <div className="m-card-title">{s.warehouse_name}</div>
+                      <div className="m-card-sub">{s.distance_km.toFixed(1)} km away</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    {s.items.map((item, i) => (
+                      <div key={i} className="m-card-sub" style={{ color: "var(--app-text)" }}>
+                        {item.quantity} {item.unit.toLowerCase()} · {item.material_type.replace(/_/g, " ")} {item.make} {item.model}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="m-card-actions">
+                    <button type="button" className="m-btn primary" disabled={isCreatingOrder} onClick={() => handleCreateOrder(s)}>
+                      Create order
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {unfulfillable && unfulfillable.length > 0 && (
+              <div className="m-card" style={{ background: "var(--m-danger-bg)", borderColor: "var(--app-danger-border)" }}>
+                <div className="m-card-title" style={{ color: "var(--m-danger-fg)" }}>Out of stock</div>
+                {unfulfillable.map((item, i) => (
+                  <div key={i} className="m-card-sub" style={{ color: "var(--m-danger-fg)" }}>
+                    {item.quantity} {item.unit.toLowerCase()} · {item.material_type.replace(/_/g, " ")} {item.make} {item.model}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {addOpen && (
+          <FullScreenForm
+            title="Add material"
+            onClose={() => setAddOpen(false)}
+            footer={
+              <button
+                type="button"
+                className="m-btn primary block"
+                disabled={quantity === "" || quantity <= 0}
+                onClick={(e) => {
+                  handleAddItem(e as unknown as React.FormEvent);
+                  setAddOpen(false);
+                }}
+              >
+                Add to BOM
+              </button>
+            }
+          >
+            <div className="m-field">
+              <label>Type</label>
+              <select value={materialType} onChange={(e) => setMaterialType(e.target.value as MaterialType)}>
+                <option value="PANEL">Panel</option>
+                <option value="INVERTER">Inverter</option>
+                <option value="MOUNTING_STRUCTURE">Mounting</option>
+                <option value="CABLE">Cable</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div className="m-field">
+              <label>Make</label>
+              <input type="text" value={make} onChange={(e) => setMake(e.target.value)} placeholder="e.g. Waaree" />
+            </div>
+            <div className="m-field">
+              <label>Model</label>
+              <input type="text" value={model} onChange={(e) => setModel(e.target.value)} />
+            </div>
+            <div className="m-field">
+              <label>Quantity</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.1"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </div>
+            <div className="m-field">
+              <label>Unit</label>
+              <select value={unit} onChange={(e) => setUnit(e.target.value as MaterialUnit)}>
+                <option value="PIECES">Pieces</option>
+                <option value="METERS">Meters</option>
+                <option value="KGS">Kgs</option>
+              </select>
+            </div>
+          </FullScreenForm>
+        )}
+      </div>
+    );
   }
 
   return (

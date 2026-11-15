@@ -17,9 +17,11 @@ import MaterialRoutingTab from "./tabs/MaterialRoutingTab";
 import ProcurementOrdersTab from "./tabs/ProcurementOrdersTab";
 import { ProjectPaymentsTab } from "./tabs/ProjectPaymentsTab";
 import CommissioningSummaryCard from "./CommissioningSummaryCard";
-import { PROJECT_PHASE_GROUPS, phaseForStatus } from "./projectFunnel";
+import { PROJECT_PHASE_GROUPS, phaseForStatus, projectBadgeTone, projectFunnelLabel, projectPhaseProgress } from "./projectFunnel";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import "./ProjectsPage.css";
+
+type MobileTab = "work" | "money" | "documents" | "more";
 
 type ProjectTab = "installations" | "amc" | "sld" | "documents" | "routing" | "procurement" | "payments";
 
@@ -43,6 +45,13 @@ export default function ProjectDetailPage() {
   const [status, setStatus] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [tab, setTab] = useState<ProjectTab>("installations");
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+
+  // Mobile app only: four grouped tabs instead of seven.
+  const [mTab, setMTab] = useState<MobileTab>("work");
+  const [moneySub, setMoneySub] = useState<"received" | "vendor">("received");
+  const [moreSub, setMoreSub] = useState<"amc" | "routing">("amc");
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   function load() {
     if (!projectId) return;
@@ -92,6 +101,197 @@ export default function ProjectDetailPage() {
   const phaseIdx = PROJECT_PHASE_GROUPS.findIndex((g) => g.phase === phase);
   const phaseFullyDone = project.status === "COMPLETED";
 
+
+  if (isMobile) {
+    const prog = projectPhaseProgress(project.status);
+    const phoneDigits = project.customer_mobile.replace(/\D/g, "");
+    return (
+      <div className="projects-page m-page">
+        <div className="m-detail-head">
+          <button type="button" className="m-icon-btn" aria-label="Back to projects" onClick={() => navigate("/app/projects")}>
+            ←
+          </button>
+          <div className="m-detail-head-main">
+            <h1>{project.customer_name}</h1>
+            <span className={`m-badge ${projectBadgeTone(project.status)}`}>{projectFunnelLabel(project.status)}</span>
+          </div>
+          {canRejectProject(project.status) && (
+            <div className="m-menu">
+              <button type="button" className="m-icon-btn" aria-label="More actions" onClick={() => setMenuOpen((o) => !o)}>
+                ⋯
+              </button>
+              {menuOpen && (
+                <div className="m-menu-pop">
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={transitioning}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setRejectConfirmOpen(true);
+                    }}
+                  >
+                    Reject project
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <ConfirmDialog
+          open={rejectConfirmOpen}
+          title="Reject this project?"
+          message="This marks the project as rejected. This can't be undone."
+          confirmLabel="Reject project"
+          confirming={transitioning}
+          confirmingLabel="Rejecting…"
+          onConfirm={() => {
+            setRejectConfirmOpen(false);
+            handleTransition("REJECTED");
+          }}
+          onCancel={() => setRejectConfirmOpen(false)}
+        />
+
+        <div className="m-comm-row">
+          <a href={`tel:${project.customer_mobile}`} className="m-comm-btn call">
+            📞 Call Client
+          </a>
+          <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noopener noreferrer" className="m-comm-btn wa">
+            💬 WhatsApp
+          </a>
+        </div>
+
+        {project.status === "COMMISSIONING_COMPLETED" && (
+          <button type="button" className="m-btn primary block" disabled={transitioning} onClick={() => handleTransition("COMPLETED")}>
+            Mark project completed
+          </button>
+        )}
+
+        {status && <p className={`m-status ${status.kind}`}>{status.message}</p>}
+
+        <div className="m-card">
+          {prog && (
+            <div style={{ marginBottom: 14 }}>
+              <div className="m-progress">
+                {PROJECT_PHASE_GROUPS.map((g, i) => (
+                  <span key={g.phase} className={i < prog.index || (i === prog.index && prog.done) ? "done" : i === prog.index ? "current" : ""} />
+                ))}
+              </div>
+              <div className="m-progress-caption">
+                <span>
+                  Step {prog.index + 1} of {prog.total} · <strong>{prog.label}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+          <button type="button" className="m-collapse-toggle" onClick={() => setSummaryOpen((o) => !o)} aria-expanded={summaryOpen}>
+            <span>Project details</span>
+            <span>{summaryOpen ? "▲" : "▼"}</span>
+          </button>
+          {summaryOpen && (
+            <div className="m-collapse-body">
+              <div className="m-kv">
+                <span className="m-kv-label">Address</span>
+                <span className="m-kv-value">{project.customer_address || "—"}</span>
+              </div>
+              <div className="m-kv-grid" style={{ marginTop: 10 }}>
+                <div className="m-kv">
+                  <span className="m-kv-label">Created</span>
+                  <span className="m-kv-value">{new Date(project.created_at).toLocaleDateString()}</span>
+                </div>
+                <div className="m-kv">
+                  <span className="m-kv-label">{project.completed_at ? "Completed" : "Mobile"}</span>
+                  <span className="m-kv-value">
+                    {project.completed_at ? new Date(project.completed_at).toLocaleDateString() : project.customer_mobile}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="m-tabs" role="tablist">
+          {(
+            [
+              ["work", "Work"],
+              ["money", "Money"],
+              ["documents", "Documents"],
+              ["more", "More"],
+            ] as [MobileTab, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={mTab === key}
+              className={`m-tab${mTab === key ? " active" : ""}`}
+              onClick={() => setMTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mTab === "work" && (
+          <>
+            {project.commissioning && <CommissioningSummaryCard commissioning={project.commissioning} />}
+            <ProjectWorkOrders
+              entityId={entityId}
+              projectId={project.project_id}
+              leadId={project.lead_id}
+              projectStatus={project.status}
+              onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
+            />
+          </>
+        )}
+
+        {mTab === "money" && (
+          <>
+            <div className="m-segment">
+              <button type="button" className={moneySub === "received" ? "active" : ""} onClick={() => setMoneySub("received")}>
+                Received
+              </button>
+              <button type="button" className={moneySub === "vendor" ? "active" : ""} onClick={() => setMoneySub("vendor")}>
+                Vendor orders
+              </button>
+            </div>
+            {moneySub === "received" ? (
+              <ProjectPaymentsTab entityId={entityId} projectId={project.project_id} />
+            ) : (
+              <ProcurementOrdersTab entityId={entityId} projectId={project.project_id} />
+            )}
+          </>
+        )}
+
+        {mTab === "documents" && <ProjectDocumentsTab entityId={entityId} projectId={project.project_id} />}
+
+        {mTab === "more" && (
+          <>
+            <div className="m-segment">
+              <button type="button" className={moreSub === "amc" ? "active" : ""} onClick={() => setMoreSub("amc")}>
+                AMC
+              </button>
+              <button type="button" className={moreSub === "routing" ? "active" : ""} onClick={() => setMoreSub("routing")}>
+                Material routing
+              </button>
+            </div>
+            {moreSub === "amc" ? (
+              <ProjectAmcTab
+                entityId={entityId}
+                projectId={project.project_id}
+                projectStatus={project.status}
+                hasAmc={project.amc_id != null && project.amc_duration_years != null}
+              />
+            ) : (
+              <MaterialRoutingTab entityId={entityId} projectId={project.project_id} />
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="projects-page">
       <Link to="/app/projects" className="project-detail-back">
@@ -103,7 +303,7 @@ export default function ProjectDetailPage() {
           {project.customer_name} <span className={badgeClass(project.status)}>{project.status}</span>
         </h1>
         <div className="project-detail-actions">
-          {!isMobile && (
+          {(
             <>
               <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
                 View lead
@@ -132,7 +332,7 @@ export default function ProjectDetailPage() {
               Mark completed
             </button>
           )}
-          {canRejectProject(project.status) && !isMobile && (
+          {canRejectProject(project.status) && (
             <button
               className="projects-btn danger"
               disabled={transitioning}
@@ -181,17 +381,15 @@ export default function ProjectDetailPage() {
             happen at any point in the project's life, same idea as AMC
             above, so it doesn't belong inside the phase-gated
             Installations tab alongside ProjectWorkOrders. */}
-        {!isMobile && (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "sld"}
-            className={`project-tab${tab === "sld" ? " active" : ""}`}
-            onClick={() => setTab("sld")}
-          >
-            SLD
-          </button>
-        )}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "sld"}
+          className={`project-tab${tab === "sld" ? " active" : ""}`}
+          onClick={() => setTab("sld")}
+        >
+          SLD
+        </button>
         {/* Aggregates Quote/Agreement/every WorkOrderDocument (site photos,
             the generated SLD PDF, etc) into one grid -- see
             ProjectDocumentsTab -- rather than living inside Installations,
@@ -293,26 +491,10 @@ export default function ProjectDetailPage() {
             onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
           />
 
-          <div style={{ marginTop: 16, display: "flex", flexDirection: isMobile ? "column" : "row", gap: "10px" }}>
-            <button
-              type="button"
-              className="projects-btn"
-              onClick={() => navigate("/app/projects")}
-              style={{ width: isMobile ? "100%" : "auto" }}
-            >
+          <div style={{ marginTop: 16, display: "flex", gap: "10px" }}>
+            <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>
               Back to projects
             </button>
-            {isMobile && canRejectProject(project.status) && (
-              <button
-                type="button"
-                className="projects-btn danger"
-                disabled={transitioning}
-                onClick={() => setRejectConfirmOpen(true)}
-                style={{ width: "100%" }}
-              >
-                Reject project
-              </button>
-            )}
           </div>
         </>
       ) : tab === "amc" ? (

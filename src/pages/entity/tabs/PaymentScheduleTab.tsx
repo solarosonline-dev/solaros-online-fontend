@@ -179,7 +179,7 @@ export default function PaymentScheduleTab({ draft, onChange }: Props) {
           </tbody>
         </table>
       </div>
-      <button type="button" className="entity-btn" onClick={handleAdd}>
+      <button type="button" className="entity-btn entity-add-row-btn" onClick={handleAdd}>
         + Add milestone
       </button>
       <span className={`entity-field-help ${totalPercent !== 100 ? "entity-field-warning" : ""}`}>

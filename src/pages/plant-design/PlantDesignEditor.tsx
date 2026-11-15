@@ -14,6 +14,7 @@ import {
   FillGridIcon, TableGridIcon, MarginIcon, DrawAreaIcon,
   DuplicateIcon, ArrowRightIcon, TreeIcon, GroundMountIcon,
   SunIcon, EfficiencyIcon, RackTiltIcon, DeletePanelIcon, CompassIcon, AlignEdgeIcon, RotateIcon,
+  PinIcon, GearIcon, BoltIcon, ReportIcon, BackIcon,
 } from './icons.js';
 import {
   SAMPLE_MONTHLY_GHI,
@@ -454,9 +455,10 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext, onRefreshSiteImages }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext, onRefreshSiteImages, onBack }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
-  const isMobile = useIsMobile();
+  // Narrow viewport, or the mobile app shell on a wider device (tablet UA).
+  const isMobile = useIsMobile() || (typeof document !== 'undefined' && document.body.classList.contains('mobile-view'));
 
   // Every roof/building traced on the 2D plan — each is an independent
   // roof with its own type/pitch/azimuth/height and its own panel layout
@@ -732,6 +734,77 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const handler = (e: WheelEvent) => onPlanWheelRef.current?.(e);
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
+  }, [currentStep, mapMode, locationConfirmed]);
+  // Touch bridge for the 2D plan. The plan is built on mouse events only, and
+  // with touch-action: none a finger drag produces none, so: a one-finger drag
+  // is replayed as mousedown/mousemove/mouseup (pan, move grid, marquee - the
+  // same paths as the mouse), a two-finger pinch is replayed as wheel zoom
+  // steps, and a plain tap is left alone so the browser's own compat click
+  // still reaches onSvgClick (place/select/draw points).
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    let start: { x: number; y: number; target: EventTarget | null } | null = null;
+    let dragging = false;
+    let pinchDist = 0;
+    const mouse = (type: string, t: { clientX: number; clientY: number }, target: EventTarget | null) => {
+      const ev = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY, button: 0, buttons: type === 'mouseup' ? 0 : 1, view: window });
+      (type === 'mousedown' ? (target as Element) ?? el : document).dispatchEvent(ev);
+    };
+    const dist = (a: Touch, b: Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        start = { x: t.clientX, y: t.clientY, target: e.target };
+        dragging = false;
+      } else if (e.touches.length === 2) {
+        if (dragging) mouse('mouseup', e.touches[0], null);
+        dragging = false; start = null;
+        pinchDist = dist(e.touches[0], e.touches[1]);
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchDist > 0) {
+        e.preventDefault();
+        const d = dist(e.touches[0], e.touches[1]);
+        const ratio = d / pinchDist;
+        if (ratio > 1.08 || ratio < 0.92) {
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          onPlanWheelRef.current?.({ preventDefault() {}, deltaY: ratio > 1 ? -1 : 1, clientX: cx, clientY: cy });
+          pinchDist = d;
+        }
+        return;
+      }
+      if (e.touches.length !== 1 || !start) return;
+      const t = e.touches[0];
+      if (!dragging) {
+        if (Math.hypot(t.clientX - start.x, t.clientY - start.y) < 8) return;
+        dragging = true;
+        mouse('mousedown', { clientX: start.x, clientY: start.y }, start.target);
+      }
+      e.preventDefault();
+      mouse('mousemove', t, null);
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (dragging && e.touches.length === 0) {
+        const t = e.changedTouches[0];
+        mouse('mouseup', t, null);
+        // Suppress the browser's compat click so a drag isn't also a tap.
+        e.preventDefault();
+      }
+      if (e.touches.length === 0) { start = null; dragging = false; pinchDist = 0; }
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd, { passive: false });
+    el.addEventListener('touchcancel', onEnd, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
   }, [currentStep, mapMode, locationConfirmed]);
   // Selected grids, keyed `${roofId}:${gridId}` - clicking any panel
   // selects every panel in its own grid (see README's "Panel grids" entry),
@@ -4126,6 +4199,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // Filtered here rather than removed from STEPS itself so `complete`/`n`
   // stay meaningful if this needs to come back.
   const visibleSteps = STEPS.filter((s) => s.n !== 6);
+  // Mobile top bar: one icon + a one-word label per step (the full label
+  // shows as the page title above them).
+  const STEP_ICONS: Record<number, (props: { size?: number }) => React.JSX.Element> = {
+    1: PinIcon, 2: GearIcon, 3: FlatRoofIcon, 4: TableGridIcon, 5: SunIcon, 6: SunIcon, 7: BoltIcon, 8: ReportIcon,
+  };
+  const STEP_SHORT: Record<number, string> = {
+    1: 'Site', 2: 'Config', 3: 'Roof', 4: 'Panels', 5: 'Output', 6: 'Cost', 7: 'SLD', 8: 'Report',
+  };
 
   const inputStyle = { width: 62, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 4, fontSize: 11, color: '#222', background: '#fff' };
   const sectionStyle = { background: '#fff', border: '1px solid #e2e2e2', borderRadius: 8, padding: 10, marginBottom: 8 };
@@ -4315,6 +4396,51 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           maxUnlockedStep's own comment above). Desktop keeps the tab strip
           (it fits); mobile swaps it for a dropdown instead, since seven
           step labels don't fit a phone-width row even scrolling. */}
+      {isMobile ? (
+        <div className="pde-m-topbar">
+          <div className="pde-m-topbar-row">
+            {onBack && (
+              <button type="button" className="pde-m-back" onClick={onBack} aria-label="Back">
+                <BackIcon />
+              </button>
+            )}
+            <div className="pde-m-title">
+              <div className="pde-m-title-main">{visibleSteps.find((x) => x.n === currentStep)?.label}</div>
+              <div className="pde-m-title-sub">{projectName.trim() || 'Untitled project'}</div>
+            </div>
+            <button
+              type="button"
+              className={`pde-m-save${saveStatus === 'error' ? ' pde-m-save-error' : ''}`}
+              onClick={handleSave}
+              disabled={saveStatus === 'saving'}
+            >
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Retry' : 'Save'}
+            </button>
+          </div>
+          <div className="pde-m-steps" role="tablist" aria-label="Design steps">
+            {visibleSteps.map((s, i) => {
+              const unlocked = s.n <= maxUnlockedStep;
+              const active = currentStep === s.n;
+              const StepIcon = STEP_ICONS[s.n];
+              return (
+                <button
+                  key={s.n}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-label={`${i + 1}. ${s.label}`}
+                  disabled={!unlocked}
+                  className={`pde-m-step${active ? ' pde-m-step-active' : ''}${unlocked && !active && s.n < currentStep ? ' pde-m-step-done' : ''}`}
+                  onClick={() => goToStep(s.n)}
+                >
+                  <StepIcon size={20} />
+                  <span>{STEP_SHORT[s.n]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 8 : 4, padding: isMobile ? '8px 16px' : '8px 16px', borderBottom: '1px solid #e2e2e2', background: '#fff', flexShrink: 0 }}>
         {isMobile ? (
           <select
@@ -4363,6 +4489,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           </button>
         </div>
       </div>
+      )}
       <div style={{ display: 'flex', flexDirection: isMobile && (currentStep <= 2 || currentStep === 5) ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && (currentStep <= 2 || currentStep === 5) && !mobileMapFullView ? 'auto' : undefined }}>
       {currentStep <= 2 && !mobileMapFullView ? (
       /* LEFT: steps 1-2's own input form (Project & Location, then
@@ -5176,7 +5303,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
           <svg
             ref={svgRef} viewBox={`0 0 ${planViewBoxWidth} ${PLAN_VIEWBOX_HEIGHT}`} preserveAspectRatio="xMidYMid meet"
-            style={{ display: viewMode === 'plan' ? 'block' : 'none', touchAction: 'pan-x pan-y', flex: 1, minHeight: 0, width: '100%', height: '100%', background: '#eef3ea', borderRadius: 10, border: '1px solid #d5d5d5', cursor: (placingShape || drawingRoof || placingGrid) ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
+            style={{ display: viewMode === 'plan' ? 'block' : 'none', touchAction: 'none', flex: 1, minHeight: 0, width: '100%', height: '100%', background: '#eef3ea', borderRadius: 10, border: '1px solid #d5d5d5', cursor: (placingShape || drawingRoof || placingGrid) ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
             onClick={onSvgClick}
             onDoubleClick={onSvgDoubleClick}
             onMouseDown={onSvgMouseDown}
@@ -6852,7 +6979,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             joins row/column/panel as a fourth option here,
                             deleting immediately on click since there's
                             nothing further to pick on the canvas for it. */}
-                        <button data-tooltip="Delete row / column / panel / grid" aria-label="Delete row, column, panel, or grid" className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => toggleGroup('gridDelete')}><TrashIcon /></button>
+                        <button data-tooltip="Delete row / column / panel / grid" aria-label={gridDeleteMode && (gridDeleteMode === 'panel' ? !!gridDeleteSelection?.panelIds?.length : !!gridDeleteSelection) ? `Delete selected ${gridDeleteMode}` : "Delete row, column, panel, or grid"} className={`${iconBtn(rightPanelOpenGroup === 'gridDelete' || !!gridDeleteMode)} pde-danger`} onClick={() => {
+                          // Something already picked on the plan: this click just deletes
+                          // it (no menu). Delete mode stays on so the next row/column/
+                          // panel can be picked; with nothing picked, a click opens the menu.
+                          const hasPick = gridDeleteMode === 'panel' ? !!gridDeleteSelection?.panelIds?.length : !!gridDeleteSelection;
+                          if (gridDeleteMode && hasPick && rightPanelOpenGroup !== 'gridDelete') {
+                            applyGridDeleteSelection();
+                            return;
+                          }
+                          toggleGroup('gridDelete');
+                        }}><TrashIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'gridDelete'} width={280}>
                             {(() => {
                               // Only computed while this popover is open - the
@@ -6875,6 +7012,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                             const isSelf = gridDeleteMode === mode;
                                             cancelActiveModes();
                                             if (!isSelf) setGridDeleteMode(mode);
+                                            // Hide the menu once a mode is chosen so the
+                                            // plan is fully visible for picking.
+                                            setRightPanelOpenGroup(null);
                                           }}
                                         >
                                           {ModeIcon ? <ModeIcon size={20} /> : null}

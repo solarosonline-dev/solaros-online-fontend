@@ -95,6 +95,31 @@ export function ProjectFunnelNav({
   value: ProjectFunnelSelection;
   onSelect: (selection: ProjectFunnelSelection) => void;
 }) {
+  // Mobile app: one horizontally scrolling row of filter chips.
+  if (document.body.classList.contains("mobile-view")) {
+    const chips: { value: ProjectFunnelSelection; label: string }[] = [
+      { value: "", label: "All" },
+      ...PROJECT_PHASE_GROUPS.map((g) => ({ value: g.phase as ProjectFunnelSelection, label: g.label })),
+      { value: "REJECTED", label: "Rejected" },
+    ];
+    return (
+      <div className="m-chips" role="tablist" aria-label="Filter projects by stage">
+        {chips.map((c) => (
+          <button
+            key={c.value || "all"}
+            type="button"
+            role="tab"
+            aria-selected={value === c.value}
+            className={`m-chip${value === c.value ? " active" : ""}`}
+            onClick={() => onSelect(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="project-funnel-nav">
       {/* Mobile (≤640px): a single native dropdown instead of a row of
@@ -145,4 +170,30 @@ export function ProjectFunnelNav({
       </div>
     </div>
   );
+}
+
+/** 1-based "step N of M" for a project's current phase, plus 0..1 progress
+ * segments for the mobile progress bar. `done` is true once the whole
+ * project is COMPLETED. REJECTED returns null (sits outside the funnel). */
+export function projectPhaseProgress(status: ProjectStatus): {
+  index: number;
+  total: number;
+  label: string;
+  done: boolean;
+} | null {
+  const idx = PROJECT_PHASE_GROUPS.findIndex((g) => g.statuses.includes(status));
+  if (idx < 0) return null;
+  return {
+    index: idx,
+    total: PROJECT_PHASE_GROUPS.length,
+    label: PROJECT_PHASE_GROUPS[idx].label,
+    done: status === "COMPLETED",
+  };
+}
+
+/** Maps a project status to the shared mobile badge colour. */
+export function projectBadgeTone(status: ProjectStatus): "" | "success" | "danger" | "info" {
+  if (status === "REJECTED") return "danger";
+  if (status === "COMPLETED") return "success";
+  return "info";
 }

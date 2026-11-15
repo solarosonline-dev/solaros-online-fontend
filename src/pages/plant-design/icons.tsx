@@ -553,3 +553,41 @@ export function RotateIcon({ size = 18, className }: IconProps) {
     </svg>
   );
 }
+
+// ---- Wizard step icons + back arrow (mobile top bar, see PlantDesignEditor.tsx) ----
+
+export function PinIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M12 21 C12 21 5 14.5 5 9.5 A7 7 0 0 1 19 9.5 C19 14.5 12 21 12 21 Z" />
+      <circle {...base} cx="12" cy="9.5" r="2.5" />
+    </svg>
+  );
+}
+
+export function BoltIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M13 3 L5 13.5 H11 L10 21 L19 10 H13 Z" />
+    </svg>
+  );
+}
+
+export function ReportIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} d="M6 3 H14 L19 8 V21 H6 Z" />
+      <path {...base} d="M14 3 V8 H19" />
+      <line {...base} x1="9" y1="13" x2="16" y2="13" />
+      <line {...base} x1="9" y1="17" x2="16" y2="17" />
+    </svg>
+  );
+}
+
+export function BackIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      <path {...base} strokeWidth={2.2} d="M15 5 L8 12 L15 19" />
+    </svg>
+  );
+}

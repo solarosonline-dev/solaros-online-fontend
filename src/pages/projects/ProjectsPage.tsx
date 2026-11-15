@@ -5,7 +5,15 @@ import { canManageAmc } from "../../lib/roles";
 import { listProjects, type ProjectListItem } from "../../api/projects";
 import { listAmcScheduleDue, type AmcScheduleDueItem, type AmcScheduleItem } from "../../api/amcSchedule";
 import { ApiError } from "../../api/client";
-import { ProjectFunnelNav, ProjectStatusBadge, PROJECT_PHASE_GROUPS, type ProjectFunnelSelection } from "./projectFunnel";
+import {
+  ProjectFunnelNav,
+  ProjectStatusBadge,
+  PROJECT_PHASE_GROUPS,
+  projectBadgeTone,
+  projectFunnelLabel,
+  projectPhaseProgress,
+  type ProjectFunnelSelection,
+} from "./projectFunnel";
 import AmcActionTable, { type AmcActionRow } from "./AmcActionTable";
 import { dueBucket, nextPendingScheduleIds, startOfDay } from "../../lib/amcDue";
 import Pagination from "../../lib/Pagination";
@@ -20,6 +28,7 @@ export default function ProjectsPage() {
   const entityId = user!.entity_id!;
   const navigate = useNavigate();
   const canSeeAmcDue = canManageAmc(user!.roles);
+  const isMobile = document.body.classList.contains("mobile-view");
 
   const [tab, setTab] = useState<ProjectsTab>("all");
 
@@ -126,10 +135,28 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="projects-page">
-      <h1>Projects</h1>
+    <div className={isMobile ? "projects-page m-page" : "projects-page"}>
+      {isMobile ? (
+        <div className="m-page-title">
+          <h1>Projects</h1>
+          {tab === "all" && !loading && !loadError && <span>{total} total</span>}
+        </div>
+      ) : (
+        <h1>Projects</h1>
+      )}
 
-      {canSeeAmcDue && (
+      {canSeeAmcDue && isMobile && (
+        <div className="m-segment" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "all"} className={tab === "all" ? "active" : ""} onClick={() => setTab("all")}>
+            All projects
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "amc-due"} className={tab === "amc-due" ? "active" : ""} onClick={() => setTab("amc-due")}>
+            AMC visits due
+          </button>
+        </div>
+      )}
+
+      {canSeeAmcDue && !isMobile && (
         <div className="project-tabs" role="tablist">
           <button
             type="button"
@@ -173,6 +200,58 @@ export default function ProjectsPage() {
         <>
           <ProjectFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />
 
+          {isMobile ? (
+            loading ? (
+              <div className="projects-loading">Loading…</div>
+            ) : loadError ? (
+              <p className="projects-status error">{loadError}</p>
+            ) : projects.length === 0 ? (
+              <div className="m-empty">No projects here yet.</div>
+            ) : (
+              <div className="m-list">
+                {projects.map((p) => {
+                  const prog = projectPhaseProgress(p.status);
+                  return (
+                    <button
+                      key={p.project_id}
+                      type="button"
+                      className="m-card m-card-tap"
+                      onClick={() => navigate(`/app/projects/${p.project_id}`)}
+                    >
+                      <div className="m-card-top">
+                        <div>
+                          <div className="m-card-title">{p.customer_name}</div>
+                          <div className="m-card-sub">{p.customer_mobile}</div>
+                        </div>
+                        <span className={`m-badge ${projectBadgeTone(p.status)}`}>{projectFunnelLabel(p.status)}</span>
+                      </div>
+                      {prog && (
+                        <div style={{ marginTop: 12 }}>
+                          <div className="m-progress">
+                            {PROJECT_PHASE_GROUPS.map((g, i) => (
+                              <span
+                                key={g.phase}
+                                className={i < prog.index || (i === prog.index && prog.done) ? "done" : i === prog.index ? "current" : ""}
+                              />
+                            ))}
+                          </div>
+                          <div className="m-progress-caption">
+                            <span>
+                              Step {prog.index + 1} of {prog.total} · <strong>{prog.label}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="m-card-foot">
+                        <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
+                        <span>{p.completed_at ? `Done ${new Date(p.completed_at).toLocaleDateString()}` : "›"}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : (
           <div className="projects-table-wrap">
             {loading ? (
               <div className="projects-loading">Loading…</div>
@@ -212,6 +291,7 @@ export default function ProjectsPage() {
               </table>
             )}
           </div>
+          )}
 
           {!loading && !loadError && <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />}
         </>

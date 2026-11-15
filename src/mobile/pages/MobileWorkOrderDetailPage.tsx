@@ -115,31 +115,26 @@ export default function MobileWorkOrderDetailPage() {
         <p className="wo-hero-address">📍 {wo.lead.address || "No address added"}</p>
 
         {/* Tactile customer anchors */}
-        <div className="wo-hero-actions">
-          <a href={`tel:${wo.lead.mobile}`} className="detail-action-circle">
-            <span className="action-circle-icon">📞</span>
-            <span className="action-circle-label">Call Client</span>
+        <div className="m-comm-row" style={{ width: "100%" }}>
+          <a href={`tel:${wo.lead.mobile}`} className="m-comm-btn call">
+            📞 Call Client
           </a>
           <a
             href={`https://wa.me/${wo.lead.mobile.replace(/\D/g, "")}`}
             target="_blank"
             rel="noreferrer"
-            className="detail-action-circle"
-            style={{ backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0" }}
+            className="m-comm-btn wa"
           >
-            <span className="action-circle-icon" style={{ color: "#10b981" }}>💬</span>
-            <span className="action-circle-label" style={{ color: "#065f46" }}>WhatsApp</span>
+            💬 WhatsApp
           </a>
           {wo.lead.latitude && wo.lead.longitude ? (
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${wo.lead.latitude},${wo.lead.longitude}`}
               target="_blank"
               rel="noreferrer"
-              className="detail-action-circle"
-              style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe" }}
+              className="m-comm-btn nav"
             >
-              <span className="action-circle-icon" style={{ color: "#2563eb" }}>🗺️</span>
-              <span className="action-circle-label" style={{ color: "#1e40af" }}>Navigate</span>
+              🗺️ Navigate
             </a>
           ) : null}
         </div>

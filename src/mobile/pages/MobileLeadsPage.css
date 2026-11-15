@@ -314,3 +314,45 @@
     transform: translateY(0);
   }
 }
+
+/* Expanded drawer: wide, tall, well-spaced buttons */
+body.mobile-view .lead-card-drawer {
+  padding: 20px 10px 24px;
+}
+
+body.mobile-view .lead-card-drawer .lead-card-divider {
+  margin-bottom: 18px;
+}
+
+body.mobile-view .lead-card-drawer .lead-drawer-metadata {
+  padding: 0 6px;
+  margin-bottom: 18px;
+}
+
+body.mobile-view .lead-card-drawer .lead-drawer-communication {
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+body.mobile-view .lead-card-drawer .comm-btn {
+  min-height: 42px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+body.mobile-view .lead-card-drawer .lead-drawer-actions {
+  gap: 16px;
+}
+
+body.mobile-view .lead-card-drawer .drawer-action-btn {
+  width: 100%;
+  min-height: 62px;
+  padding: 6px 16px;
+  font-size: 16px;
+  font-weight: 700;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

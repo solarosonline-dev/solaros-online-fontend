@@ -255,7 +255,7 @@ export default function ComponentsTab({ draft, onChange }: Props) {
           </tbody>
         </table>
       </div>
-      <button type="button" className="entity-btn" onClick={handleAdd}>
+      <button type="button" className="entity-btn entity-add-row-btn" onClick={handleAdd}>
         + Add component
       </button>
     </div>

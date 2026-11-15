@@ -175,10 +175,21 @@ export default function PlantDesignEditorPage() {
     return { s3Key: result.s3_key, url: result.url };
   }
 
+  // Came from a lead/project/work order -> go back there; otherwise the list.
+  function handleBack() {
+    if (workOrderIdParam || projectIdParam || leadIdParam) navigate(-1);
+    else navigate("/app/plant-design");
+  }
+
   if (loading) return <div style={{ padding: 32, fontSize: 14, color: "var(--app-text-muted)" }}>Loading…</div>;
   if (loadError) {
     return (
-      <div style={{ padding: 32, fontSize: 14, color: "var(--app-danger)" }}>{loadError}</div>
+      <div style={{ padding: 32, fontSize: 14, color: "var(--app-danger)" }}>
+        {loadError}
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className="m-btn" onClick={handleBack}>Back</button>
+        </div>
+      </div>
     );
   }
 
@@ -192,6 +203,7 @@ export default function PlantDesignEditorPage() {
         onAttachPdf={handleAttachPdf}
         onRefreshSiteImages={savedId != null ? async () => (await getPlantDesign(entityId, savedId)).design_data.siteImages : undefined}
         reportContext={reportContext}
+        onBack={handleBack}
       />
       <ConfirmDialog
         open={attachedToWorkOrderId != null}

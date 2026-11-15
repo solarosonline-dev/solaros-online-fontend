@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { listProjectWorkOrders, listLeadWorkOrders, createProjectWorkOrder, type WorkOrderListItem, type WorkOrderType } from "../../api/workOrders";
 import { updateProjectStatus, skipStageFor, currentPhaseWorkOrderType, type ProjectStatus } from "../../api/projects";
 import { ApiError } from "../../api/client";
+import FullScreenForm from "../../components/FullScreenForm";
 
 const TYPE_LABEL: Record<string, string> = {
   SITE_SURVEY: "Site survey",
@@ -28,6 +29,8 @@ export default function ProjectWorkOrders({
   onProjectStatusChange: (status: ProjectStatus) => void;
 }) {
   const navigate = useNavigate();
+  const isMobile = document.body.classList.contains("mobile-view");
+  const [formOpen, setFormOpen] = useState(false);
 
   const [items, setItems] = useState<(WorkOrderListItem & { _isLeadWo?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +101,7 @@ export default function ProjectWorkOrders({
       });
       setNewNotes("");
       setNewVisitDate("");
+      setFormOpen(false);
       load();
       if (res.project_status) onProjectStatusChange(res.project_status as ProjectStatus);
     } catch (err) {
@@ -119,6 +123,104 @@ export default function ProjectWorkOrders({
     } finally {
       setSkipping(false);
     }
+  }
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="m-section-head">
+          <p className="m-section-title">Work orders</p>
+          {currentTypes.length > 0 && (
+            <button type="button" className="m-btn primary sm" onClick={() => setFormOpen(true)}>
+              + New
+            </button>
+          )}
+        </div>
+
+        {skip && (
+          <button type="button" className="m-btn block" disabled={!canSkip || skipping} onClick={handleSkip}>
+            {skipping ? "Skipping…" : skip.label}
+          </button>
+        )}
+        {skipError && <p className="m-status error">{skipError}</p>}
+
+        {loading ? (
+          <div className="projects-loading">Loading…</div>
+        ) : loadError ? (
+          <p className="m-status error">{loadError}</p>
+        ) : items.length === 0 ? (
+          <div className="m-empty">No work orders yet.</div>
+        ) : (
+          <div className="m-list">
+            {items.map((wo) => (
+              <button
+                key={wo.work_order_id}
+                type="button"
+                className="m-card m-card-tap"
+                onClick={() => navigate(`/app/work-orders/${wo.work_order_id}`)}
+              >
+                <div className="m-card-top">
+                  <div>
+                    <div className="m-card-title">{TYPE_LABEL[wo.type] || wo.type.replace(/_/g, " ")}</div>
+                    <div className="m-card-sub">
+                      {wo.assignee ? `Assigned to ${wo.assignee.name}` : "Unassigned"}
+                    </div>
+                  </div>
+                  <span className={`m-badge ${wo.status === "COMPLETED" ? "success" : wo.status === "IN_PROGRESS" ? "info" : ""}`}>
+                    {wo.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+                {wo.lead.address && <div className="m-card-sub" style={{ marginTop: 8 }}>{wo.lead.address}</div>}
+                <div className="m-card-foot">
+                  <span>
+                    Opened {new Date(wo.opened_at).toLocaleDateString()}
+                    {wo.closed_at ? ` · Done ${new Date(wo.closed_at).toLocaleDateString()}` : ""}
+                  </span>
+                  <span>{wo.visit_date ? `Visit ${new Date(wo.visit_date).toLocaleDateString()}` : "›"}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {formOpen && (
+          <FullScreenForm
+            title="New work order"
+            onClose={() => setFormOpen(false)}
+            footer={
+              <button type="button" className="m-btn primary block" disabled={creating || alreadyOpen || !selectedType} onClick={handleCreate}>
+                {creating ? "Creating…" : alreadyOpen ? "Already open" : "Create work order"}
+              </button>
+            }
+          >
+            <div className="m-field">
+              <label>Type</label>
+              {currentTypes.length === 1 ? (
+                <input type="text" value={TYPE_LABEL[currentTypes[0]]} readOnly />
+              ) : (
+                <select value={selectedType} onChange={(e) => setSelectedType(e.target.value as WorkOrderType)}>
+                  {currentTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {TYPE_LABEL[type]}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="m-field">
+              <label>Notes (optional)</label>
+              <input type="text" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Anything the assignee should know" />
+            </div>
+            <div className="m-field">
+              <label>Visit date (optional)</label>
+              <input type="date" value={newVisitDate} onChange={(e) => setNewVisitDate(e.target.value)} />
+            </div>
+            {alreadyOpen && <p className="m-status">A work order of this type is already open.</p>}
+            {createError && <p className="m-status error">{createError}</p>}
+          </FullScreenForm>
+        )}
+      </>
+    );
   }
 
   return (

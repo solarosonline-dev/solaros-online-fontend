@@ -49,6 +49,57 @@ export default function ProjectDocumentsTab({ entityId, projectId }: { entityId:
   if (loadError) return <div className="projects-loading">{loadError}</div>;
   if (items.length === 0) return <div className="projects-empty">No documents yet.</div>;
 
+  if (document.body.classList.contains("mobile-view")) {
+    return (
+      <div className="m-list">
+        {items.map((item) => (
+          <div key={item.key} className="m-card">
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              {item.content_type?.startsWith("image/") && item.download_url ? (
+                <img
+                  src={item.download_url}
+                  alt={item.title}
+                  loading="lazy"
+                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 10, border: "1px solid var(--app-border)", flexShrink: 0 }}
+                />
+              ) : (
+                <div
+                  className="m-badge info"
+                  style={{ width: 56, height: 56, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                >
+                  {placeholderLabel(item)}
+                </div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div className="m-card-title">{item.title}</div>
+                {item.subtitle && <div className="m-card-sub" style={{ textTransform: "capitalize" }}>{item.subtitle.replace(/_/g, " ")}</div>}
+                <div className="m-card-sub">
+                  {[item.size_bytes != null ? formatSize(item.size_bytes) : null, new Date(item.created_at).toLocaleDateString()]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+              </div>
+            </div>
+            {(item.view_path || item.download_url) && (
+              <div className="m-card-actions">
+                {item.view_path && (
+                  <Link className="m-btn" to={item.view_path}>
+                    View
+                  </Link>
+                )}
+                {item.download_url && (
+                  <a className="m-btn" href={item.download_url} target="_blank" rel="noopener noreferrer">
+                    Download
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="documents-grid">
       {items.map((item) => (

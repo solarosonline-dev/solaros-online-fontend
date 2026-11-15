@@ -192,6 +192,54 @@ export default function ProjectAmcTab({
             onItemChanged={handleItemChanged}
           />
 
+          {document.body.classList.contains("mobile-view") ? (
+            <>
+              <p className="m-section-title" style={{ margin: "16px 0 8px" }}>Full schedule ({items.length})</p>
+              <div className="m-list">
+                {items.map((item) => {
+                  const bucket = item.status === "PENDING" ? dueBucket(item.schedule_date, today) : null;
+                  return (
+                    <div key={item.schedule_id} className="m-card">
+                      <div className="m-card-top">
+                        <div>
+                          <div className="m-card-title">{item.inclusion_text}</div>
+                          <div className="m-card-sub">
+                            {new Date(item.schedule_date).toLocaleDateString()} · {amcFrequencyLabel(item.frequency)}
+                          </div>
+                        </div>
+                        <span
+                          className={`m-badge ${
+                            item.status === "COMPLETED" ? "success" : bucket === "overdue" ? "danger" : bucket ? "warning" : ""
+                          }`}
+                        >
+                          {item.status === "COMPLETED" ? "DONE" : bucket ? BUCKET_LABEL[bucket].toUpperCase() : item.status}
+                        </span>
+                      </div>
+                      {(item.work_order_id || item.status === "PENDING") && (
+                        <div className="m-card-actions">
+                          {item.work_order_id && (
+                            <Link className="m-btn" to={`/app/work-orders/${item.work_order_id}`}>
+                              Work order{item.work_order_status ? ` · ${item.work_order_status}` : ""}
+                            </Link>
+                          )}
+                          {item.status === "PENDING" && (
+                            <button
+                              type="button"
+                              className="m-btn"
+                              disabled={updatingId === item.schedule_id}
+                              onClick={() => handleMarkCompleted(item.schedule_id)}
+                            >
+                              {updatingId === item.schedule_id ? "Saving…" : "Mark done"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
           <div className="projects-table-wrap" style={{ marginTop: 16 }}>
             <p className="projects-section-label" style={{ margin: "16px 16px 0" }}>
               Full schedule
@@ -249,6 +297,7 @@ export default function ProjectAmcTab({
               </tbody>
             </table>
           </div>
+          )}
         </>
       )}
     </div>

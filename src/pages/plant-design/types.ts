@@ -55,6 +55,9 @@ export interface PlantDesignData {
 
 export interface PlantDesignEditorProps {
   initialDesignData?: PlantDesignData;
+  // Mobile app only: shown as a back arrow in the editor's top bar. The
+  // desktop layout has its own app shell navigation and ignores this.
+  onBack?: () => void;
   onSave: (
     data: PlantDesignData,
     meta: { name: string; capacityKw: number | null; latitude: number | null; longitude: number | null }
