@@ -34,6 +34,7 @@ export default function ProjectDetailPage() {
   const entityId = user!.entity_id!;
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const isMobile = document.body.classList.contains("mobile-view");
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,17 +103,21 @@ export default function ProjectDetailPage() {
           {project.customer_name} <span className={badgeClass(project.status)}>{project.status}</span>
         </h1>
         <div className="project-detail-actions">
-          <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
-            View lead
-          </Link>
-          {/* A project only exists once the lead's agreement is accepted,
-              which requires an accepted quote first -- so there's always at
-              least one quote by this point. Same route LeadDetailPage links
-              to; QuoteBuilderPage loads the lead's existing quote in view
-              mode rather than starting a blank one. */}
-          <Link to={`/app/leads/${project.lead_id}/quote`} className="projects-btn">
-            View quote
-          </Link>
+          {!isMobile && (
+            <>
+              <Link to={`/app/leads/${project.lead_id}`} className="projects-btn">
+                View lead
+              </Link>
+              {/* A project only exists once the lead's agreement is accepted,
+                  which requires an accepted quote first -- so there's always at
+                  least one quote by this point. Same route LeadDetailPage links
+                  to; QuoteBuilderPage loads the lead's existing quote in view
+                  mode rather than starting a blank one. */}
+              <Link to={`/app/leads/${project.lead_id}/quote`} className="projects-btn">
+                View quote
+              </Link>
+            </>
+          )}
           {/* Every other transition is now reached by creating/completing
               that phase's work order, or by Skip (see ProjectWorkOrders) --
               a manual advance button for those would just flip the status
@@ -127,7 +132,7 @@ export default function ProjectDetailPage() {
               Mark completed
             </button>
           )}
-          {canRejectProject(project.status) && (
+          {canRejectProject(project.status) && !isMobile && (
             <button
               className="projects-btn danger"
               disabled={transitioning}
@@ -176,15 +181,17 @@ export default function ProjectDetailPage() {
             happen at any point in the project's life, same idea as AMC
             above, so it doesn't belong inside the phase-gated
             Installations tab alongside ProjectWorkOrders. */}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "sld"}
-          className={`project-tab${tab === "sld" ? " active" : ""}`}
-          onClick={() => setTab("sld")}
-        >
-          SLD
-        </button>
+        {!isMobile && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "sld"}
+            className={`project-tab${tab === "sld" ? " active" : ""}`}
+            onClick={() => setTab("sld")}
+          >
+            SLD
+          </button>
+        )}
         {/* Aggregates Quote/Agreement/every WorkOrderDocument (site photos,
             the generated SLD PDF, etc) into one grid -- see
             ProjectDocumentsTab -- rather than living inside Installations,
@@ -286,10 +293,26 @@ export default function ProjectDetailPage() {
             onProjectStatusChange={(newStatus) => setProject((prev) => (prev ? { ...prev, status: newStatus } : prev))}
           />
 
-          <div style={{ marginTop: 16 }}>
-            <button type="button" className="projects-btn" onClick={() => navigate("/app/projects")}>
+          <div style={{ marginTop: 16, display: "flex", flexDirection: isMobile ? "column" : "row", gap: "10px" }}>
+            <button
+              type="button"
+              className="projects-btn"
+              onClick={() => navigate("/app/projects")}
+              style={{ width: isMobile ? "100%" : "auto" }}
+            >
               Back to projects
             </button>
+            {isMobile && canRejectProject(project.status) && (
+              <button
+                type="button"
+                className="projects-btn danger"
+                disabled={transitioning}
+                onClick={() => setRejectConfirmOpen(true)}
+                style={{ width: "100%" }}
+              >
+                Reject project
+              </button>
+            )}
           </div>
         </>
       ) : tab === "amc" ? (

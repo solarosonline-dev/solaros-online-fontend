@@ -310,6 +310,25 @@
   border-bottom-color: var(--app-accent);
 }
 
+@media (max-width: 640px) {
+  .project-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    gap: 8px;
+  }
+  .project-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .project-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+}
+
 .projects-tab-note {
   font-size: 13px;
   color: var(--app-text-muted);
