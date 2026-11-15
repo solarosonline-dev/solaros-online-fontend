@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { listLeads, type Lead, type LeadStatus } from "../../api/leads";
-import { isAgent } from "../../lib/roles";
+import { formatStageLabel, listLeads, listSalesReps, type Lead, type SalesRepList } from "../../api/leads";
+import { canManageLeads, hasFeature, isAgent } from "../../lib/roles";
 import { ApiError } from "../../api/client";
-import { LeadStatusBadge } from "../../pages/leads/leadFunnel";
+import { LeadStageBadge } from "../../pages/leads/leadFunnel";
+import { useLeadWorkflow } from "../../lib/useLeadWorkflow";
 import Pagination from "../../lib/Pagination";
 import "./MobileLeadsPage.css";
 
@@ -22,7 +23,15 @@ export default function MobileLeadsPage() {
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | "">("");
+  // A workflow stage name, "REJECTED", or "" for every lead (same as web).
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const { stages } = useLeadWorkflow(entityId);
+  // Admins/sales managers can narrow by sales rep ("" = all, "unassigned", or a user id);
+  // a rep's list is already limited to their own leads by the backend.
+  const manager = canManageLeads(user!.roles);
+  const [repFilter, setRepFilter] = useState<string>("");
+  const [reps, setReps] = useState<SalesRepList | null>(null);
+  const hasAgents = hasFeature(user, "AGENTS");
   const [page, setPage] = useState(1);
   const [expandedLeadId, setExpandedLeadId] = useState<number | null>(null);
 
@@ -32,7 +41,10 @@ export default function MobileLeadsPage() {
     listLeads(
       entityId,
       {
-        status: statusFilter || undefined,
+        status: statusFilter === "REJECTED" ? "REJECTED" : undefined,
+        stage: statusFilter && statusFilter !== "REJECTED" ? statusFilter : undefined,
+        sales_rep_id: repFilter && repFilter !== "unassigned" ? Number(repFilter) : undefined,
+        unassigned: repFilter === "unassigned" || undefined,
         search: search || undefined,
         page,
         page_size: PAGE_SIZE,
@@ -49,7 +61,20 @@ export default function MobileLeadsPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [entityId, statusFilter, search, page]);
+  useEffect(load, [entityId, statusFilter, search, page, repFilter]);
+
+  useEffect(() => {
+    if (!manager || !hasFeature(user, "CRM")) return;
+    listSalesReps(entityId)
+      .then(setReps)
+      .catch(() => setReps(null));
+  }, [entityId, manager]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function pickRep(value: string) {
+    setRepFilter((prev) => (prev === value ? "" : value));
+    setPage(1);
+    setExpandedLeadId(null);
+  }
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,29 +87,40 @@ export default function MobileLeadsPage() {
     setExpandedLeadId((prev) => (prev === leadId ? null : leadId));
   }
 
-  const statuses: { label: string; value: LeadStatus | "" }[] = [
+  const stageChips: { label: string; value: string }[] = [
     { label: "All", value: "" },
-    { label: "New", value: "NEW" },
-    { label: "Quoted", value: "QUOTE_GENERATED" },
-    { label: "Agreements", value: "AGREEMENT_GENERATED" },
+    ...stages.map((st) => ({ label: formatStageLabel(st), value: st })),
     { label: "Rejected", value: "REJECTED" },
   ];
 
   return (
     <div className="mobile-leads-page">
       <div className="mobile-leads-header">
-        <h1>Leads Directory</h1>
+        <h1>
+          Leads
+          {!loading && !loadError && <span className="mobile-leads-count">{total}</span>}
+        </h1>
         <button
           className="mobile-btn-add-primary"
           onClick={() => navigate("/app/leads/new")}
         >
-          ➕ Add Lead
+          + Add lead
         </button>
       </div>
 
-      {/* Filter Chips Scroll */}
-      <div className="mobile-leads-filter-scroll">
-        {statuses.map((item) => (
+      {/* Search sits right under the title; both filter rows scroll sideways
+          so they cost one line each instead of wrapping. */}
+      <form className="mobile-leads-search" onSubmit={handleSearchSubmit}>
+        <input
+          type="search"
+          placeholder="Search name or phone…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+      </form>
+
+      <div className="mobile-leads-filter-scroll" role="group" aria-label="Filter by stage">
+        {stageChips.map((item) => (
           <button
             key={item.label}
             type="button"
@@ -100,15 +136,31 @@ export default function MobileLeadsPage() {
         ))}
       </div>
 
-      {/* Search Bar */}
-      <form className="mobile-leads-search" onSubmit={handleSearchSubmit}>
-        <input
-          type="search"
-          placeholder="🔍 Search client name or phone..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-        />
-      </form>
+      {manager && reps && (reps.items.length > 0 || reps.unassigned_count > 0) && (
+        <div className="mobile-leads-filter-scroll rep" role="group" aria-label="Filter by sales rep">
+          {reps.items.map((r) => (
+            <button
+              key={r.user_id}
+              type="button"
+              className={`mobile-rep-chip ${repFilter === String(r.user_id) ? "selected" : ""}`}
+              aria-pressed={repFilter === String(r.user_id)}
+              onClick={() => pickRep(String(r.user_id))}
+            >
+              <span className="mobile-rep-chip-name">{r.full_name}</span>
+              <span className="mobile-rep-chip-count">{r.open_count}/{r.assigned_count}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`mobile-rep-chip unassigned ${repFilter === "unassigned" ? "selected" : ""}`}
+            aria-pressed={repFilter === "unassigned"}
+            onClick={() => pickRep("unassigned")}
+          >
+            <span className="mobile-rep-chip-name">Unassigned</span>
+            <span className="mobile-rep-chip-count">{reps.unassigned_count}</span>
+          </button>
+        </div>
+      )}
 
       {/* Leads Cards List */}
       <div className="mobile-leads-list">
@@ -153,27 +205,29 @@ export default function MobileLeadsPage() {
               >
                 {/* Front Summary Section */}
                 <div className="lead-card-front" onClick={() => toggleExpand(lead.lead_id)}>
-                  <div className="lead-card-main-info">
+                  {/* Two lines: who + stage, then phone/date with the sales rep
+                      pushed to the right edge (the space that used to hold an
+                      id and a chevron). */}
+                  <div className="lead-card-row">
                     <h3>{lead.name}</h3>
-                    <p className="lead-card-meta">
-                      👤 ID: #{lead.lead_id} • Created: {new Date(lead.created_at).toLocaleDateString()}
-                    </p>
+                    <LeadStageBadge stage={lead.agent_stage} rejected={lead.status === "REJECTED"} />
                   </div>
-                  <div className="lead-card-right-info">
-                    <LeadStatusBadge status={lead.status} />
-                    <span className="lead-card-chevron">{isExpanded ? "▲" : "▼"}</span>
+                  <div className="lead-card-row sub">
+                    <span className="lead-card-meta">
+                      {lead.mobile} · {new Date(lead.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                    </span>
+                    <span className={`lead-card-rep${lead.assigned_sales_rep_name ? "" : " none"}`}>
+                      {lead.assigned_sales_rep_name ?? "Unassigned"}
+                    </span>
                   </div>
                 </div>
 
                 {/* Double Down Drawer Panel */}
                 {isExpanded && (
                   <div className="lead-card-drawer">
-                    <div className="lead-card-divider" />
-                    
                     <div className="lead-drawer-metadata">
-                      <p><strong>Mobile:</strong> {lead.mobile}</p>
-                      <p><strong>Sales rep:</strong> {lead.assigned_sales_rep_name ?? "Unassigned"}</p>
-                      <p><strong>Created:</strong> {new Date(lead.created_at).toLocaleDateString()}</p>
+                      <p><strong>Lead</strong> #{lead.lead_id} · created {new Date(lead.created_at).toLocaleDateString()}</p>
+                      {hasAgents && lead.created_by_name && <p><strong>Agent</strong> {lead.created_by_name}</p>}
                     </div>
 
                     <div className="lead-drawer-communication">

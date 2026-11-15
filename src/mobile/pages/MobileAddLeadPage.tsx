@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { createLead, leadsAccess, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
+import { createLead, leadsAccess, listSalesReps, type CreateLeadInput, type ExtractedLeadData, type SalesRep } from "../../api/leads";
+import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
+import { canManageLeads, hasFeature, isEntityAdmin } from "../../lib/roles";
 import { getDiscomsForState, resolveStateCode, resolveDiscomCode, STATES } from "../../pages/leads/discomOptions";
 import { METER_TYPES, LEAD_TYPES } from "../../pages/leads/leadOptions";
 import { ApiError } from "../../api/client";
@@ -24,6 +26,22 @@ export default function MobileAddLeadPage() {
   const [email, setEmail] = useState("");
   const [type, setType] = useState("");
   const [assignedAgentId, setAssignedAgentId] = useState<number | "">("");
+  // Owner pickers (same rules as the web form): admins/sales managers choose
+  // the sales rep; admins on an Agents entity can also pick the owning agent.
+  // A rep's own new lead assigns to them server-side.
+  const [salesRepId, setSalesRepId] = useState<number | "">("");
+  const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  const [agents, setAgents] = useState<EntityUser[]>([]);
+  const canPickRep = canManageLeads(user!.roles) && hasFeature(user, "CRM");
+  const canPickAgent = isEntityAdmin(user!.roles) && hasFeature(user, "AGENTS");
+
+  useEffect(() => {
+    if (canPickRep) listSalesReps(entityId).then((r) => setSalesReps(r.items)).catch(() => setSalesReps([]));
+    if (canPickAgent)
+      listEntityUsers(entityId)
+        .then((r) => setAgents(r.items.filter((u) => u.roles.includes("ENTITY_AGENT"))))
+        .catch(() => setAgents([]));
+  }, [canPickRep, canPickAgent, entityId]);
 
   const [state, setState] = useState("");
   const [discom, setDiscom] = useState("");
@@ -51,6 +69,7 @@ export default function MobileAddLeadPage() {
     setEmail("");
     setType("");
     setAssignedAgentId("");
+    setSalesRepId("");
     setState("");
     setDiscom("");
     setCaNumber("");
@@ -158,6 +177,7 @@ export default function MobileAddLeadPage() {
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         agent_user_id: assignedAgentId ? Number(assignedAgentId) : undefined,
+        sales_rep_user_id: salesRepId ? Number(salesRepId) : undefined,
       }, leadsAccess(user));
 
       navigate("/app/leads");
@@ -212,6 +232,33 @@ export default function MobileAddLeadPage() {
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. client@gmail.com" />
               {fieldErrors.email && <span className="field-error">{fieldErrors.email}</span>}
             </div>
+
+            {(canPickRep || canPickAgent) && (
+              <div className="mobile-form-row">
+                {canPickRep && (
+                  <div className="mobile-form-field">
+                    <label>Sales rep</label>
+                    <select value={salesRepId} onChange={(e) => setSalesRepId(e.target.value ? Number(e.target.value) : "")}>
+                      <option value="">Unassigned</option>
+                      {salesReps.map((r) => (
+                        <option key={r.user_id} value={r.user_id}>{r.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {canPickAgent && (
+                  <div className="mobile-form-field">
+                    <label>Agent</label>
+                    <select value={assignedAgentId} onChange={(e) => setAssignedAgentId(e.target.value ? Number(e.target.value) : "")}>
+                      <option value="">None</option>
+                      {agents.map((a) => (
+                        <option key={a.user_id} value={a.user_id}>{a.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mobile-form-field">
               <label>Installation Type</label>
