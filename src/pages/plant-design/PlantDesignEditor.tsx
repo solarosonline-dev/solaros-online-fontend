@@ -4418,27 +4418,27 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             </button>
           </div>
           <div className="pde-m-steps" role="tablist" aria-label="Design steps">
-            {visibleSteps.map((s, i) => {
-              const unlocked = s.n <= maxUnlockedStep;
-              const active = currentStep === s.n;
-              const StepIcon = STEP_ICONS[s.n];
-              return (
-                <button
-                  key={s.n}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-label={`${i + 1}. ${s.label}`}
-                  disabled={!unlocked}
-                  className={`pde-m-step${active ? ' pde-m-step-active' : ''}${unlocked && !active && s.n < currentStep ? ' pde-m-step-done' : ''}`}
-                  onClick={() => goToStep(s.n)}
-                >
-                  <StepIcon size={20} />
-                  <span>{STEP_SHORT[s.n]}</span>
-                </button>
-              );
-            })}
-          </div>
+          {visibleSteps.map((s, i) => {
+            const unlocked = s.n <= maxUnlockedStep;
+            const active = currentStep === s.n;
+            const StepIcon = STEP_ICONS[s.n];
+            return (
+              <button
+                key={s.n}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-label={`${i + 1}. ${s.label}`}
+                disabled={!unlocked}
+                className={`pde-m-step${active ? ' pde-m-step-active' : ''}${unlocked && !active && s.n < currentStep ? ' pde-m-step-done' : ''}`}
+                onClick={() => goToStep(s.n)}
+              >
+                <StepIcon size={20} />
+                <span>{STEP_SHORT[s.n]}</span>
+              </button>
+            );
+          })}
+        </div>
         </div>
       ) : (
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 8 : 4, padding: isMobile ? '8px 16px' : '8px 16px', borderBottom: '1px solid #e2e2e2', background: '#fff', flexShrink: 0 }}>

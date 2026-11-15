@@ -13,6 +13,9 @@ export default function MobileLayout() {
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // The Plant Design editor is a full-screen workspace: no floating tab bar over it.
+  const hideTabBar = /^\/app\/plant-design\/.+/.test(location.pathname);
+
   // Close the slide-up sheet when routing changes
   useEffect(() => {
     setMoreOpen(false);
@@ -52,7 +55,7 @@ export default function MobileLayout() {
       </main>
 
       {/* Bottom Navigation Tab Bar */}
-      <nav className="mobile-tab-bar">
+      <nav className={`mobile-tab-bar${hideTabBar ? " mobile-tab-bar-hidden" : ""}`}>
         {/* Agent mode */}
         {agentUser && (
           <>
