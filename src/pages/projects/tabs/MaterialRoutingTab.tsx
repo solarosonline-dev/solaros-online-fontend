@@ -286,7 +286,7 @@ export default function MaterialRoutingTab({ entityId, projectId }: Props) {
             </div>
             <div>
               <label style={{ display: "block", fontSize: "12px", marginBottom: "4px" }}>Qty</label>
-              <input type="number" min="0" step="0.1" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} style={{ width: "100%", padding: "6px" }} required />
+              <input type="number" min="0" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))} style={{ width: "100%", padding: "6px" }} required />
             </div>
             <div>
               <label style={{ display: "block", fontSize: "12px", marginBottom: "4px" }}>Unit</label>

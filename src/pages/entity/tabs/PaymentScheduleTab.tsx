@@ -1,3 +1,4 @@
+import NumberField from "../../../components/NumberField";
 import type { PaymentSchedule } from "../../../api/entityPreferences";
 
 type Props = {
@@ -24,8 +25,7 @@ export default function PaymentScheduleTab({ draft, onChange }: Props) {
     });
   }
 
-  function handlePercentChange(index: number, value: string) {
-    const percent = value === "" ? 0 : Number(value);
+  function handlePercentChange(index: number, percent: number) {
     onChange({
       rows: rows.map((row, i) => (i === index ? { ...row, percent } : row)),
     });
@@ -68,13 +68,13 @@ export default function PaymentScheduleTab({ draft, onChange }: Props) {
 
               <div className="mobile-form-field">
                 <label>Percentage Share (%)</label>
-                <input
-                  type="number"
+                <NumberField
                   min={0}
                   max={100}
                   placeholder="e.g. 30"
-                  value={row.percent || ""}
-                  onChange={(e) => handlePercentChange(i, e.target.value)}
+                  value={row.percent}
+                  emptyValue={0}
+                  onCommit={(v) => handlePercentChange(i, v)}
                   style={{ height: "38px !important", fontSize: "13px !important" }}
                 />
               </div>
@@ -152,13 +152,13 @@ export default function PaymentScheduleTab({ draft, onChange }: Props) {
                   />
                 </td>
                 <td className="compb-num" data-label="Percent">
-                  <input
-                    type="number"
+                  <NumberField
                     min={0}
                     max={100}
                     step={1}
                     value={row.percent}
-                    onChange={(e) => handlePercentChange(i, e.target.value)}
+                    emptyValue={0}
+                    onCommit={(v) => handlePercentChange(i, v)}
                   />
                 </td>
                 <td className="compb-particular" data-label="Description">

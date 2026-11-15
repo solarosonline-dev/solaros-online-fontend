@@ -69,6 +69,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
 import { sunExposureColor } from './heatmapColor.js';
 import HeatmapLegend from './HeatmapLegend.jsx';
+import NumberField from '../../components/NumberField';
 import OutputChartPanel, { formatKWh, formatPct, shadingLossPct, emptyOutputSeries, addToOutputSeries, type OutputSeries } from './OutputChartPanel.jsx';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -4533,17 +4534,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             <div className="pde-field-row">
               <div className="pde-field">
                 <label htmlFor="pdeLat">Latitude</label>
-                <input id="pdeLat" type="number" value={location.lat} onChange={(e) => setLocation({ ...location, lat: +e.target.value })} />
+                <NumberField id="pdeLat"  value={location.lat} onCommit={(v) => setLocation({ ...location, lat: v })} />
               </div>
               <div className="pde-field">
                 <label htmlFor="pdeLon">Longitude</label>
-                <input id="pdeLon" type="number" value={location.lon} onChange={(e) => setLocation({ ...location, lon: +e.target.value })} />
+                <NumberField id="pdeLon"  value={location.lon} onCommit={(v) => setLocation({ ...location, lon: v })} />
               </div>
             </div>
 
             <div className="pde-field">
               <label htmlFor="pdeTz">Timezone (UTC+)</label>
-              <input id="pdeTz" type="number" value={location.tz} onChange={(e) => setLocation({ ...location, tz: +e.target.value })} />
+              <NumberField id="pdeTz"  value={location.tz} onCommit={(v) => setLocation({ ...location, tz: v })} />
             </div>
             <div className="pde-step1-hint" style={{ marginTop: -8 }}>Default: Bengaluru, IN</div>
 
@@ -4561,7 +4562,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         <>
         <CollapsibleSection title="Grid connection" defaultOpen>
           <div className="pde-field-row">
-            <div className="pde-field-sm"><label>Grid voltage (V)</label><input type="number" step="1" value={gridConnection.voltage} onChange={(e) => setGridConnection({ ...gridConnection, voltage: +e.target.value })} /></div>
+            <div className="pde-field-sm"><label>Grid voltage (V)</label><NumberField  step="1" value={gridConnection.voltage} onCommit={(v) => setGridConnection({ ...gridConnection, voltage: v })} /></div>
             <div className="pde-field-sm">
               <label>Phase</label>
               <select value={gridConnection.phase} onChange={(e) => setGridConnection({ ...gridConnection, phase: +e.target.value })}>
@@ -4620,15 +4621,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               </div>
               <div className="pde-field-row">
                 <div className="pde-field-sm"><label>Wattage (W)</label><SliderInput min={100} max={800} hardMax={1000} step={10} value={panelSpec.wattage} onChange={(v) => setPanelSpec({ ...panelSpec, wattage: v })} /></div>
-                <div className="pde-field-sm"><label>Temp coeff. Voc (%/°C)</label><input type="number" step="0.01" value={panelSpec.tempCoeffVoc} onChange={(e) => setPanelSpec({ ...panelSpec, tempCoeffVoc: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Temp coeff. Voc (%/°C)</label><NumberField  step="0.01" value={panelSpec.tempCoeffVoc} onCommit={(v) => setPanelSpec({ ...panelSpec, tempCoeffVoc: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Voc (V)</label><input type="number" step="0.01" value={panelSpec.voc} onChange={(e) => setPanelSpec({ ...panelSpec, voc: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>Vmp (V)</label><input type="number" step="0.01" value={panelSpec.vmp} onChange={(e) => setPanelSpec({ ...panelSpec, vmp: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Voc (V)</label><NumberField  step="0.01" value={panelSpec.voc} onCommit={(v) => setPanelSpec({ ...panelSpec, voc: v })} /></div>
+                <div className="pde-field-sm"><label>Vmp (V)</label><NumberField  step="0.01" value={panelSpec.vmp} onCommit={(v) => setPanelSpec({ ...panelSpec, vmp: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Isc (A)</label><input type="number" step="0.01" value={panelSpec.isc} onChange={(e) => setPanelSpec({ ...panelSpec, isc: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>Imp (A)</label><input type="number" step="0.01" value={panelSpec.imp} onChange={(e) => setPanelSpec({ ...panelSpec, imp: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Isc (A)</label><NumberField  step="0.01" value={panelSpec.isc} onCommit={(v) => setPanelSpec({ ...panelSpec, isc: v })} /></div>
+                <div className="pde-field-sm"><label>Imp (A)</label><NumberField  step="0.01" value={panelSpec.imp} onCommit={(v) => setPanelSpec({ ...panelSpec, imp: v })} /></div>
               </div>
             </>
           ) : (
@@ -4679,22 +4680,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             <>
               <div className="pde-field-sm"><label>Model name</label><input type="text" value={inverterChoice.model} onChange={(e) => setInverterChoice({ ...inverterChoice, model: e.target.value })} placeholder="e.g. My inverter 50kW" /></div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>AC power (kW)</label><input type="number" step="0.1" value={inverterChoice.acPowerKw} onChange={(e) => setInverterChoice({ ...inverterChoice, acPowerKw: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>Max DC voltage (V)</label><input type="number" step="1" value={inverterChoice.maxDcVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, maxDcVoltage: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>AC power (kW)</label><NumberField  step="0.1" value={inverterChoice.acPowerKw} onCommit={(v) => setInverterChoice({ ...inverterChoice, acPowerKw: v })} /></div>
+                <div className="pde-field-sm"><label>Max DC voltage (V)</label><NumberField  step="1" value={inverterChoice.maxDcVoltage} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxDcVoltage: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>MPPT channels</label><input type="number" step="1" value={inverterChoice.mpptCount} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptCount: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>Max current/MPPT (A)</label><input type="number" step="0.1" value={inverterChoice.maxCurrentPerMppt} onChange={(e) => setInverterChoice({ ...inverterChoice, maxCurrentPerMppt: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>MPPT channels</label><NumberField  step="1" value={inverterChoice.mpptCount} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptCount: v })} /></div>
+                <div className="pde-field-sm"><label>Max current/MPPT (A)</label><NumberField  step="0.1" value={inverterChoice.maxCurrentPerMppt} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxCurrentPerMppt: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>MPPT V min (V)</label><input type="number" step="1" value={inverterChoice.mpptVoltageMin} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMin: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>MPPT V max (V)</label><input type="number" step="1" value={inverterChoice.mpptVoltageMax} onChange={(e) => setInverterChoice({ ...inverterChoice, mpptVoltageMax: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>MPPT V min (V)</label><NumberField  step="1" value={inverterChoice.mpptVoltageMin} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptVoltageMin: v })} /></div>
+                <div className="pde-field-sm"><label>MPPT V max (V)</label><NumberField  step="1" value={inverterChoice.mpptVoltageMax} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptVoltageMax: v })} /></div>
               </div>
               <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Max AC current (A)</label><input type="number" step="0.1" value={inverterChoice.maxAcCurrent} onChange={(e) => setInverterChoice({ ...inverterChoice, maxAcCurrent: +e.target.value })} /></div>
-                <div className="pde-field-sm"><label>AC voltage (V)</label><input type="number" step="1" value={inverterChoice.acVoltage} onChange={(e) => setInverterChoice({ ...inverterChoice, acVoltage: +e.target.value })} /></div>
+                <div className="pde-field-sm"><label>Max AC current (A)</label><NumberField  step="0.1" value={inverterChoice.maxAcCurrent} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxAcCurrent: v })} /></div>
+                <div className="pde-field-sm"><label>AC voltage (V)</label><NumberField  step="1" value={inverterChoice.acVoltage} onCommit={(v) => setInverterChoice({ ...inverterChoice, acVoltage: v })} /></div>
               </div>
-              <div className="pde-field-sm"><label>Phase</label><input type="number" step="1" value={inverterChoice.phase} onChange={(e) => setInverterChoice({ ...inverterChoice, phase: +e.target.value })} /></div>
+              <div className="pde-field-sm"><label>Phase</label><NumberField  step="1" value={inverterChoice.phase} onCommit={(v) => setInverterChoice({ ...inverterChoice, phase: v })} /></div>
             </>
           ) : (
             <div className="pde-field-sm-hint">
@@ -4719,8 +4720,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         <CollapsibleSection title="String sizing">
           <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
           <div className="pde-field-row">
-            <div className="pde-field-sm"><label>Design min temp (°C)</label><input type="number" step="1" value={designTemp.min} onChange={(e) => setDesignTemp({ ...designTemp, min: +e.target.value })} /></div>
-            <div className="pde-field-sm"><label>Design max temp (°C)</label><input type="number" step="1" value={designTemp.max} onChange={(e) => setDesignTemp({ ...designTemp, max: +e.target.value })} /></div>
+            <div className="pde-field-sm"><label>Design min temp (°C)</label><NumberField  step="1" value={designTemp.min} onCommit={(v) => setDesignTemp({ ...designTemp, min: v })} /></div>
+            <div className="pde-field-sm"><label>Design max temp (°C)</label><NumberField  step="1" value={designTemp.max} onCommit={(v) => setDesignTemp({ ...designTemp, max: v })} /></div>
           </div>
           <div className="pde-field-sm-hint" style={{ marginBottom: 10 }}>
             {designTempStatus === 'loading' && 'fetching this site\'s temperature range (NASA POWER)…'}

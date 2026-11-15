@@ -16,7 +16,7 @@ const HEADING_FIELDS: SizeField[] = [
   { key: "h3_font_size", label: "H3 size", min: 14, max: 22 },
 ];
 
-// Unchanged -- still plain number inputs with the browser's own min/max.
+// Same free-typing text box as the headings; min/max are applied on blur.
 const BODY_SIZE_FIELDS: SizeField[] = [
   { key: "body_font_size", label: "Body size", min: 12, max: 20 },
   { key: "small_font_size", label: "Small size", min: 10, max: 16 },
@@ -84,11 +84,18 @@ export default function TypographyTab({ draft, onChange }: Props) {
           </label>
           <input
             id={f.key}
-            type="number"
-            min={f.min}
-            max={f.max}
-            value={px(draft[f.key])}
-            onChange={(e) => onChange({ ...draft, [f.key]: `${e.target.value}px` })}
+            type="text"
+            inputMode="numeric"
+            value={digitsOnly(draft[f.key])}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/[^0-9]/g, "");
+              // Same as the heading fields above: let it go genuinely empty.
+              onChange({ ...draft, [f.key]: digits ? `${digits}px` : "" });
+            }}
+            onBlur={(e) => {
+              const clamped = clamp(px(e.target.value) || f.min, f.min, f.max);
+              onChange({ ...draft, [f.key]: `${clamped}px` });
+            }}
           />
         </div>
       ))}

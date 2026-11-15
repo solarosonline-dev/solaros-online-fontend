@@ -181,6 +181,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
+  /* Room on the right so the last glyph (esp. the italic "d" of Unassigned)
+     isn't clipped by overflow: hidden. */
+  padding-right: 6px;
+  margin-right: 2px;
 }
 .lead-card-rep.none { color: var(--app-text-muted); font-weight: 500; font-style: italic; }
 

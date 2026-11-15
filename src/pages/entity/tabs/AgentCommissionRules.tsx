@@ -5,6 +5,7 @@ import { useAuth } from "../../../lib/AuthContext";
 import { putCommissionRule, syncAgentWorkspace } from "../../../api/agentWorkspace";
 import { ApiError } from "../../../api/client";
 import { formatStageLabel } from "../../../api/leads";
+import NumberField from "../../../components/NumberField";
 import "../../epc-agents/EpcAgents.css";
 
 // Per-agent commission rules (type + value). Lives under Entity Settings ->
@@ -66,6 +67,71 @@ export default function AgentCommissionRules() {
   }
 
   const finalStages = getLeadStates().slice(-2);
+  const isMobile = document.body.classList.contains("mobile-view");
+
+  if (isMobile) {
+    // Mobile: one card per agent (the table doesn't fit a phone), built from
+    // the shared mobile primitives in mobile-system.css.
+    return (
+      <div className="m-page">
+        <div className="m-section-head">
+          <h3 className="m-section-title">Agent commission rules</h3>
+          {savedFeedback && <span className="m-badge success">Saved</span>}
+        </div>
+        <p className="m-status">
+          Commission is earned once a lead reaches one of the last two workflow stages (
+          {finalStages.map(formatStageLabel).join(" and ")}). Change them in the Lead Workflow tab.
+        </p>
+
+        {agents.length === 0 ? (
+          <div className="m-empty">No agents yet. Invite one from the Users page.</div>
+        ) : (
+          <div className="m-list">
+            {agents.map((ag) => {
+              const rule = commissions.find((c) => c.agentId === ag.user_id) || { type: "PERCENT", value: 0 };
+              return (
+                <div key={ag.user_id} className="m-card">
+                  <div className="m-card-top">
+                    <div className="m-card-title">{ag.full_name}</div>
+                  </div>
+                  <div className="m-card-sub">{ag.email}</div>
+
+                  <div className="m-segment" role="group" aria-label="Commission type" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className={rule.type === "PERCENT" ? "active" : ""}
+                      onClick={() => handleRateChange(ag.user_id, "type", "PERCENT")}
+                    >
+                      % of revenue
+                    </button>
+                    <button
+                      type="button"
+                      className={rule.type === "FIXED" ? "active" : ""}
+                      onClick={() => handleRateChange(ag.user_id, "type", "FIXED")}
+                    >
+                      Fixed amount
+                    </button>
+                  </div>
+
+                  <div className="m-field" style={{ marginTop: 12, marginBottom: 0 }}>
+                    <label htmlFor={`rate-${ag.user_id}`}>{rule.type === "PERCENT" ? "Percentage (%)" : "Amount (INR)"}</label>
+                    <NumberField
+                      id={`rate-${ag.user_id}`}
+                      min={0}
+                      value={rule.value}
+                      emptyValue={0}
+                      onCommit={(v) => handleRateChange(ag.user_id, "value", v, false)}
+                      onBlur={(e) => persistRule(ag.user_id, { ...rule, value: e.currentTarget.value === "" ? 0 : rule.value })}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="epc-panel">
@@ -111,11 +177,12 @@ export default function AgentCommissionRules() {
                     </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input
-                          type="number"
+                        <NumberField
+                          min={0}
                           value={rule.value}
-                          onChange={(e) => handleRateChange(ag.user_id, "value", parseFloat(e.target.value) || 0, false)}
-                          onBlur={() => persistRule(ag.user_id, rule)}
+                          emptyValue={0}
+                          onCommit={(v) => handleRateChange(ag.user_id, "value", v, false)}
+                          onBlur={(e) => persistRule(ag.user_id, { ...rule, value: e.currentTarget.value === "" ? 0 : rule.value })}
                           className="epc-input"
                           style={{ maxWidth: 100, padding: "4px 8px", fontSize: 13 }}
                         />
