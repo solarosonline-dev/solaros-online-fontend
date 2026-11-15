@@ -64,6 +64,8 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
+  padding-left: 14px;
+  padding-right: 14px;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 100;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
