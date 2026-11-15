@@ -19,7 +19,7 @@ export interface EpcAgentSettings {
   onlyWorkspace: boolean;
 }
 
-const DEFAULT_STATES = ["NEW", "CONTACTED", "MEETING_SCHEDULED", "PROPOSAL_SENT", "ORDER_PLACED", "COMPLETED"];
+const DEFAULT_STATES = ["NEW", "CONTACTED", "MEETING_SCHEDULED", "PROPOSAL_SENT", "AGREEMENT", "PROJECT_EXECUTION", "COMPLETED"];
 
 const STORAGE_KEYS = {
   SETTINGS: "epc_agents_settings",
@@ -168,7 +168,7 @@ export function getEarnedCommission(
   const assignments = getLeadAssignments();
   let total = 0;
 
-  // Realized revenue states (typically the last 2 states like ORDER_PLACED or COMPLETED)
+  // Realized revenue states (typically the last 2 states like PROJECT_EXECUTION or COMPLETED)
   const revenueStates = leadStates.slice(-2);
 
   allLeads.forEach((l) => {

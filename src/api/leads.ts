@@ -16,6 +16,9 @@ export type Lead = {
   /** Agent-workspace pipeline stage / deal value -- set by admins, read by agents. */
   agent_stage?: string;
   deal_value?: string | null;
+  /** The sales rep following the lead up -- separate from the agent who created it. */
+  assigned_sales_rep_id?: number | null;
+  assigned_sales_rep_name?: string | null;
 };
 
 export type LeadDetail = Lead & {
@@ -62,6 +65,8 @@ export type CreateLeadInput = {
   entry_duration_ms?: number;
   /** Entity admins only: the ENTITY_AGENT this lead belongs to (backend validates it). */
   agent_user_id?: number;
+  /** Admins / sales managers only: the SALES_REP to assign the lead to. A rep's own leads auto-assign to them. */
+  sales_rep_user_id?: number;
   /** Optional map location coordinates */
   latitude?: number;
   /** Optional map location coordinates */
@@ -119,18 +124,27 @@ export function listLeads(
   entityId: number,
   params: {
     status?: LeadStatus;
+    /** Lead-workflow stage (CRM /leads route only); rejected leads are excluded. */
+    stage?: string;
     search?: string;
     page?: number;
     page_size?: number;
     /** Only honoured by the "agents-admin" route: just this user's leads. */
     created_by_user_id?: number;
+    /** Only this sales rep's leads (admins/managers; a rep is always scoped to their own). */
+    sales_rep_id?: number;
+    /** Only leads with no sales rep yet. */
+    unassigned?: boolean;
   } = {},
   agent?: LeadsAccess | boolean,
 ) {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
+  if (params.stage) qs.set("stage", params.stage);
   if (params.search) qs.set("search", params.search);
   if (params.created_by_user_id) qs.set("created_by_user_id", String(params.created_by_user_id));
+  if (params.sales_rep_id) qs.set("sales_rep_id", String(params.sales_rep_id));
+  if (params.unassigned) qs.set("unassigned", "true");
   if (params.page) qs.set("page", String(params.page));
   if (params.page_size) qs.set("page_size", String(params.page_size));
   const query = qs.toString();
@@ -178,5 +192,68 @@ export function updateLeadStage(
   return apiRequest<LeadDetail>(`/entities/${entityId}/agents/leads/${leadId}/stage`, {
     method: "PATCH",
     body: data,
+  });
+}
+
+// --- Lead workflow (entity-configured pipeline stages; CRM entities) ---
+
+export const DEFAULT_LEAD_WORKFLOW = [
+  "NEW",
+  "CONTACTED",
+  "MEETING_SCHEDULED",
+  "PROPOSAL_SENT",
+  "AGREEMENT",
+  "PROJECT_EXECUTION",
+  "COMPLETED",
+];
+
+/** "MEETING_SCHEDULED" -> "Meeting Scheduled". */
+export function formatStageLabel(stage: string): string {
+  return stage
+    .toLowerCase()
+    .split("_")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+export const getLeadWorkflow = (entityId: number) =>
+  apiRequest<{ stages: string[] }>(`/entities/${entityId}/lead-workflow`);
+
+export const putLeadWorkflow = (entityId: number, stages: string[]) =>
+  apiRequest<{ stages: string[] }>(`/entities/${entityId}/lead-workflow`, { method: "PUT", body: { stages } });
+
+/** CRM admins: move a lead to any stage of the entity's workflow. */
+export function setLeadWorkflowStage(entityId: number, leadId: number, stage: string) {
+  return apiRequest<LeadDetail>(`/entities/${entityId}/leads/${leadId}/stage`, { method: "PATCH", body: { stage } });
+}
+
+export type SalesRep = {
+  user_id: number;
+  full_name: string;
+  email: string | null;
+  /** Every lead assigned to this rep... */
+  assigned_count: number;
+  /** ...and the ones still in play (not rejected, not at the final stage). */
+  open_count: number;
+};
+
+export type SalesRepList = { items: SalesRep[]; unassigned_count: number };
+
+/** Admins / sales managers: the entity's sales reps with their lead counts. */
+export const listSalesReps = (entityId: number) => apiRequest<SalesRepList>(`/entities/${entityId}/sales-reps`);
+
+/** Assign (or, with null, unassign) a lead's sales rep. */
+export function assignSalesRep(entityId: number, leadId: number, salesRepUserId: number | null) {
+  return apiRequest<LeadDetail>(`/entities/${entityId}/leads/${leadId}/sales-rep`, {
+    method: "PATCH",
+    body: { sales_rep_user_id: salesRepUserId },
+  });
+}
+
+/** An agent moves one of their own leads along the workflow. */
+export function agentSetLeadStage(entityId: number, leadId: number, stage: string) {
+  return apiRequest<LeadDetail>(`/entities/${entityId}/agent/leads/${leadId}/stage`, {
+    method: "PATCH",
+    body: { stage },
   });
 }

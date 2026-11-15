@@ -172,6 +172,7 @@ export default function MobileLeadsPage() {
                     
                     <div className="lead-drawer-metadata">
                       <p><strong>Mobile:</strong> {lead.mobile}</p>
+                      <p><strong>Sales rep:</strong> {lead.assigned_sales_rep_name ?? "Unassigned"}</p>
                       <p><strong>Created:</strong> {new Date(lead.created_at).toLocaleDateString()}</p>
                     </div>
 

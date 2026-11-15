@@ -1,9 +1,10 @@
 import React, { Suspense } from "react";
-import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "../lib/AuthContext";
 import ProtectedRoute from "../lib/ProtectedRoute";
 import RequireFeature from "../lib/RequireFeature";
 import RequireEntityAdmin from "../lib/RequireEntityAdmin";
+import RequireLeadStaff from "../lib/RequireLeadStaff";
 
 // Public Pages (Shared)
 import LoginPage from "../pages/auth/LoginPage";
@@ -29,7 +30,6 @@ import ProjectDetailPage from "../pages/projects/ProjectDetailPage";
 import AgentDashboardPage from "../pages/epc-agents/AgentDashboardPage";
 import EpcDashboardPage from "../pages/epc-agents/EpcDashboardPage";
 import EpcAgentLeadsPage from "../pages/epc-agents/EpcAgentLeadsPage";
-import EpcConfigPage from "../pages/epc-agents/EpcConfigPage";
 import EpcPaymentsPage from "../pages/epc-agents/EpcPaymentsPage";
 
 // Mobile-Specific Components (Lazy loaded)
@@ -116,11 +116,27 @@ const router = createBrowserRouter(
             />
           </Route>
           
+          {/* Leads list + quote/agreement builders: admins and sales staff */}
+          <Route element={<RequireLeadStaff />}>
+            <Route element={<RequireFeature feature="CRM" />}>
+              <Route
+                path="/app/leads"
+                element={
+                  <Suspense fallback={<div>Loading leads...</div>}>
+                    <MobileLeadsPage />
+                  </Suspense>
+                }
+              />
+              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
+            </Route>
+          </Route>
+
           <Route element={<RequireEntityAdmin />}>
             {/* EPC Manager Agent workspaces */}
             <Route path="/app/epc/dashboard" element={<EpcDashboardPage />} />
             <Route path="/app/epc/leads" element={<EpcAgentLeadsPage />} />
-            <Route path="/app/epc/config" element={<EpcConfigPage />} />
+            <Route path="/app/epc/config" element={<Navigate to="/app/entity?tab=lead_workflow" replace />} />
             <Route path="/app/epc/payments" element={<EpcPaymentsPage />} />
 
             <Route path="/app/entity" element={<EntityManagementPage />} />
@@ -142,17 +158,6 @@ const router = createBrowserRouter(
                   </Suspense>
                 }
               />
-              <Route
-                path="/app/leads"
-                element={
-                  <Suspense fallback={<div>Loading leads...</div>}>
-                    <MobileLeadsPage />
-                  </Suspense>
-                }
-              />
-              {/* Mobile active builders and projects */}
-              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
-              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/app/govt-demo" element={<MobileAdminFallback />} />

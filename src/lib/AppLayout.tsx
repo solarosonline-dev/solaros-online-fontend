@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { isSystemAdmin, isEntityAdmin, isSystemSuperAdmin, hasFeature, isAgent } from "./roles";
+import { isSystemAdmin, isEntityAdmin, isSalesStaff, isSystemSuperAdmin, hasFeature, isAgent } from "./roles";
 import { getEpcAgentSettings } from "./epcAgentStorage";
 import { TourProvider, useTour } from "./TourContext";
 import OnboardingTour, { type OnboardingRole } from "./OnboardingTour";
@@ -110,6 +110,7 @@ function AppLayoutInner() {
   // link, only SYSTEM_SUPER_ADMIN.
   const superAdmin = user ? isSystemSuperAdmin(user.roles) : false;
   // Product modules (mirrors the RequireFeature route guards in App.tsx).
+  const salesStaff = user ? isSalesStaff(user.roles) : false;
   const crm = hasFeature(user, "CRM");
   const design = hasFeature(user, "DESIGN");
   
@@ -186,7 +187,6 @@ function AppLayoutInner() {
                   <>
                     <NavLink to="/app/epc/dashboard">EPC Dashboard</NavLink>
                     <NavLink to="/app/epc/leads">All Leads</NavLink>
-                    <NavLink to="/app/epc/config">Agent Config</NavLink>
                     <NavLink to="/app/epc/payments">Agent Payments</NavLink>
                   </>
                 ) : (
@@ -198,7 +198,6 @@ function AppLayoutInner() {
                     {design && <NavLink to="/app/plant-design">Plant Design</NavLink>}
                     {showAgentsCoexist && (
                       <>
-                        <NavLink to="/app/epc/config">Agent Config</NavLink>
                         <NavLink to="/app/epc/payments">Agent Payments</NavLink>
                       </>
                     )}
@@ -207,7 +206,11 @@ function AppLayoutInner() {
               </>
             )}
 
-            {!systemAdmin && !entityAdmin && !agentUser && user?.entity_id && crm && (
+            {!systemAdmin && !entityAdmin && !agentUser && salesStaff && crm && (
+              <NavLink to="/app/leads">Leads</NavLink>
+            )}
+
+            {!systemAdmin && !entityAdmin && !agentUser && !salesStaff && user?.entity_id && crm && (
               <NavLink to="/app/my-work-orders">My Work Orders</NavLink>
             )}
           </nav>

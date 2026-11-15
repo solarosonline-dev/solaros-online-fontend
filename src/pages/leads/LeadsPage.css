@@ -640,3 +640,52 @@
 .lead-detail-side .lead-detail-panel {
   max-width: none;
 }
+
+/* Lead detail: stage picker (entity-configured workflow). */
+.lead-stage-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+.lead-stage-select select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius, 8px);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+/* Per-sales-rep lead counts -- doubles as a filter (click a chip, click again to clear). */
+.leads-rep-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.leads-rep-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md, 8px);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.leads-rep-chip:hover { background: var(--app-bg); }
+.leads-rep-chip.active {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 1px var(--app-accent);
+}
+.leads-rep-chip-name { font-weight: 600; font-size: 14px; }
+.leads-rep-chip-count { font-size: 12px; color: var(--app-text-muted); }
+.leads-rep-chip.unassigned .leads-rep-chip-name { font-style: italic; }
+.leads-muted { color: var(--app-text-muted); }
+.lead-sales-rep-note { font-size: 13px; color: var(--app-text-muted); font-weight: 500; }

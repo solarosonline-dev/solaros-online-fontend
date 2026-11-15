@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { isAgent } from "../../lib/roles";
-import { listLeads, type Lead, type LeadStatus } from "../../api/leads";
+import { canManageLeads, isAgent } from "../../lib/roles";
+import { listLeads, listSalesReps, type Lead, type SalesRepList } from "../../api/leads";
 import { ApiError } from "../../api/client";
-import { LeadFunnelNav, LeadStatusBadge } from "./leadFunnel";
+import { LeadFunnelNav, LeadStageBadge } from "./leadFunnel";
+import { useLeadWorkflow } from "../../lib/useLeadWorkflow";
 import Pagination from "../../lib/Pagination";
 import "./LeadsPage.css";
 
@@ -22,15 +23,35 @@ export default function LeadsPage() {
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | "">("");
+  // A workflow stage name, "REJECTED", or "" for all leads.
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const { stages } = useLeadWorkflow(entityId);
   const [page, setPage] = useState(1);
+
+  // Admins and sales managers see every lead and can narrow by sales rep; a
+  // rep's list is already scoped to their own leads by the backend.
+  const manager = canManageLeads(user!.roles);
+  // "" = everyone, "unassigned", or a rep's user id.
+  const [repFilter, setRepFilter] = useState<string>("");
+  const [reps, setReps] = useState<SalesRepList | null>(null);
+  const hasAgents = !!user!.features?.includes("AGENTS");
+
+  function loadReps() {
+    if (!manager) return;
+    listSalesReps(entityId)
+      .then(setReps)
+      .catch(() => setReps(null));
+  }
 
   function load() {
     setLoading(true);
     setLoadError(null);
     listLeads(entityId, {
-      status: statusFilter || undefined,
+      status: statusFilter === "REJECTED" ? "REJECTED" : undefined,
+      stage: statusFilter && statusFilter !== "REJECTED" ? statusFilter : undefined,
       search: search || undefined,
+      sales_rep_id: repFilter && repFilter !== "unassigned" ? Number(repFilter) : undefined,
+      unassigned: repFilter === "unassigned" || undefined,
       page,
       page_size: PAGE_SIZE,
     }, isAgent(user!.roles))
@@ -42,12 +63,18 @@ export default function LeadsPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [entityId, statusFilter, search, page]);
+  useEffect(load, [entityId, statusFilter, search, page, repFilter]);
+  useEffect(loadReps, [entityId, manager]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleRepFilterChange(value: string) {
+    setRepFilter((prev) => (prev === value ? "" : value));
+    setPage(1);
+  }
 
   // Resetting the page alongside the filter/search change (rather than in a
   // separate effect keyed on them) keeps this to one fetch instead of one
   // for the stale page under the new filter followed by a second for page 1.
-  function handleStatusFilterChange(status: LeadStatus | "") {
+  function handleStatusFilterChange(status: string) {
     setStatusFilter(status);
     setPage(1);
   }
@@ -67,7 +94,34 @@ export default function LeadsPage() {
         </button>
       </h1>
 
-      <LeadFunnelNav value={statusFilter} onSelect={handleStatusFilterChange} />
+      <LeadFunnelNav stages={stages} value={statusFilter} onSelect={handleStatusFilterChange} />
+      {manager && reps && (reps.items.length > 0 || reps.unassigned_count > 0) && (
+        <div className="leads-rep-strip" role="group" aria-label="Filter by sales rep">
+          {reps.items.map((r) => (
+            <button
+              key={r.user_id}
+              type="button"
+              className={`leads-rep-chip${repFilter === String(r.user_id) ? " active" : ""}`}
+              aria-pressed={repFilter === String(r.user_id)}
+              onClick={() => handleRepFilterChange(String(r.user_id))}
+            >
+              <span className="leads-rep-chip-name">{r.full_name}</span>
+              <span className="leads-rep-chip-count" title={`${r.open_count} open of ${r.assigned_count} assigned`}>
+                {r.open_count} open · {r.assigned_count} total
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`leads-rep-chip unassigned${repFilter === "unassigned" ? " active" : ""}`}
+            aria-pressed={repFilter === "unassigned"}
+            onClick={() => handleRepFilterChange("unassigned")}
+          >
+            <span className="leads-rep-chip-name">Unassigned</span>
+            <span className="leads-rep-chip-count">{reps.unassigned_count} leads</span>
+          </button>
+        </div>
+      )}
       <form className="leads-filters" onSubmit={handleSearchSubmit}>
         <input
           type="search"
@@ -85,92 +139,41 @@ export default function LeadsPage() {
         ) : leads.length === 0 ? (
           <div className="leads-empty">No leads yet.</div>
         ) : (
-          <table className="leads-table">
+          <table className="leads-table leads-table-clickable">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Mobile</th>
-                <th>Status</th>
+                <th>Stage</th>
+                <th>Sales rep</th>
+                {hasAgents && manager && <th>Agent</th>}
                 <th>Created</th>
-                <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => {
-                // A quote can only ever be created while the lead is NEW
-                // (backend: 409 INVALID_LEAD_STATE otherwise); every status
-                // after that implies one already exists. REJECTED is
-                // ambiguous -- it could have happened before or after a
-                // quote existed -- so it gets no action here.
-                const quoteAction: "generate" | "view" | null =
-                  lead.status === "NEW"
-                    ? "generate"
-                    : lead.status === "REJECTED"
-                      ? null
-                      : "view";
-                // Same rule, one step further along the pipeline: an
-                // agreement can only be created while QUOTE_ACCEPTED
-                // (backend: 409 INVALID_LEAD_STATE otherwise), and
-                // AGREEMENT_GENERATED/AGREEMENT_ACCEPTED means one already
-                // exists. Mirrors the same action the old Quotes page used
-                // to offer per row.
-                const agreementAction: "generate" | "view" | null =
-                  lead.status === "QUOTE_ACCEPTED"
-                    ? "generate"
-                    : lead.status === "AGREEMENT_GENERATED" || lead.status === "AGREEMENT_ACCEPTED"
-                      ? "view"
-                      : null;
-                return (
-                  <tr key={lead.lead_id}>
-                    <td data-label="Name">{lead.name}</td>
-                    <td data-label="Mobile">{lead.mobile}</td>
-                    <td data-label="Status">
-                      <LeadStatusBadge status={lead.status} />
-                    </td>
-                    <td data-label="Created">{new Date(lead.created_at).toLocaleDateString()}</td>
-                    <td className="leads-table-action-cell">
-                      <button className="leads-btn" onClick={() => navigate(`/app/leads/${lead.lead_id}`)}>
-                        View lead
-                      </button>
-                    </td>
-                    <td className="leads-table-action-cell">
-                      {quoteAction && (
-                        <button
-                          className="leads-btn primary"
-                          onClick={() => navigate(`/app/leads/${lead.lead_id}/quote`)}
-                        >
-                          {quoteAction === "generate" ? "Generate quote" : "View quote"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="leads-table-action-cell">
-                      {agreementAction && (
-                        <button
-                          className="leads-btn primary"
-                          onClick={() => navigate(`/app/leads/${lead.lead_id}/agreement`)}
-                        >
-                          {agreementAction === "generate" ? "Generate agreement" : "View agreement"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="leads-table-action-cell">
-                      {/* project_id is only set once the agreement is
-                          ACCEPTED -- that's what creates the Project. */}
-                      {lead.project_id != null && (
-                        <button
-                          className="leads-btn primary"
-                          onClick={() => navigate(`/app/projects/${lead.project_id}`)}
-                        >
-                          View project
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {/* The whole row drills into the lead; quotes, agreements and
+                  the project are reached from the lead's own page. */}
+              {leads.map((lead) => (
+                <tr
+                  key={lead.lead_id}
+                  tabIndex={0}
+                  onClick={() => navigate(`/app/leads/${lead.lead_id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") navigate(`/app/leads/${lead.lead_id}`);
+                  }}
+                >
+                  <td data-label="Name">{lead.name}</td>
+                  <td data-label="Mobile">{lead.mobile}</td>
+                  <td data-label="Stage">
+                    <LeadStageBadge stage={lead.agent_stage} rejected={lead.status === "REJECTED"} />
+                  </td>
+                  <td data-label="Sales rep">{lead.assigned_sales_rep_name ?? <span className="leads-muted">Unassigned</span>}</td>
+                  {hasAgents && manager && (
+                    <td data-label="Agent">{lead.created_by_name ?? <span className="leads-muted">—</span>}</td>
+                  )}
+                  <td data-label="Created">{new Date(lead.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
+import { canManageLeads, hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
 import { leadsAccess } from "../../api/leads";
 import { listEntityUsers } from "../../api/entityUsers";
 import {
@@ -19,6 +19,12 @@ import {
   getLead,
   updateLead,
   updateLeadStatus,
+  setLeadWorkflowStage,
+  agentSetLeadStage,
+  assignSalesRep,
+  listSalesReps,
+  type SalesRep,
+  formatStageLabel,
   type LeadDetail,
   type LeadStatus,
   type ManualLeadStatus,
@@ -28,7 +34,8 @@ import { ApiError } from "../../api/client";
 import { getProjectForLead, type ProjectForLead } from "../../api/projects";
 import BillUploadWidget from "./BillUploadWidget";
 import LeadWorkOrders from "./LeadWorkOrders";
-import { LeadStatusBadge } from "./leadFunnel";
+import { LeadStatusBadge, LeadStageBadge } from "./leadFunnel";
+import { useLeadWorkflow } from "../../lib/useLeadWorkflow";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
 import { STATES, getDiscomsForState, resolveStateCode, resolveDiscomCode } from "./discomOptions";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -126,6 +133,17 @@ export default function LeadDetailPage() {
   const [assignedAgentId, setAssignedAgentId] = useState<number | "">("");
   const [agents, setAgents] = useState<any[]>([]);
   const [transitioning, setTransitioning] = useState(false);
+  const { stages: workflowStages } = useLeadWorkflow(entityId);
+  // Admins and sales managers pick the lead's sales rep here; a rep (or agent)
+  // just sees who it is.
+  const canAssignRep = user ? canManageLeads(user.roles) : false;
+  const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  useEffect(() => {
+    if (!canAssignRep || !hasFeature(user, "CRM")) return;
+    listSalesReps(entityId)
+      .then((res) => setSalesReps(res.items))
+      .catch(() => setSalesReps([]));
+  }, [entityId, canAssignRep]); // eslint-disable-line react-hooks/exhaustive-deps
   const [project, setProject] = useState<ProjectForLead | null>(null);
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -317,6 +335,53 @@ export default function LeadDetailPage() {
     }
   }
 
+  async function handleWorkflowStageChange(stage: string) {
+    if (!leadId || !lead || stage === lead.agent_stage) return;
+    setTransitioning(true);
+    setStatus(null);
+    try {
+      // Agents move their own leads through their own route.
+      const res =
+        user && isAgent(user.roles)
+          ? await agentSetLeadStage(entityId, Number(leadId), stage)
+          : await setLeadWorkflowStage(entityId, Number(leadId), stage);
+      setLead((prev) => (prev ? { ...prev, agent_stage: res.agent_stage } : prev));
+      setStatus({ kind: "success", message: `Moved to ${formatStageLabel(stage)}.` });
+    } catch (err) {
+      setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not move the lead" });
+    } finally {
+      setTransitioning(false);
+    }
+  }
+
+  async function handleSalesRepChange(value: string) {
+    if (!leadId || !lead) return;
+    const next = value === "" ? null : Number(value);
+    if (next === (lead.assigned_sales_rep_id ?? null)) return;
+    setTransitioning(true);
+    setStatus(null);
+    try {
+      const res = await assignSalesRep(entityId, Number(leadId), next);
+      setLead((prev) =>
+        prev
+          ? {
+              ...prev,
+              assigned_sales_rep_id: res.assigned_sales_rep_id,
+              assigned_sales_rep_name: res.assigned_sales_rep_name,
+            }
+          : prev,
+      );
+      setStatus({
+        kind: "success",
+        message: res.assigned_sales_rep_name ? `Assigned to ${res.assigned_sales_rep_name}.` : "Sales rep removed.",
+      });
+    } catch (err) {
+      setStatus({ kind: "error", message: err instanceof ApiError ? err.message : "Could not assign the sales rep" });
+    } finally {
+      setTransitioning(false);
+    }
+  }
+
   function handleStateSave() {
     if (!updatingLeadId) return;
 
@@ -399,18 +464,91 @@ export default function LeadDetailPage() {
 
       <div className="lead-detail-header">
         <h1 style={{ margin: 0 }}>
-          {lead.name} <LeadStatusBadge status={lead.status} />
+          {lead.name}{" "}
+          {agentModuleView ? (
+            <LeadStatusBadge status={lead.status} />
+          ) : (
+            <LeadStageBadge stage={lead.agent_stage} rejected={lead.status === "REJECTED"} />
+          )}
         </h1>
         <div className="lead-detail-actions">
           {agentModuleView ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 13, color: "var(--app-text-muted)", fontWeight: 500 }}>Lead Stage:</span>
-              <span className={`badge state-${customStates[Number(leadId)] || "NEW"}`}>
-                {customStates[Number(leadId)] || "NEW"}
-              </span>
-            </div>
+            isAgentUser && lead.status !== "REJECTED" ? (
+              <>
+                {lead.assigned_sales_rep_name && (
+                  <span className="lead-sales-rep-note">Sales rep: {lead.assigned_sales_rep_name}</span>
+                )}
+                <label className="lead-stage-select">
+                  <span>Stage</span>
+                  <select
+                    value={lead.agent_stage ?? "NEW"}
+                    disabled={transitioning}
+                    onChange={(e) => handleWorkflowStageChange(e.target.value)}
+                  >
+                    {(workflowStages.includes(lead.agent_stage ?? "NEW")
+                      ? workflowStages
+                      : [lead.agent_stage ?? "NEW", ...workflowStages]
+                    ).map((st) => (
+                      <option key={st} value={st}>
+                        {formatStageLabel(st)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 13, color: "var(--app-text-muted)", fontWeight: 500 }}>Lead Stage:</span>
+                <span className={`badge state-${customStates[Number(leadId)] || "NEW"}`}>
+                  {customStates[Number(leadId)] || "NEW"}
+                </span>
+              </div>
+            )
           ) : (
             <>
+              {canAssignRep ? (
+                <label className="lead-stage-select">
+                  <span>Sales rep</span>
+                  <select
+                    value={lead.assigned_sales_rep_id ?? ""}
+                    disabled={transitioning}
+                    onChange={(e) => handleSalesRepChange(e.target.value)}
+                  >
+                    <option value="">Unassigned</option>
+                    {lead.assigned_sales_rep_id != null && !salesReps.some((r) => r.user_id === lead.assigned_sales_rep_id) && (
+                      <option value={lead.assigned_sales_rep_id}>{lead.assigned_sales_rep_name ?? "Former rep"}</option>
+                    )}
+                    {salesReps.map((r) => (
+                      <option key={r.user_id} value={r.user_id}>
+                        {r.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                lead.assigned_sales_rep_name && (
+                  <span className="lead-sales-rep-note">Sales rep: {lead.assigned_sales_rep_name}</span>
+                )
+              )}
+              {lead.status !== "REJECTED" && (
+                <label className="lead-stage-select">
+                  <span>Stage</span>
+                  <select
+                    value={lead.agent_stage ?? "NEW"}
+                    disabled={transitioning}
+                    onChange={(e) => handleWorkflowStageChange(e.target.value)}
+                  >
+                    {(workflowStages.includes(lead.agent_stage ?? "NEW")
+                      ? workflowStages
+                      : [lead.agent_stage ?? "NEW", ...workflowStages]
+                    ).map((st) => (
+                      <option key={st} value={st}>
+                        {formatStageLabel(st)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <Link to={`/app/leads/${lead.lead_id}/quote`} className="leads-btn primary">
                 {lead.status === "NEW" ? "Generate quote" : "View quote"}
               </Link>

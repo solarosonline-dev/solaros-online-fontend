@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
-import { isSystemAdmin, isEntityAdmin, hasFeature, isAgent } from "../lib/roles";
+import { isSystemAdmin, isEntityAdmin, hasFeature, isAgent, isSalesStaff } from "../lib/roles";
 import { getEpcAgentSettings } from "../lib/epcAgentStorage";
 
 export default function HomeRedirect() {
@@ -22,6 +22,9 @@ export default function HomeRedirect() {
     if (hasFeature(user, "CRM")) return <Navigate to="/app/leads" replace />;
     if (hasFeature(user, "DESIGN")) return <Navigate to="/app/plant-design" replace />;
     return <Navigate to="/app/entity" replace />;
+  }
+  if (user?.entity_id && isSalesStaff(user.roles) && hasFeature(user, "CRM")) {
+    return <Navigate to="/app/leads" replace />;
   }
   // Field roles (WORKER/TECHNICIAN) only ever work inside CRM work orders.
   if (user?.entity_id && hasFeature(user, "CRM")) return <Navigate to="/app/my-work-orders" replace />;

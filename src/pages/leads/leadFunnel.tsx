@@ -1,4 +1,4 @@
-import type { LeadStatus } from "../../api/leads";
+import { formatStageLabel, type LeadStatus } from "../../api/leads";
 
 /** The lead lifecycle, in order. REJECTED is a terminal side-exit rather than
  * a funnel stage, so it's handled separately wherever this is used. */
@@ -24,17 +24,29 @@ export function LeadStatusBadge({ status }: { status: LeadStatus }) {
   );
 }
 
-/** Top-level, clickable funnel navigation for the leads list: New > Quote
- * generated > Quote accepted > ... Clicking a stage filters the list down
- * to leads currently at that stage (`onSelect(status)`); "All leads" clears
- * the filter. "Rejected" sits off to the side as its own tab, since it's a
- * side-exit from the funnel, not a stage within it. */
+/** Stage pill for the entity-configured lead workflow. A rejected lead shows
+ * as "Rejected" regardless of the stage it was at. */
+export function LeadStageBadge({ stage, rejected }: { stage: string | undefined; rejected?: boolean }) {
+  return (
+    <span className={`lead-status-badge${rejected ? " rejected" : ""}`}>
+      {rejected ? "Rejected" : formatStageLabel(stage || "NEW")}
+    </span>
+  );
+}
+
+/** Top-level, clickable funnel navigation for the leads list, driven by the
+ * entity's configured workflow stages (Settings > Lead workflow). Clicking a
+ * stage filters the list to leads currently at that stage; "All leads" clears
+ * it. "Rejected" sits off to the side as its own tab, since a lead can be
+ * rejected from any stage. `value` is a stage name, "REJECTED" or "". */
 export function LeadFunnelNav({
+  stages,
   value,
   onSelect,
 }: {
-  value: LeadStatus | "";
-  onSelect: (status: LeadStatus | "") => void;
+  stages: string[];
+  value: string;
+  onSelect: (value: string) => void;
 }) {
   return (
     <div className="lead-funnel-nav">
@@ -43,14 +55,14 @@ export function LeadFunnelNav({
        * LeadsPage.css for the breakpoint that swaps between the two. */}
       <select
         className="lead-funnel-select"
-        aria-label="Filter leads by status"
+        aria-label="Filter leads by stage"
         value={value}
-        onChange={(e) => onSelect(e.target.value as LeadStatus | "")}
+        onChange={(e) => onSelect(e.target.value)}
       >
         <option value="">All leads</option>
-        {LEAD_FUNNEL_STEPS.map((step) => (
-          <option key={step.status} value={step.status}>
-            {step.label}
+        {stages.map((stage) => (
+          <option key={stage} value={stage}>
+            {formatStageLabel(stage)}
           </option>
         ))}
         <option value="REJECTED">Rejected</option>
@@ -65,14 +77,14 @@ export function LeadFunnelNav({
           All leads
         </button>
         <div className="lead-funnel">
-          {LEAD_FUNNEL_STEPS.map((step) => (
+          {stages.map((stage) => (
             <button
-              key={step.status}
+              key={stage}
               type="button"
-              className={`lead-funnel-chevron${value === step.status ? " active" : ""}`}
-              onClick={() => onSelect(step.status)}
+              className={`lead-funnel-chevron${value === stage ? " active" : ""}`}
+              onClick={() => onSelect(stage)}
             >
-              {step.label}
+              {formatStageLabel(stage)}
             </button>
           ))}
         </div>

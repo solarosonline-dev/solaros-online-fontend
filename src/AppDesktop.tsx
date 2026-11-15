@@ -1,9 +1,10 @@
-import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route } from "react-router-dom";
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import ProtectedRoute from "./lib/ProtectedRoute";
 import RequireSystemAdmin from "./lib/RequireSystemAdmin";
 import RequireSystemSuperAdmin from "./lib/RequireSystemSuperAdmin";
 import RequireEntityAdmin from "./lib/RequireEntityAdmin";
+import RequireLeadStaff from "./lib/RequireLeadStaff";
 import RequireFeature from "./lib/RequireFeature";
 import AppLayout from "./lib/AppLayout";
 import LoginPage from "./pages/auth/LoginPage";
@@ -41,7 +42,6 @@ import PlantDesignEditorPage from "./pages/plant-design/PlantDesignEditorPage";
 import AgentDashboardPage from "./pages/epc-agents/AgentDashboardPage";
 import EpcDashboardPage from "./pages/epc-agents/EpcDashboardPage";
 import EpcAgentLeadsPage from "./pages/epc-agents/EpcAgentLeadsPage";
-import EpcConfigPage from "./pages/epc-agents/EpcConfigPage";
 import EpcPaymentsPage from "./pages/epc-agents/EpcPaymentsPage";
 
 // A data router (createBrowserRouter) rather than <BrowserRouter>, so
@@ -85,6 +85,14 @@ const router = createBrowserRouter(
             <Route path="/app/leads/new" element={<AddLeadPage />} />
             <Route path="/app/leads/:leadId" element={<LeadDetailPage />} />
           </Route>
+          {/* Leads list + quote/agreement builders: admins and sales staff */}
+          <Route element={<RequireLeadStaff />}>
+            <Route element={<RequireFeature feature="CRM" />}>
+              <Route path="/app/leads" element={<LeadsPage />} />
+              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
+              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
+            </Route>
+          </Route>
           <Route element={<RequireEntityAdmin />}>
             <Route path="/app/entity" element={<EntityManagementPage />} />
             <Route path="/app/users" element={<UsersPage />} />
@@ -92,13 +100,10 @@ const router = createBrowserRouter(
             {/* EPC Manager Agent workspaces */}
             <Route path="/app/epc/dashboard" element={<EpcDashboardPage />} />
             <Route path="/app/epc/leads" element={<EpcAgentLeadsPage />} />
-            <Route path="/app/epc/config" element={<EpcConfigPage />} />
+            <Route path="/app/epc/config" element={<Navigate to="/app/entity?tab=lead_workflow" replace />} />
             <Route path="/app/epc/payments" element={<EpcPaymentsPage />} />
             <Route element={<RequireFeature feature="CRM" />}>
               <Route path="/app/dashboard" element={<EntityDashboardPage />} />
-              <Route path="/app/leads" element={<LeadsPage />} />
-              <Route path="/app/leads/:leadId/quote" element={<QuoteBuilderPage />} />
-              <Route path="/app/leads/:leadId/agreement" element={<AgreementBuilderPage />} />
               <Route path="/app/projects" element={<ProjectsPage />} />
               <Route path="/app/projects/:projectId" element={<ProjectDetailPage />} />
               <Route path="/app/govt-demo" element={<GovtSchemesDemoPage />} />

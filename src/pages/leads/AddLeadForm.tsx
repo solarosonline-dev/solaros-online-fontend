@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createLead, leadsAccess, type CreateLeadInput, type ExtractedLeadData } from "../../api/leads";
+import { createLead, leadsAccess, listSalesReps, type CreateLeadInput, type ExtractedLeadData, type SalesRep } from "../../api/leads";
 import { ApiError } from "../../api/client";
 import BillUploadWidget from "./BillUploadWidget";
 import { METER_TYPES, LEAD_TYPES } from "./leadOptions";
@@ -11,7 +11,7 @@ import { useDraftAutosave } from "../../hooks/useDraftAutosave";
 import { draftKeys, readDraft, clearDraft } from "../../lib/drafts";
 import LocationPicker from "../../components/map/LocationPicker";
 import { useAuth } from "../../lib/AuthContext";
-import { hasFeature, isAgent, isAgentModuleUser } from "../../lib/roles";
+import { canManageLeads, hasFeature, isAgent, isAgentModuleUser, isEntityAdmin } from "../../lib/roles";
 import { listEntityUsers } from "../../api/entityUsers";
 import { getLeadAssignments, saveLeadAssignments } from "../../lib/epcAgentStorage";
 
@@ -96,10 +96,23 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
   const { user } = useAuth();
   const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
   const agentUser = user ? isAgent(user.roles) : false;
+  // Only entity admins can list users / pick the owning agent; sales managers
+  // pick a sales rep instead (a rep's own new lead assigns to them).
+  const admin = user ? isEntityAdmin(user.roles) : false;
+  const canPickRep = user ? canManageLeads(user.roles) && hasFeature(user, "CRM") : false;
+  const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  const [salesRepId, setSalesRepId] = useState<number | "">("");
+
+  useEffect(() => {
+    if (!canPickRep) return;
+    listSalesReps(entityId)
+      .then((res) => setSalesReps(res.items))
+      .catch(() => setSalesReps([]));
+  }, [canPickRep, entityId]);
 
   useEffect(() => {
     // Agents can't list users (403) and don't get the assign-to-agent dropdown.
-    if (hasAgentsFeature && !agentUser) {
+    if (hasAgentsFeature && admin) {
       listEntityUsers(entityId)
         .then((res) => {
           const dbAgents = res.items.filter((u) => u.roles.includes("ENTITY_AGENT"));
@@ -109,7 +122,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           setAgents([]);
         });
     }
-  }, [hasAgentsFeature, agentUser, entityId]);
+  }, [hasAgentsFeature, admin, entityId]);
 
   function resetFields() {
     setName("");
@@ -289,6 +302,7 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
         longitude: longitude ?? undefined,
         // Agent picked by an admin -> the backend records the lead as theirs.
         agent_user_id: assignedAgentId ? Number(assignedAgentId) : undefined,
+        sales_rep_user_id: salesRepId ? Number(salesRepId) : undefined,
       }, leadsAccess(user));
 
       if (agentUser && user) {
@@ -358,7 +372,36 @@ export default function AddLeadForm({ entityId, onCreated, onCancel }: Props) {
           </div>
         </div>
 
-        {hasAgentsFeature && !agentUser && (
+        {canPickRep && (
+          <div className="add-lead-field" style={{ marginBottom: "16px" }}>
+            <label htmlFor="leadSalesRep">Sales rep</label>
+            <select
+              id="leadSalesRep"
+              value={salesRepId}
+              onChange={(e) => setSalesRepId(e.target.value ? Number(e.target.value) : "")}
+              style={{
+                fontFamily: "inherit",
+                fontSize: "14px",
+                padding: "9px 12px",
+                border: "1px solid var(--app-border)",
+                borderRadius: "8px",
+                background: "var(--app-surface)",
+                color: "var(--app-text)",
+                width: "100%",
+                boxSizing: "border-box"
+              }}
+            >
+              <option value="">— Unassigned —</option>
+              {salesReps.map((r) => (
+                <option key={r.user_id} value={r.user_id}>
+                  {r.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {hasAgentsFeature && admin && (
           <div className="add-lead-field" style={{ marginBottom: "16px" }}>
             <label htmlFor="leadAgent">Assigned Agent</label>
             <select

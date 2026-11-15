@@ -130,6 +130,30 @@ textarea {
   min-height: 84px !important;
 }
 
+/* Dropdowns (desktop/web view): one look everywhere. The native arrow sat
+   flush against the right edge (and spilled out of narrow selects), so it's
+   replaced by a chevron inset 12px from the edge with 34px of right padding
+   reserved so text never runs under it. !important + the extra specificity of
+   body:not(.mobile-view) is required to beat both the universal field rule's
+   `background ... !important` shorthand above and per-page select rules.
+   Mobile view keeps its own select styling (mobile-system.css / pages). */
+body:not(.mobile-view) select:not([multiple]):not([size]) {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 16px 16px !important;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+body:not(.mobile-view) select:not([multiple]):not([size]):disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* High-contrast premium focused outlines */
 input[type="text"]:focus,
 input[type="tel"]:focus,

@@ -9,7 +9,7 @@ import { ApiError } from "../../../api/client";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import { updateEntityPreferences, type RoleLabels } from "../../../api/entityPreferences";
 
-const ROLES = ["ENTITY_ADMIN", "ENTITY_SERVICE_MANAGER", "ENTITY_AGENT", "WORKER", "TECHNICIAN"];
+const ROLES = ["ENTITY_ADMIN", "SALES_MANAGER", "SALES_REP", "ENTITY_SERVICE_MANAGER", "ENTITY_AGENT", "WORKER", "TECHNICIAN"];
 
 type Props = {
   entityId: number;

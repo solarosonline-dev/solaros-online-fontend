@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
-import { isEntityAdmin, isAgent, hasFeature, isSystemAdmin } from "../../lib/roles";
+import { isEntityAdmin, isAgent, isSalesStaff, hasFeature, isSystemAdmin } from "../../lib/roles";
 import { getEpcAgentSettings } from "../../lib/epcAgentStorage";
 import { TourProvider } from "../../lib/TourContext";
 import "./MobileLayout.css";
@@ -29,6 +29,7 @@ export default function MobileLayout() {
   const entityAdmin = user ? isEntityAdmin(user.roles) : false;
   const systemAdmin = user ? isSystemAdmin(user.roles) : false;
   const agentUser = user ? isAgent(user.roles) : false;
+  const salesStaff = user ? isSalesStaff(user.roles) : false;
   const hasAgentsFeature = user ? hasFeature(user, "AGENTS") : false;
   const agentSettings = hasAgentsFeature ? getEpcAgentSettings() : { enabled: false, onlyWorkspace: false };
   const crm = user ? hasFeature(user, "CRM") : false;
@@ -138,6 +139,7 @@ export default function MobileLayout() {
                 <span className="mobile-tab-label">Projects</span>
               </NavLink>
             )}
+            {!salesStaff && (
             <NavLink
               to="/app/my-work-orders"
               className={({ isActive }) => `mobile-tab-item ${isActive ? "active" : ""}`}
@@ -145,6 +147,7 @@ export default function MobileLayout() {
               <span className="mobile-tab-icon">⚙️</span>
               <span className="mobile-tab-label">My Work</span>
             </NavLink>
+            )}
           </>
         )}
 
@@ -190,19 +193,8 @@ export default function MobileLayout() {
                 </NavLink>
               )}
 
-              {entityAdmin && showAgentsExclusive && (
-                <NavLink to="/app/epc/config" className="mobile-sheet-link-item">
-                  <span className="sheet-link-icon">⚙️</span>
-                  <span className="sheet-link-text">Agent Config</span>
-                </NavLink>
-              )}
-
               {entityAdmin && showAgentsCoexist && (
                 <>
-                  <NavLink to="/app/epc/config" className="mobile-sheet-link-item">
-                    <span className="sheet-link-icon">⚙️</span>
-                    <span className="sheet-link-text">Agent Config</span>
-                  </NavLink>
                   <NavLink to="/app/epc/payments" className="mobile-sheet-link-item">
                     <span className="sheet-link-icon">💰</span>
                     <span className="sheet-link-text">Agent Payments</span>

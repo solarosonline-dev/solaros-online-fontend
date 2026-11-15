@@ -19,6 +19,32 @@ export function isEntityAdmin(roles: string[]): boolean {
   return roles.some((r) => ENTITY_ADMIN_ROLES.includes(r));
 }
 
+// Sales staff: a SALES_MANAGER sees every lead and assigns them to reps; a
+// SALES_REP sees only the leads assigned to them. Mirrors the backend's
+// SALES_STAFF_ROLES / is_lead_manager (app/api/deps.py). Neither gets projects,
+// users or entity settings -- only the lead-to-agreement path.
+export function isSalesManager(roles: string[]): boolean {
+  return roles.includes("SALES_MANAGER");
+}
+
+export function isSalesRep(roles: string[]): boolean {
+  return roles.includes("SALES_REP");
+}
+
+export function isSalesStaff(roles: string[]): boolean {
+  return isSalesManager(roles) || isSalesRep(roles);
+}
+
+// Who can see all leads and assign them to a sales rep.
+export function canManageLeads(roles: string[]): boolean {
+  return isEntityAdmin(roles) || isSalesManager(roles);
+}
+
+// Admins plus sales staff: the audience of the Leads / quote / agreement pages.
+export function canWorkLeads(roles: string[]): boolean {
+  return isEntityAdmin(roles) || isSalesStaff(roles);
+}
+
 export function isAgent(roles: string[]): boolean {
   return roles.includes("ENTITY_AGENT");
 }

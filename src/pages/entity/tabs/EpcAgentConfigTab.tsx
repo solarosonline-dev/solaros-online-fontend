@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getEpcAgentSettings, saveEpcAgentSettings } from "../../../lib/epcAgentStorage";
+import AgentCommissionRules from "./AgentCommissionRules";
 
 export default function EpcAgentConfigTab() {
   const [settings, setSettings] = useState({ enabled: true, onlyWorkspace: false });
@@ -72,6 +73,10 @@ export default function EpcAgentConfigTab() {
             Saved successfully! Nav links will update immediately.
           </span>
         )}
+      </div>
+
+      <div style={{ marginTop: 32, borderTop: "1px solid var(--app-border)", paddingTop: 24 }}>
+        <AgentCommissionRules />
       </div>
     </div>
   );

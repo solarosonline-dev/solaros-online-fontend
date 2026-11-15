@@ -13,6 +13,7 @@ import {
 import { ApiError } from "../../api/client";
 import BusinessInfoTab, { type BusinessInfoDraft } from "./tabs/BusinessInfoTab";
 import EpcAgentConfigTab from "./tabs/EpcAgentConfigTab";
+import LeadWorkflowTab from "./tabs/LeadWorkflowTab";
 import BrandingTypographyTab from "./tabs/BrandingTypographyTab";
 import DocumentsTab from "./tabs/DocumentsTab";
 import PricingLanguageTab from "./tabs/PricingLanguageTab";
@@ -34,6 +35,7 @@ type Tab =
   | "vendors"
   | "warehouses"
   | "amc"
+  | "lead_workflow"
   | "agents_config";
 
 // `crm` tabs only configure CRM documents/operations (quotes, agreements,
@@ -56,7 +58,7 @@ const TABS: { key: Tab; label: string; crm?: boolean }[] = [
 // deactivate all hit the API immediately) rather than the draft-then-Save
 // pattern every other tab here uses, so it doesn't participate in the
 // shared Save/Reset bar below.
-const SELF_MANAGED_TABS: Tab[] = ["amc", "warehouses", "vendors", "agents_config"];
+const SELF_MANAGED_TABS: Tab[] = ["amc", "warehouses", "vendors", "lead_workflow", "agents_config"];
 
 // "branding" here covers the merged Branding & Typography tab -- resetting
 // it resets both underlying categories (see handleReset), so this only
@@ -71,6 +73,9 @@ const RESETTABLE_CATEGORY: Partial<Record<Tab, PreferenceCategory>> = {
 
 function visibleTabs(crm: boolean, hasAgents: boolean) {
   const list = TABS.filter((t) => crm || !t.crm);
+  // Stages drive the CRM Leads funnel and the agent pipeline alike, so the tab
+  // shows for either module (saves to the same stored list either way).
+  if (crm || hasAgents) list.splice(2, 0, { key: "lead_workflow", label: "Lead Workflow" });
   if (hasAgents) {
     list.push({ key: "agents_config", label: "EPC Agent Config" });
   }
@@ -352,6 +357,7 @@ export default function EntityManagementPage() {
         {tab === "vendors" && <VendorsTab entityId={entityId} />}
         {tab === "warehouses" && <WarehousesTab entityId={entityId} />}
         {tab === "amc" && <AmcPlansPage />}
+        {tab === "lead_workflow" && <LeadWorkflowTab />}
         {tab === "agents_config" && <EpcAgentConfigTab />}
       </div>
 
