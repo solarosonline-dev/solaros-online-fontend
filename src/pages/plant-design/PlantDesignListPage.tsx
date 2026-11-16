@@ -53,6 +53,8 @@ export default function PlantDesignListPage() {
       .finally(() => setDeleting(false));
   }
 
+  const isMobile = document.body.classList.contains("mobile-view");
+
   return (
     <div className="plant-design-list-page">
       <div className="plant-design-list-header">
@@ -72,6 +74,7 @@ export default function PlantDesignListPage() {
         </div>
       ) : (
         <>
+        {isMobile ? (
         <div className="plant-design-cards">
           {designs.map((d) => (
             <div key={d.plant_design_id} className="m-card plant-design-card">
@@ -89,6 +92,7 @@ export default function PlantDesignListPage() {
             </div>
           ))}
         </div>
+        ) : (
         <div className="plant-design-table-wrap">
           <table className="plant-design-table">
             <thead>
@@ -131,6 +135,7 @@ export default function PlantDesignListPage() {
             </tbody>
           </table>
         </div>
+        )}
         </>
       )}
 
