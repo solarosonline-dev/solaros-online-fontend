@@ -75,6 +75,10 @@ export interface PlantDesignEditorProps {
   // (the editor has no HTTP access). Called on entering the Design Report
   // step so its images don't load from links that expired while the design
   // sat open. Omitted for a design that hasn't been saved yet.
+  // Creates/renews the design's view-only share link and resolves to its
+  // URL. Only offered for a saved design - the link shows the latest *saved*
+  // state.
+  onShare?: () => Promise<string>;
   onRefreshSiteImages?: () => Promise<PlantDesignData['siteImages']>;
   reportContext?: {
     branding: ReportBranding;

@@ -57,6 +57,7 @@ import useIsMobile from '../../hooks/useIsMobile';
 // view is opt-in (most sessions never toggle it) - splitting it into its
 // own chunk keeps the everyday bundle lean without dropping the feature.
 const Scene3D = React.lazy(() => import('./Scene3D.jsx'));
+import ShareDesignButton from './ShareDesignButton';
 import SldView from './SldView.jsx';
 import DesignReport, { type ReportRoofRow } from './DesignReport';
 import type { SitePlanData } from './SitePlanSvg';
@@ -456,7 +457,7 @@ function TablePickerGrid({ onSelect, onClose }: { onSelect: (rows: number, cols:
 // ============================================================
 // Component
 // ============================================================
-export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext, onRefreshSiteImages, onBack }: PlantDesignEditorProps) {
+export default function PlantDesignEditor({ initialDesignData, onSave, onCaptureSiteImage, linkedWorkOrderId, onAttachPdf, reportContext, onRefreshSiteImages, onShare, onBack }: PlantDesignEditorProps) {
   const svgRef = useRef<any>(null);
   // Narrow viewport, or the mobile app shell on a wider device (tablet UA).
   const isMobile = useIsMobile() || (typeof document !== 'undefined' && document.body.classList.contains('mobile-view'));
@@ -4509,6 +4510,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         <div className={`pde-topbar-save-row${isMobile ? ' pde-topbar-save-row--mobile' : ''}`} style={{ marginLeft: isMobile ? 0 : 'auto' }}>
           {saveStatus === 'saved' && <span className="pde-save-status success">Saved</span>}
           {saveStatus === 'error' && <span className="pde-save-status error">Save failed - try again</span>}
+          {onShare && <ShareDesignButton className="pde-save-btn pde-save-btn--secondary" onShare={onShare} />}
           <button className="pde-save-btn" onClick={handleSave} disabled={saveStatus === 'saving'}>
             {saveStatus === 'saving' ? 'Saving…' : 'Save'}
           </button>

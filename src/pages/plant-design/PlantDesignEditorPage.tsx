@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { getLead } from "../../api/leads";
-import { createPlantDesign, getPlantDesign, updatePlantDesign, uploadPlantDesignSiteImage } from "../../api/plantDesign";
+import { createPlantDesign, getPlantDesign, sharePlantDesign, updatePlantDesign, uploadPlantDesignSiteImage } from "../../api/plantDesign";
 import { ApiError } from "../../api/client";
 import PlantDesignEditor from "./PlantDesignEditor";
 import type { PlantDesignData } from "./types";
@@ -201,6 +201,7 @@ export default function PlantDesignEditorPage() {
         onCaptureSiteImage={handleCaptureSiteImage}
         linkedWorkOrderId={linkedWorkOrderId}
         onAttachPdf={handleAttachPdf}
+        onShare={savedId != null ? async () => (await sharePlantDesign(entityId, savedId)).share_url : undefined}
         onRefreshSiteImages={savedId != null ? async () => (await getPlantDesign(entityId, savedId)).design_data.siteImages : undefined}
         reportContext={reportContext}
         onBack={handleBack}

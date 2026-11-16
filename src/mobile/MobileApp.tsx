@@ -16,6 +16,7 @@ import TrialExpiredPage from "../pages/TrialExpiredPage";
 import LandingPage from "../pages/public/LandingPage";
 import PublicQuotePage from "../pages/quotes/PublicQuotePage";
 import PublicAgreementPage from "../pages/agreements/PublicAgreementPage";
+import PublicPlantDesignPage from "../pages/plant-design/PublicPlantDesignPage";
 import PublicAmcSchedulePage from "../pages/amc/PublicAmcSchedulePage";
 import HomeRedirect from "../pages/HomeRedirect";
 
@@ -66,6 +67,7 @@ const router = createBrowserRouter(
       <Route path="/q/:token" element={<PublicQuotePage />} />
       <Route path="/a/:token" element={<PublicAgreementPage />} />
       <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />
+      <Route path="/d/:token" element={<PublicPlantDesignPage />} />
       
       <Route element={<ProtectedRoute />}>
         <Route element={<MobileLayout />}>

@@ -1,0 +1,50 @@
+.pdv-page {
+  min-height: 100vh;
+  background: var(--app-bg, #f4f6f8);
+  color: var(--app-text, #1d2939);
+  font-family: var(--app-font, sans-serif);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+.pdv-header h1 { margin: 0; font-size: 20px; }
+.pdv-header p { margin: 4px 0 0; font-size: 13px; color: var(--app-text-muted, #667085); }
+.pdv-tabs { display: flex; gap: 8px; }
+.pdv-tabs button {
+  padding: 8px 14px;
+  border: 1px solid var(--app-border, #d0d5dd);
+  border-radius: var(--app-radius, 8px);
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+.pdv-tabs button.active { background: var(--app-accent, #ff6b1a); border-color: var(--app-accent, #ff6b1a); color: #fff; }
+.pdv-stage {
+  position: relative;
+  flex: none;
+  height: max(420px, calc(100vh - 170px));
+  border-radius: var(--app-radius, 8px);
+  overflow: hidden;
+  background: #e7ecdf;
+  border: 1px solid var(--app-border, #d0d5dd);
+}
+.pdv-zoom { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+.pdv-zoom-btns { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+.pdv-zoom-btns button {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--app-border, #d0d5dd);
+  background: #fff; font-size: 18px; cursor: pointer;
+}
+.pdv-hint { margin: 0; font-size: 12px; color: var(--app-text-muted, #667085); text-align: center; }
+.pdv-note { padding: 40px; text-align: center; color: var(--app-text-muted, #667085); }
+.pdv-stage > div:not(.pdv-compass) { position: absolute; inset: 0; }
+/* Fit the whole plan inside the stage (letterboxed) instead of letting the
+   4:3 svg overflow it; zoom/pan then work from that fitted view. */
+.pdv-zoom-inner { width: 100%; height: 100%; }
+.pdv-zoom-inner svg { width: 100%; height: 100%; }
+.pdv-compass {
+  position: absolute; top: 10px; right: 10px; width: 60px; height: 60px; border-radius: 10px;
+  background: #fff; border: 1px solid #ccc; box-shadow: var(--app-shadow, 0 1px 3px rgba(16,24,40,0.08));
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+}

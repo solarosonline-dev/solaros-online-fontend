@@ -116,3 +116,31 @@ export function uploadPlantDesignSiteImage(entityId: number, blob: Blob, content
     body: form,
   });
 }
+
+export type ShareLink = { share_url: string; expires_at: string };
+
+/** Creates the design's one view-only link, or renews the existing one
+ * (same URL, expiry pushed out to a week from now). The public page always
+ * shows the design's latest saved state. */
+export function sharePlantDesign(entityId: number, plantDesignId: number) {
+  return apiRequest<ShareLink>(`/entities/${entityId}/plant-designs/${plantDesignId}/share`, { method: "POST" });
+}
+
+export type PublicPlantDesign = {
+  entity_id: number;
+  entity_name: string;
+  plant_design_id: number;
+  name: string;
+  status: PlantDesignStatus;
+  capacity_kw: number | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  design_data: PlantDesignData;
+  updated_at: string;
+  expires_at: string;
+};
+
+export function getPublicPlantDesign(token: string) {
+  return apiRequest<PublicPlantDesign>(`/public/plant-designs/${encodeURIComponent(token)}`);
+}

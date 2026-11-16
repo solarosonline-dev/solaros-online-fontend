@@ -30,6 +30,7 @@ import ProjectsPage from "./pages/projects/ProjectsPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import GovtSchemesDemoPage from "./pages/govt-schemes/GovtSchemesDemoPage";
 import WorkOrderDetailPage from "./pages/projects/WorkOrderDetailPage";
+import PublicPlantDesignPage from "./pages/plant-design/PublicPlantDesignPage";
 import PublicAmcSchedulePage from "./pages/amc/PublicAmcSchedulePage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import EntityMetricsDrilldownPage from "./pages/admin/EntityMetricsDrilldownPage";
@@ -63,6 +64,7 @@ const router = createBrowserRouter(
       <Route path="/q/:token" element={<PublicQuotePage />} />
       <Route path="/a/:token" element={<PublicAgreementPage />} />
       <Route path="/amc-schedule/:token" element={<PublicAmcSchedulePage />} />
+      <Route path="/d/:token" element={<PublicPlantDesignPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/app" element={<HomeRedirect />} />

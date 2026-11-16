@@ -1610,3 +1610,7 @@ drag partway, and while still dragging, do something that would trigger
 a parent re-render (this is what `orbitTarget`'s memoization above
 exists to survive; a regression here won't show up from a quick static
 look, only from an actual interrupted drag).
+
+## Public view-only share link
+
+`PublicPlantDesignPage.tsx` (route `/d/:token`, registered in both `AppDesktop.tsx` and `MobileApp.tsx`) renders a shared design from `GET /public/plant-designs/{token}`: a 3D tab (`Scene3D`, orbit/zoom/pan, no handlers so nothing is editable) and a 2D tab (`SitePlanSvg` inside a small wheel/drag `ZoomPan`). It never mounts `PlantDesignEditor`; the derived roof/structure/footprint data is rebuilt from `design_data` with the same pure helpers the Design Report uses. One link per design, valid 1 week, renewed by clicking Share again (`ShareDesignButton`, on the designs list and the editor header for a saved design). It shows the latest *saved* state, so unsaved editor changes aren't visible until saved. `.pdv-stage > div` is forced `position: absolute; inset: 0` because Scene3D's root uses `height: 100%` and collapses to the canvas default 150px otherwise.

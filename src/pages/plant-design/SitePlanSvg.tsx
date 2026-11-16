@@ -49,7 +49,7 @@ function niceLength(target: number) {
 
 const pts = (poly: { x: number; y: number }[]) => poly.map((p) => `${p.x},${-p.y}`).join(' ');
 
-export default function SitePlanSvg({ data, focus, padFrac, minPad, highlightRoofId = null, chromeScale = 1 }: {
+export default function SitePlanSvg({ data, focus, padFrac, minPad, highlightRoofId = null, chromeScale = 1, fitLabels = false }: {
   data: SitePlanData;
   focus: Bounds;
   padFrac: number;
@@ -60,6 +60,10 @@ export default function SitePlanSvg({ data, focus, padFrac, minPad, highlightRoo
   // width, so in a small figure they'd shrink with it - a small figure
   // passes >1 to keep them legible at its rendered size.
   chromeScale?: number;
+  // Shrink each roof's name to fit within that roof, so neighbouring
+  // roofs' labels can't run into each other (the interactive viewer; the
+  // report keeps its fixed label size).
+  fitLabels?: boolean;
 }) {
   const f = frame(focus, padFrac, minPad);
   // SVG coordinates: x as-is, y negated - so the frame's top edge is -maxY.
@@ -123,7 +127,8 @@ export default function SitePlanSvg({ data, focus, padFrac, minPad, highlightRoo
       {data.roofs.map((r) => {
         const b = boundsOf(r.polygon);
         const cx = (b.minX + b.maxX) / 2, cy = -(b.minY + b.maxY) / 2;
-        const fs = c * 2.6;
+        let fs = c * 2.6;
+        if (fitLabels) fs = Math.min(fs, ((b.maxX - b.minX) * 0.9) / (r.label.length * 0.6 + 1));
         const w = r.label.length * fs * 0.6 + fs;
         return (
           <g key={`label-${r.id}`}>

@@ -4,9 +4,11 @@ import { useAuth } from "../../lib/AuthContext";
 import {
   deletePlantDesign,
   listPlantDesigns,
+  sharePlantDesign,
   type PlantDesignListItem,
 } from "../../api/plantDesign";
 import { ApiError } from "../../api/client";
+import ShareDesignButton from "./ShareDesignButton";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import Pagination from "../../lib/Pagination";
 import "./PlantDesignListPage.css";
@@ -53,6 +55,9 @@ export default function PlantDesignListPage() {
       .finally(() => setDeleting(false));
   }
 
+  const shareLink = (d: PlantDesignListItem) =>
+    sharePlantDesign(entityId, d.plant_design_id).then((r) => r.share_url);
+
   const isMobile = document.body.classList.contains("mobile-view");
 
   return (
@@ -88,6 +93,7 @@ export default function PlantDesignListPage() {
                 </div>
                 {d.address && <div className="plant-design-card-meta">{d.address}</div>}
               </button>
+              <ShareDesignButton className="m-btn sm" onShare={() => shareLink(d)} />
               <button className="m-btn danger sm" onClick={() => setDeleteTarget(d)}>Delete</button>
             </div>
           ))}
@@ -126,6 +132,7 @@ export default function PlantDesignListPage() {
                   <td>{new Date(d.updated_at).toLocaleDateString()}</td>
                   <td className="plant-design-row-actions">
                     <button onClick={() => navigate(`/app/plant-design/${d.plant_design_id}`)}>Open</button>
+                    <ShareDesignButton onShare={() => shareLink(d)} />
                     <button className="plant-design-delete-btn" onClick={() => setDeleteTarget(d)}>
                       Delete
                     </button>
