@@ -618,3 +618,13 @@ export function shadowPolygon(o, elevation, azimuth, relativeHeight = o.height, 
   const base = Lb > 0 ? footprint.map((p) => ({ x: p.x + bx, y: p.y + by })) : footprint;
   return convexHull([...base, ...projected]);
 }
+
+// Radius a round obstacle physically blocks panels with. A tree's `radius`
+// is its canopy spread, which sits above the roof and is already accounted
+// for by the shading analysis - what actually occupies the roof surface is
+// the trunk (same size Scene3D draws it at), so only that blocks placement.
+// Every other cylinder (tank, vent, ...) is solid at its full radius.
+export function obstacleBlockRadius(o: any): number {
+  const r = o.radius || 0.5;
+  return o.label === 'Tree' ? Math.max(r * 0.15, 0.08) : r;
+}

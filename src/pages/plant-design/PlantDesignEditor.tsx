@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -1757,7 +1757,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       roof.grids.forEach((grid) => {
         const ids = new Set<any>();
         grid.panels.forEach((panel) => {
-          if (obstacles.some((o) => !o.marker && panelOverlapsObstacle(panel, o))) ids.add(panel.id);
+          if (obstacles.some((o) => !o.marker && panelOverlapsObstacle(panel, o, grid, roof))) ids.add(panel.id);
         });
         m[gridKey(roof.id, grid.id)] = ids;
       });
@@ -2275,7 +2275,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // packing *new* panel positions, but it's an internal detail of that
   // function; this is just close enough to flag existing panels worth a
   // second look; the +0.3m below mirrors isBlockedAt's own clearance.
-  function panelOverlapsObstacle(panel, obstacle) {
+  function panelOverlapsObstacle(panel, obstacle, grid = null, roof = null) {
     const halfW = panel.w / 2, halfD = panel.d / 2;
     const dx = panel.x - obstacle.x, dy = panel.y - obstacle.y;
     if (obstacle.shape === 'box') {
@@ -2300,7 +2300,19 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       return corners.some((c) => pointInPolygon(c, obstacle.polygon));
     }
     // cylinder (tree/tank/vent/chimney-adjacent round obstacles)
-    return Math.hypot(dx, dy) < (obstacle.radius || 0.5) + Math.max(halfW, halfD) + 0.3;
+    // Exact: distance from the obstacle's centre to the panel's real
+    // (rotated) rectangle, not a circle sized to the panel's longer half.
+    const poly = grid && roof
+      ? panelFootprint(panel, grid, roof, 0)
+      : [[-halfW, -halfD], [halfW, -halfD], [halfW, halfD], [-halfW, halfD]].map(([lx, ly]) => ({ x: panel.x + lx, y: panel.y + ly }));
+    const R = obstacleBlockRadius(obstacle) + 0.3;
+    if (pointInPolygon({ x: obstacle.x, y: obstacle.y }, poly)) return true;
+    return poly.some((a, i) => {
+      const b = poly[(i + 1) % poly.length];
+      const ex = b.x - a.x, ey = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((obstacle.x - a.x) * ex + (obstacle.y - a.y) * ey) / (ex * ex + ey * ey || 1)));
+      return Math.hypot(obstacle.x - (a.x + t * ex), obstacle.y - (a.y + t * ey)) < R;
+    });
   }
 
   // Every already-placed panel (across every roof) this obstacle now
@@ -2313,7 +2325,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     roofs.forEach((roof) => {
       roof.grids.forEach((grid) => {
         grid.panels.forEach((panel) => {
-          if (panelOverlapsObstacle(panel, obstacle)) {
+          if (panelOverlapsObstacle(panel, obstacle, grid, roof)) {
             hits.push({ roofId: roof.id, gridId: grid.id, panelId: panel.id });
           }
         });

@@ -2,7 +2,7 @@ import { toRad, solarPosition } from './solarMath.js';
 import {
   getRoofPolygon, insetPolygon, polygonScanlineSegments, isOnRoof, pointInPolygon, shadowPolygon,
   slopeDirectionAzimuth, toSlopeLocal, toSlopeWorld, getPitchedRoofSlopeAzimuth, packingAzimuth,
-  obstacleRoofSurfaceRange, treeTrunkHeight, isFlushOnSlope,
+  obstacleRoofSurfaceRange, treeTrunkHeight, obstacleBlockRadius, isFlushOnSlope,
 } from './geometry.js';
 
 // ============================================================
@@ -458,7 +458,7 @@ export function generateLayout({ roof, footprintPolygon, gridSettings = {} as an
         const localPoly = o.polygon.map((p) => toSlopeLocal(p, direction));
         return rectOverlapsPolygon(x - Wp / 2, rowY - footprintDepth / 2, x + Wp / 2, rowY + footprintDepth / 2, localPoly);
       }
-      return Math.hypot(x - op.x, rowY - op.y) < (o.radius || 0.5) + 0.3;
+      return Math.hypot(x - op.x, rowY - op.y) < obstacleBlockRadius(o) + 0.3;
     });
   }
 
