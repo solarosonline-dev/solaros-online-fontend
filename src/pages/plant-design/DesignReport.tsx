@@ -66,7 +66,8 @@ interface DesignReportProps {
   capacityKw: number;
   panelCount: number;
   panelSpec: any;
-  inverterChoice: any;
+  // Inverters grouped by model (see inverterWiring.groupInverters).
+  inverterGroups: { spec: any; count: number }[];
   inverterCount: number;
   gridConnection: any;
   dcAcRatio: number | null;
@@ -320,7 +321,7 @@ function niceStep(raw: number) {
 export default function DesignReport(props: DesignReportProps) {
   const {
     branding, client, projectName, siteAddress, location, locationImages, siteFocus, capacityKw, panelCount,
-    panelSpec, inverterChoice, inverterCount, gridConnection, dcAcRatio, designTemp, roofRows, output, ghiStatus, sld,
+    panelSpec, inverterGroups, inverterCount, gridConnection, dcAcRatio, designTemp, roofRows, output, ghiStatus, sld,
     sitePlan, renders3D, renders3DFailed, views3D,
   } = props;
   const pageCount = 6;
@@ -329,7 +330,9 @@ export default function DesignReport(props: DesignReportProps) {
   const annual = output?.totalKWh ?? null;
   const specificYield = annual != null && capacityKw > 0 ? annual / capacityKw : null;
   const lossPct = output ? shadingLossPct(output) : null;
-  const totalInverterKw = (inverterChoice?.acPowerKw ?? 0) * inverterCount;
+  const totalInverterKw = inverterGroups.reduce((s, g) => s + g.spec.acPowerKw * g.count, 0);
+  const inverterModelText = inverterGroups.map((g) => `${inverterGroups.length > 1 || g.count > 1 ? `${g.count} × ` : ''}${`${g.spec.make ?? ''} ${g.spec.model ?? ''}`.trim() || 'Custom'}`).join(', ') || '-';
+  const inverterKwText = inverterGroups.map((g) => g.spec.acPowerKw).join(' + ') || '-';
 
   return (
     <div className="pde-report" style={{ ['--report-primary' as any]: branding.primaryColor || '#ff6b1a' }}>
@@ -362,7 +365,7 @@ export default function DesignReport(props: DesignReportProps) {
               <Stat label="Annual generation" value={annual != null ? num(annual) : '-'} unit="kWh" />
               <Stat label="Specific yield" value={specificYield != null ? num(specificYield) : '-'} unit="kWh/kWp/yr" />
               <Stat label="Shading loss" value={lossPct != null ? formatPct(lossPct) : '-'} />
-              <Stat label="Inverters" value={`${inverterCount} × ${inverterChoice?.acPowerKw ?? '-'}`} unit="kW" />
+              <Stat label="Inverters" value={inverterGroups.length === 0 ? '-' : inverterGroups.map((g) => `${g.count} × ${g.spec.acPowerKw}`).join(' + ')} unit="kW" />
             </div>
           </div>
           <div className="pde-report-location">
@@ -392,8 +395,8 @@ export default function DesignReport(props: DesignReportProps) {
           <KeyValueTable
             title="Inverter"
             rows={[
-              ['Make / model', `${inverterChoice?.make ?? ''} ${inverterChoice?.model ?? ''}`.trim() || 'Custom'],
-              ['Rated AC power', `${inverterChoice?.acPowerKw ?? '-'} kW`],
+              ['Make / model', inverterModelText],
+              ['Rated AC power', `${inverterKwText} kW`],
               ['Quantity', `${inverterCount} nos`],
               ['Total AC capacity', `${num(totalInverterKw, 1)} kW`],
               ['DC/AC ratio', dcAcRatio != null ? num(dcAcRatio, 2) : '-'],

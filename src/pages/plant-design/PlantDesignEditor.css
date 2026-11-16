@@ -888,3 +888,52 @@
   border-color: #2f6fed;
 }
 
+
+/* ---- Inverters & wiring step ---- */
+.plant-design-editor .pde-inv-panel { padding: 4px 2px 24px; }
+.plant-design-editor .pde-inv-summary { background: #f6f7f9; border: 1px solid #e3e5e8; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 10px; }
+.plant-design-editor .pde-inv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.plant-design-editor .pde-inv-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.plant-design-editor .pde-inv-chip.ok { background: #e6f4ea; color: #1e7a3c; }
+.plant-design-editor .pde-inv-chip.warning { background: #fff4d6; color: #8a6200; }
+.plant-design-editor .pde-inv-chip.error { background: #fdecea; color: #c0392b; }
+.plant-design-editor .pde-inv-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.plant-design-editor .pde-inv-actions .pde-btn { flex: 1; }
+.plant-design-editor .pde-inv-form { border: 1px solid #e3e5e8; border-radius: 8px; padding: 10px; margin-bottom: 10px; background: #fff; }
+.plant-design-editor .pde-inv-inline-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.plant-design-editor .pde-inv-inline { margin-top: 6px; padding: 8px; background: #f6f7f9; border-radius: 6px; width: 100%; }
+.plant-design-editor .pde-inv-inline input { width: 72px; }
+.plant-design-editor .pde-inv-empty { font-size: 13px; color: #666; border: 1px dashed #cfd3d8; border-radius: 8px; padding: 14px; text-align: center; margin: 8px 0; }
+.plant-design-editor .pde-inv-card { border: 1px solid #e3e5e8; border-left-width: 4px; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.plant-design-editor .pde-inv-card.ok { border-left-color: #2e9e57; }
+.plant-design-editor .pde-inv-card.warning { border-left-color: #e0a100; }
+.plant-design-editor .pde-inv-card.error { border-left-color: #c0392b; }
+.plant-design-editor .pde-inv-card.idle { border-left-color: #b8bdc4; }
+.plant-design-editor .pde-inv-card-head { display: flex; align-items: center; gap: 10px; }
+.plant-design-editor .pde-inv-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.plant-design-editor .pde-inv-badge { width: 24px; height: 24px; border-radius: 50%; background: #1c2b4a; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.plant-design-editor .pde-inv-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.plant-design-editor .pde-inv-status.ok { background: #e6f4ea; color: #1e7a3c; }
+.plant-design-editor .pde-inv-status.warning { background: #fff4d6; color: #8a6200; }
+.plant-design-editor .pde-inv-status.error { background: #fdecea; color: #c0392b; }
+.plant-design-editor .pde-inv-status.idle { background: #eceef1; color: #5c6570; }
+.plant-design-editor .pde-inv-metrics { display: flex; justify-content: space-between; font-size: 12.5px; margin: 8px 0 4px; }
+.plant-design-editor .pde-inv-mppt { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.plant-design-editor .pde-inv-mppt-cell { width: 18px; height: 8px; border-radius: 2px; background: #dfe3e8; }
+.plant-design-editor .pde-inv-mppt-cell.used { background: #1c2b4a; }
+.plant-design-editor .pde-inv-mppt-cell.over { background: #c0392b; }
+.plant-design-editor .pde-inv-mppt .pde-field-sm-hint { margin-left: 6px; }
+.plant-design-editor .pde-inv-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 0; border-top: 1px solid #f0f1f3; font-size: 12.5px; }
+.plant-design-editor .pde-inv-entry-main { display: flex; flex-direction: column; min-width: 0; }
+.plant-design-editor .pde-inv-entry-actions { display: flex; gap: 8px; }
+.plant-design-editor .pde-inv-link-btn { background: none; border: none; color: #2457c5; cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.plant-design-editor .pde-inv-issue { font-size: 12px; margin-top: 6px; }
+.plant-design-editor .pde-inv-issue.error { color: #c0392b; }
+.plant-design-editor .pde-inv-issue.warning { color: #8a6200; }
+.plant-design-editor .pde-inv-card-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.plant-design-editor .pde-inv-card-foot select { flex: 1; min-width: 0; }
+.plant-design-editor .pde-btn.danger { color: #c0392b; }
+.plant-design-editor .pde-inv-section-title { font-size: 12px; font-weight: 700; color: #8a6200; margin-bottom: 2px; }
+.plant-design-editor .pde-inv-unconnected { border: 1px solid #f3dfa3; background: #fffbea; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+.plant-design-editor .pde-inv-nav { display: flex; gap: 8px; margin-top: 14px; }
+.plant-design-editor .pde-inv-nav .pde-primary-btn { flex: 1; }

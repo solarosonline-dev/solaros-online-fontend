@@ -45,7 +45,12 @@ export interface PlantDesignData {
   capacityNote: string;
   gridConnection: { voltage: number; phase: number; sanctionedLoadKw: number | string; discom: string };
   panelSpec: any;
+  // The spec new inverters start from (last model picked). Kept for old
+  // designs, which also have no `inverters` yet - see PlantDesignEditor's
+  // wiringInit for the one-time conversion.
   inverterChoice: any;
+  inverters?: import('./inverterWiring').DesignInverter[];
+  inverterLinks?: import('./inverterWiring').InverterLink[];
   designTemp: { min: number; max: number };
   targetDcAcRatio: number;
   mpptVoltageUtilizationPct: number;

@@ -63,9 +63,9 @@ import DesignReport, { type ReportRoofRow } from './DesignReport';
 import type { SitePlanData } from './SitePlanSvg';
 import { buildReportPdf, reportFilename } from './designReportPdf';
 import { MODULE_CATALOG, CUSTOM_MODULE_MAKE, moduleCatalogMakes, moduleCatalogModels, findModule } from './moduleCatalog.js';
-import { INVERTER_CATALOG, CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
-import { sizeStrings } from './stringSizing.js';
-import { assignSiteToInverters } from './gridInverterAssignment.js';
+import { INVERTER_CATALOG } from './inverterCatalog.js';
+import { evaluateSite, autoAssignWiring, siteGridsFromRoofs, groupInverters, type DesignInverter, type InverterLink } from './inverterWiring';
+import InvertersPanel from './InvertersPanel';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
 import { sunExposureColor } from './heatmapColor.js';
@@ -75,6 +75,12 @@ import OutputChartPanel, { formatKWh, formatPct, shadingLossPct, emptyOutputSeri
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const TREE_CANOPIES = ['cone', 'round', 'bushy'];
+// "Inverters & wiring" sits between Panel/Grid setup (4) and Output estimate
+// (5). It takes a fractional step number on purpose: every step number is
+// persisted (currentStep/maxUnlockedStep) and compared with <=, so slotting
+// it in at 4.5 keeps every saved design - and every existing `step === 5`
+// style check in this file - valid without renumbering anything.
+const STEP_INVERTERS = 4.5;
 
 // Template for every new roof/building traced on the 2D plan — a site can
 // have any number of these, each independently configured and laid out.
@@ -1362,6 +1368,24 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // strings.
   const [mpptVoltageUtilizationPct, setMpptVoltageUtilizationPct] = useState(initialDesignData?.mpptVoltageUtilizationPct ?? 120);
 
+  // Explicit inverter wiring (see inverterWiring.ts): the inverters on the
+  // site and which grids feed which. A design saved before this existed has
+  // neither - convert it once with the old auto-packing so it looks the same
+  // as it always did, but is now editable. `inverterChoice` above survives
+  // only as the spec new inverters start from (the last model picked).
+  const [wiringInit] = useState<{ inverters: DesignInverter[]; links: InverterLink[] }>(() => {
+    if (initialDesignData?.inverters) return { inverters: initialDesignData.inverters, links: initialDesignData.inverterLinks ?? [] };
+    if (!initialDesignData?.roofs) return { inverters: [], links: [] };
+    const seeded = autoAssignWiring({
+      grids: siteGridsFromRoofs(initialDesignData.roofs), module: panelSpec, spec: inverterChoice,
+      designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
+      mpptVoltageUtilizationPct: initialDesignData.mpptVoltageUtilizationPct ?? 120,
+    });
+    return { inverters: seeded.inverters, links: seeded.links };
+  });
+  const [inverters, setInverters] = useState<DesignInverter[]>(wiringInit.inverters);
+  const [inverterLinks, setInverterLinks] = useState<InverterLink[]>(wiringInit.links);
+
   // Undo/redo over the site's actual document state (roofs, obstacles,
   // their generated layouts, and the shared panel spec) - not view state
   // like which roof is selected, the plan's own pan/zoom, or the sun
@@ -1393,7 +1417,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // Grids live on the roof itself now (roof.grids), so `roofs` alone
     // already covers every generated layout - no separate layoutsByRoof to
     // snapshot.
-    const snapshot = { roofs, obstacles, panelSpec, inverterChoice };
+    const snapshot = { roofs, obstacles, panelSpec, inverters, inverterLinks };
     if (isRestoringHistoryRef.current) {
       isRestoringHistoryRef.current = false;
       lastSnapshotRef.current = snapshot;
@@ -1409,14 +1433,15 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     lastSnapshotRef.current = snapshot;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roofs, obstacles, panelSpec, inverterChoice]);
+  }, [roofs, obstacles, panelSpec, inverters, inverterLinks]);
 
   function applyHistorySnapshot(snapshot) {
     isRestoringHistoryRef.current = true;
     setRoofs(snapshot.roofs);
     setObstacles(snapshot.obstacles);
     setPanelSpec(snapshot.panelSpec);
-    setInverterChoice(snapshot.inverterChoice);
+    setInverters(snapshot.inverters);
+    setInverterLinks(snapshot.inverterLinks);
     setSelectedRoofId(null);
     setSelectedObstacleId(null);
     setSelectedGridKeys(new Set());
@@ -2131,65 +2156,16 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   const totalPanelCount = roofs.reduce((s, r) => s + r.grids.reduce((s2, g) => s2 + g.count, 0), 0);
 
-  // Site-wide inverter assignment (see gridInverterAssignment.js): a grid
-  // too big for one inverter gets its own dedicated inverter(s), but a grid
-  // that fits within a single inverter's spare capacity is bin-packed
-  // alongside other such grids so two or more small grids can share one
-  // inverter's separate MPPT channels instead of each getting a mostly-idle
-  // inverter of its own - preferring physically nearby grids over distant
-  // ones, using each grid's centroid in the same site-wide plan coordinates
-  // as everything else on the canvas.
-  function buildSiteGrids() {
-    let grids: any[] = [];
-    roofs.forEach((roof, roofIdx) => {
-      roof.grids.forEach((grid, gridIdx) => {
-        if (grid.count <= 0) return;
-        const pts = grid.footprintPolygon;
-        const centroid = pts && pts.length > 0
-          ? { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length }
-          : null;
-        grids.push({ key: gridKey(roof.id, grid.id), label: `${roof.label || `Roof ${roofIdx + 1}`} · Grid ${gridIdx + 1}`, panelCount: grid.count, centroid });
-      });
-    });
-    return grids;
-  }
-
-  const sitePlan = useMemo(() => {
-    return assignSiteToInverters({
-      grids: buildSiteGrids(), module: panelSpec, inverter: inverterChoice,
-      designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
-      mpptVoltageUtilizationPct,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roofs, panelSpec, inverterChoice, designTemp, targetDcAcRatio, mpptVoltageUtilizationPct]);
+  // Every inverter evaluated against the grids wired to it (strings, MPPT
+  // usage, DC:AC, problems) plus which grids still have unconnected panels -
+  // see inverterWiring.ts. Same shape the SLD has always consumed.
+  const siteGrids = useMemo(() => siteGridsFromRoofs(roofs), [roofs]);
+  const sitePlan = useMemo(() => evaluateSite({
+    inverters, links: inverterLinks, grids: siteGrids, module: panelSpec,
+    designMinTempC: designTemp.min, designMaxTempC: designTemp.max, mpptVoltageUtilizationPct,
+  }), [inverters, inverterLinks, siteGrids, panelSpec, designTemp, mpptVoltageUtilizationPct]);
   const totalCapacityKW = roofs.reduce((s, r) => s + r.grids.reduce((s2, g) => s2 + g.capacityKW, 0), 0);
 
-  // If a smaller catalog inverter (same make - keeps the voltage class/
-  // window consistent) would size the whole site into the same or fewer
-  // inverters with meaningfully better DC:AC utilization, surface it here
-  // rather than leaving every grid stuck on whatever's picked in step 2 -
-  // see gridInverterAssignment.js's own comment for the "why" behind this.
-  const inverterSuggestion = useMemo(() => {
-    if (!sitePlan.valid || sitePlan.inverters.length === 0) return null;
-    const currentUtilization = totalCapacityKW / (sitePlan.inverters.length * inverterChoice.acPowerKw);
-    const alternatives = inverterCatalogModels(inverterChoice.make)
-      .filter((m) => m.acPowerKw < inverterChoice.acPowerKw)
-      .sort((a, b) => a.acPowerKw - b.acPowerKw);
-    for (const candidate of alternatives) {
-      const trial = assignSiteToInverters({
-        grids: buildSiteGrids(), module: panelSpec, inverter: candidate,
-        designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
-        mpptVoltageUtilizationPct,
-      });
-      if (!trial.valid || trial.inverters.length > sitePlan.inverters.length) continue;
-      const suggestedUtilization = totalCapacityKW / (trial.inverters.length * candidate.acPowerKw);
-      if (suggestedUtilization - currentUtilization >= 0.1) {
-        return { ...candidate, numInverters: trial.inverters.length, currentUtilization, suggestedUtilization };
-      }
-    }
-    return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sitePlan, panelSpec, inverterChoice, designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, totalCapacityKW]);
   const structureTotals = useMemo(() => {
     const totals: Record<string, any> = {};
     Object.values(structuresByGrid as Record<string, any>).forEach((s: any) => {
@@ -4120,6 +4096,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     return {
       roofs, obstacles, siteImages, location, locationConfirmed, monthlyGHI,
       projectName, capacityNote, gridConnection, panelSpec, inverterChoice,
+      // Links to grids that no longer exist are dropped on save (they are
+      // otherwise kept so undoing a grid deletion restores its wiring).
+      inverters, inverterLinks: inverterLinks.filter((l) => siteGrids.some((g) => g.key === l.gridKey)),
       designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, currentStep, maxUnlockedStep,
     };
   }
@@ -4214,6 +4193,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     { n: 2, label: 'Configuration', complete: true },
     { n: 3, label: 'Roof setup', complete: roofs.length > 0 },
     { n: 4, label: 'Panel/Grid setup', complete: totalPanelCount > 0 },
+    { n: STEP_INVERTERS, label: 'Inverters & wiring', complete: true },
     { n: 5, label: 'Output estimate', complete: true },
     { n: 6, label: 'Cost estimate', complete: true },
     { n: 7, label: 'Electrical Design (SLD)', complete: true },
@@ -4228,7 +4208,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // Mobile top bar: one icon + a one-word label per step (the full label
   // shows as the page title above them).
   const STEP_ICONS: Record<number, (props: { size?: number }) => React.JSX.Element> = {
-    1: PinIcon, 2: GearIcon, 3: FlatRoofIcon, 4: TableGridIcon, 5: SunIcon, 6: SunIcon, 7: BoltIcon, 8: ReportIcon,
+    1: PinIcon, 2: GearIcon, 3: FlatRoofIcon, 4: TableGridIcon, [STEP_INVERTERS]: BoltIcon, 5: SunIcon, 6: SunIcon, 7: BoltIcon, 8: ReportIcon,
   };
   const STEP_SHORT: Record<number, string> = {
     1: 'Site', 2: 'Config', 3: 'Roof', 4: 'Panels', 5: 'Output', 6: 'Cost', 7: 'SLD', 8: 'Report',
@@ -4379,37 +4359,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       </div>
       {sitePlan.perGrid.length > 0 && (
         <div style={{ marginTop: 5, paddingTop: 5, borderTop: '1px solid #eee' }}>
-          {!sitePlan.valid ? (
-            <div style={{ color: '#c0392b' }}>Inverter assignment: {sitePlan.perGrid.filter((g) => !g.valid).length} grid(s) need attention - see below.</div>
+          {sitePlan.inverters.length === 0 ? (
+            <div style={{ color: '#b8860b' }}>No inverters yet - add them in the next step (Inverters & wiring).</div>
           ) : (
             <div>
-              Inverters needed: {sitePlan.inverters.length} × {inverterChoice.model || inverterChoice.acPowerKw + 'kW'}
-              {' '}({(totalCapacityKW / (sitePlan.inverters.length * inverterChoice.acPowerKw) * 100).toFixed(0)}% of combined AC capacity used)
+              Inverters: {groupInverters(sitePlan.inverters).map((g) => `${g.count} × ${g.spec.model || `${g.spec.acPowerKw} kW`}`).join(', ')}
+              {sitePlan.unconnectedPanels > 0 && <span style={{ color: '#b8860b' }}> · {sitePlan.unconnectedPanels} panels not connected</span>}
             </div>
           )}
-          {inverterSuggestion && (
-            <div style={{ color: '#b8860b' }}>
-              💡 Try {inverterSuggestion.model} instead: same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'}, {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilized instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}%.
-            </div>
-          )}
-          {sitePlan.perGrid.map((g) => (
-            <div key={g.key} style={{ color: g.valid ? '#555' : '#c0392b' }}>
-              {g.label} ({g.panelCount} panels): {g.valid
-                ? `INV-${g.inverterIds.join(', INV-')}${g.pooled ? ' (shared)' : ''} - strings [${g.strings.join(',')}]`
-                : g.reason}
-            </div>
-          ))}
-          {(sitePlan.mergeNotes || []).map((n, i) => (
-            <div key={i} style={{ color: '#b8860b' }}>
-              <div>💡 {n.a} and {n.b} weren't sharing one inverter:</div>
-              <div style={{ paddingLeft: 18 }}>
-                {[
-                  n.mppt && `needs ${n.mppt.channels} MPPT inputs (${n.mppt.strings} strings, ${n.mppt.stringsPerMppt}/MPPT), inverter has ${n.mppt.mpptCount}`,
-                  n.distance && `${formatLength(n.distance.distance, units, 1)} apart (limit ${formatLength(n.distance.limit, units, 0)})`,
-                ].filter(Boolean).join(' · ')}
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </>
@@ -4517,7 +4474,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         </div>
       </div>
       )}
-      <div style={{ display: 'flex', flexDirection: isMobile && (currentStep <= 2 || currentStep === 5) ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && (currentStep <= 2 || currentStep === 5) && !mobileMapFullView ? 'auto' : undefined }}>
+      <div style={{ display: 'flex', flexDirection: isMobile && (currentStep <= 2 || currentStep === 5 || currentStep === STEP_INVERTERS) ? 'column' : 'row', gap: mobileMapFullView ? 0 : 16, flex: 1, minHeight: 0, boxSizing: 'border-box', padding: mobileMapFullView ? 0 : 16, overflowY: isMobile && (currentStep <= 2 || currentStep === 5 || currentStep === STEP_INVERTERS) && !mobileMapFullView ? 'auto' : undefined }}>
       {currentStep <= 2 && !mobileMapFullView ? (
       /* LEFT: steps 1-2's own input form (Project & Location, then
          Configuration). Neither step shows the plan/3D canvas alongside it
@@ -4667,85 +4624,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             </div>
           )}
         </CollapsibleSection>
-        <CollapsibleSection title="Inverter (default)">
-          <div className={inverterChoice.make !== CUSTOM_INVERTER_MAKE ? 'pde-field-row' : undefined}>
-            <div className="pde-field-sm">
-              <label>Make</label>
-              <select
-                value={inverterChoice.make}
-                onChange={(e) => {
-                  const make = e.target.value;
-                  if (make === CUSTOM_INVERTER_MAKE) {
-                    setInverterChoice({ ...inverterChoice, make, model: '' });
-                    return;
-                  }
-                  const first = inverterCatalogModels(make)[0];
-                  setInverterChoice({ ...inverterChoice, ...first });
-                }}
-              >
-                {inverterCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
-                <option value={CUSTOM_INVERTER_MAKE}>{CUSTOM_INVERTER_MAKE}</option>
-              </select>
-            </div>
-            {inverterChoice.make !== CUSTOM_INVERTER_MAKE && (
-              <div className="pde-field-sm">
-                <label>Model</label>
-                <select
-                  value={inverterChoice.model}
-                  onChange={(e) => {
-                    const inv = findInverter(inverterChoice.make, e.target.value);
-                    if (!inv) return;
-                    setInverterChoice({ ...inverterChoice, ...inv });
-                  }}
-                >
-                  {inverterCatalogModels(inverterChoice.make).map((i) => <option key={i.model} value={i.model}>{i.model} · {i.acPowerKw}kW</option>)}
-                </select>
-              </div>
-            )}
-          </div>
-          {inverterChoice.make === CUSTOM_INVERTER_MAKE ? (
-            <>
-              <div className="pde-field-sm"><label>Model name</label><input type="text" value={inverterChoice.model} onChange={(e) => setInverterChoice({ ...inverterChoice, model: e.target.value })} placeholder="e.g. My inverter 50kW" /></div>
-              <div className="pde-field-row">
-                <div className="pde-field-sm"><label>AC power (kW)</label><NumberField  step="0.1" value={inverterChoice.acPowerKw} onCommit={(v) => setInverterChoice({ ...inverterChoice, acPowerKw: v })} /></div>
-                <div className="pde-field-sm"><label>Max DC voltage (V)</label><NumberField  step="1" value={inverterChoice.maxDcVoltage} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxDcVoltage: v })} /></div>
-              </div>
-              <div className="pde-field-row">
-                <div className="pde-field-sm"><label>MPPT channels</label><NumberField  step="1" value={inverterChoice.mpptCount} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptCount: v })} /></div>
-                <div className="pde-field-sm"><label>Max current/MPPT (A)</label><NumberField  step="0.1" value={inverterChoice.maxCurrentPerMppt} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxCurrentPerMppt: v })} /></div>
-              </div>
-              <div className="pde-field-row">
-                <div className="pde-field-sm"><label>MPPT V min (V)</label><NumberField  step="1" value={inverterChoice.mpptVoltageMin} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptVoltageMin: v })} /></div>
-                <div className="pde-field-sm"><label>MPPT V max (V)</label><NumberField  step="1" value={inverterChoice.mpptVoltageMax} onCommit={(v) => setInverterChoice({ ...inverterChoice, mpptVoltageMax: v })} /></div>
-              </div>
-              <div className="pde-field-row">
-                <div className="pde-field-sm"><label>Max AC current (A)</label><NumberField  step="0.1" value={inverterChoice.maxAcCurrent} onCommit={(v) => setInverterChoice({ ...inverterChoice, maxAcCurrent: v })} /></div>
-                <div className="pde-field-sm"><label>AC voltage (V)</label><NumberField  step="1" value={inverterChoice.acVoltage} onCommit={(v) => setInverterChoice({ ...inverterChoice, acVoltage: v })} /></div>
-              </div>
-              <div className="pde-field-sm"><label>Phase</label><NumberField  step="1" value={inverterChoice.phase} onCommit={(v) => setInverterChoice({ ...inverterChoice, phase: v })} /></div>
-            </>
-          ) : (
-            <div className="pde-field-sm-hint">
-              {inverterChoice.acPowerKw} kW · {inverterChoice.phase}-Phase · {inverterChoice.acVoltage} V AC<br />
-              Max DC {inverterChoice.maxDcVoltage} V · {inverterChoice.mpptCount} MPPT × {inverterChoice.maxCurrentPerMppt} A<br />
-              MPPT window {inverterChoice.mpptVoltageMin}–{inverterChoice.mpptVoltageMax} V
-            </div>
-          )}
-          {inverterSuggestion && (
-            <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6, padding: 10, fontSize: 12.5, color: '#7a5c00', marginTop: 10 }}>
-              💡 A smaller inverter would fit this site better: <strong>{inverterSuggestion.model}</strong> ({inverterSuggestion.acPowerKw} kW) needs the same {inverterSuggestion.numInverters} inverter{inverterSuggestion.numInverters === 1 ? '' : 's'} but runs at {(inverterSuggestion.suggestedUtilization * 100).toFixed(0)}% utilization instead of {(inverterSuggestion.currentUtilization * 100).toFixed(0)}%.
-            </div>
-          )}
-          <div className="pde-field-sm" style={{ marginTop: 10 }}>
+        <CollapsibleSection title="String sizing">
+          <div className="pde-field-sm" style={{ marginTop: 4 }}>
             <label>MPPT voltage utilization (%)</label>
             <SliderInput min={100} max={140} hardMax={150} step={1} value={mpptVoltageUtilizationPct} onChange={setMpptVoltageUtilizationPct} />
           </div>
-          <div className="pde-field-sm-hint">
-            how far a string's cold-weather voltage may push past this inverter's rated MPPT window (100% = never exceed it) when sizing modules per string - still capped by its absolute max DC voltage rating either way.
+          <div className="pde-field-sm-hint" style={{ marginBottom: 10 }}>
+            how far a string's cold-weather voltage may push past an inverter's rated MPPT window (100% = never exceed it) when sizing modules per string - still capped by its absolute max DC voltage rating either way. Inverters themselves are added in the Inverters & wiring step.
           </div>
-        </CollapsibleSection>
-        <CollapsibleSection title="String sizing">
-          <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={setTargetDcAcRatio} /></div>
           <div className="pde-field-row">
             <div className="pde-field-sm"><label>Design min temp (°C)</label><NumberField  step="1" value={designTemp.min} onCommit={(v) => setDesignTemp({ ...designTemp, min: v })} /></div>
             <div className="pde-field-sm"><label>Design max temp (°C)</label><NumberField  step="1" value={designTemp.max} onCommit={(v) => setDesignTemp({ ...designTemp, max: v })} /></div>
@@ -4756,20 +4642,6 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             {designTempStatus === 'error' && 'couldn\'t fetch this site\'s temperature data - edit above to set it manually.'}
             {designTempStatus === 'idle' && 'confirm a location (step 1) to fetch this automatically, or edit manually now.'}
           </div>
-          {(() => {
-            const sizing = sizeStrings(panelSpec, inverterChoice, designTemp.min, designTemp.max, mpptVoltageUtilizationPct);
-            if (!sizing.valid) {
-              return <div className="pde-field-error">No valid string configuration for this module/inverter/temperature combination.</div>;
-            }
-            return (
-              <div className="pde-field-sm-hint" style={{ lineHeight: 1.7 }}>
-                Modules per string: {sizing.minModulesPerString}–{sizing.maxModulesPerString}<br />
-                Max strings per MPPT: {sizing.maxStringsPerMppt}<br />
-                Max modules per MPPT: {sizing.maxModulesPerMppt}<br />
-                Max modules per inverter: {sizing.maxModulesPerInverter}
-              </div>
-            );
-          })()}
         </CollapsibleSection>
         <button
           className="pde-primary-btn"
@@ -4781,6 +4653,32 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         )}
       </div>
       ) : null}
+
+      {/* LEFT for Inverters & wiring: the add/connect panel. On desktop the
+          plan/3D canvas stays beside it so the grids being wired are
+          visible; on mobile it is the whole step (the canvas is hidden,
+          see the CENTER block's condition). */}
+      {currentStep === STEP_INVERTERS && (
+        <div style={isMobile
+          ? { width: '100%', flexShrink: 0 }
+          : { width: 360, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
+          <InvertersPanel
+            inverters={inverters}
+            links={inverterLinks}
+            setInverters={setInverters}
+            setLinks={setInverterLinks}
+            grids={siteGrids}
+            sitePlan={sitePlan}
+            defaultSpec={inverterChoice}
+            onDefaultSpecChange={setInverterChoice}
+            targetDcAcRatio={targetDcAcRatio}
+            onTargetDcAcRatioChange={setTargetDcAcRatio}
+            planInputs={{ module: panelSpec, designMinTempC: designTemp.min, designMaxTempC: designTemp.max, mpptVoltageUtilizationPct }}
+            onBack={() => goToStep(4)}
+            onNext={() => advanceToStep(5)}
+          />
+        </div>
+      )}
 
       {/* CENTER: the map (picking a location), the plan/3D view (once a
           location's confirmed and the user has moved past step 2), or
@@ -4805,7 +4703,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         </div>
       )}
 
-      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 5 && currentStep !== 7 && currentStep !== 8 && (
+      {mapMode !== 'location' && locationConfirmed && currentStep > 2 && currentStep !== 5 && currentStep !== 7 && currentStep !== 8 && !(isMobile && currentStep === STEP_INVERTERS) && (
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
         {/* On mobile, step 4's map gets a capped height instead of
             flex:1 filling the whole screen - otherwise the layout-summary
@@ -5128,9 +5026,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 <div style={{ fontSize: 10, color: '#c0392b', textAlign: 'center', background: '#fff', borderRadius: 4, padding: '2px 4px' }}>{gridPlacementError}</div>
               )}
               <button
-                data-tooltip={totalPanelCount === 0 ? 'Place at least one grid first' : 'Continue to Output estimate'}
-                aria-label="Continue to Output estimate"
-                onClick={() => advanceToStep(5)} disabled={totalPanelCount === 0}
+                data-tooltip={totalPanelCount === 0 ? 'Place at least one grid first' : 'Continue to Inverters & wiring'}
+                aria-label="Continue to Inverters & wiring"
+                onClick={() => advanceToStep(STEP_INVERTERS)} disabled={totalPanelCount === 0}
                 className={`${iconBtn(false)} pde-primary`}
               >
                 <ArrowRightIcon />
@@ -7289,14 +7187,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             capacityNote={capacityNote}
             gridConnection={gridConnection}
             panelSpec={panelSpec}
-            inverterChoice={inverterChoice}
             sitePlan={sitePlan}
             totalPanelCount={totalPanelCount}
             totalCapacityKW={totalCapacityKW}
-            targetDcAcRatio={targetDcAcRatio}
             mpptVoltageUtilizationPct={mpptVoltageUtilizationPct}
-            onInverterChoiceChange={setInverterChoice}
-            onTargetDcAcRatioChange={setTargetDcAcRatio}
             onMpptVoltageUtilizationPctChange={setMpptVoltageUtilizationPct}
           />
           </div>
@@ -7333,7 +7227,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           });
         });
         const inverterCount = sitePlan.inverters.length;
-        const acKw = inverterCount * (inverterChoice?.acPowerKw ?? 0);
+        const inverterGroups = groupInverters(sitePlan.inverters);
+        const acKw = sitePlan.totalAcKw;
         const rendering3D = renders3D == null && !renders3DFailed;
         const busy = reportBusy != null || rendering3D;
         // Mid-morning on the March equinox: soft, readable shadows the same
@@ -7382,7 +7277,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 capacityKw={totalCapacityKW}
                 panelCount={totalPanelCount}
                 panelSpec={panelSpec}
-                inverterChoice={inverterChoice}
+                inverterGroups={inverterGroups}
                 inverterCount={inverterCount}
                 gridConnection={gridConnection}
                 dcAcRatio={acKw > 0 ? totalCapacityKW / acKw : null}
@@ -7401,11 +7296,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     capacityNote={capacityNote}
                     gridConnection={gridConnection}
                     panelSpec={panelSpec}
-                    inverterChoice={inverterChoice}
                     sitePlan={sitePlan}
                     totalPanelCount={totalPanelCount}
                     totalCapacityKW={totalCapacityKW}
-                    targetDcAcRatio={targetDcAcRatio}
                     mpptVoltageUtilizationPct={mpptVoltageUtilizationPct}
                   />
                 }

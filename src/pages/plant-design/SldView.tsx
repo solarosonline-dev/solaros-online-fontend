@@ -13,7 +13,7 @@
 // exported to PDF - see designReportPdf.ts. The diagram <svg> carries
 // data-pdf-vector so that export draws it as true vector graphics.
 
-import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
+import { groupInverters, inverterLabel } from './inverterWiring';
 import { CollapsibleSection, SliderInput } from './PlantDesignControls.jsx';
 
 // Compact throughout on purpose: an inverter used to be a large text-filled
@@ -126,22 +126,18 @@ function PvModulePaths({ x, y, size }) {
 }
 
 export default function SldView({
-  projectName, gridConnection, panelSpec, inverterChoice, sitePlan, totalPanelCount, totalCapacityKW,
-  targetDcAcRatio, mpptVoltageUtilizationPct = 100, onInverterChoiceChange, onTargetDcAcRatioChange, onMpptVoltageUtilizationPctChange,
+  projectName, gridConnection, panelSpec, sitePlan, totalPanelCount, totalCapacityKW,
+  mpptVoltageUtilizationPct = 100, onMpptVoltageUtilizationPctChange,
   embedded = false,
 }: {
   projectName?: any;
   capacityNote?: any;
   gridConnection?: any;
   panelSpec?: any;
-  inverterChoice?: any;
   sitePlan?: any;
   totalPanelCount?: any;
   totalCapacityKW?: any;
-  targetDcAcRatio?: any;
   mpptVoltageUtilizationPct?: number;
-  onInverterChoiceChange?: any;
-  onTargetDcAcRatioChange?: any;
   onMpptVoltageUtilizationPctChange?: any;
   // Inside a Design Report page rather than filling the SLD step: grows to
   // its full content height (no inner scroll box) and fits the diagram to
@@ -150,7 +146,10 @@ export default function SldView({
   embedded?: boolean;
 }) {
   const invalidGrids = sitePlan.perGrid.filter((g) => !g.valid);
-  const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.dcKw / inverterChoice.acPowerKw }));
+  const unconnectedGrids = sitePlan.unconnected;
+  const inverters = sitePlan.inverters.map((inv) => ({ ...inv, id: `INV-${inv.id}`, rows: inverterChannelRows(inv), shared: inv.entries.length > 1, utilization: inv.acKw > 0 ? inv.dcKw / inv.acKw : 0 }));
+  const specGroups = groupInverters(sitePlan.inverters);
+  const totalAcKw = sitePlan.totalAcKw;
 
   const svgWidth = Math.max(1000, inverters.length * (COL_WIDTH + COL_GAP) + COL_GAP);
   const svgHeight = MPPT_Y + MPPT_BLOCK_H + 20;
@@ -177,44 +176,11 @@ export default function SldView({
   // the common case, tweaking these is occasional. Only rendered when the
   // caller wired the onChange props up - the Design Report's read-only
   // copy (`embedded`) leaves them off, so it gets no controls.
-  const controls = onInverterChoiceChange && onTargetDcAcRatioChange && onMpptVoltageUtilizationPctChange && (
+  const controls = onMpptVoltageUtilizationPctChange && (
     <div style={{ flexShrink: 0 }}>
-      <CollapsibleSection title="Inverter & string sizing" defaultOpen={false}>
-        <div className={inverterChoice.make !== CUSTOM_INVERTER_MAKE ? 'pde-field-row' : undefined}>
-          <div className="pde-field-sm">
-            <label>Make</label>
-            <select
-              value={inverterChoice.make}
-              onChange={(e) => {
-                const make = e.target.value;
-                if (make === CUSTOM_INVERTER_MAKE) {
-                  onInverterChoiceChange({ ...inverterChoice, make, model: '' });
-                  return;
-                }
-                onInverterChoiceChange({ ...inverterChoice, ...inverterCatalogModels(make)[0] });
-              }}
-            >
-              {inverterCatalogMakes().map((make) => <option key={make} value={make}>{make}</option>)}
-              <option value={CUSTOM_INVERTER_MAKE}>{CUSTOM_INVERTER_MAKE}</option>
-            </select>
-          </div>
-          {inverterChoice.make !== CUSTOM_INVERTER_MAKE && (
-            <div className="pde-field-sm">
-              <label>Model</label>
-              <select
-                value={inverterChoice.model}
-                onChange={(e) => {
-                  const inv = findInverter(inverterChoice.make, e.target.value);
-                  if (inv) onInverterChoiceChange({ ...inverterChoice, ...inv });
-                }}
-              >
-                {inverterCatalogModels(inverterChoice.make).map((i) => <option key={i.model} value={i.model}>{i.model} · {i.acPowerKw}kW</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-        <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={onTargetDcAcRatioChange} /></div>
+      <CollapsibleSection title="String sizing" defaultOpen={false}>
         <div className="pde-field-sm"><label>MPPT voltage utilization (%)</label><SliderInput min={100} max={140} hardMax={150} step={1} value={mpptVoltageUtilizationPct} onChange={onMpptVoltageUtilizationPctChange} /></div>
+        <div className="pde-field-sm-hint">Inverters and their connections are edited in the Inverters & wiring step.</div>
       </CollapsibleSection>
     </div>
   );
@@ -233,14 +199,23 @@ export default function SldView({
         </div>
       </div>
 
-      {invalidGrids.length > 0 && (
+      {(invalidGrids.length > 0 || sitePlan.errorCount > 0) && (
         <div style={{ background: '#fdecea', border: '1px solid #f5c6c0', borderRadius: 6, padding: 12, fontSize: 13, color: '#c0392b' }}>
-          {invalidGrids.map((g) => <div key={g.key}>{g.label}: {g.reason}</div>)}
+          {sitePlan.inverters.flatMap((inv) => inv.issues.filter((i) => i.level === 'error').map((i, k) => <div key={`${inv.id}-${k}`}>INV-{inv.id}: {i.message}</div>))}
+        </div>
+      )}
+      {unconnectedGrids.length > 0 && inverters.length > 0 && (
+        <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6, padding: 12, fontSize: 13, color: '#7a5c00' }}>
+          Not connected to any inverter: {unconnectedGrids.map((g) => `${g.label} (${g.unconnected} panels)`).join(', ')}.
         </div>
       )}
 
       {inverters.length === 0 ? (
-        <div style={{ fontSize: 14, color: '#888' }}>No panels placed yet - draw a roof and fill it with panels (steps 3-4) to generate an SLD.</div>
+        <div style={{ fontSize: 14, color: '#888' }}>
+          {totalPanelCount === 0
+            ? 'No panels placed yet - draw a roof and fill it with panels (steps 3-4) to generate an SLD.'
+            : 'No inverters yet - add inverters and connect your grids to them in the Inverters & wiring step to generate the SLD.'}
+        </div>
       ) : (
         <>
           {/* Diagram + its schedule + legend/notes on the left, spec tables
@@ -312,7 +287,7 @@ export default function SldView({
                     <rect x={cx - INV_SYMBOL / 2} y={symbolTop} width={INV_SYMBOL} height={INV_SYMBOL} fill="#fff" stroke="#333" strokeWidth={1.5} />
                     <line x1={cx - INV_SYMBOL / 2 + 3} y1={symbolTop + INV_SYMBOL - 3} x2={cx + INV_SYMBOL / 2 - 3} y2={symbolTop + 3} stroke="#333" strokeWidth={1.2} />
                     <text x={labelX} y={symbolTop + 12} fontSize={11} fontWeight={700} fill="#1c2b4a">{inv.id}</text>
-                    <text x={labelX} y={symbolTop + 22} fontSize={9} fill="#666">{inverterChoice.acPowerKw} kW · {inverterChoice.phase}Ph</text>
+                    <text x={labelX} y={symbolTop + 22} fontSize={9} fill="#666">{inv.spec.acPowerKw} kW · {inv.spec.phase}Ph</text>
                     <text x={labelX} y={symbolTop + 32} fontSize={9} fontWeight={600} fill={inv.utilization < 0.6 ? '#c0392b' : '#2e7d32'}>
                       {inv.dcKw.toFixed(1)} kW DC · {(inv.utilization * 100).toFixed(0)}%
                     </text>
@@ -391,7 +366,9 @@ export default function SldView({
                   <ol style={{ border: '1px solid #e2e2e2', borderRadius: 6, padding: '8px 12px 8px 26px', margin: 0, fontSize: 10.5, color: '#333', lineHeight: 1.6 }}>
                     <li>Plant: {totalCapacityKW.toFixed(2)} kWp DC, {totalPanelCount}× {panelSpec.wattage}Wp modules, {inverters.reduce((s, inv) => s + inv.rows.reduce((s2, row) => s2 + row.lens.length, 0), 0)} strings.</li>
                     <li>Module: Voc {panelSpec.voc} V, Isc {panelSpec.isc} A, {panelSpec.model || `${panelSpec.wattage}W custom`}.</li>
-                    <li>Inverter: {inverterChoice.model || `${inverterChoice.acPowerKw}kW custom`}, {inverterChoice.mpptCount} MPPT, max {inverterChoice.maxCurrentPerMppt} A/MPPT. Strings sized to {mpptVoltageUtilizationPct}% of the rated MPPT voltage window (never exceeding the {inverterChoice.maxDcVoltage} V absolute max).</li>
+                    {specGroups.map(({ spec, count }) => (
+                      <li key={inverterLabel(spec) + spec.acPowerKw}>Inverter: {count} × {inverterLabel(spec)}, {spec.mpptCount} MPPT, max {spec.maxCurrentPerMppt} A/MPPT. Strings sized to {mpptVoltageUtilizationPct}% of the rated MPPT voltage window (never exceeding the {spec.maxDcVoltage} V absolute max).</li>
+                    ))}
                     <li>Grid: {gridConnection.voltage} V, {gridConnection.phase}-Phase. {gridConnection.sanctionedLoadKw !== '' && `Sanctioned load: ${gridConnection.sanctionedLoadKw} kW. `}{gridConnection.discom && `DISCOM: ${gridConnection.discom}.`}</li>
                     <li>Earthing as per IS 3043; SPD as per IS/IEC 61643.</li>
                     <li>Wiring &amp; protection as per IS 732, IE Rules &amp; CEA standards for grid-connected solar PV.</li>
@@ -444,18 +421,19 @@ export default function SldView({
                 </table>
               </div>
 
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>INVERTER — {inverterChoice.model || `${inverterChoice.acPowerKw}kW custom`} (×{inverters.length})</div>
+              {specGroups.map(({ spec, count }) => (
+              <div key={inverterLabel(spec) + spec.acPowerKw}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>INVERTER — {inverterLabel(spec)} (×{count})</div>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11, border: '1px solid #e2e2e2', borderRadius: 6 }}>
                   <tbody>
                     {[
-                      ['Max V DC', `${inverterChoice.maxDcVoltage} V`],
-                      ['Max I DC/MPPT', `${inverterChoice.maxCurrentPerMppt} A`],
-                      ['MPPT channels', inverterChoice.mpptCount],
-                      ['MPPT range', `${inverterChoice.mpptVoltageMin}–${inverterChoice.mpptVoltageMax} V`],
-                      ['AC power', `${inverterChoice.acPowerKw} kW`],
-                      ['Max I AC', `${inverterChoice.maxAcCurrent} A`],
-                      ['Phase', `${inverterChoice.phase}-Phase`],
+                      ['Max V DC', `${spec.maxDcVoltage} V`],
+                      ['Max I DC/MPPT', `${spec.maxCurrentPerMppt} A`],
+                      ['MPPT channels', spec.mpptCount],
+                      ['MPPT range', `${spec.mpptVoltageMin}–${spec.mpptVoltageMax} V`],
+                      ['AC power', `${spec.acPowerKw} kW`],
+                      ['Max I AC', `${spec.maxAcCurrent} A`],
+                      ['Phase', `${spec.phase}-Phase`],
                     ].map(([k, v]) => (
                       <tr key={k}>
                         <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0f0f0', color: '#666' }}>{k}</td>
@@ -465,6 +443,7 @@ export default function SldView({
                   </tbody>
                 </table>
               </div>
+              ))}
 
               {/* Sidebar had room to spare below its tables (its cards
                   together are shorter than the diagram+schedule on the
@@ -503,8 +482,8 @@ export default function SldView({
                   <tbody>
                     {[
                       ['Total DC capacity', `${totalCapacityKW.toFixed(2)} kWp`],
-                      ['Total AC capacity', `${(inverters.length * inverterChoice.acPowerKw).toFixed(1)} kW`],
-                      ['DC/AC ratio', (totalCapacityKW / (inverters.length * inverterChoice.acPowerKw)).toFixed(2)],
+                      ['Total AC capacity', `${totalAcKw.toFixed(1)} kW`],
+                      ['DC/AC ratio', totalAcKw > 0 ? (totalCapacityKW / totalAcKw).toFixed(2) : '—'],
                       ['Module qty', `${totalPanelCount} Nos`],
                       ['Total strings', `${inverters.reduce((s, inv) => s + inv.rows.reduce((s2, row) => s2 + row.lens.length, 0), 0)} Nos`],
                       ['Inverter qty', `${inverters.length} Nos`],
