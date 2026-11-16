@@ -6767,7 +6767,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
                             {isTree ? (
                               <>
-                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} hardMax={100} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                  <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.5} max={30} hardMax={500} step={0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                   <div style={sliderRowStyle}>{sliderRowLabel('Canopy radius', units)}<SliderInput unit={units} numberWidth={58} min={0.2} max={15} hardMax={30} step={0.1} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
                                   {(() => {
                                     // Trunk height: auto (a fixed share of the height) until
@@ -6821,7 +6821,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     </div>
                                   ) : (
                                     <>
-                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} hardMax={isFlush ? 2 : 100} exactCap step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} hardMax={isFlush ? 10 : 500} exactCap step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                       <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={50} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
                                     </>
                                   )}
@@ -6829,7 +6829,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 </>
                             ) : selectedObstacle.shape === 'cylinder' ? (
                               <>
-                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} hardMax={50} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={0.05} max={10} hardMax={500} step={0.05} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
                                 <div style={sliderRowStyle}>{sliderRowLabel('Radius', units)}<SliderInput unit={units} numberWidth={58} min={0.01} max={5} hardMax={20} step={0.01} value={selectedObstacle.radius} onChange={(v) => updateObstacle(selectedObstacle.id, 'radius', v)} /></div>
                                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Drag it on the 2D plan to move it.</div>
                               </>
