@@ -993,9 +993,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function updateGridSettings(roofId, gridId, patch, forceAll = false) {
     const toAll = applySettingsToAll || forceAll;
     setRoofs((rs) => rs.map((roof) => {
-      if (!toAll && roof.id !== roofId) return roof;
+      if (roof.id !== roofId) return roof;
       const grids = roof.grids.map((g) => {
         if (!toAll && g.id !== gridId) return g;
+        // Applying to all grids (the selected grid included - it's the source
+        // of the pushed settings): one whose settings already match the patch
+        // has nothing to change - leave it untouched rather than re-packing
+        // it (which can shift its panels even with identical settings).
+        if (toAll && Object.keys(patch).every((k) => (patch[k] ?? null) === (g[k] ?? null))) return g;
         const preserveCount = patch.panelsPerRow === undefined && patch.orientation === undefined;
         // The size this grid is meant to be (so tilt/spacing changes never
         // grow it - see 6cfa974). Remembered as `panelCap` the first time it
@@ -4313,7 +4318,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // "Apply to all grids" toggle shown in the grid settings popovers - only
   // when there's more than one grid to apply to.
-  const totalGridCount = roofs.reduce((n, r) => n + (r.grids?.length || 0), 0);
+  const totalGridCount = gridOwnerRoof?.grids?.length || 0;
   const renderApplyToAll = () => (
     totalGridCount > 1 ? (
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 10, cursor: 'pointer' }}>
@@ -4322,7 +4327,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           onChange={(e) => {
             setApplySettingsToAll(e.target.checked);
             // Turning it on pushes the selected grid's current settings to
-            // every other grid right away, not only on the next edit.
+            // every other grid on its roof right away, not only on the next edit.
             if (e.target.checked && selectedGrid && gridOwnerRoof) {
               const { panelTiltDeg, rowSpacing, structureStrategy, panelsPerRow, orientation } = selectedGrid;
               const patch: any = { panelTiltDeg: panelTiltDeg ?? null, rowSpacing: rowSpacing ?? null };
@@ -4333,7 +4338,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             }
           }}
         />
-        Apply changes to all grids ({totalGridCount})
+        Apply changes to all grids on this roof ({totalGridCount})
       </label>
     ) : null
   );
@@ -6970,7 +6975,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       </div>
 
                       <button
-                        data-tooltip={((selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'Portrait - click for Landscape' : 'Landscape - click for Portrait') + (applySettingsToAll && totalGridCount > 1 ? ' (all grids)' : '')}
+                        data-tooltip={((selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'Portrait - click for Landscape' : 'Landscape - click for Portrait') + (applySettingsToAll && totalGridCount > 1 ? ' (all grids on this roof)' : '')}
                         aria-label="Toggle panel orientation"
                         className={iconBtn(true)}
                         onClick={() => updateGridSettings(gridOwnerRoof.id, selectedGrid.id, { orientation: (selectedGrid.orientation ?? 'portrait') === 'portrait' ? 'landscape' : 'portrait' })}
