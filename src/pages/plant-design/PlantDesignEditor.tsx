@@ -6454,9 +6454,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}><RulerIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'} width={300}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={500} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={500} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} hardMax={200} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} hardMax={1000} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
                             {selectedRoof.type === 'pitched' && (
                               // A pitched roof's building height is its eave (the low
                               // edge, where the deck starts climbing); the ridge is
@@ -6466,7 +6466,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 Ridge (highest point): {formatLength(Math.max(...getRoofPolygon(selectedRoof).map((p) => roofSurfaceHeightAt(selectedRoof, p))), units, 1)} at {selectedRoof.pitchDeg ?? 0}° pitch
                               </div>
                             )}
-                            <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={10} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={50} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                               {selectedRoof.polygon
                                 ? `${selectedRoof.polygon.length} points. Width runs along the panel rows, length across them — or drag corner handles on the 2D plan.`
@@ -6806,8 +6806,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     const ext = orientedRoofExtents(selectedObstacle.polygon, longestEdgeFrameAzimuth(selectedObstacle.polygon));
                                     return (
                                       <>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={200} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={200} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
                                       </>
                                     );
                                   })()}
@@ -6821,8 +6821,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     </div>
                                   ) : (
                                     <>
-                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} hardMax={isFlush ? 2 : undefined} exactCap step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
-                                      <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={10} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Height', units)}<SliderInput unit={units} numberWidth={58} min={isFlush ? 0 : 0.1} max={isFlush ? 2 : 30} hardMax={isFlush ? 2 : 100} exactCap step={isFlush ? 0.01 : 0.1} value={selectedObstacle.height} onChange={(v) => updateObstacle(selectedObstacle.id, 'height', v)} /></div>
+                                      <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={50} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
                                     </>
                                   )}
                                   <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4 }}>Length runs along its longest edge. {selectedObstacle.polygon?.length ?? 0} points — drag corners on the 2D plan to reshape, or the shape to move it.</div>
