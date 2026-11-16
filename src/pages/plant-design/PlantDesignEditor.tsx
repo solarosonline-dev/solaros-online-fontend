@@ -482,7 +482,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // location (see handleLocationConfirm) — shared backdrop for every roof,
   // not per-roof imagery.
   const [siteImages, setSiteImages] = useState<{ locationImage: any; locationImageWide: any }>(initialDesignData?.siteImages ?? { locationImage: null, locationImageWide: null });
-  const [location, setLocation] = useState(initialDesignData?.location ?? { lat: 12.9716, lon: 77.5946, tz: 5.5 });
+  const [location, setLocation] = useState(initialDesignData?.location ?? { lat: 0, lon: 0, tz: 5.5 });
+  // A new design has no location until the user types coordinates or picks a
+  // point on the map - `location` above holds placeholder numbers (so the
+  // calculation code always has a valid number) that must never be shown or
+  // confirmed. Saved designs always already have a real one.
+  const [latSet, setLatSet] = useState(!!initialDesignData?.location);
+  const [lonSet, setLonSet] = useState(!!initialDesignData?.location);
+  const locationSet = latSet && lonSet;
   const [obstacles, setObstacles] = useState<any[]>(initialDesignData?.obstacles ?? []);
   const [placingShape, setPlacingShape] = useState<any>(null);
   // Whether the "+ Add obstacle" icon rail button's type-picker popover is
@@ -4534,11 +4541,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             <div className="pde-field-row">
               <div className="pde-field">
                 <label htmlFor="pdeLat">Latitude</label>
-                <NumberField id="pdeLat"  value={location.lat} onCommit={(v) => setLocation({ ...location, lat: v })} />
+                <NumberField id="pdeLat" value={latSet ? location.lat : NaN} placeholder="e.g. 12.9716" onCommit={(v) => { setLocation({ ...location, lat: v }); setLatSet(true); }} />
               </div>
               <div className="pde-field">
                 <label htmlFor="pdeLon">Longitude</label>
-                <NumberField id="pdeLon"  value={location.lon} onCommit={(v) => setLocation({ ...location, lon: v })} />
+                <NumberField id="pdeLon" value={lonSet ? location.lon : NaN} placeholder="e.g. 77.5946" onCommit={(v) => { setLocation({ ...location, lon: v }); setLonSet(true); }} />
               </div>
             </div>
 
@@ -4546,13 +4553,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               <label htmlFor="pdeTz">Timezone (UTC+)</label>
               <NumberField id="pdeTz"  value={location.tz} onCommit={(v) => setLocation({ ...location, tz: v })} />
             </div>
-            <div className="pde-step1-hint" style={{ marginTop: -8 }}>Default: Bengaluru, IN</div>
 
             <button className="pde-btn" style={{ width: '100%', padding: 10, fontSize: 14, marginBottom: 20 }} onClick={() => setMapMode('location')}>Set location on map…</button>
 
             <button
               className="pde-primary-btn"
               onClick={requestLocationConfirm}
+              disabled={!locationSet}
+              title={locationSet ? undefined : 'Enter coordinates or set the location on the map first'}
             >
               Next: Configuration →
             </button>
@@ -4771,8 +4779,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             fill
             mode="location"
             apiKey={GOOGLE_MAPS_API_KEY}
-            initialLocation={location}
-            onLocationChange={(coords) => setLocation((loc) => ({ ...loc, ...coords }))}
+            initialLocation={locationSet ? location : { lat: 20.5937, lon: 78.9629 }} // India centre until a site is chosen
+            onLocationChange={(coords) => { setLocation((loc) => ({ ...loc, ...coords })); setLatSet(true); setLonSet(true); }}
             onCancel={() => setMapMode(null)}
           />
         </div>

@@ -447,8 +447,12 @@
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.plant-design-editor .pde-primary-btn:hover {
+.plant-design-editor .pde-primary-btn:hover:not(:disabled) {
   background: #16223b;
+}
+.plant-design-editor .pde-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Mobile step nav - a dropdown instead of the tab strip, which won't fit
