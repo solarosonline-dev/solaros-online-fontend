@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NumberField from '../../components/NumberField';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { SliderInput } from './PlantDesignControls';
 import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
+import { edgeInfo, type InverterPose, type PlacementRoof } from './inverterPlacement';
 import {
   addInverters, removeInverter, disconnectGrid, setLinkPanels, autoAssignWiring, fillExistingInverters, inverterLabel,
   type DesignInverter, type InverterLink, type InverterSpec, type SiteGrid, type SitePlan,
@@ -99,6 +100,7 @@ function PanelCountEditor({ max, initial, label, onConfirm, onCancel }: { max: n
 export default function InvertersPanel({
   inverters, links, setInverters, setLinks, grids, sitePlan, defaultSpec, onDefaultSpecChange,
   targetDcAcRatio, onTargetDcAcRatioChange, planInputs, onNext, onBack,
+  poses, placementRoofs, selectedInverterId, onSelectInverter,
 }: {
   inverters: DesignInverter[];
   links: InverterLink[];
@@ -113,6 +115,10 @@ export default function InvertersPanel({
   planInputs: { module: any; designMinTempC: number; designMaxTempC: number; mpptVoltageUtilizationPct: number };
   onNext: () => void;
   onBack?: () => void;
+  poses: InverterPose[];
+  placementRoofs: PlacementRoof[];
+  selectedInverterId: number | null;
+  onSelectInverter: (id: number | null) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -125,6 +131,13 @@ export default function InvertersPanel({
   // inverter, or changing an existing link's count.
   const [editing, setEditing] = useState<{ inverterId: number; gridKey: string; initial: number } | null>(null);
   const [changingSpecFor, setChangingSpecFor] = useState<number | null>(null);
+  const [placingFor, setPlacingFor] = useState<number | null>(null);
+
+  // Selecting an inverter on the canvas brings its card into view.
+  useEffect(() => {
+    if (selectedInverterId == null) return;
+    document.getElementById(`pde-inv-card-${selectedInverterId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedInverterId]);
 
   const gridByKey = new Map(grids.map((g) => [g.key, g]));
   const perGridByKey = new Map(sitePlan.perGrid.map((g) => [g.key, g]));
@@ -242,7 +255,7 @@ export default function InvertersPanel({
         const inv = inverters.find((i) => i.id === ev.id)!;
         const unconnectedForMenu = grids.filter((g) => !ev.entries.some((en) => en.gridKey === g.key));
         return (
-          <div key={ev.id} className={`pde-inv-card ${ev.status}`}>
+          <div key={ev.id} id={`pde-inv-card-${ev.id}`} className={`pde-inv-card ${ev.status}${selectedInverterId === ev.id ? ' selected' : ''}`} onClick={() => onSelectInverter(ev.id)}>
             <div className="pde-inv-card-head">
               <span className="pde-inv-badge">{ev.id}</span>
               <div className="pde-inv-card-title">
@@ -308,7 +321,54 @@ export default function InvertersPanel({
               <div key={i} className={`pde-inv-issue ${issue.level}`}>{issue.level === 'error' ? '⛔' : '⚠'} {issue.message}</div>
             ))}
 
-            <div className="pde-inv-card-foot">
+            {(() => {
+              const pose = poses.find((p) => p.id === ev.id);
+              if (!pose) return null;
+              const m: any = pose.mount;
+              const roof = pose.kind === 'wall' ? placementRoofs.find((r) => String(r.id) === String(m.roofId)) : null;
+              const open = placingFor === ev.id;
+              return (
+                <div className="pde-inv-place">
+                  <button className="pde-inv-link-btn" onClick={(e) => { e.stopPropagation(); setPlacingFor(open ? null : ev.id); }}>
+                    {pose.kind === 'wall' ? `Wall-mounted · wall ${m.edge + 1}` : 'Ground-mounted'}{pose.autoPlaced ? ' (auto)' : ''} {open ? '▴' : '▾'}
+                  </button>
+                  {open && (
+                    <div className="pde-inv-place-body" onClick={(e) => e.stopPropagation()}>
+                      {pose.kind === 'wall' && roof ? (
+                        <>
+                          {placementRoofs.length > 1 && (
+                            <div className="pde-field-sm"><label>Roof</label>
+                              <select value={String(m.roofId)} onChange={(e) => { const r = placementRoofs.find((x) => String(x.id) === e.target.value)!; setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: { ...m, roofId: r.id, edge: 0, t: 0.5 } } : i))); }}>
+                                {placementRoofs.map((r, idx) => <option key={String(r.id)} value={String(r.id)}>{`Roof ${idx + 1}`}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <div className="pde-field-sm"><label>Wall</label>
+                            <select value={m.edge} onChange={(e) => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: { ...m, edge: Number(e.target.value) } } : i)))}>
+                              {roof.polygon.map((_, idx) => <option key={idx} value={idx}>{`Wall ${idx + 1} (${edgeInfo(roof.polygon, idx).len.toFixed(1)} m)`}</option>)}
+                            </select>
+                          </div>
+                          <div className="pde-field-sm"><label>Along the wall ({Math.round(m.t * 100)}%)</label>
+                            <input type="range" min={0} max={100} value={Math.round(m.t * 100)} onChange={(e) => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: { ...m, t: Number(e.target.value) / 100 } } : i)))} />
+                          </div>
+                          <div className="pde-field-sm"><label>Height above ground (m){m.height == null ? ' - auto, just below the roof edge' : ''}</label>
+                            <NumberField step="0.1" value={Math.round(pose.baseZ * 10) / 10} onCommit={(v) => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: { ...m, height: Math.max(0, v) } } : i)))} />
+                          </div>
+                          <button className="pde-btn" onClick={() => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: { kind: 'ground', x: pose.x + pose.facing.x * 1.5, y: pose.y + pose.facing.y * 1.5 } } : i)))}>Put on the ground</button>
+                        </>
+                      ) : (
+                        <div className="pde-field-sm-hint">Drag it on the plan, near a wall to hang it there.</div>
+                      )}
+                      {!pose.autoPlaced && (
+                        <button className="pde-btn" style={{ marginTop: 6 }} onClick={() => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, mount: undefined } : i)))}>Reset to auto</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="pde-inv-card-foot" onClick={(e) => e.stopPropagation()}>
               {connectMenuFor === ev.id ? (
                 <select
                   autoFocus

@@ -994,6 +994,47 @@ function WideMapGround({ placement }) {
 // slopedPolygonGeometry) instead of as a level slab stretched by the rise.
 const FLUSH_DRAWN_LABELS = new Set(['Skylight', 'Walkway']);
 
+// A wall-mounted (or ground-standing) string inverter: a simple box with a
+// light front, a dark lower strip and a small display, and a numbered badge
+// floating above it in the status colour (the number is the SLD's INV-n).
+// `facing` is the plan-space unit vector pointing away from the wall; the box's
+// front (+Z locally) is turned to it.
+const INVERTER_BADGE_COLORS = { ok: '#2e9e57', warning: '#e0a100', error: '#c0392b', idle: '#6b7280' } as const;
+function InverterBox({ inv, selected, onSelect, isDragClick }: any) {
+  const [tx, , tz] = toThree(inv.x, inv.y);
+  const yaw = Math.atan2(inv.facing.x, -inv.facing.y);
+  const { w, h, d } = inv;
+  const front = d / 2 + 0.004;
+  return (
+    <group
+      position={[tx, inv.baseZ + h / 2, tz]}
+      rotation={[0, yaw, 0]}
+      onClick={(e) => { if (!onSelect || isDragClick?.(e)) return; e.stopPropagation(); onSelect(inv.id); }}
+    >
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={selColor(selected, '#d6d9de')} roughness={0.55} />
+        {selected && <Edges color="#2f6fed" />}
+      </mesh>
+      <mesh position={[0, -h * 0.5 + h * 0.13, front]}>
+        <boxGeometry args={[w * 0.98, h * 0.26, 0.008]} />
+        <meshStandardMaterial color="#1c2025" />
+      </mesh>
+      <mesh position={[0, h * 0.08, front]}>
+        <boxGeometry args={[w * 0.4, h * 0.1, 0.008]} />
+        <meshStandardMaterial color="#12161b" />
+      </mesh>
+      <Html position={[0, h / 2 + 0.3, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
+        <div style={{
+          width: 24, height: 24, borderRadius: '50%', background: INVERTER_BADGE_COLORS[inv.status as keyof typeof INVERTER_BADGE_COLORS] ?? INVERTER_BADGE_COLORS.idle,
+          color: '#fff', border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', fontSize: 12, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif',
+        }}>{inv.id}</div>
+      </Html>
+    </group>
+  );
+}
+
 function placeObstacle(obstacle, roofs) {
   const { min, max, roof } = obstacleRoofSurfaceRange(obstacle, roofs);
   if (!roof) return { baseHeight: 0, obstacle };
@@ -1076,7 +1117,7 @@ function CaptureViews({ views, target, radius, onDone }: {
   return null;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, gridAdd = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as any[], selectedInverterId = null as any, onSelectInverter = undefined as any, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, gridAdd = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1529,6 +1570,16 @@ export default function Scene3D({ roofs, panelSpec, obstacles, sunElevation, sun
           />
           );
         })}
+
+        {inverters.map((inv) => (
+          <InverterBox
+            key={`inv-${inv.id}`}
+            inv={inv}
+            selected={selectedInverterId === inv.id}
+            onSelect={placingShape ? null : onSelectInverter}
+            isDragClick={isDragClick}
+          />
+        ))}
 
         {capture && (
           <CaptureViews

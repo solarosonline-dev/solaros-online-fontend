@@ -937,3 +937,8 @@
 .plant-design-editor .pde-inv-unconnected { border: 1px solid #f3dfa3; background: #fffbea; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
 .plant-design-editor .pde-inv-nav { display: flex; gap: 8px; margin-top: 14px; }
 .plant-design-editor .pde-inv-nav .pde-primary-btn { flex: 1; }
+.plant-design-editor .pde-inv-card { cursor: pointer; }
+.plant-design-editor .pde-inv-card.selected { box-shadow: 0 0 0 2px #2f6fed; }
+.plant-design-editor .pde-inv-place { margin-top: 6px; }
+.plant-design-editor .pde-inv-place-body { margin-top: 6px; padding: 8px; background: #f6f7f9; border-radius: 6px; }
+.plant-design-editor .pde-inv-place-body input[type=range] { width: 100%; }
