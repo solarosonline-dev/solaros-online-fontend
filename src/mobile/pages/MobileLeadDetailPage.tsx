@@ -55,6 +55,7 @@ export default function MobileLeadDetailPage() {
   // (re)assign the rep, others just see who it is.
   const { stages } = useLeadWorkflow(entityId);
   const canAssignRep = canManageLeads(user!.roles);
+  const agentUser = isAgent(user!.roles);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
@@ -172,7 +173,13 @@ export default function MobileLeadDetailPage() {
       {/* Stage + sales rep: two compact fields side by side */}
       <div className="mobile-detail-card-item mobile-detail-assign">
         <div className="mobile-detail-assign-grid">
-          {lead.status !== "REJECTED" && (
+          {lead.status !== "REJECTED" && agentUser && (
+            <div className="mobile-detail-field">
+              <span className="grid-label">Stage</span>
+              <span className="grid-value">{formatStageLabel(lead.agent_stage ?? "NEW")}</span>
+            </div>
+          )}
+          {lead.status !== "REJECTED" && !agentUser && (
             <label className="mobile-detail-field">
               <span className="grid-label">Stage</span>
               <select value={lead.agent_stage ?? "NEW"} disabled={saving} onChange={(e) => changeStage(e.target.value)}>
@@ -239,7 +246,8 @@ export default function MobileLeadDetailPage() {
           </div>
         </div>
 
-        {/* SECTION 2: WORK ORDERS / SITE SURVEYS */}
+        {/* SECTION 2: WORK ORDERS / SITE SURVEYS (agents can't create or assign tasks) */}
+        {!agentUser && (
         <div className="mobile-detail-card-item">
           <h3>Site Surveys</h3>
           <p className="section-meta-desc">Schedule and view site survey work orders below.</p>
@@ -247,6 +255,7 @@ export default function MobileLeadDetailPage() {
             <LeadWorkOrders entityId={entityId} leadId={lead.lead_id} />
           </div>
         </div>
+        )}
 
         {/* SECTION 3: ATTACHMENTS & SITE IMAGES */}
         <div className="mobile-detail-card-item">

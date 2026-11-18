@@ -1108,3 +1108,268 @@ body.mobile-view .plant-design-editor {
 .pde-m-step:disabled { opacity: .35; cursor: not-allowed; }
 .pde-m-step-done { color: #16a34a; }
 .pde-m-step-active { color: var(--app-accent, #2f6fed); border-bottom-color: var(--app-accent, #2f6fed); font-weight: 700; }
+
+/* ------------------------------------------------------------------ */
+/* Custom dropdown (MobileSelect): opens below its trigger            */
+/* ------------------------------------------------------------------ */
+
+body.mobile-view .m-select {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+body.mobile-view .m-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--m-ctl-h);
+  padding: 0 12px 0 14px;
+  font-family: inherit;
+  font-size: var(--m-fs-body);
+  font-weight: 500;
+  text-align: left;
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--m-r-control) !important;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+body.mobile-view .m-select.open .m-select-trigger {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+body.mobile-view .m-select-trigger:disabled {
+  opacity: 0.6;
+  background: var(--m-neutral-bg);
+  cursor: not-allowed;
+}
+
+body.mobile-view .m-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.mobile-view .m-select-value.placeholder {
+  color: var(--app-text-muted);
+}
+
+body.mobile-view .m-select-chevron {
+  flex-shrink: 0;
+  color: var(--app-text-muted);
+  transition: transform 0.15s ease;
+}
+
+body.mobile-view .m-select.open .m-select-chevron {
+  transform: rotate(180deg);
+}
+
+body.mobile-view .m-select.compact .m-select-trigger {
+  min-height: 38px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+body.mobile-view .m-select-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--m-r-control);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.16);
+}
+
+body.mobile-view .m-select-list.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+body.mobile-view .m-select-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: var(--m-fs-body);
+  font-weight: 500;
+  text-align: left;
+  color: var(--app-text);
+  background: transparent;
+  border: none;
+  border-radius: 8px !important;
+}
+
+body.mobile-view .m-select-list button:active {
+  background: var(--app-bg);
+}
+
+body.mobile-view .m-select-list button.selected {
+  font-weight: 700;
+  color: var(--app-accent);
+  background: var(--m-info-bg);
+}
+
+/* ------------------------------------------------------------------ */
+/* Searchable dropdown (SearchableSelect) + "All chip + picker" row   */
+/* ------------------------------------------------------------------ */
+
+body.mobile-view .m-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.mobile-view .m-filter-row .m-chip {
+  flex-shrink: 0;
+}
+
+body.mobile-view .m-filter-row .m-ss {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+body.mobile-view .m-ss {
+  position: relative;
+}
+
+body.mobile-view .m-ss-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 32px 0 14px;
+  font-family: inherit;
+  font-size: 16px; /* >=16px stops iOS zooming on focus */
+  font-weight: 500;
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--m-r-pill) !important;
+  text-overflow: ellipsis;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+body.mobile-view .m-ss-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+body.mobile-view .m-ss-input::placeholder {
+  color: var(--app-text-muted);
+  opacity: 1;
+}
+
+body.mobile-view .m-ss.has-value .m-ss-input {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  font-weight: 700;
+}
+
+body.mobile-view .m-ss.has-value .m-ss-input::placeholder {
+  color: var(--app-accent);
+}
+
+body.mobile-view .m-ss.open .m-ss-input {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  color: var(--app-text);
+  font-weight: 500;
+  outline: none;
+}
+
+body.mobile-view .m-ss-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  margin-top: -8px;
+  pointer-events: none;
+  color: var(--app-text-muted);
+  transition: transform 0.15s ease;
+}
+
+body.mobile-view .m-ss.open .m-ss-chevron {
+  transform: rotate(180deg);
+}
+
+body.mobile-view .m-ss-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  z-index: 30;
+  width: min(320px, calc(100vw - 32px));
+  max-height: 280px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--m-r-control);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.16);
+}
+
+body.mobile-view .m-ss-list.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+body.mobile-view .m-ss-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: var(--m-fs-body);
+  font-weight: 500;
+  text-align: left;
+  color: var(--app-text);
+  background: transparent;
+  border: none;
+  border-radius: 8px !important;
+}
+
+body.mobile-view .m-ss-list button span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.mobile-view .m-ss-list button:active {
+  background: var(--app-bg);
+}
+
+body.mobile-view .m-ss-list button.selected {
+  font-weight: 700;
+  color: var(--app-accent);
+  background: var(--m-info-bg);
+}
+
+body.mobile-view .m-ss-empty {
+  padding: 12px;
+  font-size: var(--m-fs-body);
+  color: var(--app-text-muted);
+  text-align: center;
+}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { createLead, leadsAccess, listSalesReps, type CreateLeadInput, type ExtractedLeadData, type SalesRep } from "../../api/leads";
 import { listEntityUsers, type EntityUser } from "../../api/entityUsers";
-import { canManageLeads, hasFeature, isEntityAdmin } from "../../lib/roles";
+import { canManageLeads, hasFeature, isAgent, isEntityAdmin } from "../../lib/roles";
 import { getDiscomsForState, resolveStateCode, resolveDiscomCode, STATES } from "../../pages/leads/discomOptions";
 import { METER_TYPES, LEAD_TYPES } from "../../pages/leads/leadOptions";
 import { ApiError } from "../../api/client";
@@ -17,6 +17,8 @@ export default function MobileAddLeadPage() {
   const { user } = useAuth();
   const entityId = user!.entity_id!;
   const navigate = useNavigate();
+  // Agents can't open the staff leads list; they come back to their own.
+  const leadsHome = isAgent(user!.roles) ? "/app/agent/leads" : "/app/leads";
 
   const [step, setStep] = useState(1);
 
@@ -180,7 +182,7 @@ export default function MobileAddLeadPage() {
         sales_rep_user_id: salesRepId ? Number(salesRepId) : undefined,
       }, leadsAccess(user));
 
-      navigate("/app/leads");
+      navigate(leadsHome);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : "Could not create lead");
     } finally {
@@ -192,7 +194,7 @@ export default function MobileAddLeadPage() {
     <div className="mobile-add-lead-page">
       {/* Header Stepper Header */}
       <div className="mobile-stepper-header">
-        <button type="button" className="stepper-cancel-btn" onClick={() => navigate("/app/leads")}>
+        <button type="button" className="stepper-cancel-btn" onClick={() => navigate(leadsHome)}>
           ❌ Cancel
         </button>
         <div className="stepper-progress-text">

@@ -28,10 +28,6 @@ import PlantDesignListPage from "../pages/plant-design/PlantDesignListPage";
 import PlantDesignEditorPage from "../pages/plant-design/PlantDesignEditorPage";
 import ProjectsPage from "../pages/projects/ProjectsPage";
 import ProjectDetailPage from "../pages/projects/ProjectDetailPage";
-import AgentDashboardPage from "../pages/epc-agents/AgentDashboardPage";
-import EpcDashboardPage from "../pages/epc-agents/EpcDashboardPage";
-import EpcAgentLeadsPage from "../pages/epc-agents/EpcAgentLeadsPage";
-import EpcPaymentsPage from "../pages/epc-agents/EpcPaymentsPage";
 
 // Mobile-Specific Components (Lazy loaded)
 import MobileLayout from "./layout/MobileLayout";
@@ -43,6 +39,10 @@ const MobileLeadDetailPage = React.lazy(() => import("./pages/MobileLeadDetailPa
 const MobileWorkOrdersPage = React.lazy(() => import("./pages/MobileWorkOrdersPage"));
 const MobileWorkOrderDetailPage = React.lazy(() => import("./pages/MobileWorkOrderDetailPage"));
 const MobileUsersPage = React.lazy(() => import("./pages/MobileUsersPage"));
+const MobileAgentDashboardPage = React.lazy(() => import("./pages/MobileAgentDashboardPage"));
+const MobileAgentLeadsPage = React.lazy(() => import("./pages/MobileAgentLeadsPage"));
+const MobileAgentPaymentsPage = React.lazy(() => import("./pages/MobileAgentPaymentsPage"));
+const MobileEpcDashboardPage = React.lazy(() => import("./pages/MobileEpcDashboardPage"));
 
 const MobileAdminFallback = () => (
   <div style={{ padding: "40px 20px", textAlign: "center", fontFamily: "var(--app-font, sans-serif)", color: "var(--app-text)" }}>
@@ -74,9 +74,9 @@ const router = createBrowserRouter(
           <Route path="/app" element={<HomeRedirect />} />
           
           {/* Agent individual workspace */}
-          <Route path="/app/agent/dashboard" element={<AgentDashboardPage />} />
-          <Route path="/app/agent/leads" element={<EpcAgentLeadsPage />} />
-          <Route path="/app/agent/payments" element={<EpcPaymentsPage />} />
+          <Route path="/app/agent/dashboard" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileAgentDashboardPage /></Suspense>} />
+          <Route path="/app/agent/leads" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileAgentLeadsPage /></Suspense>} />
+          <Route path="/app/agent/payments" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileAgentPaymentsPage /></Suspense>} />
           
           {/* CRM module gates */}
           <Route element={<RequireFeature feature="CRM" />}>
@@ -136,10 +136,10 @@ const router = createBrowserRouter(
 
           <Route element={<RequireEntityAdmin />}>
             {/* EPC Manager Agent workspaces */}
-            <Route path="/app/epc/dashboard" element={<EpcDashboardPage />} />
-            <Route path="/app/epc/leads" element={<EpcAgentLeadsPage />} />
+            <Route path="/app/epc/dashboard" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileEpcDashboardPage /></Suspense>} />
+            <Route path="/app/epc/leads" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileAgentLeadsPage /></Suspense>} />
             <Route path="/app/epc/config" element={<Navigate to="/app/entity?tab=lead_workflow" replace />} />
-            <Route path="/app/epc/payments" element={<EpcPaymentsPage />} />
+            <Route path="/app/epc/payments" element={<Suspense fallback={<div className="m-empty">Loading…</div>}><MobileAgentPaymentsPage /></Suspense>} />
 
             <Route path="/app/entity" element={<EntityManagementPage />} />
             <Route

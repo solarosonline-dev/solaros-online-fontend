@@ -1,0 +1,84 @@
+/* Shared by the mobile agent / EPC pages. Built on the m-* primitives. */
+body.mobile-view .ma-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+body.mobile-view .ma-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.mobile-view .ma-stat .m-metric {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+body.mobile-view .ma-success { color: var(--m-success-fg); }
+body.mobile-view .ma-accent { color: var(--app-accent); }
+body.mobile-view .ma-warning { color: var(--m-warning-fg); }
+
+body.mobile-view .ma-bar-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 38%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+body.mobile-view .ma-bar-row + .ma-bar-row {
+  margin-top: 10px;
+}
+
+body.mobile-view .ma-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-text-muted);
+}
+
+body.mobile-view .ma-bar-track {
+  height: 10px;
+  background: var(--m-neutral-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+body.mobile-view .ma-bar-fill {
+  height: 100%;
+  background: var(--app-accent);
+  border-radius: 999px;
+  min-width: 2px;
+}
+
+body.mobile-view .ma-bar-value {
+  font-weight: 700;
+  min-width: 24px;
+  text-align: right;
+}
+
+body.mobile-view .ma-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.mobile-view .ma-row + .ma-row {
+  margin-top: 10px;
+}
+
+body.mobile-view .ma-row.large {
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border);
+  font-weight: 800;
+}
+
+body.mobile-view .ma-hint {
+  margin: 6px 0 0;
+  font-size: var(--m-fs-label);
+  color: var(--app-text-muted);
+}
