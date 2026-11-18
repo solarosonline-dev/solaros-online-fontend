@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, isRectangle, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, isRectangle, polygonsOverlapPoint, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -1061,7 +1061,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           const respaced = respaceFixedGrid({ roof, grid: g, gridSettings: { ...gridSettings, panelsPerRow: legacyPpr ? 1 : gridSettings.panelsPerRow }, panelSpec, location });
           return { ...respaced, panelCap: undefined, panelCapCount: undefined };
         }
-        const next = generateLayout({ roof, footprintPolygon: g.footprintPolygon, gridSettings, panelSpec, obstacles, location });
+        const next = generateLayout({ roof, footprintPolygon: g.footprintPolygon, gridSettings, panelSpec, obstacles: layoutObstaclesFor(roof), location });
         // `source` isn't set by generateLayout itself - carry it over so a
         // later "Generate Layout" run (see regenerateAllGrids) still finds
         // and replaces this grid instead of treating it as untouched and
@@ -2820,6 +2820,20 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     viewNoticeTimerRef.current = setTimeout(() => setViewNotice(null), 3500);
   }
 
+  // Roofs that sit higher than `roof` and overlap it in plan (a stair-head
+  // or upper storey drawn on top of it). They physically occupy that part of
+  // `roof`'s surface, so they're handed to the layout as polygon obstacles -
+  // Fill roof / grids then pack around them instead of straight through.
+  function layoutObstaclesFor(roof) {
+    const poly = getRoofPolygon(roof);
+    const covering = roofs.filter((r) => r.id !== roof.id && (r.buildingHeight ?? 0) > (roof.buildingHeight ?? 0) + 1e-6).flatMap((r) => {
+      const rp = getRoofPolygon(r);
+      const at = polygonsOverlapPoint(poly, rp);
+      return at ? [{ id: `roof-above-${r.id}`, label: 'Roof above', shape: 'polygon', polygon: rp, x: at.x, y: at.y, height: (r.buildingHeight ?? 0) - (roof.buildingHeight ?? 0), width: 0, depth: 0 }] : [];
+    });
+    return covering.length ? [...obstacles, ...covering] : obstacles;
+  }
+
   function startRoofDraw() {
     resetClickSuppression();
     cancelActiveModes();
@@ -2836,7 +2850,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     if (points.length < 3) return;
     const id = Date.now();
     const finalPoints = points;
-    setRoofs((rs) => [...rs, { ...ROOF_DEFAULTS, id, polygon: finalPoints, grids: [] }]);
+    // Drawn over an existing roof (an upper storey / stair-head), the new
+    // roof starts from that roof's top, not from the ground: its default
+    // height is the tallest roof under it plus the usual storey height.
+    const under = roofs.filter((r) => polygonsOverlapPoint(finalPoints, getRoofPolygon(r)));
+    const baseHeight = under.length ? Math.max(...under.map((r) => r.buildingHeight ?? 0)) : 0;
+    setRoofs((rs) => [...rs, { ...ROOF_DEFAULTS, buildingHeight: baseHeight + ROOF_DEFAULTS.buildingHeight, id, polygon: finalPoints, grids: [] }]);
     selectRoof(id);
     setDrawingRoof(false);
     setRoofDrawPoints([]);
@@ -4102,7 +4121,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     setGridPlacementError(null);
     const panelsPerRow = suggestMaxPanelsPerRow({ roof, footprintPolygon: points, panelSpec, location });
-    const grid = generateLayout({ roof, footprintPolygon: points, gridSettings: { panelsPerRow }, panelSpec, obstacles, location });
+    const grid = generateLayout({ roof, footprintPolygon: points, gridSettings: { panelsPerRow }, panelSpec, obstacles: layoutObstaclesFor(roof), location });
     grid.id = Date.now() + Math.floor(Math.random() * 1000);
     grid.source = 'drawn';
     setRoofs((rs) => rs.map((r) => (r.id === roof.id ? { ...r, grids: [...r.grids, grid] } : r)));
@@ -4191,7 +4210,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       const gridSettings = existing
         ? { panelTiltDeg: existing.panelTiltDeg, rowSpacing: existing.rowSpacing, structureStrategy: existing.structureStrategy, panelsPerRow: existing.panelsPerRow, orientation: existing.orientation }
         : {};
-      const grid = generateLayout({ roof, footprintPolygon: getRoofPolygon(roof), gridSettings, panelSpec: spec, obstacles, location });
+      const grid = generateLayout({ roof, footprintPolygon: getRoofPolygon(roof), gridSettings, panelSpec: spec, obstacles: layoutObstaclesFor(roof), location });
       grid.id = existing?.id ?? Date.now() + Math.floor(Math.random() * 1000);
       grid.source = 'wholeRoof';
       const grids = existing ? roof.grids.map((g) => (g.id === existing.id ? grid : g)) : [...roof.grids, grid];
@@ -6810,8 +6829,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'} width={300}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
                             {(!selectedRoof.polygon || isRectangle(selectedRoof.polygon)) && (<>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
-                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.width.toFixed(4) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
+                            <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.length.toFixed(4) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
                             </>)}
                             <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} hardMax={1000} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
                             {selectedRoof.type === 'pitched' && (
@@ -7165,8 +7184,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                     const ext = orientedRoofExtents(selectedObstacle.polygon, longestEdgeFrameAzimuth(selectedObstacle.polygon));
                                     return (
                                       <>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.width.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
-                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.length.toFixed(2)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.width.toFixed(4)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'length', v)} /></div>
+                                        <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={0.1} max={50} hardMax={1000} step={0.05} value={+ext.length.toFixed(4)} onChange={(v) => resizeObstacle(selectedObstacle.id, 'width', v)} /></div>
                                       </>
                                     );
                                   })()}

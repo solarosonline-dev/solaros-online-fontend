@@ -53,6 +53,22 @@ export function rectPolygon(w, d) {
   ];
 }
 
+// A point lying inside both polygons, or null when they don't overlap.
+// Samples a grid over the overlap of their bounding boxes (plus the
+// centroids), which is plenty for roof outlines. Used to tell whether one
+// roof sits over another and to give a stand-in obstacle a centre that is
+// really on the roof it blocks (isOnRoof tests an obstacle's x/y only).
+export function polygonsOverlapPoint(P: Array<{ x: number; y: number }>, Q: Array<{ x: number; y: number }>, n = 24) {
+  const bb = (poly) => ({ x0: Math.min(...poly.map((p) => p.x)), x1: Math.max(...poly.map((p) => p.x)), y0: Math.min(...poly.map((p) => p.y)), y1: Math.max(...poly.map((p) => p.y)) });
+  const a = bb(P), b = bb(Q);
+  const x0 = Math.max(a.x0, b.x0), x1 = Math.min(a.x1, b.x1), y0 = Math.max(a.y0, b.y0), y1 = Math.min(a.y1, b.y1);
+  if (x0 >= x1 || y0 >= y1) return null;
+  const cen = (poly) => ({ x: poly.reduce((s, p) => s + p.x, 0) / poly.length, y: poly.reduce((s, p) => s + p.y, 0) / poly.length });
+  const tries = [cen(P), cen(Q)];
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) tries.push({ x: x0 + ((x1 - x0) * i) / n, y: y0 + ((y1 - y0) * j) / n });
+  return tries.find((t) => pointInPolygon(t, P) && pointInPolygon(t, Q)) ?? null;
+}
+
 export function getRoofPolygon(roof) {
   return roof.polygon && roof.polygon.length >= 3 ? roof.polygon : rectPolygon(roof.width, roof.length);
 }
@@ -299,13 +315,32 @@ export function resizeRoofPolygon(poly: Array<{ x: number; y: number }>, azimuth
   if (!(current > 1e-6) || !(value > 0)) return poly;
   const k = value / current;
   const { r, f } = roofFrame(azimuthDeg);
+  // A hand-drawn "rectangle" is usually a hair off square. Stretching it
+  // along one axis magnifies that skew until isRectangle() no longer holds
+  // and the Width/Length controls vanish mid-edit. So a near-rectangle
+  // whose corners sit close to its bounding box in this frame is first
+  // squared up to that box (vertex order kept), then stretched.
+  if (poly.length === 4 && isRectangle(poly, 10)) {
+    const a0 = ext.centerA - ext.width / 2, a1 = ext.centerA + ext.width / 2;
+    const b0 = ext.centerB - ext.length / 2, b1 = ext.centerB + ext.length / 2;
+    const tol = 0.1 * Math.min(ext.width, ext.length);
+    const corners = poly.map((p) => {
+      const a = p.x * r.x + p.y * r.y, b = p.x * f.x + p.y * f.y;
+      const ca = a < ext.centerA ? a0 : a1, cb = b < ext.centerB ? b0 : b1;
+      return { a: ca, b: cb, dev: Math.hypot(a - ca, b - cb) };
+    });
+    const distinct = new Set(corners.map((c) => `${c.a}|${c.b}`)).size === 4;
+    if (distinct && corners.every((c) => c.dev <= tol)) {
+      poly = corners.map((c) => ({ x: c.a * r.x + c.b * f.x, y: c.a * r.y + c.b * f.y }));
+    }
+  }
   return poly.map((p) => {
     let a = p.x * r.x + p.y * r.y;
     let b = p.x * f.x + p.y * f.y;
     if (axis === 'width') a = ext.centerA + (a - ext.centerA) * k;
     else b = ext.centerB + (b - ext.centerB) * k;
     const x = a * r.x + b * f.x, y = a * r.y + b * f.y;
-    return { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
+    return { x: Math.round(x * 1e5) / 1e5, y: Math.round(y * 1e5) / 1e5 };
   });
 }
 
@@ -316,6 +351,14 @@ export function resizeRoofPolygon(poly: Array<{ x: number; y: number }>, azimuth
 // extents.length the size across it (shown as Width): the natural reading
 // for a walkway strip or a rectangular skylight.
 export function longestEdgeFrameAzimuth(poly: Array<{ x: number; y: number }>): number {
+  // A rectangle uses its first edge, not its longest: resizing one side
+  // can make the other the longest, which would flip the frame mid-edit and
+  // swap what Length and Width refer to (the other dimension then jumps).
+  // The first edge's direction never changes when the shape is stretched.
+  if (poly.length === 4 && isRectangle(poly, 10)) {
+    const ex = poly[1].x - poly[0].x, ey = poly[1].y - poly[0].y;
+    if (Math.hypot(ex, ey) > 1e-9) return Math.atan2(-ey, ex) * (180 / Math.PI);
+  }
   let best = { len: -1, ex: 1, ey: 0 };
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i], b = poly[(i + 1) % poly.length];
