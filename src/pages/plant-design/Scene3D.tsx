@@ -245,6 +245,13 @@ function FlatBuilding({ polygon, usablePolygon, buildingHeight, boundaryHeight, 
       {pieces.map((pc, i) => (
         <BoundaryWall key={i} polygon={pc.outer} baseHeight={deckTop} height={boundaryHeight} />
       ))}
+      {/* A cutout fully inside the roof is a hole in a piece rather than a
+          notch in its outer edge, so it needs its own wall around it. The
+          ring is built outward from the hole's edge so the wall stands on
+          the roof, not over the opening. */}
+      {pieces.flatMap((pc, i) => (pc.holes || []).map((h, j) => (
+        <BoundaryWall key={`h${i}-${j}`} polygon={insetPolygon(h, -BOUNDARY_WALL_THICKNESS)} baseHeight={deckTop} height={boundaryHeight} />
+      )))}
     </>
   );
 }
