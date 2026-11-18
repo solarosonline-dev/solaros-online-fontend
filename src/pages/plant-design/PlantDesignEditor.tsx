@@ -64,9 +64,9 @@ import type { SitePlanData } from './SitePlanSvg';
 import { buildReportPdf, reportFilename } from './designReportPdf';
 import { MODULE_CATALOG, CUSTOM_MODULE_MAKE, moduleCatalogMakes, moduleCatalogModels, findModule } from './moduleCatalog.js';
 import { INVERTER_CATALOG } from './inverterCatalog.js';
-import { evaluateSite, autoAssignWiring, siteGridsFromRoofs, groupInverters, type DesignInverter, type InverterLink } from './inverterWiring';
-import InvertersPanel from './InvertersPanel';
-import { resolveInverterPoses, snapInverterMount, type PlacementRoof } from './inverterPlacement';
+import { evaluateSite, autoAssignWiring, siteGridsFromRoofs, groupInverters, linksFromOwners, ownersFromLinks, pruneOwners, panelKey, inverterColor, addInverters, type DesignInverter, type PanelOwners } from './inverterWiring';
+import InvertersPanel, { InverterCanvasOverlay } from './InvertersPanel';
+import { resolveInverterPoses, snapInverterMount, poseFromMount, placementIssue, inverterDims, edgeInfo, MIN_WALL_HEIGHT_M, type PlacementRoof, type InverterMount } from './inverterPlacement';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { CollapsibleSection, SliderInput, InfoTip, metersToFeet } from './PlantDesignControls.jsx';
 import { sunExposureColor } from './heatmapColor.js';
@@ -616,6 +616,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   function clearSelectionForStep(step) {
     if (step !== 3) { setSelectedRoofId(null); setSelectedObstacleId(null); }
     if (step !== 4) setSelectedGridKeys(new Set());
+    if (step !== STEP_INVERTERS) { setSelectedPanelKeys(new Set()); setMovingInverterId(null); setPlaceHover(null); }
   }
   function goToStep(step) {
     if (step > maxUnlockedStep) return;
@@ -886,6 +887,17 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // dragged roof moves toward or away from the origin.
   const frozenExtentRef = useRef<any>(null);
   const [selectedInverterId, setSelectedInverterId] = useState<number | null>(null);
+  // Panels picked on the plan (Inverters & wiring step), keyed `${gridKey}#${panelId}`.
+  const [selectedPanelKeys, setSelectedPanelKeys] = useState<Set<string>>(new Set());
+  // How clicks/drags pick panels on the plan: a (grid-tilted) box, a whole row
+  // or column or grid per click, or a brush painted across panels.
+  const [selectMode, setSelectMode] = useState<'box' | 'row' | 'column' | 'grid' | 'brush'>('box');
+  const brushRef = useRef<{ remove: boolean; lastX: number; lastY: number } | null>(null);
+  const [brushing, setBrushing] = useState(false);
+  // "Move…": the inverter being put somewhere new, and where the pointer is
+  // now (plan x/y, plus the hit height when it came from a 3D wall).
+  const [movingInverterId, setMovingInverterId] = useState<number | null>(null);
+  const [placeHover, setPlaceHover] = useState<{ x: number; y: number; h?: number } | null>(null);
   const [movingInverter, setMovingInverter] = useState(false);
   const inverterMoveRef = useRef<any>(null);
   // Live drag state for the rotate handle - `pivot` is the selected grid's
@@ -1362,7 +1374,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
 
   // How many inverters a grid's panel count gets sized for, before MPPT
   // capacity alone would force more - see gridInverterAssignment.js.
-  const [targetDcAcRatio, setTargetDcAcRatio] = useState(initialDesignData?.targetDcAcRatio ?? 1.05);
+  const [targetDcAcRatio] = useState(initialDesignData?.targetDcAcRatio ?? 1.05);
 
   // How far a string's cold-weather Voc is allowed to push past the
   // inverter's rated MPPT voltage window (100% = never exceed it), while
@@ -1377,18 +1389,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // neither - convert it once with the old auto-packing so it looks the same
   // as it always did, but is now editable. `inverterChoice` above survives
   // only as the spec new inverters start from (the last model picked).
-  const [wiringInit] = useState<{ inverters: DesignInverter[]; links: InverterLink[] }>(() => {
-    if (initialDesignData?.inverters) return { inverters: initialDesignData.inverters, links: initialDesignData.inverterLinks ?? [] };
-    if (!initialDesignData?.roofs) return { inverters: [], links: [] };
+  const [wiringInit] = useState<{ inverters: DesignInverter[]; owners: PanelOwners }>(() => {
+    if (!initialDesignData?.roofs) return { inverters: [], owners: {} };
+    const grids = siteGridsFromRoofs(initialDesignData.roofs);
+    if (initialDesignData.panelOwners) return { inverters: initialDesignData.inverters ?? [], owners: initialDesignData.panelOwners };
+    // Saved with count-based links: hand the panels out in layout order.
+    if (initialDesignData.inverters) return { inverters: initialDesignData.inverters, owners: ownersFromLinks(grids, initialDesignData.inverterLinks ?? []) };
     const seeded = autoAssignWiring({
-      grids: siteGridsFromRoofs(initialDesignData.roofs), module: panelSpec, spec: inverterChoice,
+      grids, module: panelSpec, spec: inverterChoice,
       designMinTempC: designTemp.min, designMaxTempC: designTemp.max, targetDcAcRatio,
       mpptVoltageUtilizationPct: initialDesignData.mpptVoltageUtilizationPct ?? 120,
     });
-    return { inverters: seeded.inverters, links: seeded.links };
+    return { inverters: seeded.inverters, owners: ownersFromLinks(grids, seeded.links) };
   });
   const [inverters, setInverters] = useState<DesignInverter[]>(wiringInit.inverters);
-  const [inverterLinks, setInverterLinks] = useState<InverterLink[]>(wiringInit.links);
+  // Which inverter each panel feeds (see inverterWiring.ts, "Panel ownership").
+  const [panelOwners, setPanelOwners] = useState<PanelOwners>(wiringInit.owners);
 
   // Undo/redo over the site's actual document state (roofs, obstacles,
   // their generated layouts, and the shared panel spec) - not view state
@@ -1421,7 +1437,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // Grids live on the roof itself now (roof.grids), so `roofs` alone
     // already covers every generated layout - no separate layoutsByRoof to
     // snapshot.
-    const snapshot = { roofs, obstacles, panelSpec, inverters, inverterLinks };
+    const snapshot = { roofs, obstacles, panelSpec, inverters, panelOwners };
     if (isRestoringHistoryRef.current) {
       isRestoringHistoryRef.current = false;
       lastSnapshotRef.current = snapshot;
@@ -1437,7 +1453,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     }
     lastSnapshotRef.current = snapshot;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roofs, obstacles, panelSpec, inverters, inverterLinks]);
+  }, [roofs, obstacles, panelSpec, inverters, panelOwners]);
 
   function applyHistorySnapshot(snapshot) {
     isRestoringHistoryRef.current = true;
@@ -1445,7 +1461,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     setObstacles(snapshot.obstacles);
     setPanelSpec(snapshot.panelSpec);
     setInverters(snapshot.inverters);
-    setInverterLinks(snapshot.inverterLinks);
+    setPanelOwners(snapshot.panelOwners);
     setSelectedRoofId(null);
     setSelectedObstacleId(null);
     setSelectedGridKeys(new Set());
@@ -1518,6 +1534,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // below) - independent of efficiencyView, which is per-panel and needs
   // an actual grid to exist first.
   const [shadowAnalysis, setShadowAnalysis] = useState(false);
+  // Inverters & wiring colours panels by inverter and hides both toggles, so
+  // switch the overlays off on the way in rather than leave a heatmap on.
+  useEffect(() => {
+    if (currentStep === STEP_INVERTERS) { setShadowAnalysis(false); setEfficiencyView(false); }
+  }, [currentStep]);
   // Which sun-exposure cell the pointer is currently over (see
   // onSunHeatmapMouseMove below) - {pct, clientX, clientY} in viewport
   // pixels (not SVG/world coords) so the floating readout can be rendered
@@ -2164,10 +2185,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // usage, DC:AC, problems) plus which grids still have unconnected panels -
   // see inverterWiring.ts. Same shape the SLD has always consumed.
   const siteGrids = useMemo(() => siteGridsFromRoofs(roofs), [roofs]);
+  // Per (grid, inverter) panel counts, derived from the per-panel owners.
+  const derivedLinks = useMemo(() => linksFromOwners(siteGrids, panelOwners, inverters), [siteGrids, panelOwners, inverters]);
   const sitePlan = useMemo(() => evaluateSite({
-    inverters, links: inverterLinks, grids: siteGrids, module: panelSpec,
+    inverters, links: derivedLinks, grids: siteGrids, module: panelSpec,
     designMinTempC: designTemp.min, designMaxTempC: designTemp.max, mpptVoltageUtilizationPct,
-  }), [inverters, inverterLinks, siteGrids, panelSpec, designTemp, mpptVoltageUtilizationPct]);
+  }), [inverters, derivedLinks, siteGrids, panelSpec, designTemp, mpptVoltageUtilizationPct]);
   const totalCapacityKW = roofs.reduce((s, r) => s + r.grids.reduce((s2, g) => s2 + g.capacityKW, 0), 0);
 
   // Physical placement of each inverter (wall-mounted or on the ground):
@@ -2178,8 +2201,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     [roofs],
   );
   const inverterPoses = useMemo(
-    () => resolveInverterPoses({ inverters, links: inverterLinks, grids: siteGrids, roofs: placementRoofs }),
-    [inverters, inverterLinks, siteGrids, placementRoofs],
+    () => resolveInverterPoses({ inverters, links: derivedLinks, grids: siteGrids, roofs: placementRoofs }),
+    [inverters, derivedLinks, siteGrids, placementRoofs],
   );
   // A selected inverter is a ~0.7 m box on a ~100 m site - scroll-zoom in 3D
   // should home in on it rather than the screen centre.
@@ -2187,6 +2210,128 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     ? inverterPoses.find((p) => p.id === selectedInverterId) : undefined;
   const inverterFocus = selectedInverterPose
     ? { x: selectedInverterPose.x, y: selectedInverterPose.y, h: selectedInverterPose.baseZ + selectedInverterPose.h / 2 } : null;
+  // Every placed panel as the plan draws it (centre, size, the angle of its
+  // own axes) - what picking panels on the plan tests against. Angle is the
+  // same one panelFootprint uses: a panel's local x axis, counter-clockwise
+  // in plan, so a grid turned by its roof slope or by hand is hit-tested in
+  // its own frame, not the screen's.
+  const panelIndex = useMemo(() => {
+    const out: any[] = [];
+    roofs.forEach((roof) => roof.grids.forEach((g) => {
+      const gk = gridKey(roof.id, g.id);
+      const gridAz = slopeDirectionAzimuth(gridDirection(g, roof));
+      resolvedGridPanels(g).forEach((p) => {
+        const a = (((p.rotation || 0) + (g.rotation || 0) - (gridAz - 180)) * Math.PI) / 180;
+        out.push({ key: panelKey(gk, p.id), gridKey: gk, grid: g, id: p.id, cx: p.x, cy: p.y, hw: p.w / 2, hd: p.d / 2, a, cos: Math.cos(a), sin: Math.sin(a), rackY: p.rackY });
+      });
+    }));
+    return out;
+  }, [roofs]);
+  function panelAtPoint(x: number, y: number) {
+    return panelIndex.find((e) => {
+      const dx = x - e.cx, dy = y - e.cy;
+      return Math.abs(dx * e.cos + dy * e.sin) <= e.hw && Math.abs(-dx * e.sin + dy * e.cos) <= e.hd;
+    });
+  }
+  // The angle a selection box should take when a drag starts at (x, y): the
+  // axes of the nearest panel's grid, so dragging along a tilted row or
+  // column boxes up that row or column.
+  function pickAngleAt(x: number, y: number) {
+    let best: any = null, bd = Infinity;
+    for (const e of panelIndex) { const d = Math.hypot(e.cx - x, e.cy - y); if (d < bd) { bd = d; best = e; } }
+    return best ? best.a : 0;
+  }
+  // What one click picks in each mode, from the panel under the pointer.
+  function panelKeysForClick(hit: any): string[] {
+    if (selectMode === 'row') return panelIndex.filter((e) => e.gridKey === hit.gridKey && Math.abs(e.rackY - hit.rackY) < 1e-6).map((e) => e.key);
+    if (selectMode === 'column') return columnMatch(hit.grid, hit.id).matches.map((m: any) => panelKey(hit.gridKey, m.id));
+    if (selectMode === 'grid') return panelIndex.filter((e) => e.gridKey === hit.gridKey).map((e) => e.key);
+    return [hit.key];
+  }
+
+  // While moving an inverter: where the pointer would put it (a wall within
+  // reach, else the ground), the pose that gives, and any problem with the
+  // spot. A hit on a 3D wall face sets the height too; the plan and a roof
+  // top leave it automatic.
+  function mountForHover(hover: { x: number; y: number; h?: number }, invId: number): InverterMount {
+    const snapped = snapInverterMount({ x: hover.x, y: hover.y }, placementRoofs);
+    if (snapped.kind !== 'wall') return snapped;
+    const roof = placementRoofs.find((r) => String(r.id) === String(snapped.roofId));
+    const inv = inverters.find((i) => i.id === invId);
+    if (!roof || !inv || hover.h == null || hover.h >= roof.buildingHeight - 0.05) return snapped;
+    return { ...snapped, height: Math.max(MIN_WALL_HEIGHT_M, hover.h - inverterDims(inv.spec).h / 2) };
+  }
+  const placeMount: InverterMount | null = useMemo(
+    () => (movingInverterId != null && placeHover ? mountForHover(placeHover, movingInverterId) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [movingInverterId, placeHover, placementRoofs, inverters],
+  );
+  const placeInverter = movingInverterId != null ? inverters.find((i) => i.id === movingInverterId) : undefined;
+  const ghostPose = useMemo(
+    () => (placeInverter && placeMount ? poseFromMount(placeInverter.id, placeInverter.spec, placeMount, placementRoofs, false) : null),
+    [placeInverter, placeMount, placementRoofs],
+  );
+  const placeIssue = placeInverter && placeMount ? placementIssue(placeInverter, placeMount, inverterPoses, placementRoofs) : null;
+  const placeInfo = ghostPose && placeMount
+    ? (placeMount.kind === 'wall'
+      ? `Wall ${placeMount.edge + 1} · ${(placeMount.t * edgeInfo(placementRoofs.find((r) => String(r.id) === String(placeMount.roofId))!.polygon, placeMount.edge).len).toFixed(1)} m along · ${ghostPose.baseZ.toFixed(1)} m up`
+      : 'On the ground')
+    : null;
+  function placeAt(mount: InverterMount) {
+    if (movingInverterId == null) return;
+    const id = movingInverterId;
+    setInverters((invs) => invs.map((i) => (i.id === id ? { ...i, mount } : i)));
+    setSelectedInverterId(id);
+    setMovingInverterId(null);
+    setPlaceHover(null);
+  }
+  function confirmPlace() { if (placeMount) placeAt(placeMount); }
+  // A click in 3D carries its own hit point (the hover state may be a frame behind).
+  function confirmPlaceAt(hover: { x: number; y: number; h?: number }) {
+    if (movingInverterId != null) placeAt(mountForHover(hover, movingInverterId));
+  }
+  function cancelMove() { setMovingInverterId(null); setPlaceHover(null); }
+  // Esc drops the picked panels (when not busy placing an inverter).
+  useEffect(() => {
+    if (currentStep !== STEP_INVERTERS || selectedPanelKeys.size === 0 || movingInverterId != null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedPanelKeys(new Set()); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentStep, selectedPanelKeys.size, movingInverterId]);
+  useEffect(() => {
+    if (movingInverterId == null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelMove(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movingInverterId]);
+
+  // Connecting the panels picked on the plan (canvas bar and panel).
+  function connectSelectedPanels(inverterId: number) {
+    setPanelOwners((o) => ({ ...o, ...Object.fromEntries([...selectedPanelKeys].map((k) => [k, inverterId])) }));
+    setSelectedPanelKeys(new Set());
+  }
+  function connectSelectedToNewInverter() {
+    const nextId = inverters.reduce((m, i) => Math.max(m, i.id), 0) + 1;
+    setInverters((invs) => addInverters(invs, inverterChoice, 1));
+    setPanelOwners((o) => ({ ...o, ...Object.fromEntries([...selectedPanelKeys].map((k) => [k, nextId])) }));
+    setSelectedInverterId(nextId);
+    setSelectedPanelKeys(new Set());
+  }
+  function disconnectSelectedPanels() {
+    setPanelOwners((o) => { const next = { ...o }; selectedPanelKeys.forEach((k) => { delete next[k]; }); return next; });
+    setSelectedPanelKeys(new Set());
+  }
+  // Colour of each panel while wiring: its inverter's, or grey when it has none.
+  const panelColorByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    siteGrids.forEach((g) => g.panelIds.forEach((pid) => {
+      const o = panelOwners[panelKey(g.key, pid)];
+      m.set(panelKey(g.key, pid), o != null && inverters.some((i) => i.id === o) ? inverterColor(o) : '#9aa3ad');
+    }));
+    return m;
+  }, [siteGrids, panelOwners, inverters]);
+
   const inverterStatusById = useMemo(() => new Map(sitePlan.inverters.map((e) => [e.id, e.status])), [sitePlan]);
 
   const structureTotals = useMemo(() => {
@@ -2890,6 +3035,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // its own comment) - one combined handler for the svg's onMouseMove since
   // only one can run at a time and both need the pointer's world position.
   function onSvgDrawMouseMove(e) {
+    if (movingInverterId != null) {
+      const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+      setPlaceHover({ x: worldX, y: worldY });
+      return;
+    }
     onSunHeatmapMouseMove(e);
     const drawingObstacle = placingShape && OBSTACLE_PRESETS[placingShape]?.drawable;
     if (!drawingRoof && !drawingObstacle && !placingGrid && placingShape !== 'copy') {
@@ -2905,6 +3055,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // whether the mouseup that follows actually moved the view, and only
   // then treats it as a pan instead of a click.
   function onSvgMouseDown(e) {
+    if (movingInverterId != null) return; // the click that follows places the inverter
     if (drawingRoof || placingShape || placingGrid || draggingVertexIndex !== null || draggingEdgeIndex !== null || draggingObstacleVertex !== null) return;
 
     // Starting a drag inside a roof that actually has grids marquee-selects
@@ -2913,12 +3064,33 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // generated grid yet).
     const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
     const hitRoof = roofs.find((r) => pointInPolygon({ x: worldX, y: worldY }, getRoofPolygon(r)));
+    if (hitRoof && hitRoof.grids.some((g) => g.count > 0) && currentStep === STEP_INVERTERS && selectMode === 'brush') {
+      // Brush: paint across panels. A plain drag starts a new pick,
+      // Cmd/Ctrl/Shift adds to it, Alt removes from it.
+      const remove = e.altKey;
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+      brushRef.current = { remove, lastX: worldX, lastY: worldY };
+      const first = panelAtPoint(worldX, worldY);
+      setSelectedPanelKeys((prev) => {
+        const next = additive || remove ? new Set(prev) : new Set<string>();
+        if (first) { if (remove) next.delete(first.key); else next.add(first.key); }
+        return next;
+      });
+      setBrushing(true);
+      return;
+    }
     if (hitRoof && hitRoof.grids.some((g) => g.count > 0)) {
+      const panelPick = currentStep === STEP_INVERTERS;
       boxSelectRef.current = {
         roofId: hitRoof.id, clientX: e.clientX, clientY: e.clientY, moved: false,
-        x0: worldX, y0: worldY, x1: worldX, y1: worldY, additive: e.shiftKey,
+        x0: worldX, y0: worldY, x1: worldX, y1: worldY, additive: e.shiftKey || e.metaKey || e.ctrlKey,
+        // On Inverters & wiring the marquee picks individual panels (to
+        // connect to an inverter) instead of whole grids.
+        panelMode: panelPick,
+        // The box is turned to the grid's own axes (see pickAngleAt).
+        angle: panelPick ? pickAngleAt(worldX, worldY) : undefined,
       };
-      setBoxSelectRect({ x0: worldX, y0: worldY, x1: worldX, y1: worldY });
+      setBoxSelectRect({ x0: worldX, y0: worldY, x1: worldX, y1: worldY, angle: panelPick ? boxSelectRef.current.angle : undefined });
       return;
     }
 
@@ -2936,10 +3108,58 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
       start.x1 = worldX;
       start.y1 = worldY;
-      setBoxSelectRect({ x0: start.x0, y0: start.y0, x1: worldX, y1: worldY });
+      setBoxSelectRect({ x0: start.x0, y0: start.y0, x1: worldX, y1: worldY, angle: start.angle });
     }
     function handleMouseUp() {
       const r = boxSelectRef.current;
+      if (r?.panelMode) {
+        // Panels picked for an inverter. A drag picks every panel whose centre
+        // is inside the box - turned to the grid's angle - and a plain click
+        // picks what the current mode says (the panel, its row, its column or
+        // its grid). Cmd/Ctrl/Shift adds to the pick (and on a click toggles
+        // it off if it was all there); a click on nothing clears it.
+        if (r.moved) {
+          const ang = r.angle || 0, c = Math.cos(ang), sn = Math.sin(ang);
+          const sa = r.x0 * c + r.y0 * sn, sb = r.x1 * c + r.y1 * sn;
+          const ta = -r.x0 * sn + r.y0 * c, tb = -r.x1 * sn + r.y1 * c;
+          let [s0, s1, t0, t1] = [Math.min(sa, sb), Math.max(sa, sb), Math.min(ta, tb), Math.max(ta, tb)];
+          // A drag along a row has almost no width: grow the box to at least
+          // one panel in each direction (about its centre line) so it still
+          // picks the row it ran along.
+          const ref = panelAtPoint(r.x0, r.y0) ?? panelIndex.reduce((b: any, e: any) => (!b || Math.hypot(e.cx - r.x0, e.cy - r.y0) < Math.hypot(b.cx - r.x0, b.cy - r.y0) ? e : b), null);
+          if (ref) {
+            if (s1 - s0 < 2 * ref.hw) { const m = (s0 + s1) / 2; s0 = m - ref.hw; s1 = m + ref.hw; }
+            if (t1 - t0 < 2 * ref.hd) { const m = (t0 + t1) / 2; t0 = m - ref.hd; t1 = m + ref.hd; }
+          }
+          // A panel counts when the box reaches the middle half of it (its
+          // centre within half a half-size of the box).
+          const picked = panelIndex.filter((e) => {
+            const ss = e.cx * c + e.cy * sn, tt = -e.cx * sn + e.cy * c;
+            const d = e.a - ang, cd = Math.abs(Math.cos(d)), sd = Math.abs(Math.sin(d));
+            const mS = 0.5 * (e.hw * cd + e.hd * sd), mT = 0.5 * (e.hw * sd + e.hd * cd);
+            return ss >= s0 - mS && ss <= s1 + mS && tt >= t0 - mT && tt <= t1 + mT;
+          }).map((e) => e.key);
+          setSelectedPanelKeys((prev) => (r.additive ? new Set([...prev, ...picked]) : new Set(picked)));
+        } else {
+          const hit = panelAtPoint(r.x1, r.y1);
+          if (!hit) {
+            if (!r.additive) setSelectedPanelKeys(new Set());
+          } else {
+            const picked = panelKeysForClick(hit);
+            setSelectedPanelKeys((prev) => {
+              if (!r.additive) return new Set(picked);
+              const allIn = picked.every((k) => prev.has(k));
+              const next = new Set(prev);
+              picked.forEach((k) => { if (allIn) next.delete(k); else next.add(k); });
+              return next;
+            });
+          }
+        }
+        swallowClickAfterDragRef.current = true;
+        boxSelectRef.current = null;
+        setBoxSelectRect(null);
+        return;
+      }
       if (r?.moved) {
         const minX = Math.min(r.x0, r.x1), maxX = Math.max(r.x0, r.x1);
         const minY = Math.min(r.y0, r.y1), maxY = Math.max(r.y0, r.y1);
@@ -2976,6 +3196,44 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!boxSelectRect]);
 
+  // Brush mode: while the button is down, every panel the pointer crosses is
+  // added to the pick (removed with Alt). Sampled along the path between
+  // mouse events so a fast sweep doesn't skip panels.
+  useEffect(() => {
+    if (!brushing) return;
+    function handleMouseMove(e) {
+      const b = brushRef.current;
+      if (!b) return;
+      const { worldX, worldY } = clientToWorld(e.clientX, e.clientY);
+      const dist = Math.hypot(worldX - b.lastX, worldY - b.lastY);
+      const steps = Math.max(1, Math.ceil(dist / 0.3));
+      const hits: string[] = [];
+      for (let i = 1; i <= steps; i++) {
+        const hit = panelAtPoint(b.lastX + ((worldX - b.lastX) * i) / steps, b.lastY + ((worldY - b.lastY) * i) / steps);
+        if (hit) hits.push(hit.key);
+      }
+      b.lastX = worldX; b.lastY = worldY;
+      if (hits.length === 0) return;
+      setSelectedPanelKeys((prev) => {
+        const next = new Set(prev);
+        hits.forEach((k) => { if (b.remove) next.delete(k); else next.add(k); });
+        return next;
+      });
+    }
+    function handleMouseUp() {
+      swallowClickAfterDragRef.current = true;
+      brushRef.current = null;
+      setBrushing(false);
+    }
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brushing]);
+
   useEffect(() => {
     if (!isPanning) return;
 
@@ -3005,6 +3263,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   }, [isPanning]);
 
   function onSvgClick(e) {
+    if (movingInverterId != null) { confirmPlace(); return; }
     // A drag that actually moved the view was a pan, not a click — swallow
     // the click that naturally follows mouseup so it doesn't also deselect/
     // place/draw at the drop point.
@@ -3021,6 +3280,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       swallowClickAfterDragRef.current = false;
       return;
     }
+
+    // Wiring: a plain click on empty plan (off the panels, off the roofs)
+    // drops the picked panels. Cmd/Ctrl/Shift keeps them, for adding more.
+    if (currentStep === STEP_INVERTERS && !(e.shiftKey || e.metaKey || e.ctrlKey)) setSelectedPanelKeys(new Set());
 
     // Clicking back on the trace's own first point closes it immediately
     // (below) — but a real double-click landing there fires two separate
@@ -3469,6 +3732,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // own onClick. Off while drawing/placing anything, where a mousedown
   // belongs to that tool.
   function startObstacleDrag(e, obstacleId) {
+    // Obstacles are laid out in Roof setup; on Inverters & wiring they are
+    // just backdrop (and must not swallow a panel pick or an inverter drag).
+    if (currentStep === STEP_INVERTERS) return;
     if (drawingRoof || placingShape || placingGrid || e.button !== 0) return;
     const o = obstacles.find((ob) => ob.id === obstacleId);
     if (!o) return;
@@ -4165,7 +4431,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       projectName, capacityNote, gridConnection, panelSpec, inverterChoice,
       // Links to grids that no longer exist are dropped on save (they are
       // otherwise kept so undoing a grid deletion restores its wiring).
-      inverters, inverterLinks: inverterLinks.filter((l) => siteGrids.some((g) => g.key === l.gridKey)),
+      inverters, panelOwners: pruneOwners(panelOwners, siteGrids, inverters),
       designTemp, targetDcAcRatio, mpptVoltageUtilizationPct, currentStep, maxUnlockedStep,
     };
   }
@@ -4731,15 +4997,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           : { width: 360, flexShrink: 0, overflowY: 'auto', height: '100%' }}>
           <InvertersPanel
             inverters={inverters}
-            links={inverterLinks}
+            owners={panelOwners}
             setInverters={setInverters}
-            setLinks={setInverterLinks}
+            setOwners={setPanelOwners}
             grids={siteGrids}
             sitePlan={sitePlan}
             defaultSpec={inverterChoice}
             onDefaultSpecChange={setInverterChoice}
-            targetDcAcRatio={targetDcAcRatio}
-            onTargetDcAcRatioChange={setTargetDcAcRatio}
             planInputs={{ module: panelSpec, designMinTempC: designTemp.min, designMaxTempC: designTemp.max, mpptVoltageUtilizationPct }}
             onBack={() => goToStep(4)}
             onNext={() => advanceToStep(5)}
@@ -4747,6 +5011,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             placementRoofs={placementRoofs}
             selectedInverterId={selectedInverterId}
             onSelectInverter={setSelectedInverterId}
+            selectedPanelKeys={selectedPanelKeys}
+            onClearPanelSelection={() => setSelectedPanelKeys(new Set())}
+            onMoveInverter={isMobile ? undefined : (id) => { setSelectedInverterId(id); setSelectedPanelKeys(new Set()); setMovingInverterId(id); setPlaceHover(null); }}
           />
         </div>
       )}
@@ -4874,7 +5141,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 before any grid/panel does, so it's meaningful right after
                 Roof setup itself. 2D plan only - there's no 3D rendering
                 of it. */}
-            {viewMode === 'plan' && roofs.length > 0 && (
+            {viewMode === 'plan' && roofs.length > 0 && currentStep !== STEP_INVERTERS && (
               isMobile ? (
                 <button
                   className={iconBtn(shadowAnalysis)} onClick={() => setShadowAnalysis((v) => !v)}
@@ -4904,7 +5171,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 panel count used to also float as its own badge at top-right
                 - moved inline here once that started sitting right under
                 the compass/properties rail, which also docks there. */}
-            {totalPanelCount > 0 && currentStep !== 3 && (
+            {totalPanelCount > 0 && currentStep !== 3 && currentStep !== STEP_INVERTERS && (
               isMobile ? (
                 <button
                   className={iconBtn(efficiencyView)} onClick={() => setEfficiencyView((v) => !v)}
@@ -5125,6 +5392,23 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               {viewNotice}
             </div>
           )}
+          {currentStep === STEP_INVERTERS && !isMobile && (
+            <InverterCanvasOverlay
+              inverters={sitePlan.inverters.map((e) => ({ id: e.id, panels: e.entries.reduce((n, en) => n + en.panels, 0) }))}
+              unconnectedPanels={sitePlan.unconnectedPanels}
+              selectedCount={selectedPanelKeys.size}
+              selectedInverterId={selectedInverterId}
+              onSelectInverter={setSelectedInverterId}
+              onConnect={connectSelectedPanels}
+              onConnectNew={connectSelectedToNewInverter}
+              onDisconnect={disconnectSelectedPanels}
+              onClear={() => setSelectedPanelKeys(new Set())}
+              selectMode={selectMode}
+              onSelectMode={setSelectMode}
+              moving={movingInverterId != null ? { id: movingInverterId, info: placeInfo, issue: placeIssue } : null}
+              onCancelMove={cancelMove}
+            />
+          )}
           {viewMode === '3d' && (
             <div style={{ flex: 1, minHeight: 0, borderRadius: 10, border: '1px solid #d5d5d5', overflow: 'hidden', position: 'relative' }}>
               <React.Suspense fallback={<div style={{ padding: 16, fontSize: 13, color: '#888' }}>Loading 3D view…</div>}>
@@ -5161,6 +5445,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                       // Same set the 2D plan highlights (obstacle or
                       // other-grid overlap) - light red in 3D too.
                       overlapIds: overlapPanelIdsByGrid[gridKey(roof.id, g.id)],
+                      // Inverter colour per panel while wiring (see panelColorByKey).
+                      ownerColors: currentStep === STEP_INVERTERS
+                        ? Object.fromEntries(g.panels.map((pp) => [pp.id, panelColorByKey.get(panelKey(gridKey(roof.id, g.id), pp.id)) ?? '#9aa3ad']))
+                        : undefined,
+                      pickedIds: currentStep === STEP_INVERTERS
+                        ? new Set(g.panels.filter((pp) => selectedPanelKeys.has(panelKey(gridKey(roof.id, g.id), pp.id))).map((pp) => pp.id))
+                        : undefined,
                       layout: g,
                       structure: structuresByGrid[gridKey(roof.id, g.id)],
                       shadedIds: instantByGrid[gridKey(roof.id, g.id)]?.shadedIds,
@@ -5170,8 +5461,12 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 })}
                 panelSpec={panelSpec}
                 obstacles={obstacles}
-                inverters={inverterPoses.map((p) => ({ ...p, status: inverterStatusById.get(p.id) ?? 'idle' }))}
+                inverters={inverterPoses.map((p) => ({ ...p, status: inverterStatusById.get(p.id) ?? 'idle', color: inverterColor(p.id) }))}
                 selectedInverterId={currentStep === STEP_INVERTERS ? selectedInverterId : null}
+                placeInverter={movingInverterId != null}
+                onPlaceHover={(h) => setPlaceHover(h)}
+                onPlaceClick={(h) => confirmPlaceAt(h)}
+                inverterGhost={ghostPose ? { ...ghostPose, bad: !!placeIssue } : null}
                 onSelectInverter={currentStep === STEP_INVERTERS ? setSelectedInverterId : undefined}
                 sunElevation={sunPos.elevation}
                 sunAzimuth={sunPos.azimuth}
@@ -5188,7 +5483,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 highlightRoofId={hoveredPickRoofId}
                 focusPoint={inverterFocus ?? selectionFocus}
                 onPickPanelForDelete={(p, multi) => pickPanelForDelete(p, multi)}
-                onBackgroundClick={cancelActiveModes}
+                onBackgroundClick={() => { cancelActiveModes(); if (currentStep === STEP_INVERTERS) setSelectedPanelKeys(new Set()); }}
                 // One roof's edges as clickable bars in 3D, for whichever
                 // edge-picking mode is active (mirror / margin override /
                 // align to edge) - same handlers as the 2D plan's slivers.
@@ -5860,6 +6155,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 const yInset = isMultiRow ? Math.min(1.5, h * 0.1) : 0;
                 const rectY = s.sy + yInset;
                 const rectH = Math.max(1, h - yInset * 2);
+                const wiring = currentStep === STEP_INVERTERS;
+                const ownerKey = panelKey(gridKey(roof.id, g.id), p.id);
+                const ownerColor = wiring ? panelColorByKey.get(ownerKey) : undefined;
+                const unowned = wiring && ownerColor === '#9aa3ad';
+                const picked = wiring && selectedPanelKeys.has(ownerKey);
                 const deletePicked = deleteModeActive && gridDeleteSelection && (
                   (gridDeleteMode === 'row' && gridDeleteSelection.rackY === p.rackY)
                   || (gridDeleteMode === 'column' && columnMatchIds?.has(p.id))
@@ -5869,14 +6169,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   <g key={`${roof.id}-${g.id}-${p.id}`} transform={rotation ? `rotate(${rotation} ${center.sx} ${center.sy})` : undefined}>
                     <rect
                       x={s.sx} y={rectY} width={w} height={rectH}
-                      fill={deletePicked ? '#c0392b' : overlapFill ? '#f5b7b1' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
+                      fill={deletePicked ? '#c0392b' : ownerColor ? ownerColor : overlapFill ? '#f5b7b1' : pct != null ? efficiencyColor(pct) : shaded ? '#e0873c' : (gSelected ? '#4a7dd8' : '#1c2b4a')}
                       // White at every state now (previously '#0a1428' when
                       // idle - nearly the same navy as the fill it sat on,
                       // so adjacent panels blurred into one slab instead of
                       // reading as separate modules; matches the white
                       // <Edges> the 3D view's own Panel now draws for the
                       // same reason).
-                      stroke={!deletePicked && overlaps ? (gSelected ? '#e74c3c' : '#d9534f') : '#fff'} strokeWidth={deletePicked ? 2 : overlaps ? (gSelected ? 2 : 1.2) : gSelected ? 1.5 : 0.6}
+                      stroke={picked ? '#111' : unowned ? '#e0a100' : !deletePicked && overlaps ? (gSelected ? '#e74c3c' : '#d9534f') : '#fff'} strokeWidth={picked ? 2.2 : unowned ? 1 : deletePicked ? 2 : overlaps ? (gSelected ? 2 : 1.2) : gSelected ? 1.5 : 0.6} strokeDasharray={unowned && !picked ? '2.5 1.5' : undefined}
                       // Editing a grid (drag/select/delete-mode picking)
                       // only belongs to Panel/Grid setup (step 4) - outside
                       // it (Roof setup in particular, where panels from an
@@ -5958,6 +6258,18 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
             {/* Marquee for the box-select drag from onSvgMouseDown - a live
                 rectangle in screen space while the drag is in progress. */}
             {boxSelectRect && (() => {
+              // A panel-picking box (Inverters & wiring) is turned to the
+              // grid's angle: drawn as the rotated rectangle it really is.
+              if (boxSelectRect.angle != null) {
+                const ang = boxSelectRect.angle, c = Math.cos(ang), sn = Math.sin(ang);
+                const sa = boxSelectRect.x0 * c + boxSelectRect.y0 * sn, sb = boxSelectRect.x1 * c + boxSelectRect.y1 * sn;
+                const ta = -boxSelectRect.x0 * sn + boxSelectRect.y0 * c, tb = -boxSelectRect.x1 * sn + boxSelectRect.y1 * c;
+                const toWorld = (ss, tt) => ({ x: ss * c - tt * sn, y: ss * sn + tt * c });
+                const pts = [toWorld(sa, ta), toWorld(sb, ta), toWorld(sb, tb), toWorld(sa, tb)].map((q) => { const sp = toScreen(q.x, q.y); return `${sp.sx},${sp.sy}`; }).join(' ');
+                return (
+                  <polygon points={pts} fill="rgba(47,111,237,0.12)" stroke="#2f6fed" strokeWidth={1} strokeDasharray="4 3" style={{ pointerEvents: 'none' }} />
+                );
+              }
               const a = toScreen(boxSelectRect.x0, boxSelectRect.y0);
               const b = toScreen(boxSelectRect.x1, boxSelectRect.y1);
               const x = Math.min(a.sx, b.sx), y = Math.min(a.sy, b.sy);
@@ -5983,7 +6295,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 if (swallowClickAfterDragRef.current) { swallowClickAfterDragRef.current = false; return; }
                 if (!placingShape && !drawingRoof) selectObstacle(o.id);
               };
-              const obstacleCursor = (drawingRoof || placingShape || placingGrid) ? 'inherit' : (movingObstacle && selected ? 'grabbing' : 'grab');
+              const obstacleCursor = (drawingRoof || placingShape || placingGrid || currentStep === STEP_INVERTERS) ? 'inherit' : (movingObstacle && selected ? 'grabbing' : 'grab');
               if (o.shape === 'cylinder') {
                 // A lightning arrestor's real radius is a few cm - too thin
                 // to see at most zoom levels - so it gets a fixed, larger
@@ -5997,7 +6309,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     key={o.id} cx={s.sx} cy={s.sy} r={isArrestor ? Math.max(o.radius * scale, 5) : o.radius * scale}
                     fill={isArrestor ? '#b0261e' : o.label === 'Tree' ? '#3f6b3a' : '#7d7d7d'} opacity={0.85}
                     stroke={selected ? '#2f6fed' : 'none'} strokeWidth={selected ? 3 : 0}
-                    style={{ cursor: obstacleCursor }}
+                    style={{ cursor: obstacleCursor, pointerEvents: currentStep === STEP_INVERTERS ? 'none' : undefined }}
                     onMouseDown={(e) => startObstacleDrag(e, o.id)}
                     onClick={handleSelectObstacle}
                   />
@@ -6019,7 +6331,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     points={o.polygon.map((p) => { const ps = toScreen(p.x, p.y); return `${ps.sx},${ps.sy}`; }).join(' ')}
                     fill={fill} opacity={isCutout ? 0.9 : isSkylight ? 0.75 : isWalkway ? 0.8 : 0.85}
                     stroke={selected ? '#2f6fed' : strokeColor} strokeWidth={selected ? 3 : (isCutout || isSkylight || isWalkway ? 1 : 0)}
-                    style={{ cursor: obstacleCursor }}
+                    style={{ cursor: obstacleCursor, pointerEvents: currentStep === STEP_INVERTERS ? 'none' : undefined }}
                     onMouseDown={(e) => startObstacleDrag(e, o.id)}
                     onClick={handleSelectObstacle}
                   />
@@ -6032,7 +6344,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                   width={o.width * scale} height={o.depth * scale}
                   fill="#8a6d5b" opacity={0.85}
                   stroke={selected ? '#2f6fed' : 'none'} strokeWidth={selected ? 3 : 0}
-                  style={{ cursor: obstacleCursor }}
+                  style={{ cursor: obstacleCursor, pointerEvents: currentStep === STEP_INVERTERS ? 'none' : undefined }}
                   transform={`rotate(${-o.rotation} ${s.sx} ${s.sy})`}
                   onMouseDown={(e) => startObstacleDrag(e, o.id)}
                   onClick={handleSelectObstacle}
@@ -6046,7 +6358,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 elsewhere purely informational (clicks pass through). */}
             {inverterPoses.map((p) => {
               const status = inverterStatusById.get(p.id) ?? 'idle';
-              const interactive = currentStep === STEP_INVERTERS && !drawingRoof && !placingShape && !placingGrid;
+              const interactive = currentStep === STEP_INVERTERS && !drawingRoof && !placingShape && !placingGrid && movingInverterId == null;
               const selected = interactive && selectedInverterId === p.id;
               const wPx = Math.max(p.w * scale, 18), dPx = Math.max(p.d * scale, 9);
               // The footprint is drawn at least 18x9 px so it stays visible when
@@ -6057,7 +6369,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
               const sc = wallPt ? { sx: wallPt.sx + p.facing.x * (dPx / 2 + 1), sy: wallPt.sy - p.facing.y * (dPx / 2 + 1) } : toScreen(p.x, p.y);
               const ang = (Math.atan2(-p.facing.x, -p.facing.y) * 180) / Math.PI;
               const bx = sc.sx + p.facing.x * (dPx / 2 + 13), by = sc.sy - p.facing.y * (dPx / 2 + 13);
-              const badge = status === 'error' ? '#c0392b' : status === 'warning' ? '#e0a100' : status === 'ok' ? '#2e9e57' : '#6b7280';
+              const badge = inverterColor(p.id);
+              const ring = status === 'error' ? '#c0392b' : status === 'warning' ? '#e0a100' : '#fff';
               return (
                 <g
                   key={`inv-${p.id}`}
@@ -6074,11 +6387,29 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     x={sc.sx - wPx / 2} y={sc.sy - dPx / 2} width={wPx} height={dPx} rx={2}
                     fill="#e4e7eb" stroke={selected ? '#2f6fed' : '#1c2b4a'} strokeWidth={selected ? 3 : 1.5}
                   />
-                  <circle cx={bx} cy={by} r={9.5} fill={badge} stroke="#fff" strokeWidth={1.5} />
+                  <circle cx={bx} cy={by} r={9.5} fill={badge} stroke={ring} strokeWidth={status === 'error' || status === 'warning' ? 2.5 : 1.5} />
                   <text x={bx} y={by + 3.6} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="#fff" style={{ pointerEvents: 'none' }}>{p.id}</text>
                 </g>
               );
             })}
+
+            {/* The inverter being moved: a translucent copy where a click would
+                put it - green, or red with the reason in the banner. */}
+            {ghostPose && (() => {
+              const wPx = Math.max(ghostPose.w * scale, 18), dPx = Math.max(ghostPose.d * scale, 9);
+              const wallPt = ghostPose.kind === 'wall' ? toScreen(ghostPose.x - ghostPose.facing.x * (ghostPose.d / 2 + 0.03), ghostPose.y - ghostPose.facing.y * (ghostPose.d / 2 + 0.03)) : null;
+              const sc = wallPt ? { sx: wallPt.sx + ghostPose.facing.x * (dPx / 2 + 1), sy: wallPt.sy - ghostPose.facing.y * (dPx / 2 + 1) } : toScreen(ghostPose.x, ghostPose.y);
+              const ang = (Math.atan2(-ghostPose.facing.x, -ghostPose.facing.y) * 180) / Math.PI;
+              const color = placeIssue ? '#c0392b' : '#2e9e57';
+              return (
+                <rect
+                  transform={`rotate(${ang} ${sc.sx} ${sc.sy})`}
+                  x={sc.sx - wPx / 2} y={sc.sy - dPx / 2} width={wPx} height={dPx} rx={2}
+                  fill={color} fillOpacity={0.55} stroke={color} strokeWidth={2}
+                  style={{ pointerEvents: 'none' }}
+                />
+              );
+            })()}
 
             {/* Corner handles for the selected drawn obstacle, drawn right
                 after the obstacles themselves so they sit on top - same
@@ -7444,7 +7775,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                     }))}
                     panelSpec={panelSpec}
                     obstacles={obstacles}
-                    inverters={inverterPoses.map((p) => ({ ...p, status: inverterStatusById.get(p.id) ?? 'idle' }))}
+                    inverters={inverterPoses.map((p) => ({ ...p, status: inverterStatusById.get(p.id) ?? 'idle', color: inverterColor(p.id) }))}
                     sunElevation={captureSun.elevation}
                     sunAzimuth={captureSun.azimuth}
                     mapImagePlacement={backdropPlacement}

@@ -72,7 +72,7 @@ function pointToEdge(p: { x: number; y: number }, poly: { x: number; y: number }
   return { dist: Math.hypot(p.x - qx, p.y - qy), t: s / len };
 }
 
-function poseFromMount(id: number, spec: InverterSpec, mount: InverterMount, roofs: PlacementRoof[], autoPlaced: boolean): InverterPose | null {
+export function poseFromMount(id: number, spec: InverterSpec, mount: InverterMount, roofs: PlacementRoof[], autoPlaced: boolean): InverterPose | null {
   const { w, h, d } = inverterDims(spec);
   if (mount.kind === 'ground') {
     return { id, kind: 'ground', autoPlaced, x: mount.x, y: mount.y, baseZ: 0, w, h, d, facing: { x: 0, y: -1 }, mount };
@@ -116,7 +116,7 @@ function freeSlot(len: number, width: number, target: number, taken: [number, nu
 // stand between the buildings, hidden and unreachable. Checked at the
 // point on the wall the inverter wants.
 const MIN_WALL_CLEARANCE_M = 2.5;
-function wallIsBoxedIn(roof: PlacementRoof, edge: number, t: number, roofs: PlacementRoof[]) {
+export function wallIsBoxedIn(roof: PlacementRoof, edge: number, t: number, roofs: PlacementRoof[]) {
   const info = edgeInfo(roof.polygon, edge);
   const px = info.a.x + info.tangent.x * info.len * t, py = info.a.y + info.tangent.y * info.len * t;
   const out = { x: px + info.normal.x * 1.0, y: py + info.normal.y * 1.0 };
@@ -226,4 +226,25 @@ function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: numbe
     if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
   }
   return inside;
+}
+
+// Why a spot is a poor place for `inverter`, or null when it is fine. Only
+// ever shown as a warning - a placement is never blocked.
+export function placementIssue(inverter: DesignInverter, mount: InverterMount, others: InverterPose[], roofs: PlacementRoof[]): string | null {
+  if (mount.kind === 'ground') return null;
+  const roof = roofs.find((r) => String(r.id) === String(mount.roofId));
+  if (!roof || roof.polygon.length < 3) return null;
+  const { w } = inverterDims(inverter.spec);
+  const info = edgeInfo(roof.polygon, mount.edge);
+  if (info.len < w + SIDE_GAP_M) return 'This wall is too short for the inverter';
+  const s = mount.t * info.len;
+  const clash = others.find((o) => {
+    if (o.id === inverter.id || o.kind !== 'wall') return false;
+    const om: any = o.mount;
+    if (String(om.roofId) !== String(mount.roofId) || om.edge !== mount.edge) return false;
+    return Math.abs(om.t * info.len - s) < (o.w + w) / 2 + SIDE_GAP_M / 2;
+  });
+  if (clash) return `Overlaps INV-${clash.id} on this wall`;
+  if (wallIsBoxedIn(roof, mount.edge, mount.t, roofs)) return 'Another building is right against this wall';
+  return null;
 }

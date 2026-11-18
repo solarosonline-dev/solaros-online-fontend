@@ -897,7 +897,7 @@
 .plant-design-editor .pde-inv-chip.ok { background: #e6f4ea; color: #1e7a3c; }
 .plant-design-editor .pde-inv-chip.warning { background: #fff4d6; color: #8a6200; }
 .plant-design-editor .pde-inv-chip.error { background: #fdecea; color: #c0392b; }
-.plant-design-editor .pde-inv-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.plant-design-editor .pde-inv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .plant-design-editor .pde-inv-actions .pde-btn { flex: 1; }
 .plant-design-editor .pde-inv-form { border: 1px solid #e3e5e8; border-radius: 8px; padding: 10px; margin-bottom: 10px; background: #fff; }
 .plant-design-editor .pde-inv-inline-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
@@ -942,3 +942,38 @@
 .plant-design-editor .pde-inv-place { margin-top: 6px; }
 .plant-design-editor .pde-inv-place-body { margin-top: 6px; padding: 8px; background: #f6f7f9; border-radius: 6px; }
 .plant-design-editor .pde-inv-place-body input[type=range] { width: 100%; }
+.plant-design-editor .pde-inv-selection { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 1px solid #2f6fed; background: #eef3ff; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+.plant-design-editor .pde-inv-selection select { flex: 1; min-width: 0; }
+.plant-design-editor .pde-inv-selbar { position: absolute; left: 12px; right: 12px; top: 104px; z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: fit-content; max-width: calc(100% - 24px); margin: 0 auto; background: #fff; border: 1px solid #c9d3ea; border-radius: 14px; padding: 6px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); font-size: 12.5px; }
+.plant-design-editor .pde-inv-selbar-label { color: #666; margin-left: 4px; }
+.plant-design-editor .pde-inv-selbar-chip { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; color: #fff; font-weight: 700; font-size: 12px; cursor: pointer; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); }
+.plant-design-editor .pde-inv-selbar-btn { border: 1px solid #cfd3d8; background: #f6f7f9; border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.plant-design-editor .pde-inv-legend { position: absolute; left: 12px; bottom: 12px; z-index: 8; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; background: rgba(255,255,255,0.92); border-radius: 8px; padding: 6px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; max-height: 40%; overflow: auto; }
+.plant-design-editor .pde-inv-legend-item { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 1px 2px; font-size: 12px; cursor: pointer; border-radius: 4px; }
+.plant-design-editor .pde-inv-legend-item.selected { background: #e5ecfb; }
+.plant-design-editor .pde-inv-legend-item.unconnected { cursor: default; color: #7a5c00; }
+.plant-design-editor .pde-inv-legend-swatch { width: 12px; height: 12px; border-radius: 3px; background: #9aa3ad; border: 1px solid rgba(0,0,0,0.25); }
+.plant-design-editor .pde-inv-legend-hint { font-size: 10.5px; color: #777; margin-top: 2px; }
+
+.plant-design-editor .pde-inv-modes { position: absolute; left: 12px; top: 60px; z-index: 9; display: flex; align-items: center; gap: 2px; background: #fff; border: 1px solid #c9d3ea; border-radius: 999px; padding: 3px 4px 3px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; }
+.plant-design-editor .pde-inv-modes-label { color: #666; margin-right: 4px; }
+.plant-design-editor .pde-inv-mode { border: none; background: none; border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.plant-design-editor .pde-inv-mode:hover { background: #eef1f6; }
+.plant-design-editor .pde-inv-mode.active { background: #1c2b4a; color: #fff; }
+
+.plant-design-editor .pde-inv-movebar { position: absolute; left: 12px; right: 12px; top: 60px; z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: fit-content; max-width: calc(100% - 24px); margin: 0 auto; background: #fff; border: 1px solid #2f6fed; border-radius: 14px; padding: 8px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); font-size: 12.5px; }
+.plant-design-editor .pde-inv-movebar-info { color: #1e7a3c; font-weight: 600; }
+.plant-design-editor .pde-inv-movebar-issue { color: #c0392b; font-weight: 600; }
+
+/* Inverters & wiring: every action reads as a real button. */
+.plant-design-editor .pde-inv-panel .pde-btn,
+.plant-design-editor .pde-inv-movebar .pde-btn { padding: 6px 12px; font-size: 12px; font-weight: 500; background: #f3f5f8; border: 1px solid #c3c9d3; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
+.plant-design-editor .pde-inv-panel .pde-btn:hover:not(:disabled) { background: #e8eef9; border-color: #2f6fed; }
+.plant-design-editor .pde-inv-panel .pde-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.plant-design-editor .pde-inv-panel .pde-btn.pde-btn-primary { background: #1c2b4a; border-color: #1c2b4a; color: #fff; }
+.plant-design-editor .pde-inv-panel .pde-btn.pde-btn-primary:hover:not(:disabled) { background: #16223b; border-color: #16223b; }
+.plant-design-editor .pde-inv-panel .pde-btn.pde-btn-danger { color: #c0392b; border-color: #e3b4ae; background: #fff6f5; }
+.plant-design-editor .pde-inv-panel .pde-btn.pde-btn-danger:hover:not(:disabled) { background: #fdecea; border-color: #c0392b; }
+.plant-design-editor .pde-inv-panel .pde-btn.pde-btn-sm { padding: 3px 9px; font-size: 11.5px; }
+.plant-design-editor .pde-inv-panel .pde-btn.danger { color: #c0392b; border-color: #e3b4ae; background: #fff6f5; }
+.plant-design-editor .pde-inv-actions .pde-btn { flex: 1 1 calc(50% - 4px); }

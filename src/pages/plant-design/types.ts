@@ -50,7 +50,10 @@ export interface PlantDesignData {
   // wiringInit for the one-time conversion.
   inverterChoice: any;
   inverters?: import('./inverterWiring').DesignInverter[];
+  // Count-based links from before per-panel ownership; read once on load.
   inverterLinks?: import('./inverterWiring').InverterLink[];
+  // Which inverter each panel feeds, keyed `${gridKey}#${panelId}`.
+  panelOwners?: Record<string, number>;
   designTemp: { min: number; max: number };
   targetDcAcRatio: number;
   mpptVoltageUtilizationPct: number;

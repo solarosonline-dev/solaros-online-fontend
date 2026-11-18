@@ -385,7 +385,7 @@ function PickBar({ a, b, ha, hb, state, onHover, onPick, isDragClick, palette = 
   );
 }
 
-function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, crossSlope = 0, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, overlaps = false, onClick = undefined as any }) {
+function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 0, roofHeight, frontHeight, backHeight, crossSlope = 0, shaded, efficiencyPct, ghost = false, selected = false, deletePicked = false, overlaps = false, ownerColor = undefined as any, picked = false, onClick = undefined as any }) {
   const tiltRad = tilt * DEG;
   const rotationY = (-azimuth - extraRotation + gridRotation) * DEG;
   const centerY = roofHeight + (frontHeight + backHeight) / 2;
@@ -401,7 +401,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
   // Overlapping an obstacle / another grid (`overlaps`): the 2D plan's light
   // red fill and red edge - in a selected grid the panel stays blue and
   // keeps just the red edge, also as in 2D.
-  const color = deletePicked ? '#c0392b' : selected ? SELECTED_COLOR : overlaps ? '#f5b7b1' : efficiencyPct != null ? sunExposureColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
+  const color = deletePicked ? '#c0392b' : ownerColor ? ownerColor : selected ? SELECTED_COLOR : overlaps ? '#f5b7b1' : efficiencyPct != null ? sunExposureColor(efficiencyPct) : (shaded ? '#e0873c' : '#1c2b4a');
 
   return (
     <group position={toThree(x, y, centerY)} rotation={[0, rotationY, 0]} onClick={onClick}>
@@ -427,7 +427,7 @@ function Panel({ x, y, w, len, tilt, azimuth, extraRotation = 0, gridRotation = 
             read as separate modules instead of blurring into one solid
             slab, especially once every panel's own tint is close to
             identical (the common case, no shading/efficiency view active). */}
-        {!ghost && <Edges color={overlaps && !deletePicked ? '#d9534f' : 'white'} />}
+        {!ghost && <Edges color={picked ? '#111' : overlaps && !deletePicked ? '#d9534f' : 'white'} />}
       </mesh>
     </group>
   );
@@ -1026,8 +1026,8 @@ function InverterBox({ inv, selected, onSelect, isDragClick }: any) {
       </mesh>
       <Html position={[0, h / 2 + 0.3, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: 'none' }}>
         <div style={{
-          width: 24, height: 24, borderRadius: '50%', background: INVERTER_BADGE_COLORS[inv.status as keyof typeof INVERTER_BADGE_COLORS] ?? INVERTER_BADGE_COLORS.idle,
-          color: '#fff', border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', fontSize: 12, fontWeight: 700,
+          width: 24, height: 24, borderRadius: '50%', background: inv.color ?? INVERTER_BADGE_COLORS.idle,
+          color: '#fff', border: `2px solid ${inv.status === 'error' ? '#c0392b' : inv.status === 'warning' ? '#e0a100' : '#fff'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.4)', fontSize: 12, fontWeight: 700,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif',
         }}>{inv.id}</div>
       </Html>
@@ -1117,7 +1117,7 @@ function CaptureViews({ views, target, radius, onDone }: {
   return null;
 }
 
-export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as any[], selectedInverterId = null as any, onSelectInverter = undefined as any, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, gridAdd = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
+export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as any[], selectedInverterId = null as any, onSelectInverter = undefined as any, placeInverter = false, onPlaceHover = undefined as any, onPlaceClick = undefined as any, inverterGhost = null as any, sunElevation, sunAzimuth, placingShape, onPlaceObstacle, selectedObstacleId, onSelectObstacle, selectedRoofId, onSelectRoof, canSelectRoofs = false, highlightRoofId = null as any, focusPoint = null as any, onPickPanelForDelete = undefined as any, edgePick = null as any, gridAdd = null as any, onBackgroundClick = undefined as any, canSelectGrids = false, onSelectGrid = undefined as any, showPanels = true, ghostPanels = false, mapImagePlacement = null as any, mapImageWidePlacement = null as any, onCompassAngleChange, capture = null as any, formatLength = ((m) => `${m.toFixed(1)} m`) as any }: any) {
   const maxBuildingHeight = Math.max(0, ...roofs.map((r) => r.buildingHeight));
   const orbitControlsRef = useRef<any>(null);
   // Orbiting/panning the camera is a pointerdown-drag-pointerup on the same
@@ -1287,7 +1287,23 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
     [contentCentroid, maxBuildingHeight]
   );
 
+  // Moving an inverter: the pointer's hit point on whatever it is over (a
+  // wall face, a roof, the ground) in plan x/y plus the height it hit.
+  function placeInfo(e, roofId) {
+    return { x: e.point.x, y: -e.point.z, h: roofId == null ? 0 : e.point.y };
+  }
+  function handlePlaceMove(e, roofId = null) {
+    if (!placeInverter) return;
+    onPlaceHover?.(placeInfo(e, roofId));
+  }
+
   function handleClick(e, roofId = null) {
+    if (placeInverter) {
+      e.stopPropagation();
+      if (isDragClick(e)) return;
+      onPlaceClick?.(placeInfo(e, roofId));
+      return;
+    }
     if (placingShape) {
       e.stopPropagation();
       onPlaceObstacle(e.point.x, -e.point.z);
@@ -1316,7 +1332,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
 
   return (
     <div
-      style={{ width: '100%', height: '100%', cursor: placingShape ? 'crosshair' : 'default' }}
+      style={{ width: '100%', height: '100%', cursor: placingShape || placeInverter ? 'crosshair' : 'default' }}
       onPointerDown={(e) => { pointerDownRef.current = { x: e.clientX, y: e.clientY }; }}
       onWheelCapture={glideToFocusOnWheel}
     >
@@ -1337,7 +1353,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
         {/* Click-catcher for obstacle placement — kept even when a map image
             covers it visually, offset slightly below so it never z-fights
             with whatever's drawn on top of it. */}
-        <mesh position={[0, mapImagePlacement ? -0.01 : 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow onClick={(e) => handleClick(e)}>
+        <mesh position={[0, mapImagePlacement ? -0.01 : 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow onClick={(e) => handleClick(e)} onPointerMove={(e) => handlePlaceMove(e)}>
           <planeGeometry args={[groundSize, groundSize]} />
           <meshStandardMaterial color="#eef3ea" />
         </mesh>
@@ -1381,7 +1397,7 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
             ? []
             : obstacles.filter((o) => o.label === 'Cutout' && o.polygon?.length >= 3).map((o) => o.polygon);
           return (
-            <group key={roof.id}>
+            <group key={roof.id} onPointerMove={(e) => handlePlaceMove(e, roof.id)}>
               {roof.type === 'pitched' ? (
                 <>
                   <PitchedBuilding polygon={roofPoly} buildingHeight={roof.buildingHeight} pitchDeg={roof.pitchDeg} direction={getPitchedRoofSlopeAzimuth(roof)} selected={selected} onClick={(e) => handleClick(e, roof.id)} />
@@ -1435,6 +1451,8 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
                       selected={!ghostPanels && grid.selected}
                       deletePicked={!ghostPanels && !!grid.deletePickedIds?.has(p.id)}
                       overlaps={!ghostPanels && !!grid.overlapIds?.has(p.id)}
+                      ownerColor={!ghostPanels ? grid.ownerColors?.[p.id] : undefined}
+                      picked={!ghostPanels && !!grid.pickedIds?.has(p.id)}
                       // A click on any panel selects its whole grid (shift
                       // toggles it in/out of a multi-selection), matching
                       // the 2D plan - only in Panel/Grid setup.
@@ -1576,10 +1594,23 @@ export default function Scene3D({ roofs, panelSpec, obstacles, inverters = [] as
             key={`inv-${inv.id}`}
             inv={inv}
             selected={selectedInverterId === inv.id}
-            onSelect={placingShape ? null : onSelectInverter}
+            onSelect={placingShape || placeInverter ? null : onSelectInverter}
             isDragClick={isDragClick}
           />
         ))}
+
+        {inverterGhost && (
+          <group
+            position={[...toThree(inverterGhost.x, inverterGhost.y)].map((v, i) => (i === 1 ? inverterGhost.baseZ + inverterGhost.h / 2 : v)) as [number, number, number]}
+            rotation={[0, Math.atan2(inverterGhost.facing.x, -inverterGhost.facing.y), 0]}
+          >
+            <mesh>
+              <boxGeometry args={[inverterGhost.w, inverterGhost.h, inverterGhost.d]} />
+              <meshStandardMaterial color={inverterGhost.bad ? '#c0392b' : '#2e9e57'} transparent opacity={0.6} depthWrite={false} />
+              <Edges color={inverterGhost.bad ? '#7a1e14' : '#1e7a3c'} />
+            </mesh>
+          </group>
+        )}
 
         {capture && (
           <CaptureViews

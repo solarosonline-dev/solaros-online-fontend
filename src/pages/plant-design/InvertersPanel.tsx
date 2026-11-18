@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import NumberField from '../../components/NumberField';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { SliderInput } from './PlantDesignControls';
 import { CUSTOM_INVERTER_MAKE, inverterCatalogMakes, inverterCatalogModels, findInverter } from './inverterCatalog.js';
 import { edgeInfo, type InverterPose, type PlacementRoof } from './inverterPlacement';
 import {
-  addInverters, removeInverter, disconnectGrid, setLinkPanels, autoAssignWiring, fillExistingInverters, inverterLabel,
-  type DesignInverter, type InverterLink, type InverterSpec, type SiteGrid, type SitePlan,
+  addInverters, removeInverterFromOwners, connectGrid, disconnectGridFromInverter, setGridPanelCount,
+  suggestAssignment, inverterColor, inverterLabel,
+  type DesignInverter, type InverterSpec, type PanelOwners, type SiteGrid, type SitePlan,
 } from './inverterWiring';
 
 // The Inverters & wiring step's left panel: add inverters, connect grids to
@@ -88,30 +88,98 @@ function PanelCountEditor({ max, initial, label, onConfirm, onCancel }: { max: n
     <div className="pde-inv-inline">
       <div className="pde-field-sm-hint" style={{ marginBottom: 4 }}>{label}</div>
       <div className="pde-inv-inline-row">
-        <NumberField min={1} max={max} step="1" value={n} onCommit={(v) => setN(Math.max(0, Math.min(max, Math.floor(v))))} />
+        <NumberField min={0} max={max} step="1" value={n} onCommit={(v) => setN(Math.max(0, Math.min(max, Math.floor(v))))} />
         <span className="pde-field-sm-hint">of {max}</span>
-        <button className="pde-btn" onClick={() => onConfirm(n)} disabled={n < 1}>Apply</button>
+        <button className="pde-btn" onClick={() => onConfirm(n)}>Apply</button>
         <button className="pde-btn" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );
 }
 
+// Floating over the plan/3D canvas: a legend of the inverter colours (click
+// one to select it) and, while panels are picked on the plan, the bar that
+// connects them to an inverter.
+export function InverterCanvasOverlay({ inverters, unconnectedPanels, selectedCount, selectedInverterId, onSelectInverter, onConnect, onConnectNew, onDisconnect, onClear, selectMode, onSelectMode, moving, onCancelMove }: {
+  inverters: { id: number; panels: number }[];
+  unconnectedPanels: number;
+  selectedCount: number;
+  selectedInverterId: number | null;
+  onSelectInverter: (id: number) => void;
+  onConnect: (id: number) => void;
+  onConnectNew: () => void;
+  onDisconnect: () => void;
+  onClear: () => void;
+  selectMode: 'box' | 'row' | 'column' | 'grid' | 'brush';
+  onSelectMode: (m: 'box' | 'row' | 'column' | 'grid' | 'brush') => void;
+  moving: { id: number; info: string | null; issue: string | null } | null;
+  onCancelMove: () => void;
+}) {
+  const modes: { id: 'box' | 'row' | 'column' | 'grid' | 'brush'; label: string; tip: string }[] = [
+    { id: 'box', label: 'Box', tip: 'Drag a box (turned to the grid\'s angle) or click a panel' },
+    { id: 'row', label: 'Row', tip: 'Click a panel to pick its whole row' },
+    { id: 'column', label: 'Column', tip: 'Click a panel to pick its whole column' },
+    { id: 'grid', label: 'Grid', tip: 'Click a panel to pick its whole grid' },
+    { id: 'brush', label: 'Brush', tip: 'Drag across panels to pick them (Alt removes)' },
+  ];
+  if (moving) {
+    return (
+      <div className="pde-inv-movebar" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+        <strong>Placing INV-{moving.id}</strong>
+        <span>Click a wall in 3D, or a spot on the plan · Esc to cancel</span>
+        {moving.info && <span className="pde-inv-movebar-info">{moving.info}</span>}
+        {moving.issue && <span className="pde-inv-movebar-issue">⚠ {moving.issue} (you can still place it)</span>}
+        <button className="pde-inv-selbar-btn" onClick={onCancelMove}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="pde-inv-modes" onMouseDown={(e) => e.stopPropagation()}>
+        <span className="pde-inv-modes-label">Pick</span>
+        {modes.map((m) => (
+          <button key={m.id} className={`pde-inv-mode${selectMode === m.id ? ' active' : ''}`} title={m.tip} onClick={() => onSelectMode(m.id)}>{m.label}</button>
+        ))}
+      </div>
+      {selectedCount > 0 && (
+        <div className="pde-inv-selbar" onMouseDown={(e) => e.stopPropagation()}>
+          <strong>{selectedCount} panel{selectedCount === 1 ? '' : 's'} selected</strong>
+          <span className="pde-inv-selbar-label">Connect to</span>
+          {inverters.map((i) => (
+            <button key={i.id} className="pde-inv-selbar-chip" style={{ background: inverterColor(i.id) }} onClick={() => onConnect(i.id)} title={`Connect the selected panels to INV-${i.id}`}>{i.id}</button>
+          ))}
+          <button className="pde-inv-selbar-btn" onClick={onConnectNew}>+ New inverter</button>
+          <button className="pde-inv-selbar-btn" onClick={onDisconnect}>Disconnect</button>
+          <button className="pde-inv-selbar-btn" aria-label="Clear selection" onClick={onClear}>✕</button>
+        </div>
+      )}
+      <div className="pde-inv-legend" onMouseDown={(e) => e.stopPropagation()}>
+        {inverters.map((i) => (
+          <button key={i.id} className={`pde-inv-legend-item${selectedInverterId === i.id ? ' selected' : ''}`} onClick={() => onSelectInverter(i.id)}>
+            <span className="pde-inv-legend-swatch" style={{ background: inverterColor(i.id) }} />INV-{i.id} · {i.panels}
+          </button>
+        ))}
+        {unconnectedPanels > 0 && (
+          <span className="pde-inv-legend-item unconnected"><span className="pde-inv-legend-swatch" />Not connected · {unconnectedPanels}</span>
+        )}
+        <div className="pde-inv-legend-hint">⌘/Shift adds to the pick · Alt removes (brush)</div>
+      </div>
+    </>
+  );
+}
+
 export default function InvertersPanel({
-  inverters, links, setInverters, setLinks, grids, sitePlan, defaultSpec, onDefaultSpecChange,
-  targetDcAcRatio, onTargetDcAcRatioChange, planInputs, onNext, onBack,
-  poses, placementRoofs, selectedInverterId, onSelectInverter,
+  inverters, owners, setInverters, setOwners, grids, sitePlan, defaultSpec, onDefaultSpecChange, planInputs, onNext, onBack,
+  poses, placementRoofs, selectedInverterId, onSelectInverter, selectedPanelKeys, onClearPanelSelection, onMoveInverter,
 }: {
   inverters: DesignInverter[];
-  links: InverterLink[];
+  owners: PanelOwners;
   setInverters: (v: DesignInverter[]) => void;
-  setLinks: (v: InverterLink[]) => void;
+  setOwners: (v: PanelOwners) => void;
   grids: SiteGrid[];
   sitePlan: SitePlan;
   defaultSpec: InverterSpec;
   onDefaultSpecChange: (s: InverterSpec) => void;
-  targetDcAcRatio: number;
-  onTargetDcAcRatioChange: (v: number) => void;
   planInputs: { module: any; designMinTempC: number; designMaxTempC: number; mpptVoltageUtilizationPct: number };
   onNext: () => void;
   onBack?: () => void;
@@ -119,19 +187,20 @@ export default function InvertersPanel({
   placementRoofs: PlacementRoof[];
   selectedInverterId: number | null;
   onSelectInverter: (id: number | null) => void;
+  selectedPanelKeys: Set<string>;
+  onClearPanelSelection: () => void;
+  // Starts "click where to put it" on the canvas (desktop only).
+  onMoveInverter?: (id: number) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [autoOpen, setAutoOpen] = useState(false);
-  const [confirmAuto, setConfirmAuto] = useState(false);
-  const [confirmRebalance, setConfirmRebalance] = useState(false);
-  const [autoNote, setAutoNote] = useState<{ text: string; level: 'info' | 'warning' } | null>(null);
+  const [note, setNote] = useState<{ text: string; level: 'info' | 'warning' } | null>(null);
   const [connectMenuFor, setConnectMenuFor] = useState<number | null>(null);
-  // An open "how many panels" editor: either splitting a grid onto an
-  // inverter, or changing an existing link's count.
   const [editing, setEditing] = useState<{ inverterId: number; gridKey: string; initial: number } | null>(null);
   const [changingSpecFor, setChangingSpecFor] = useState<number | null>(null);
   const [placingFor, setPlacingFor] = useState<number | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   // Selecting an inverter on the canvas brings its card into view.
   useEffect(() => {
@@ -142,60 +211,48 @@ export default function InvertersPanel({
   const gridByKey = new Map(grids.map((g) => [g.key, g]));
   const perGridByKey = new Map(sitePlan.perGrid.map((g) => [g.key, g]));
   const ratio = sitePlan.totalAcKw > 0 ? sitePlan.totalDcKw / sitePlan.totalAcKw : 0;
+  const free = sitePlan.unconnected;
+  const hasGrids = grids.length > 0;
 
   function connect(inverterId: number, gridKey: string) {
     const g = gridByKey.get(gridKey);
-    const info = perGridByKey.get(gridKey);
-    if (!g || !info) return;
+    if (!g) return;
     setConnectMenuFor(null);
-    if (info.unconnected > 0) {
-      // Free panels exist: take them all (an 'all' link is the remainder).
-      setLinks(setLinkPanels(links, gridKey, inverterId, g.panelCount, info.unconnected));
-      return;
-    }
-    // Fully connected elsewhere: ask how many to move here.
-    setEditing({ inverterId, gridKey, initial: Math.max(1, Math.floor(g.panelCount / 2)) });
+    setOwners(connectGrid(owners, g, inverterId));
   }
 
-  function runAutoAssign() {
-    const res = autoAssignWiring({ grids, module: planInputs.module, spec: defaultSpec, designMinTempC: planInputs.designMinTempC, designMaxTempC: planInputs.designMaxTempC, targetDcAcRatio, mpptVoltageUtilizationPct: planInputs.mpptVoltageUtilizationPct });
-    setInverters(res.inverters);
-    setLinks(res.links);
-    setAutoOpen(false);
-    setConfirmAuto(false);
-    setAutoNote(res.failures.length > 0
-      ? { level: 'warning', text: `Couldn't place: ${res.failures.map((f) => `${f.label} (${f.reason})`).join('; ')}` }
-      : null);
-  }
-
-  // With inverters already on the site, Auto-assign just connects the
-  // unconnected grids to them - no model prompt, nothing replaced.
-  function fillExisting(rebalance = false) {
+  // Suggested assignment: only panels with no inverter yet, only onto the
+  // inverters already added - and says so when they don't have room.
+  function suggest() {
     setAdding(false);
-    setAutoOpen(false);
-    const res = fillExistingInverters({ inverters, links: rebalance ? [] : links, grids, module: planInputs.module, designMinTempC: planInputs.designMinTempC, designMaxTempC: planInputs.designMaxTempC, mpptVoltageUtilizationPct: planInputs.mpptVoltageUtilizationPct, balance: rebalance });
-    setLinks(res.links);
-    if (rebalance && res.unplaced.length === 0) {
-      setAutoNote({ level: 'info', text: `Re-balanced: all ${res.connectedPanels} panels spread across ${inverters.length} inverter${inverters.length === 1 ? '' : 's'}.` });
+    if (inverters.length === 0) {
+      setNote({ level: 'warning', text: 'Add an inverter first - suggestions use the inverters you have added.' });
       return;
     }
+    const res = suggestAssignment({
+      inverters, owners, grids, module: planInputs.module, designMinTempC: planInputs.designMinTempC, designMaxTempC: planInputs.designMaxTempC,
+      mpptVoltageUtilizationPct: planInputs.mpptVoltageUtilizationPct,
+      positions: new Map(poses.map((p) => [p.id, { x: p.x, y: p.y }])),
+    });
+    setOwners(res.owners);
+    const how = res.assigned > 0
+      ? `Connected ${res.assigned} panels in whole strings along rows (${res.wholeRows} row${res.wholeRows === 1 ? '' : 's'} kept on one inverter${res.splitRows > 0 ? `, ${res.splitRows} split between inverters` : ''}).`
+      : '';
     if (res.unplaced.length > 0) {
-      setAutoNote({ level: 'warning', text: `Connected ${res.connectedPanels} panels. ${res.unplaced.map((u) => `${u.label}: ${u.panels} panels`).join('; ')} didn't fit on the current inverters - add another inverter.` });
-    } else if (res.connectedPanels > 0) {
-      setAutoNote({ level: 'info', text: `Connected ${res.connectedPanels} panels to your existing inverters.` });
+      const lines = res.unplaced.map((u) => `${u.label}: ${u.panels} panels - ${u.reason}`).join('; ');
+      setNote({ level: 'warning', text: `${how} Not connected: ${lines}.${res.unplaced.some((u) => u.reason.startsWith('no inverter has MPPT')) ? ' Add another inverter for those.' : ''}`.trim() });
+    } else if (res.assigned > 0) {
+      setNote({ level: 'info', text: how });
     } else {
-      setAutoNote({ level: 'info', text: 'Every grid is already connected.' });
+      setNote({ level: 'info', text: 'Every panel is already connected.' });
     }
   }
-
-  const free = sitePlan.unconnected;
-  const hasGrids = grids.length > 0;
 
   return (
     <div className="pde-inv-panel">
       <div className="pde-step1-heading">Inverters & wiring</div>
       <div className="pde-field-sm-hint" style={{ marginBottom: 10 }}>
-        Add inverters, then connect each grid to one. A grid can be split across inverters.
+        Add inverters, then connect panels to them: pick panels on the plan (drag, or ⌘-click) or connect whole grids below.
       </div>
 
       <div className="pde-inv-summary">
@@ -211,14 +268,31 @@ export default function InvertersPanel({
         </div>
       </div>
 
-      <div className="pde-inv-actions">
-        <button className="pde-btn" onClick={() => { setAdding((v) => !v); setAutoOpen(false); }} disabled={!hasGrids}>+ Add inverter</button>
-        <button className="pde-btn" onClick={() => { setAutoNote(null); if (inverters.length > 0) fillExisting(); else { setAutoOpen((v) => !v); setAdding(false); } }} disabled={!hasGrids}>Auto-assign</button>
-        {inverters.length > 0 && <button className="pde-btn" onClick={() => { setAutoNote(null); setConfirmRebalance(true); }} disabled={!hasGrids} title="Re-spread every grid across your current inverters">Re-balance</button>}
-      </div>
-      {inverters.length > 0 && hasGrids && !autoOpen && (
-        <button className="pde-inv-link-btn" style={{ marginBottom: 8 }} onClick={() => { setAutoNote(null); setAutoOpen(true); setAdding(false); }}>Clear all &amp; auto-assign from scratch…</button>
+      {selectedPanelKeys.size > 0 && (
+        <div className="pde-inv-selection">
+          <strong>{selectedPanelKeys.size} panel{selectedPanelKeys.size === 1 ? '' : 's'} selected</strong>
+          <select
+            value=""
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setOwners({ ...owners, ...Object.fromEntries([...selectedPanelKeys].map((k) => [k, Number(e.target.value)])) });
+              onClearPanelSelection();
+            }}
+            aria-label="Connect the selected panels to an inverter"
+          >
+            <option value="">Connect to…</option>
+            {inverters.map((i) => <option key={i.id} value={i.id}>INV-{i.id} · {inverterLabel(i.spec)}</option>)}
+          </select>
+          <button className="pde-btn" onClick={onClearPanelSelection}>Clear</button>
+        </div>
       )}
+
+      <div className="pde-inv-actions">
+        <button className="pde-btn pde-btn-primary" onClick={() => { setAdding((v) => !v); setNote(null); }} disabled={!hasGrids}>+ Add inverter</button>
+        <button className="pde-btn" onClick={() => { setNote(null); suggest(); }} disabled={!hasGrids} title="Connect panels that have no inverter yet to the inverters you've added">Suggest assignment</button>
+        <button className="pde-btn" onClick={() => { setNote(null); setConfirmClear(true); }} disabled={sitePlan.inverters.every((e) => e.entries.length === 0)} title="Disconnect every panel from its inverter (the inverters stay)">Clear assignments</button>
+        <button className="pde-btn pde-btn-danger" onClick={() => { setNote(null); setConfirmDeleteAll(true); }} disabled={inverters.length === 0} title="Remove every inverter and all connections">Delete all inverters</button>
+      </div>
       {!hasGrids && <div className="pde-field-sm-hint">Place panels first (Panel/Grid setup) - there is nothing to connect yet.</div>}
 
       {adding && (
@@ -232,32 +306,28 @@ export default function InvertersPanel({
         </div>
       )}
 
-      {autoOpen && (
-        <div className="pde-inv-form">
-          <div className="pde-field-sm-hint" style={{ marginBottom: 6 }}>Starts over: sizes new inverters and connects every grid as a starting point you can then edit.</div>
-          <InverterSpecFields spec={defaultSpec} onChange={onDefaultSpecChange} />
-          <div className="pde-field-sm"><label>Target DC:AC ratio</label><SliderInput min={0.8} max={1.5} hardMax={2.5} step={0.01} value={targetDcAcRatio} onChange={onTargetDcAcRatioChange} /></div>
-          <div className="pde-inv-inline-row">
-            <button className="pde-btn" onClick={() => (inverters.length > 0 || links.length > 0 ? setConfirmAuto(true) : runAutoAssign())}>Run</button>
-            <button className="pde-btn" onClick={() => setAutoOpen(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
-      {autoNote && (autoNote.level === 'warning'
-        ? <div className="pde-field-error" style={{ marginTop: 6 }}>{autoNote.text}</div>
-        : <div className="pde-field-sm-hint" style={{ marginTop: 6 }}>{autoNote.text}</div>)}
+      {note && (note.level === 'warning'
+        ? <div className="pde-field-error" style={{ marginTop: 6 }}>{note.text}</div>
+        : <div className="pde-field-sm-hint" style={{ marginTop: 6 }}>{note.text}</div>)}
 
       {inverters.length === 0 && hasGrids && (
-        <div className="pde-inv-empty">No inverters yet. Add one, or use Auto-assign to start from a suggestion.</div>
+        <div className="pde-inv-empty">No inverters yet. Add one, then connect panels to it.</div>
       )}
 
       {sitePlan.inverters.map((ev) => {
         const inv = inverters.find((i) => i.id === ev.id)!;
-        const unconnectedForMenu = grids.filter((g) => !ev.entries.some((en) => en.gridKey === g.key));
+        const color = inverterColor(ev.id);
+        const otherGrids = grids.filter((g) => !ev.entries.some((en) => en.gridKey === g.key));
         return (
-          <div key={ev.id} id={`pde-inv-card-${ev.id}`} className={`pde-inv-card ${ev.status}${selectedInverterId === ev.id ? ' selected' : ''}`} onClick={() => onSelectInverter(ev.id)}>
+          <div
+            key={ev.id}
+            id={`pde-inv-card-${ev.id}`}
+            className={`pde-inv-card ${ev.status}${selectedInverterId === ev.id ? ' selected' : ''}`}
+            style={{ borderLeftColor: color }}
+            onClick={() => onSelectInverter(ev.id)}
+          >
             <div className="pde-inv-card-head">
-              <span className="pde-inv-badge">{ev.id}</span>
+              <span className="pde-inv-badge" style={{ background: color }}>{ev.id}</span>
               <div className="pde-inv-card-title">
                 <strong>{inverterLabel(ev.spec)}</strong>
                 <span className="pde-field-sm-hint">{ev.spec.acPowerKw} kW AC · {ev.spec.mpptCount} MPPT</span>
@@ -280,42 +350,29 @@ export default function InvertersPanel({
               const g = gridByKey.get(en.gridKey)!;
               const isSplit = en.panels < g.panelCount;
               return (
-                <div key={en.gridKey} className="pde-inv-entry">
+                <div key={en.gridKey} className="pde-inv-entry" onClick={(e) => e.stopPropagation()}>
                   <div className="pde-inv-entry-main">
                     <span>{en.gridLabel}</span>
                     <span className="pde-field-sm-hint">
-                      {en.panels}{isSplit ? ` of ${g.panelCount}` : ''} panels{en.strings.length > 0 && <> · {en.strings.length} string{en.strings.length === 1 ? '' : 's'} ({[...new Set(en.strings)].join('/')})</>}
+                      {en.panels}{isSplit ? ` of ${g.panelCount}` : ''} panels{en.strings.length > 0 && <> · {en.strings.length} string{en.strings.length === 1 ? '' : 's'} ({[...en.strings].sort((a, b) => a - b).join(', ')} panels)</>}
                     </span>
                   </div>
                   <div className="pde-inv-entry-actions">
-                    <button className="pde-inv-link-btn" onClick={() => setEditing({ inverterId: ev.id, gridKey: en.gridKey, initial: en.panels })}>Panels</button>
-                    <button className="pde-inv-link-btn" aria-label={`Disconnect ${en.gridLabel}`} onClick={() => setLinks(disconnectGrid(links, ev.id, en.gridKey))}>✕</button>
+                    <button className="pde-btn pde-btn-sm" onClick={() => setEditing({ inverterId: ev.id, gridKey: en.gridKey, initial: en.panels })}>Panels</button>
+                    <button className="pde-btn pde-btn-sm" aria-label={`Disconnect ${en.gridLabel}`} onClick={() => setOwners(disconnectGridFromInverter(owners, g, ev.id))}>✕</button>
                   </div>
                   {editing && editing.inverterId === ev.id && editing.gridKey === en.gridKey && (
                     <PanelCountEditor
                       max={g.panelCount}
                       initial={editing.initial}
-                      label={`How many of ${g.panelCount} panels go to INV-${ev.id}?`}
-                      onConfirm={(n) => { setLinks(setLinkPanels(links, en.gridKey, ev.id, g.panelCount, n)); setEditing(null); }}
+                      label={`How many of ${g.panelCount} panels does INV-${ev.id} take?`}
+                      onConfirm={(n) => { setOwners(setGridPanelCount(owners, g, ev.id, n)); setEditing(null); }}
                       onCancel={() => setEditing(null)}
                     />
                   )}
                 </div>
               );
             })}
-
-            {editing && editing.inverterId === ev.id && !ev.entries.some((en) => en.gridKey === editing.gridKey) && (() => {
-              const g = gridByKey.get(editing.gridKey)!;
-              return (
-                <PanelCountEditor
-                  max={g.panelCount}
-                  initial={editing.initial}
-                  label={`${g.label}: how many of ${g.panelCount} panels go to INV-${ev.id}?`}
-                  onConfirm={(n) => { setLinks(setLinkPanels(links, editing.gridKey, ev.id, g.panelCount, n)); setEditing(null); }}
-                  onCancel={() => setEditing(null)}
-                />
-              );
-            })()}
 
             {ev.issues.map((issue, i) => (
               <div key={i} className={`pde-inv-issue ${issue.level}`}>{issue.level === 'error' ? '⛔' : '⚠'} {issue.message}</div>
@@ -329,7 +386,7 @@ export default function InvertersPanel({
               const open = placingFor === ev.id;
               return (
                 <div className="pde-inv-place">
-                  <button className="pde-inv-link-btn" onClick={(e) => { e.stopPropagation(); setPlacingFor(open ? null : ev.id); }}>
+                  <button className="pde-btn pde-btn-sm" onClick={(e) => { e.stopPropagation(); setPlacingFor(open ? null : ev.id); }}>
                     {pose.kind === 'wall' ? `Wall-mounted · wall ${m.edge + 1}` : 'Ground-mounted'}{pose.autoPlaced ? ' (auto)' : ''} {open ? '▴' : '▾'}
                   </button>
                   {open && (
@@ -377,19 +434,20 @@ export default function InvertersPanel({
                   onBlur={() => setConnectMenuFor(null)}
                 >
                   <option value="">Choose a grid…</option>
-                  {unconnectedForMenu.map((g) => {
+                  {otherGrids.map((g) => {
                     const info = perGridByKey.get(g.key)!;
-                    return <option key={g.key} value={g.key}>{g.label} · {g.panelCount} panels{info.unconnected === g.panelCount ? '' : info.unconnected > 0 ? ` (${info.unconnected} free)` : ' (connected elsewhere)'}</option>;
+                    return <option key={g.key} value={g.key}>{g.label} · {g.panelCount} panels{info.unconnected === g.panelCount ? '' : info.unconnected > 0 ? ` (${info.unconnected} free)` : ' (all connected - moves it)'}</option>;
                   })}
                 </select>
               ) : (
-                <button className="pde-btn" onClick={() => setConnectMenuFor(ev.id)} disabled={unconnectedForMenu.length === 0}>+ Connect grid</button>
+                <button className="pde-btn" onClick={() => setConnectMenuFor(ev.id)} disabled={otherGrids.length === 0}>+ Connect grid</button>
               )}
+              {onMoveInverter && <button className="pde-btn" onClick={() => onMoveInverter(ev.id)} title="Then click a wall in 3D, or a spot on the plan">Move…</button>}
               <button className="pde-btn" onClick={() => setChangingSpecFor(changingSpecFor === ev.id ? null : ev.id)}>Change model</button>
-              <button className="pde-btn danger" onClick={() => { const r = removeInverter(inverters, links, ev.id); setInverters(r.inverters); setLinks(r.links); }}>Delete</button>
+              <button className="pde-btn danger" onClick={() => { setInverters(inverters.filter((i) => i.id !== ev.id)); setOwners(removeInverterFromOwners(owners, ev.id)); }}>Delete</button>
             </div>
             {changingSpecFor === ev.id && (
-              <div className="pde-inv-form">
+              <div className="pde-inv-form" onClick={(e) => e.stopPropagation()}>
                 <InverterSpecFields spec={inv.spec} onChange={(s) => setInverters(inverters.map((i) => (i.id === ev.id ? { ...i, spec: s } : i)))} />
                 <button className="pde-btn" onClick={() => setChangingSpecFor(null)}>Done</button>
               </div>
@@ -422,30 +480,29 @@ export default function InvertersPanel({
         </div>
       )}
 
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        title="Delete all inverters?"
+        message="Every inverter is removed along with all panel connections. You can undo this."
+        confirmLabel="Delete all"
+        cancelLabel="Keep them"
+        onConfirm={() => { setInverters([]); setOwners({}); onClearPanelSelection(); onSelectInverter(null); setConfirmDeleteAll(false); }}
+        onCancel={() => setConfirmDeleteAll(false)}
+      />
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear all connections?"
+        message="Every panel is disconnected from its inverter. Your inverters stay, and you can undo this."
+        confirmLabel="Clear assignments"
+        cancelLabel="Keep them"
+        onConfirm={() => { setOwners({}); onClearPanelSelection(); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
+      />
+
       <div className="pde-inv-nav">
         {onBack && <button className="pde-btn" onClick={onBack}>← Back</button>}
         <button className="pde-primary-btn" onClick={onNext}>Next: Output estimate →</button>
       </div>
-
-      <ConfirmDialog
-        open={confirmRebalance}
-        title="Re-balance connections?"
-        message="This replaces every grid connection you have now, re-spreading the grids across your current inverters (including any empty ones). Your inverters are kept. You can undo it."
-        confirmLabel="Re-balance"
-        cancelLabel="Keep mine"
-        danger={false}
-        onConfirm={() => { setConfirmRebalance(false); fillExisting(true); }}
-        onCancel={() => setConfirmRebalance(false)}
-      />
-      <ConfirmDialog
-        open={confirmAuto}
-        title="Replace current inverters?"
-        message="Auto-assign replaces every inverter and connection you have now with a fresh suggestion."
-        confirmLabel="Replace"
-        cancelLabel="Keep mine"
-        onConfirm={runAutoAssign}
-        onCancel={() => setConfirmAuto(false)}
-      />
     </div>
   );
 }
