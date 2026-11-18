@@ -262,6 +262,21 @@ function roofFrame(azimuthDeg: number) {
   return { r: { x: Math.cos(t), y: -Math.sin(t) }, f: { x: Math.sin(t), y: Math.cos(t) } };
 }
 
+// True when the polygon is a rectangle (4 vertices, every corner ~90°).
+// Only then do a single "length" and "width" mean anything.
+export function isRectangle(poly: Array<{ x: number; y: number }> | null | undefined, tolDeg = 2) {
+  if (!poly || poly.length !== 4) return false;
+  const tol = Math.sin((tolDeg * Math.PI) / 180);
+  for (let i = 0; i < 4; i++) {
+    const a = poly[i], b = poly[(i + 1) % 4], c = poly[(i + 2) % 4];
+    const ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y;
+    const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+    if (lu < 1e-9 || lv < 1e-9) return false;
+    if (Math.abs(ux * vx + uy * vy) / (lu * lv) > tol) return false;
+  }
+  return true;
+}
+
 export function orientedRoofExtents(poly: Array<{ x: number; y: number }>, azimuthDeg: number) {
   const { r, f } = roofFrame(azimuthDeg);
   const as = poly.map((p) => p.x * r.x + p.y * r.y);

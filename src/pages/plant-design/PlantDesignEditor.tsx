@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, isRectangle, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -4610,7 +4610,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         }
         if ((u1 - u0) * (v1 - v0) < best) { best = (u1 - u0) * (v1 - v0); bw = Math.min(u1 - u0, v1 - v0); bl = Math.max(u1 - u0, v1 - v0); }
       }
-      const dims = Number.isFinite(bw) ? ` · ${formatLength(bw, units, 1)} × ${formatLength(bl, units, 1)}` : '';
+      const dims = Number.isFinite(bw) && isRectangle(poly) ? ` · ${formatLength(bw, units, 1)} × ${formatLength(bl, units, 1)}` : '';
       const pitched = r.type === 'pitched';
       const sloped = pitched ? plan / Math.max(0.05, Math.cos(((r.pitchDeg || 0) * Math.PI) / 180)) : plan;
       return { r, i, plan, sloped, pitched, dims };
@@ -6804,8 +6804,10 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                         <button data-tooltip="Dimensions" aria-label="Dimensions" className={iconBtn(rightPanelOpenGroup === 'roofDims')} onClick={() => toggleGroup('roofDims')}><RulerIcon /></button>
                         <RailPopover open={rightPanelOpenGroup === 'roofDims'} width={300}>
                             <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>Dimensions</div>
+                            {(!selectedRoof.polygon || isRectangle(selectedRoof.polygon)) && (<>
                             <div style={sliderRowStyle}>{sliderRowLabel('Width', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.width.toFixed(1) : selectedRoof.width} onChange={(v) => resizeRoof(selectedRoof.id, 'width', v)} /></div>
                             <div style={sliderRowStyle}>{sliderRowLabel('Length', units)}<SliderInput unit={units} numberWidth={58} min={1} max={150} hardMax={1000} step={0.1} value={bounds ? +bounds.length.toFixed(1) : selectedRoof.length} onChange={(v) => resizeRoof(selectedRoof.id, 'length', v)} /></div>
+                            </>)}
                             <div style={sliderRowStyle}>{sliderRowLabel(selectedRoof.type === 'pitched' ? 'Building height (eave)' : 'Building height', units)}<SliderInput unit={units} numberWidth={58} min={0} max={50} hardMax={1000} step={0.5} value={selectedRoof.buildingHeight} onChange={(v) => updateRoof(selectedRoof.id, 'buildingHeight', v)} /></div>
                             {selectedRoof.type === 'pitched' && (
                               // A pitched roof's building height is its eave (the low
@@ -6819,7 +6821,9 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                             <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={50} step={0.1} value={selectedRoof.boundaryHeight ?? 0} onChange={(v) => updateRoof(selectedRoof.id, 'boundaryHeight', v)} /></div>
                             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                               {selectedRoof.polygon
-                                ? `${selectedRoof.polygon.length} points. Width runs along the panel rows, length across them — or drag corner handles on the 2D plan.`
+                                ? (isRectangle(selectedRoof.polygon)
+                                  ? `${selectedRoof.polygon.length} points. Width runs along the panel rows, length across them — or drag corner handles on the 2D plan.`
+                                  : `${selectedRoof.polygon.length} points. Drag corner handles on the 2D plan to reshape.`)
                                 : 'Drag corner handles on the 2D plan to resize.'}
                             </div>
                         </RailPopover>
@@ -7152,7 +7156,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                 </>
                             ) : isDrawn ? (
                               <>
-                                  {(() => {
+                                  {isRectangle(selectedObstacle.polygon) && (() => {
                                     const ext = orientedRoofExtents(selectedObstacle.polygon, longestEdgeFrameAzimuth(selectedObstacle.polygon));
                                     return (
                                       <>
@@ -7175,7 +7179,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                                       <div style={sliderRowStyle}>{sliderRowLabel('Boundary', units)}<SliderInput unit={units} numberWidth={58} min={0} max={5} hardMax={50} step={0.1} value={selectedObstacle.boundaryHeight ?? 0} onChange={(v) => updateObstacle(selectedObstacle.id, 'boundaryHeight', v)} /></div>
                                     </>
                                   )}
-                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4 }}>Length runs along its longest edge. {selectedObstacle.polygon?.length ?? 0} points — drag corners on the 2D plan to reshape, or the shape to move it.</div>
+                                  <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4 }}>{isRectangle(selectedObstacle.polygon) ? 'Length runs along its longest edge. ' : ''}{selectedObstacle.polygon?.length ?? 0} points — drag corners on the 2D plan to reshape, or the shape to move it.</div>
                                 </>
                             ) : selectedObstacle.shape === 'cylinder' ? (
                               <>

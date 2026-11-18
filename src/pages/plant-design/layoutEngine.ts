@@ -1448,11 +1448,28 @@ export function columnMatch(grid, panelId) {
     if (!rows.has(p.rackY)) rows.set(p.rackY, []);
     rows.get(p.rackY).push(p);
   });
-  const matches: any[] = [];
-  rows.forEach((ps) => {
-    const near = ps.reduce((b, p) => (Math.abs(p.rackX - clicked.rackX) < Math.abs(b.rackX - clicked.rackX) ? p : b), ps[0]);
-    if (Math.abs(near.rackX - clicked.rackX) < Math.min(near.w, clicked.w) / 2) matches.push(near);
-  });
+  // Walk outward from the clicked row, matching each row against the
+  // previous row's match rather than the clicked panel itself: a tapered
+  // or rotated roof shifts each row sideways a little, and the accumulated
+  // shift would otherwise exceed the half-panel tolerance a few rows away
+  // and break the column. A row with nothing in reach is skipped and the
+  // reference stays where it was.
+  const ys = [...rows.keys()].sort((p, q) => p - q);
+  const start = ys.indexOf(clicked.rackY);
+  const matches: any[] = [clicked];
+  const walk = (step: number) => {
+    let refX = clicked.rackX;
+    for (let i = start + step; i >= 0 && i < ys.length; i += step) {
+      const ps = rows.get(ys[i]);
+      const near = ps.reduce((b, p) => (Math.abs(p.rackX - refX) < Math.abs(b.rackX - refX) ? p : b), ps[0]);
+      if (Math.abs(near.rackX - refX) < Math.min(near.w, clicked.w) / 2) {
+        matches.push(near);
+        refX = near.rackX;
+      }
+    }
+  };
+  walk(1);
+  walk(-1);
   return { clicked, matches };
 }
 
@@ -1468,8 +1485,12 @@ export function deleteGridColumn(grid, panelId, roof) {
 
   const removeIds = new Set(matches.map((p) => p.id));
   const panels = grid.panels.filter((p) => !removeIds.has(p.id));
-  const left = panels.filter((p) => p.rackX < clicked.rackX);
-  const right = panels.filter((p) => p.rackX >= clicked.rackX);
+  // Split relative to the removed panel in each panel's own row, since the
+  // column may slant across rows on a tapered roof.
+  const removedX = new Map(matches.map((m) => [m.rackY, m.rackX]));
+  const isLeft = (p) => p.rackX < (removedX.has(p.rackY) ? removedX.get(p.rackY) : clicked.rackX);
+  const left = panels.filter(isLeft);
+  const right = panels.filter((p) => !isLeft(p));
   if (!left.length || !right.length) {
     return [{ ...withRecomputedTotals(grid, panels), footprintPolygon: footprintPolygonFromPanels(panels, direction) ?? grid.footprintPolygon }];
   }
