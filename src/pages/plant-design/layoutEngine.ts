@@ -779,6 +779,8 @@ export function reparentGridToRoof(grid, newRoof, location) {
     const local = toSlopeLocal({ x: p.x, y: p.y }, direction);
     return { ...p, rackX: local.x, rackY: local.y };
   });
+  const snapped = snapRowYs(panels);
+  panels.splice(0, panels.length, ...snapped);
   const isPitched = newRoof.type === 'pitched';
   const tilt = grid.panelTiltDeg != null
     ? grid.panelTiltDeg
@@ -975,7 +977,32 @@ export function gridDirection(grid, roof) {
   return roof?.type === 'pitched' ? getPitchedRoofSlopeAzimuth(roof) : 'S';
 }
 
+// Panels in one row can end up with rackY values that differ by float noise
+// (re-deriving rackX/rackY from world x/y after a grid move round-trips each
+// panel separately). Everything here groups rows by exact rackY, so such a
+// row would split into pieces - delete-row picked part of it and add-row
+// copied only part of it. Snap every rackY within 1e-6 of the previous one
+// to a single value. Returns the same array when nothing needed snapping.
+export function snapRowYs<T extends { rackY: number }>(panels: T[]): T[] {
+  const ys = [...new Set(panels.map((p) => p.rackY))].sort((a, b) => a - b);
+  const snap = new Map<number, number>();
+  let base = NaN;
+  ys.forEach((y) => {
+    if (Number.isFinite(base) && y - base < 1e-6) { if (y !== base) snap.set(y, base); }
+    else base = y;
+  });
+  if (!snap.size) return panels;
+  return panels.map((p) => (snap.has(p.rackY) ? { ...p, rackY: snap.get(p.rackY)! } : p));
+}
+
+export function snapGridRows(grid) {
+  if (!grid?.panels) return grid;
+  const panels = snapRowYs(grid.panels);
+  return panels === grid.panels ? grid : { ...grid, panels };
+}
+
 function withRecomputedTotals(grid, panels) {
+  panels = snapRowYs(panels);
   const wattPerPanel = grid.count > 0 ? grid.capacityKW / grid.count : 0;
   return { ...grid, panels, count: panels.length, capacityKW: panels.length * wattPerPanel };
 }

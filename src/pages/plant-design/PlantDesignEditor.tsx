@@ -41,6 +41,8 @@ import {
   gridAddRun,
   gridAddBlock, growAddSlotExt, ADD_SLOT_LOOKAHEAD,
   appendGridPanels,
+  snapRowYs,
+  snapGridRows,
   gridRackToWorld,
   deleteGridRow,
   deleteGridColumn,
@@ -474,7 +476,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // (see regenerateLayouts). `selectedRoofId` drives which one's
   // properties are shown/edited in the left panel and which one's corner
   // handles are draggable on the plan.
-  const [roofs, setRoofs] = useState<any[]>(initialDesignData?.roofs ?? []);
+  const [roofs, setRoofs] = useState<any[]>(() => (initialDesignData?.roofs ?? []).map((r) => (r.grids ? { ...r, grids: r.grids.map(snapGridRows) } : r)));
   // A grid-drag's own mouseup handler (see startGridDrag/handleMouseUp
   // below) needs the *latest* roofs - including every position update the
   // drag's own mousemove handler just applied - to correctly detect which
@@ -990,11 +992,11 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
         const direction = gridDirection(g, roof);
         const offsetX = (g.panels[0]?.w || 1) + 0.5;
         const newId = Date.now() + Math.floor(Math.random() * 1000);
-        const panels = g.panels.map((p) => {
+        const panels = snapRowYs(g.panels.map((p) => {
           const nx = p.x + offsetX, ny = p.y;
           const local = toSlopeLocal({ x: nx, y: ny }, direction);
           return { ...p, x: nx, y: ny, rackX: local.x, rackY: local.y };
-        });
+        }));
         const footprintPolygon = g.footprintPolygon.map((pt) => ({ x: pt.x + offsetX, y: pt.y }));
         newKeys.push(gridKey(roofId, newId));
         return { ...g, id: newId, panels, footprintPolygon, rotation: 0 };
@@ -1125,11 +1127,14 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   }
 
   // Adds whichever of `added` fit (fittingAdditions); returns how many.
-  function addToGrid(roofId, gridId, added) {
+  // `ignoreObstacles` (the "+" row/column handles): the whole row/column is
+  // added even where it overlaps an obstacle - the overlap just stays
+  // visible, so the count always matches what was asked for.
+  function addToGrid(roofId, gridId, added, ignoreObstacles = false) {
     const roof = roofs.find((r) => r.id === roofId);
     const grid = findGrid(roofId, gridId);
     if (!roof || !grid) return 0;
-    const ok = fittingAdditions(roof, grid, added);
+    const ok = ignoreObstacles ? added : fittingAdditions(roof, grid, added);
     if (ok.length) {
       updateRoofGrids(roofId, (grids) => grids.map((g) => (g.id === gridId ? appendGridPanels(g, roof, ok) : g)));
       setOutputResult(null);
@@ -2105,7 +2110,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
       if (count <= 0) return;
       const roof = roofs.find((r) => r.id === d.roofId);
       const grid = findGrid(d.roofId, d.gridId);
-      if (roof && grid) addToGrid(d.roofId, d.gridId, previewGridAdd(grid, roof, d.side, count));
+      if (roof && grid) addToGrid(d.roofId, d.gridId, previewGridAdd(grid, roof, d.side, count), true);
     }
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
@@ -2124,7 +2129,7 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
     const grid = findGrid(addDrag.roofId, addDrag.gridId);
     if (!roof || !grid) return null;
     const added = previewGridAdd(grid, roof, addDrag.side, addDrag.count);
-    const okSet = new Set(fittingAdditions(roof, grid, added));
+    const okSet = new Set(added);
     const word = addDrag.side === 'front' || addDrag.side === 'back' ? 'row' : 'column';
     const skipped = added.length - okSet.size;
     return {
@@ -3562,13 +3567,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           if (g.id !== o.gridId) return g;
           const direction = gridDirection(g, roof);
           const panelById = new Map(o.panels.map((p) => [p.id, p]) as [any, any][]);
-          const panels = g.panels.map((p) => {
+          const panels = snapRowYs(g.panels.map((p) => {
             const origin: any = panelById.get(p.id);
             if (!origin) return p;
             const nx = origin.x + dx, ny = origin.y + dy;
             const local = toSlopeLocal({ x: nx, y: ny }, direction);
             return { ...p, x: nx, y: ny, rackX: local.x, rackY: local.y };
-          });
+          }));
           const footprintPolygon = o.footprintPolygon.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
           return { ...g, panels, footprintPolygon };
         }));
@@ -3678,13 +3683,13 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
           if (!origin) return g;
           const direction = gridDirection(g, r);
           const panelById = new Map(origin.panels.map((p) => [p.id, p]) as [any, any][]);
-          const panels = g.panels.map((p) => {
+          const panels = snapRowYs(g.panels.map((p) => {
             const o: any = panelById.get(p.id);
             if (!o) return p;
             const nx = o.x + dx, ny = o.y + dy;
             const local = toSlopeLocal({ x: nx, y: ny }, direction);
             return { ...p, x: nx, y: ny, rackX: local.x, rackY: local.y };
-          });
+          }));
           const footprintPolygon = origin.footprintPolygon.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
           return { ...g, panels, footprintPolygon };
         });
