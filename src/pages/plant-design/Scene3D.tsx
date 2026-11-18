@@ -465,13 +465,13 @@ function Tree({ obstacle, baseHeight, selected = false }) {
   return (
     <group>
       <mesh position={[tx, baseHeight + trunkHeight / 2, tz]} castShadow receiveShadow>
-        <cylinderGeometry args={[trunkRadius, trunkRadius * 1.3, trunkHeight, 8]} />
+        <cylinderGeometry args={[trunkRadius, trunkRadius * 1.3, trunkHeight, 24]} />
         <meshStandardMaterial color={selColor(selected, '#6b4a2f')} />
       </mesh>
 
       {canopy === 'cone' && (
         <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} castShadow receiveShadow>
-          <coneGeometry args={[foliageRadius, foliageHeight, 10]} />
+          <coneGeometry args={[foliageRadius, foliageHeight, 32]} />
           <meshStandardMaterial color={selColor(selected, '#3f6b3a')} />
         </mesh>
       )}
@@ -482,7 +482,7 @@ function Tree({ obstacle, baseHeight, selected = false }) {
           to be a sphere of the foliage height, ignoring the radius). */}
       {canopy === 'round' && (
         <mesh position={[tx, foliageBaseY + foliageHeight / 2, tz]} scale={[foliageRadius, foliageHeight / 2, foliageRadius]} castShadow receiveShadow>
-          <sphereGeometry args={[1, 12, 10]} />
+          <sphereGeometry args={[1, 32, 20]} />
           <meshStandardMaterial color={selColor(selected, '#4a7a3f')} />
         </mesh>
       )}
@@ -833,7 +833,7 @@ function LightningArrestor({ obstacle, baseHeight, selected = false }) {
   return (
     <group>
       <mesh position={[tx, baseHeight + h / 2, tz]} castShadow>
-        <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 8]} />
+        <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 24]} />
         <meshStandardMaterial color={selColor(selected, '#3a3a3a')} metalness={0.6} roughness={0.4} />
       </mesh>
       <mesh position={[tx, baseHeight + h, tz]} castShadow>
@@ -879,7 +879,7 @@ function Obstacle({ obstacle, baseHeight, selected, onSelect, isDragClick, slope
     <LightningArrestor obstacle={obstacle} baseHeight={baseHeight} selected={selected} />
   ) : obstacle.shape === 'cylinder' ? (
     <mesh position={[tx, centerY, tz]} castShadow receiveShadow>
-      <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 16]} />
+      <cylinderGeometry args={[obstacle.radius, obstacle.radius, h, 64]} />
       <meshStandardMaterial color={selColor(selected, '#7d7d7d')} />
     </mesh>
   ) : obstacle.shape === 'polygon' ? (

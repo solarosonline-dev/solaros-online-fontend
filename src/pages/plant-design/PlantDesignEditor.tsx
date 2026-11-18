@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 're
 import { useBlocker } from 'react-router-dom';
 import type { PlantDesignData, PlantDesignEditorProps } from './types.js';
 import './PlantDesignEditor.css';
-import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, isRectangle, polygonsOverlapPoint, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
+import { getRoofPolygon, reflectPointAcrossLine, pointInPolygon, toSlopeLocal, toSlopeWorld, roofUsablePolygon, slopeDirectionAzimuth, getRoofAzimuth, autoRoofAzimuth, edgeAlignedAzimuth, azimuthOffset, orientedRoofExtents, isRectangle, polygonsOverlapPoint, resizeRoofPolygon, longestEdgeFrameAzimuth, convexPolygonsOverlap, polygonsIntersect, rotatePoints, longEdgeAngle, obstacleFootprintPoints, packingAzimuth, roofSurfaceHeightAt, treeTrunkHeight, isFlushOnSlope, obstacleBlockRadius } from './geometry.js';
 import { solarPosition } from './solarMath.js';
 import { metersPerPixel } from '../../components/map/geoConvert.js';
 import { buildLocationPreviewImage, buildWideLocationPreviewImage } from '../../components/map/staticMap.js';
@@ -2449,35 +2449,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // second look; the +0.3m below mirrors isBlockedAt's own clearance.
   function panelOverlapsObstacle(panel, obstacle, grid = null, roof = null) {
     const halfW = panel.w / 2, halfD = panel.d / 2;
-    const dx = panel.x - obstacle.x, dy = panel.y - obstacle.y;
+    // The panel's real (rotated) footprint. This is the *highlight* test, so
+    // it flags actual overlap only - the 0.3m keep-clear band Fill roof
+    // packs with (generateLayout's isBlockedAt) is deliberately not counted,
+    // or panels merely near an obstacle showed as overlapping it.
+    const poly = grid && roof
+      ? panelFootprint(panel, grid, roof, 0.02)
+      : [[-halfW, -halfD], [halfW, -halfD], [halfW, halfD], [-halfW, halfD]].map(([lx, ly]) => ({ x: panel.x + lx, y: panel.y + ly }));
     if (obstacle.shape === 'box') {
-      return Math.abs(dx) < halfW + obstacle.width / 2 + 0.3 && Math.abs(dy) < halfD + obstacle.depth / 2 + 0.3;
+      return convexPolygonsOverlap(poly, obstacleFootprintPoints(obstacle).slice(1));
     }
     if (obstacle.shape === 'polygon' && obstacle.polygon) {
-      // A drawn obstacle (elevation/skylight/walkway/cutout) can be an
-      // arbitrary, non-rectangular shape (a triangle, an L, ...) - testing
-      // against its own bounding box (as this used to) flags every panel
-      // in that box's corners too, even ones nowhere near the actual
-      // shape (very visible on anything but a rectangle). Testing the
-      // panel's own center and four corners against the real polygon
-      // instead only flags a panel that's actually inside it or has a
-      // corner clipping across an edge of it.
-      const corners = [
-        { x: panel.x, y: panel.y },
-        { x: panel.x - halfW, y: panel.y - halfD },
-        { x: panel.x + halfW, y: panel.y - halfD },
-        { x: panel.x - halfW, y: panel.y + halfD },
-        { x: panel.x + halfW, y: panel.y + halfD },
-      ];
-      return corners.some((c) => pointInPolygon(c, obstacle.polygon));
+      return polygonsIntersect(poly, obstacle.polygon);
     }
-    // cylinder (tree/tank/vent/chimney-adjacent round obstacles)
-    // Exact: distance from the obstacle's centre to the panel's real
-    // (rotated) rectangle, not a circle sized to the panel's longer half.
-    const poly = grid && roof
-      ? panelFootprint(panel, grid, roof, 0)
-      : [[-halfW, -halfD], [halfW, -halfD], [halfW, halfD], [-halfW, halfD]].map(([lx, ly]) => ({ x: panel.x + lx, y: panel.y + ly }));
-    const R = obstacleBlockRadius(obstacle) + 0.3;
+    // cylinder (tree/tank/vent/chimney-adjacent round obstacles): exact
+    // distance from the obstacle's centre to the panel's rectangle.
+    const R = obstacleBlockRadius(obstacle);
     if (pointInPolygon({ x: obstacle.x, y: obstacle.y }, poly)) return true;
     return poly.some((a, i) => {
       const b = poly[(i + 1) % poly.length];
@@ -6142,15 +6129,8 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                 clear them - see ROOF_FIELDS_NEEDING_REPACK). Scene3D does
                 the same via its ghostPanels prop. */}
             <g opacity={currentStep === 3 ? 0.15 : 1} style={currentStep === 3 ? { pointerEvents: 'none' } : undefined}>
-            {roofs.flatMap((roof) => roof.grids.flatMap((g) =>
-              (instantByGrid[gridKey(roof.id, g.id)]?.shadowPolys || []).map((poly, i) => (
-                <polygon
-                  key={`${roof.id}-${g.id}-${i}`}
-                  points={poly.map((p) => { const s = toScreen(p.x, p.y); return `${s.sx},${s.sy}`; }).join(' ')}
-                  fill="rgba(20,20,30,0.28)"
-                />
-              ))
-            ))}
+            {/* Obstacle shadow polygons are no longer drawn on the 2D plan
+                (they cluttered it); the 3D view still shows real shadows. */}
 
             {roofs.flatMap((roof) => roof.grids.flatMap((g) => {
               const shadedIds = instantByGrid[gridKey(roof.id, g.id)]?.shadedIds || new Set();

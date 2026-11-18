@@ -374,6 +374,22 @@ export function longestEdgeFrameAzimuth(poly: Array<{ x: number; y: number }>): 
 // their interiors overlap. Touching edges/corners don't count, so two
 // panels butted edge-to-edge (or sharing a grid's own small gap) never
 // read as overlapping.
+// True when two simple polygons (convex or not) share any area: an edge of
+// one crosses an edge of the other, or one lies inside the other.
+export function polygonsIntersect(a: Array<{ x: number; y: number }>, b: Array<{ x: number; y: number }>): boolean {
+  const cross = (o, p, q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+  const segs = (p1, p2, p3, p4) => {
+    const d1 = cross(p3, p4, p1), d2 = cross(p3, p4, p2), d3 = cross(p1, p2, p3), d4 = cross(p1, p2, p4);
+    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+  };
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < b.length; j++) {
+      if (segs(a[i], a[(i + 1) % a.length], b[j], b[(j + 1) % b.length])) return true;
+    }
+  }
+  return pointInPolygon(a[0], b) || pointInPolygon(b[0], a);
+}
+
 export function convexPolygonsOverlap(a: Array<{ x: number; y: number }>, b: Array<{ x: number; y: number }>): boolean {
   for (const poly of [a, b]) {
     for (let i = 0; i < poly.length; i++) {
@@ -666,11 +682,14 @@ export function shadowPolygon(o, elevation, azimuth, relativeHeight = o.height, 
   } else if (o.shape === 'polygon') {
     footprint = o.polygon;
   } else {
+    // A circle, not the 4-point diamond this used to be - the shadow overlay
+    // drew that diamond right inside a round tank. 24 points keeps the hull
+    // (and the shading tests against it) smooth and still cheap.
     const r = o.radius;
-    footprint = [
-      { x: o.x - r, y: o.y }, { x: o.x, y: o.y - r },
-      { x: o.x + r, y: o.y }, { x: o.x, y: o.y + r },
-    ];
+    footprint = Array.from({ length: 24 }, (_, i) => {
+      const t = (i / 24) * Math.PI * 2;
+      return { x: o.x + r * Math.cos(t), y: o.y + r * Math.sin(t) };
+    });
   }
   const projected = footprint.map((p) => ({ x: p.x + dx, y: p.y + dy }));
   const base = Lb > 0 ? footprint.map((p) => ({ x: p.x + bx, y: p.y + by })) : footprint;
