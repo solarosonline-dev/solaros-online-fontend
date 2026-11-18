@@ -41,6 +41,7 @@ import {
   gridAddRun,
   gridAddBlock, growAddSlotExt, ADD_SLOT_LOOKAHEAD,
   appendGridPanels,
+  gridRackInfo,
   snapRowYs,
   snapGridRows,
   gridRackToWorld,
@@ -948,6 +949,22 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
   // (move, rotate, delete, duplicate, settings change) goes through this.
   function updateRoofGrids(roofId, updater) {
     setRoofs((rs) => rs.map((r) => (r.id === roofId ? { ...r, grids: updater(r.grids) } : r)));
+  }
+
+  // Per-rack minimum pillar height: sets (or, with null, clears) the
+  // override on every panel of the rack, so it applies to the whole rack.
+  function setRackPillarHeight(roofId, gridId, panelIds, value) {
+    const ids = new Set(panelIds);
+    updateRoofGrids(roofId, (grids) => grids.map((g) => (g.id !== gridId ? g : {
+      ...g,
+      panels: g.panels.map((p) => {
+        if (!ids.has(p.id)) return p;
+        if (value == null) { const { minPillarHeight: _drop, ...rest } = p; return rest; }
+        return { ...p, minPillarHeight: value };
+      }),
+    })));
+    setOutputResult(null);
+    setCost(null);
   }
 
   function deleteSelectedGrids() {
@@ -7586,10 +7603,42 @@ export default function PlantDesignEditor({ initialDesignData, onSave, onCapture
                               {sliderRowLabel('Min pillar', units)}
                               <SliderInput
                                 unit={units} numberWidth={58} min={0} max={5} hardMax={20} step={0.05}
-                                value={gridOwnerRoof.minPillarHeight ?? 0}
+                                value={+(gridOwnerRoof.minPillarHeight ?? 0).toFixed(3)}
                                 onChange={(v) => updateRoof(gridOwnerRoof.id, 'minPillarHeight', v)}
                               />
                             </div>
+                            {(() => {
+                              // Whole racks (all the rows sharing one set of
+                              // pillars) can stand at their own height instead.
+                              const racks = gridRackInfo(selectedGrid);
+                              if (racks.length === 0) return null;
+                              return (
+                                <div style={{ marginTop: 12 }}>
+                                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Min pillar by rack</div>
+                                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6, lineHeight: 1.4 }}>
+                                    Racks run front to back. A rack with its own height ignores the roof's value above; the rest follow it.
+                                  </div>
+                                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                                    {racks.map((rk) => (
+                                      <div key={rk.index} style={{ marginBottom: 6 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: rk.minPillarHeight != null ? '#8e44ad' : '#555', marginBottom: 2 }}>
+                                          <span>Rack {rk.index + 1} · {rk.rows} row{rk.rows === 1 ? '' : 's'} · {rk.panelIds.length} panels</span>
+                                          {rk.minPillarHeight != null && (
+                                            <button type="button" className={btn(false)} style={{ padding: '1px 6px', fontSize: 10 }}
+                                              onClick={() => setRackPillarHeight(gridOwnerRoof.id, selectedGrid.id, rk.panelIds, null)}>Reset</button>
+                                          )}
+                                        </div>
+                                        <SliderInput
+                                          unit={units} numberWidth={58} min={0} max={5} hardMax={20} step={0.05}
+                                          value={+(rk.minPillarHeight ?? gridOwnerRoof.minPillarHeight ?? 0).toFixed(3)}
+                                          onChange={(v) => setRackPillarHeight(gridOwnerRoof.id, selectedGrid.id, rk.panelIds, v)}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                         </RailPopover>
                       </div>
 

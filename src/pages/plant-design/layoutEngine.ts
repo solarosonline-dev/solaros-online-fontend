@@ -1558,6 +1558,17 @@ const MAX_BRACE_BASE_MARGIN = 0.3;
 // Same as Scene3D's BoundaryWall thickness (the wall stands inside the roof outline).
 const BOUNDARY_WALL_THICKNESS = 0.12;
 const DEFAULT_MIN_PILLAR_HEIGHT = 0.15; // fallback when roof.minPillarHeight isn't set
+
+// A rack (the rows sharing one set of pillars) can carry its own minimum
+// pillar height instead of the roof's: it's stored on the rack's panels
+// (`panel.minPillarHeight`, set on every panel of the rack) so it travels
+// with them when the grid is moved or rows are added/deleted. Returns how
+// much higher/lower than the roof's value this rack's pillars stand (0 when
+// no panel in the rack has an override).
+function rackPillarDelta(panels, roofMin) {
+  const p = (panels || []).find((q) => q.minPillarHeight != null);
+  return p ? p.minPillarHeight - roofMin : 0;
+}
 // The two support bars cross each panel at 20%/80% of its own depth, not
 // right at its edges - roughly where real racking clamps go to minimize
 // cantilever bending.
@@ -1883,8 +1894,21 @@ function* iterateRacks(layout) {
 
     const xSegments = runs.flatMap((segPanels) => splitRunByRowCoverage(segPanels, footprintDepth, rackYs));
 
-    yield { rackYs, rackTop, rackDepth, xSegments, rowMap };
+    yield { rackYs, rackTop, rackDepth, xSegments, rowMap, panels: rackPanels };
   }
+}
+
+// The racks of a grid, front to back, for the per-rack pillar height UI:
+// how many rows and panels each holds, and its own minimum pillar height
+// (null = it follows the roof's). A rack is what shares one set of pillars.
+export function gridRackInfo(grid) {
+  const racks: any[] = [];
+  let index = 0;
+  for (const { rackYs, panels } of iterateRacks(grid)) {
+    const override = panels.find((p) => p.minPillarHeight != null);
+    racks.push({ index: index++, rows: rackYs.length, panelIds: panels.map((p) => p.id), minPillarHeight: override ? override.minPillarHeight : null });
+  }
+  return racks;
 }
 
 // The Y coordinate (world, pre-azimuth-rotation) of the roof's own front
@@ -2043,13 +2067,14 @@ function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
   const crossSlope = isPitched ? pitchedRoofDeck(roof, layout).tanAlongX : 0;
 
   for (const { rackTop, rackDepth, panels } of groups) {
+    const delta = rackPillarDelta(panels, minPillarHeight);
     panels.forEach((p) => {
       const footprintFrontY = p.rackY - footprintDepth / 2;
       const footprintBackY = footprintFrontY + footprintDepth;
       if (pitchedHeight) {
         panelHeights.set(p.id, {
-          frontHeight: pitchedHeight(footprintFrontY, p.rackX, rackTop, rackDepth) + PANEL_PLANE_OFFSET,
-          backHeight: pitchedHeight(footprintBackY, p.rackX, rackTop, rackDepth) + PANEL_PLANE_OFFSET,
+          frontHeight: pitchedHeight(footprintFrontY, p.rackX, rackTop, rackDepth) + delta + PANEL_PLANE_OFFSET,
+          backHeight: pitchedHeight(footprintBackY, p.rackX, rackTop, rackDepth) + delta + PANEL_PLANE_OFFSET,
           crossSlope,
         });
         return;
@@ -2057,8 +2082,8 @@ function heightsForPanelGroups(groups, { roof, layout, minPillarHeight }) {
       const frontOffset = footprintFrontY - rackTop;
       const backOffset = frontOffset + footprintDepth;
       panelHeights.set(p.id, {
-        frontHeight: minPillarHeight + frontOffset * Math.tan(tiltRad) + PANEL_PLANE_OFFSET,
-        backHeight: minPillarHeight + backOffset * Math.tan(tiltRad) + PANEL_PLANE_OFFSET,
+        frontHeight: minPillarHeight + delta + frontOffset * Math.tan(tiltRad) + PANEL_PLANE_OFFSET,
+        backHeight: minPillarHeight + delta + backOffset * Math.tan(tiltRad) + PANEL_PLANE_OFFSET,
       });
     });
   }
@@ -2148,14 +2173,17 @@ function computeTrussStructure({ roof, layout }) {
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
   const onRoof = rooftopLegs(roof, layout);
-  const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
+  const baseHeightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
   const totals = {};
 
-  for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
+  for (const { rackTop, rackDepth, xSegments, panels: rackPanels } of iterateRacks(layout)) {
+    // This rack's own pillar height, if it has one (see rackPillarDelta).
+    const padDelta = rackPillarDelta(rackPanels, minPillarHeight);
+    const heightAtY = (y, rt, x, rd) => baseHeightAtY(y, rt, x, rd) + padDelta;
     const centerY = rackTop + rackDepth / 2;
 
     const pieceLines = supportLinesForPieces(xSegments);
@@ -2230,14 +2258,17 @@ function computeGroundMountStructure({ roof, layout }) {
   const minPillarHeight = roof.minPillarHeight ?? DEFAULT_MIN_PILLAR_HEIGHT;
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
   const onRoof = rooftopLegs(roof, layout);
-  const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
+  const baseHeightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
   let racks: any[] = [];
   const totals = {};
 
-  for (const { rackTop, rackDepth, xSegments } of iterateRacks(layout)) {
+  for (const { rackTop, rackDepth, xSegments, panels: rackPanels } of iterateRacks(layout)) {
+    // This rack's own pillar height, if it has one (see rackPillarDelta).
+    const padDelta = rackPillarDelta(rackPanels, minPillarHeight);
+    const heightAtY = (y, rt, x, rd) => baseHeightAtY(y, rt, x, rd) + padDelta;
     const centerY = rackTop + rackDepth / 2;
 
     const pieceLines = supportLinesForPieces(xSegments);
@@ -2419,7 +2450,7 @@ function computeSteppedTrussStructure({ roof, layout }) {
   // correct for this strategy's grids too.
   const pitchedHeight = isPitched ? pitchedRackHeight(roof, layout, minPillarHeight) : null;
   const onRoof = rooftopLegs(roof, layout);
-  const heightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
+  const baseHeightAtY = (y, rackTop, x, rackDepth) => pitchedHeight
     ? pitchedHeight(y, x, rackTop, rackDepth)
     : minPillarHeight + (y - rackTop) * Math.tan(tiltRad);
 
@@ -2438,6 +2469,8 @@ function computeSteppedTrussStructure({ roof, layout }) {
   });
   for (const bay of bays) {
     const { rackTop, rackDepth, xStart, xEnd, rowYs } = bay;
+    const padDelta = rackPillarDelta(bay.panels, minPillarHeight);
+    const heightAtY = (y, rt, x, rd) => baseHeightAtY(y, rt, x, rd) + padDelta;
     const centerY = rackTop + rackDepth / 2;
     const halfDepth = rackDepth / 2;
     const midX = (xStart + xEnd) / 2;
