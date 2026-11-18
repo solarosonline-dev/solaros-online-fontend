@@ -127,10 +127,20 @@ wizard), but `index.css` wasn't purely that.
   packs every grid on the site into a shared inverter fleet
   (`assignSiteToInverters`, pooling small grids - see "Electrical design"
   below for the algorithm and two gotchas worth reading before touching
-  it).
-- `SldView.tsx` — renders `assignSiteToInverters`'s output as a single-line
-  diagram (SVG schematic + string/MPPT schedule table + plant details).
-  Step 7 shows it with its live inverter/string-sizing controls; the Design
+  it). **No longer the live design path**: inverters are now added and wired
+  by hand (see "Inverters & wiring" at the end of this file) and this only
+  seeds the one-time conversion of designs saved before that existed;
+  `splitIntoStrings` is still used everywhere.
+- `inverterWiring.ts` / `inverterPlacement.ts` / `InvertersPanel.tsx` — the
+  explicit-inverter model (inverters, per-panel ownership, evaluation,
+  suggested assignment), where each inverter physically sits (wall/ground,
+  auto-placement, snapping), and the Inverters & wiring step's left panel
+  plus its canvas overlay. All documented in "Inverters & wiring" below.
+- `SldView.tsx` — renders `evaluateSite`'s per-inverter output (each
+  inverter carries its own spec; same shape `assignSiteToInverters` used to
+  return) as a single-line diagram (SVG schematic + string/MPPT schedule
+  table + plant details). Step 7 shows it with only the MPPT voltage
+  utilization control (inverters are edited in step 4.5); the Design
   Report (step 8) embeds a read-only copy (`embedded` prop: full height,
   diagram fitted to the page width, no controls). It has no export button
   of its own any more.
@@ -825,8 +835,9 @@ config.
 
 The whole module is a strict-but-revisitable 8-step wizard (`STEPS`,
 `currentStep` + `maxUnlockedStep`): Project & Location → Configuration →
-Roof setup → Panel/Grid setup → Output estimate → Cost estimate (hidden,
-see `visibleSteps`) → Electrical Design (SLD) → Design Report. `goToStep`/`advanceToStep` are the only two
+Roof setup → Panel/Grid setup → **Inverters & wiring (step 4.5)** → Output
+estimate → Cost estimate (hidden, see `visibleSteps`) → Electrical Design
+(SLD) → Design Report. `goToStep`/`advanceToStep` are the only two
 places that change `currentStep` — `advanceToStep` also raises
 `maxUnlockedStep`; a step's own tab in the step bar is clickable once
 `step <= maxUnlockedStep`, and going back never re-locks anything
@@ -927,14 +938,15 @@ just silently cleared whatever grid was actually selected.
 
 ## Electrical design
 
-`sitePlan` (`PlantDesignEditor.tsx`, a `useMemo`) is the hinge: it
-flattens every roof's every non-empty grid into `{key, label, panelCount,
-centroid}` (centroid = the average of `grid.footprintPolygon`'s points,
-already in the same site-wide plan coordinates as everything else — no
-conversion needed) and calls `assignSiteToInverters`
-(`gridInverterAssignment.ts`). Its result feeds both the Step 4
-layout-summary box (per-grid: which inverter(s), tagged `(shared)` when
-pooled) and `SldView.tsx` (step 7).
+`sitePlan` (`PlantDesignEditor.tsx`, a `useMemo`) is the hinge: it is
+`evaluateSite()` (`inverterWiring.ts`) over the hand-added `inverters` and
+the per-panel `panelOwners` (see "Inverters & wiring" at the end of this
+file), and feeds the Step 4 layout summary, the Inverters & wiring cards
+and canvas, `SldView.tsx` (step 7) and the Design Report. Everything below
+about `assignSiteToInverters`/`assignGridToInverters` describes the
+original auto-packing algorithm, which now only runs for the one-time
+conversion of old designs — but the string/MPPT maths (`sizeStrings`,
+`splitIntoStrings`) is shared and still live.
 
 **`sizeStrings` (`stringSizing.ts`)** is the temperature-corrected core
 every other calc in this phase builds on: `tempCorrectedVoltage` applies a
